@@ -6,6 +6,12 @@ Contiene: Avvia/Ferma, barra di avanzamento, area log testuale, campi
 numero prompt / temperatura / timeout, pulsante "Calibra idle" e campo di
 lettura della potenza idle calibrata. Il lavoro pesante gira in un thread;
 la comunicazione con Tk avviene solo via ``after()``.
+
+Sorgente dei Test (Modalita' di Input Universale): radiobutton con due
+opzioni dinamiche — A) Dataset Esterno CSV (pulsante "Sfoglia..." per file
+generati da tool esterni tipo MUDILab, colonna prompt + eventuale
+ground_truth/expected_result) oppure B) Prompt Manuale (textarea, un prompt
+per riga). I test NON sono mai hardcodati nel framework.
 """
 from __future__ import annotations
 
@@ -57,6 +63,49 @@ class BenchmarkPanel(ttk.LabelFrame):
         self.btn_stop.pack(side="left", padx=2)
         ttk.Button(btns, text="Calibra idle", command=self.calibrate_idle).pack(side="left", padx=8)
 
+        # ---------------- sorgente dei test (universale) ---------------------
+        src = ttk.LabelFrame(self, text="Sorgente dei Test")
+        src.pack(fill="x", padx=6, pady=(4, 2))
+
+        self.var_test_mode = tk.StringVar(value="csv")
+        rb_csv = ttk.Radiobutton(
+            src, text="Dataset Esterno (File CSV)", value="csv",
+            variable=self.var_test_mode, command=self._on_test_mode_change,
+        )
+        rb_manual = ttk.Radiobutton(
+            src, text="Prompt Manuale", value="manual",
+            variable=self.var_test_mode, command=self._on_test_mode_change,
+        )
+        rb_csv.grid(row=0, column=0, sticky="w", padx=6, pady=(2, 0))
+        rb_manual.grid(row=0, column=1, sticky="w", padx=12, pady=(2, 0))
+
+        # --- A) fila CSV: entry percorso + Sfoglia + info parsing ------------
+        self.csv_frame = ttk.Frame(src)
+        self.csv_frame.grid(row=1, column=0, columnspan=2, sticky="ew", padx=6, pady=2)
+        self.var_csv_path = tk.StringVar(value="")
+        self.csv_entry = ttk.Entry(self.csv_frame, textvariable=self.var_csv_path)
+        self.csv_entry.pack(side="left", fill="x", expand=True, padx=(0, 4))
+        ttk.Button(self.csv_frame, text="Sfoglia...", width=10,
+                   command=self.browse_csv).pack(side="left")
+        self.csv_info = ttk.Label(src, text="Nessun CSV caricato. Colonne attese: "
+                                            "prompt (o text/question/input/query); opzionale "
+                                            "ground_truth (o expected_result).",
+                                  foreground="gray")
+        self.csv_info.grid(row=2, column=0, columnspan=2, sticky="w", padx=8, pady=(0, 2))
+
+        # --- B) fila manuale: textarea, un prompt per riga --------------------
+        self.manual_frame = ttk.Frame(src)
+        self.manual_text = tk.Text(self.manual_frame, height=4, wrap="word",
+                                   font=("Consolas", 9))
+        self.manual_text.pack(fill="x", padx=6, pady=2)
+        ttk.Label(self.manual_frame,
+                  text="Digita o incolla i prompt: uno per riga (andare a capo li separa)."
+                  ).pack(anchor="w", padx=8, pady=(0, 3))
+
+        src.columnconfigure(0, weight=1)
+        src.columnconfigure(1, weight=1)
+        self._on_test_mode_change()  # stato iniziale widget dinamici
+
         # ------------------------- progress + log ----------------------------
         self.progress = ttk.Progressbar(self, mode="determinate", maximum=100)
         self.progress.pack(fill="x", padx=6, pady=(4, 2))
@@ -75,6 +124,61 @@ class BenchmarkPanel(ttk.LabelFrame):
             return getattr(config, name, fallback)
         except Exception:
             return fallback
+
+    # ------------------------------------------------- sorgente dei test -----
+    def _on_test_mode_change(self):
+        """Mostra SOLO i widget della modalita' selezionata (pulito/dinamico)."""
+        mode = self.var_test_mode.get()
+        for frame in (self.csv_frame, self.manual_frame):
+            frame.grid_forget()
+        if mode == "manual":
+            self.manual_frame.grid(row=1, column=0, columnspan=2, sticky="ew", padx=0, pady=2)
+            self.csv_info.grid_remove()
+        else:
+            self.csv_frame.grid(row=1, column=0, columnspan=2, sticky="ew", padx=6, pady=2)
+            self.csv_info.grid()
+
+    def browse_csv(self):
+        """Apre il file dialog e precarica/valida il dataset esterno."""
+        try:
+            from tkinter import filedialog
+
+            path = filedialog.askopenfilename(
+                title="Seleziona dataset CSV (output tool esterni, es. MUDILab)",
+                filetypes=[("CSV", "*.csv"), ("Tutti i file", "*.*")],
+            )
+            if not path:
+                return
+            self.var_csv_path.set(path)
+            self._preview_csv(path)
+        except Exception as exc:
+            self.log(f"Errore apertura file dialog: {exc}")
+
+    def _preview_csv(self, path: str):
+        """Validazione immediata del CSV: mostra n. prompt e presenza GT."""
+        try:
+            from test_source import load_prompts_from_csv
+
+            items, err = load_prompts_from_csv(path)
+        except Exception as exc:
+            items, err = [], f"{type(exc).__name__}: {exc}"
+        if items:
+            n_gt = sum(1 for it in items if it.get("ground_truth"))
+            txt = (f"CSV OK: {len(items)} prompt caricati; ground_truth presente "
+                   f"per {n_gt}" + (" (accuratezza valutata dove disponibile)"
+                                    if n_gt else " (accuratezza -> N/A: solo metriche energetiche)"))
+            self.csv_info.config(text=txt, foreground="#1a7f37")
+            self.log(txt + f" — file: {path}")
+        else:
+            self.csv_info.config(text=f"CSV non valido: {err}", foreground="#b35900")
+            self.log(f"CSV non valido: {err}")
+
+    def get_test_source_kwargs(self) -> dict:
+        """Estrapola la selezione corrente per il runner (usato anche da CLI)."""
+        mode = self.var_test_mode.get()
+        if mode == "manual":
+            return {"test_mode": "manual", "manual_text": self.manual_text.get("1.0", "end")}
+        return {"test_mode": "csv", "csv_path": self.var_csv_path.get().strip()}
 
     # ------------------------------------------------------------------- log
     def log(self, msg: str):
@@ -130,6 +234,32 @@ class BenchmarkPanel(ttk.LabelFrame):
         if not local_models and not cloud_sel:
             self.log("Seleziona almeno un modello locale o cloud prima di avviare.")
             return
+
+        # convalida sorgente dei test PRIMA di avviare il thread (GUI: niente
+        # fallback silenzioso, errore esplicito a video)
+        src_kwargs = self.get_test_source_kwargs()
+        try:
+            from test_source import load_test_source
+
+            items, err = load_test_source(
+                mode=src_kwargs["test_mode"],
+                csv_path=src_kwargs.get("csv_path"),
+                manual_text=src_kwargs.get("manual_text"),
+                fallback_config=False,
+            )
+        except Exception as exc:
+            items, err = [], f"{type(exc).__name__}: {exc}"
+        if not items:
+            self.log(f"Impossibile avviare: sorgente test non valida — {err}")
+            return
+        n_gt = sum(1 for it in items if it.get("ground_truth"))
+        self.log(
+            f"Sorgente test selezionata: {len(items)} prompt "
+            f"({src_kwargs['test_mode']}); ground truth per {n_gt} "
+            + ("-> accuratezza valutata tramite confronto"
+               if n_gt else "-> accuratezza N/A: verranno salvate solo le metriche energetiche/di latenza")
+        )
+
         self._stop_event.clear()
         self.progress["value"] = 0
         self._set_running(True)
@@ -137,6 +267,7 @@ class BenchmarkPanel(ttk.LabelFrame):
         self.log(
             f"Avvio benchmark — locali: {local_models or '-'} | "
             f"cloud: {[c['model'] for c in cloud_sel] or '-'} | "
+            f"sorgente: {src_kwargs['test_mode']} | "
             f"prompt: {self.var_num_prompts.get()} T={self.var_temperature.get()} "
             f"timeout={self.var_timeout.get()}s"
         )
@@ -150,6 +281,7 @@ class BenchmarkPanel(ttk.LabelFrame):
             on_progress=lambda i, n: self._q.put(("progress", (i, n))),
             stop_event=self._stop_event,
             skip_idle_calibration=SESSION_has_idle(),
+            **src_kwargs,
         )
         self._worker = threading.Thread(
             target=self._run_worker, kwargs=kwargs, daemon=True, name="cw-benchmark"

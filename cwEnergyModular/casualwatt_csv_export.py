@@ -19,6 +19,8 @@ CSV_COLUMNS: List[str] = [
     "run_id", "session_id", "timestamp_start", "timestamp_end",
     "model_name", "model_label", "provider", "mode", "ollama_pid",
     "prompt_id", "prompt",
+    # tracciabilita' sorgente test (Modalita' di Input Universale)
+    "test_source", "ground_truth", "eval_mode",
     # performance
     "duration_s", "input_tokens", "output_tokens", "total_tokens",
     "tokens_per_second", "prefill_duration_s", "decoding_duration_s",
@@ -107,7 +109,9 @@ RUN_METADATA_COLUMNS = [
     "cpu_model", "cpu_logical_cores", "gpu_nvml_name", "gpu_nvml_available",
     "cpu_energy_source_method", "cpu_energy_source_notes",
     "ollama_endpoint", "ollama_models_selected", "cloud_models_selected",
-    "num_prompts", "temperature", "timeout_s",
+    "num_prompts", "test_source_mode", "test_source_csv",
+    "test_source_items_total", "test_ground_truth_count",
+    "temperature", "timeout_s",
     "idle_power_w", "idle_calibrated_at",
     "ecologits_version", "electricity_maps_used",
     "records_written", "results_csv", "notes",

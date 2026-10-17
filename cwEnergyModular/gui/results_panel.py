@@ -19,6 +19,7 @@ CSV_VIEW_COLUMNS = [
     ("model_label", "Modello", 170),
     ("mode", "Mode", 60),
     ("prompt_id", "Prompt", 90),
+    ("test_source", "Sorgente", 72),
     ("duration_s", "Latenza (s)", 80),
     ("input_tokens", "Token in", 72),
     ("output_tokens", "Token out", 78),
@@ -56,7 +57,9 @@ def _fmt_cell(cid: str, raw) -> str:
     """Formattazione pulita per la tabella dei risultati."""
     rule = _COL_FORMAT.get(cid)
     if rule is None:
-        return "" if raw is None else str(raw)
+        return "N/A" if raw == "N/A" else ("" if raw is None else str(raw))
+    if raw == "N/A":  # valutazione saltata: mostrato esplicitamente
+        return "N/A"
     try:
         fv = float(raw)
     except (TypeError, ValueError):

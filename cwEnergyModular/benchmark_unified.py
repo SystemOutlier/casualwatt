@@ -239,9 +239,34 @@ def query_cloud(provider_cfg: Dict, model: str, prompt: str, temperature: float,
 # ---------------------------------------------------------------------------
 # Costruzione record (sezione 11 + regole 12)
 # ---------------------------------------------------------------------------
+def _na_or(v):
+    """None -> 'N/A' esplicito nel CSV (valutazione saltata per riga)."""
+    return "N/A" if v is None else v
+
+
+def _resolve_eval_mode(prompt: Dict, explicit: Optional[str] = None) -> str:
+    """Sceglie il regime di valutazione in base ai dati RICEVUTI dal test.
+
+    - ground_truth presente nel dataset esterno   -> 'auto' (usa la GT);
+    - item marcato causale (flag/id/contenuto)    -> 'causal' (sez. 10);
+    - altrimenti                                  -> 'skip' (solo energia).
+    L'override esplicito ('auto'|'causal'|'skip') ha sempre priorita'.
+    """
+    if explicit:
+        return explicit.strip().lower()
+    if prompt.get("ground_truth"):
+        return "auto"
+    pid = str(prompt.get("id", "")).lower()
+    txt = str(prompt.get("text", "")).lower()
+    if prompt.get("causal") or "causal" in pid or ("cause" in txt and "effect" in txt):
+        return "causal"
+    return "skip"
+
+
 def _basic_record(run_id, session_id, model_name, model_label, provider, mode,
                   ollama_pid, prompt, evalres) -> Dict:
     ci = get_carbon_intensity()
+    gt = prompt.get("ground_truth") if isinstance(prompt, dict) else None
     rec = {
         "run_id": run_id,
         "session_id": session_id,
@@ -254,12 +279,16 @@ def _basic_record(run_id, session_id, model_name, model_label, provider, mode,
         "ollama_pid": ollama_pid if ollama_pid is not None else "",
         "prompt_id": prompt["id"],
         "prompt": prompt["text"],
-        "is_correct": evalres.is_correct,
-        "causal_accuracy": evalres.causal_accuracy,
-        "explanation_quality": evalres.explanation_quality,
-        "cosine_similarity": evalres.cosine_sim,
-        "n_correct_links": evalres.n_correct_links,
-        "acc_comp": evalres.acc_comp,
+        # tracciabilita' sorgente test (Modalita' di Input Universale)
+        "test_source": prompt.get("source", "unknown"),
+        "ground_truth": gt if gt not in (None, "") else "N/A",
+        "eval_mode": getattr(evalres, "eval_mode", "skipped"),
+        "is_correct": _na_or(evalres.is_correct),
+        "causal_accuracy": _na_or(evalres.causal_accuracy),
+        "explanation_quality": _na_or(evalres.explanation_quality),
+        "cosine_similarity": _na_or(evalres.cosine_sim),
+        "n_correct_links": _na_or(evalres.n_correct_links),
+        "acc_comp": _na_or(evalres.acc_comp),
         "tool_calls": 1 if evalres.is_tool else 0,
         "pyagrum_calls": 0,
         "llm_calls": 1,
@@ -293,33 +322,50 @@ def _basic_record(run_id, session_id, model_name, model_label, provider, mode,
 
 def _finalize_energy_fields(rec: Dict, local_j: float, network_j: float, cloud_j: float,
                             evalres) -> None:
-    """Applica le regole 12.1/12.2 e i derivati ECE/EPCL."""
+    """Applica le regole 12.1/12.2 e i derivati ECE/EPCL.
+
+    Con valutazione saltata/N/A (regime senza ground truth) i derivati di
+    accuratezza restano 'N/A': mai sostituiti con 0 o valori fittizi.
+    """
     rec["local_energy_j"] = round(local_j, 9)
     rec["network_energy_j"] = round(network_j, 9)
     rec["cloud_energy_j"] = round(cloud_j, 9)
     rec["end_to_end_energy_j"] = round(local_j + network_j + cloud_j, 9)
 
     e2e = rec["end_to_end_energy_j"]
-    out_tok = int(rec.get("output_tokens") or 0)
+    try:
+        out_tok = int(rec.get("output_tokens") or 0)
+    except (TypeError, ValueError):
+        out_tok = 0
     rec["energy_per_output_token_j"] = round(e2e / out_tok, 9) if out_tok > 0 else ""
 
-    n_correct = evalres.n_correct_links
-    rec["energy_per_correct_answer_j"] = (
-        round(e2e / n_correct, 9) if n_correct > 0 else ""
-    )
-    # ECE per joule: accuratezza composita / energia端到端 (J) — dichiarato
-    rec["ece_per_joule"] = (
-        round(evalres.acc_comp / e2e, 9) if e2e > 0 else ""
-    )
-    # EPCL: Joule per causal link corretto (lower is better)
-    rec["epcl_j_per_link"] = (
-        round(e2e / n_correct, 9) if n_correct > 0 else ""
-    )
+    n_correct = getattr(evalres, "n_correct_links", None)
+    acc_comp = getattr(evalres, "acc_comp", None)
 
-    kwh = e2e / 3_600_000.0
+    # energia per risposta corretta: ha senso solo se la valutazione c'e'
+    if n_correct is None:
+        rec["energy_per_correct_answer_j"] = "N/A"
+    else:
+        rec["energy_per_correct_answer_j"] = (
+            round(e2e / n_correct, 9) if n_correct > 0 else ""
+        )
+    # ECE per joule: accuratezza composita / energia end-to-end (J) — dichiarato
+    if acc_comp is None:
+        rec["ece_per_joule"] = "N/A"
+    else:
+        rec["ece_per_joule"] = round(acc_comp / e2e, 9) if e2e > 0 else ""
+    # EPCL: Joule per causal link corretto (lower is better)
+    if n_correct is None:
+        rec["epcl_j_per_link"] = "N/A"
+    else:
+        rec["epcl_j_per_link"] = round(e2e / n_correct, 9) if n_correct > 0 else ""
+
     rec["local_energy_kwh"] = round(rec["local_energy_j"] / 3_600_000.0, 12)
     rec["cloud_energy_kwh"] = round(rec["cloud_energy_j"] / 3_600_000.0, 12)
-    ci_val = float(rec["local_carbon_intensity_gco2eq_kwh"])
+    try:
+        ci_val = float(rec["local_carbon_intensity_gco2eq_kwh"])
+    except (TypeError, ValueError):
+        ci_val = 0.0
     rec["local_emissions_gco2eq"] = round(rec["local_energy_kwh"] * ci_val, 9)
 
 
@@ -338,6 +384,11 @@ def run_unified_benchmark(
     run_id: Optional[str] = None,
     session_id: Optional[str] = None,
     skip_idle_calibration: bool = False,
+    # --- Modalita' di Input Universale (sorgente dei test) -----------------
+    test_mode: str = "default",        # 'csv' | 'manual' | 'default'
+    csv_path: Optional[str] = None,    # dataset esterno (es. output MUDILab)
+    manual_text: Optional[str] = None, # prompt digitati a mano, uno per riga
+    eval_mode_override: Optional[str] = None,  # 'auto'|'causal'|'skip' (opz.)
 ) -> Dict:
     """Esegue il benchmark completo. Ritorna un summary dict. Mai solleva."""
     local_models = list(local_models or [])
@@ -359,7 +410,38 @@ def run_unified_benchmark(
         "csv_path": str(config.CSV_RESULTS_PATH),
     }
 
-    prompts = config.load_prompts()[: max(int(num_prompts), 1)]
+    # ---- sorgente dei test: ricevuta dALL'ESTERNO, mai hardcodata ---------
+    try:
+        from test_source import load_test_source
+
+        prompts_all, src_err = load_test_source(
+            mode=test_mode,
+            csv_path=csv_path,
+            manual_text=manual_text,
+            fallback_config=True,
+        )
+    except Exception as exc:
+        prompts_all, src_err = [], f"modulo test_source non disponibile: {exc}"
+    if not prompts_all:
+        msg = f"Sorgente test vuota o non valida ({src_err}); uso dataset config"
+        log(msg)
+        try:
+            prompts_all = [
+                {"id": p.get("id", f"cfg-{i+1:03d}"), "text": p["text"],
+                 "ground_truth": p.get("ground_truth"), "source": "config"}
+                for i, p in enumerate(config.load_prompts())
+            ]
+        except Exception:
+            prompts_all = []
+    prompts = prompts_all[: max(int(num_prompts), 1)]
+    src_kinds = sorted({p.get("source", "?") for p in prompts})
+    n_gt = sum(1 for p in prompts if p.get("ground_truth"))
+    log(
+        f"Sorgente test: {test_mode} ({', '.join(src_kinds)}) — "
+        f"{len(prompts)} prompt selezionati su {len(prompts_all)} disponibili; "
+        f"ground_truth presente per {n_gt} prompt"
+        + (" (valutazione accuratezza -> N/A dove assente)" if n_gt < len(prompts) else "")
+    )
     total_tasks = len(prompts) * (len(local_models) + len(cloud_selection))
     done = 0
     records: List[Dict] = []
@@ -412,7 +494,11 @@ def run_unified_benchmark(
                 resp_data, local = query_ollama(
                     model, pr["text"], temperature, timeout_s
                 )
-                evalres = evaluate_response(resp_data["text"], is_tool=False)
+                evalres = evaluate_response(
+                    resp_data["text"], is_tool=False,
+                    ground_truth=pr.get("ground_truth"),
+                    mode=_resolve_eval_mode(pr, eval_mode_override),
+                )
                 rec.update(
                     timestamp_start=datetime.fromtimestamp(t_wall0, tz=timezone.utc).isoformat(timespec="seconds"),
                     timestamp_end=datetime.now(timezone.utc).isoformat(timespec="seconds"),
@@ -446,14 +532,15 @@ def run_unified_benchmark(
                     gpu_attribution_method=local.gpu_attribution_method,
                     measurement_boundary=local.measurement_boundary,
                 )
-                # riscrive qualita' con valutazione reale
+                # riscrive qualita' con valutazione reale (N/A se saltata)
                 rec.update(
-                    is_correct=evalres.is_correct,
-                    causal_accuracy=evalres.causal_accuracy,
-                    explanation_quality=evalres.explanation_quality,
-                    cosine_similarity=evalres.cosine_sim,
-                    n_correct_links=evalres.n_correct_links,
-                    acc_comp=evalres.acc_comp,
+                    eval_mode=evalres.eval_mode,
+                    is_correct=_na_or(evalres.is_correct),
+                    causal_accuracy=_na_or(evalres.causal_accuracy),
+                    explanation_quality=_na_or(evalres.explanation_quality),
+                    cosine_similarity=_na_or(evalres.cosine_sim),
+                    n_correct_links=_na_or(evalres.n_correct_links),
+                    acc_comp=_na_or(evalres.acc_comp),
                 )
                 # regola 12.1: rete e cloud ZERO; locale = solo Ollama attiva+GPU attribuita
                 local_j = local.ollama_active_energy_j + local.gpu_energy_attributed_j
@@ -465,7 +552,7 @@ def run_unified_benchmark(
                 log(
                     f"[OK local] {model} | {pr['id']} | {resp_data['duration_s']:.2f}s | "
                     f"E_ollama={local.ollama_active_energy_j:.2f} J "
-                    f"(share {local.cpu_time_share:.2f}) | acc={evalres.acc_links:.1f}"
+                    f"(share {local.cpu_time_share:.2f}) | acc={_acc_log(evalres)}"
                 )
             except Exception as exc:
                 summary["errors"] += 1
@@ -505,7 +592,11 @@ def run_unified_benchmark(
                     resp_data, cloud_res, net_res = query_cloud(
                         pcfg, model, pr["text"], temperature, timeout_s
                     )
-                    evalres = evaluate_response(resp_data["text"], is_tool=bool(resp_data.get("tool_calls")))
+                    evalres = evaluate_response(
+                        resp_data["text"], is_tool=bool(resp_data.get("tool_calls")),
+                        ground_truth=pr.get("ground_truth"),
+                        mode=_resolve_eval_mode(pr, eval_mode_override),
+                    )
                     client_local = cloud_res["client_local"]
                     est = cloud_res["estimation"]
 
@@ -555,12 +646,13 @@ def run_unified_benchmark(
                             "ecologits server-side estimate; hw-profile: " + est.hw_profile
                             + "; zone: " + est.country_code
                         ),
-                        is_correct=evalres.is_correct,
-                        causal_accuracy=evalres.causal_accuracy,
-                        explanation_quality=evalres.explanation_quality,
-                        cosine_similarity=evalres.cosine_sim,
-                        n_correct_links=evalres.n_correct_links,
-                        acc_comp=evalres.acc_comp,
+                        is_correct=_na_or(evalres.is_correct),
+                        causal_accuracy=_na_or(evalres.causal_accuracy),
+                        explanation_quality=_na_or(evalres.explanation_quality),
+                        cosine_similarity=_na_or(evalres.cosine_sim),
+                        n_correct_links=_na_or(evalres.n_correct_links),
+                        acc_comp=_na_or(evalres.acc_comp),
+                        eval_mode=evalres.eval_mode,
                     )
                     cloud_j = est.energy_j or 0.0
                     if est.energy_j is None:
@@ -587,7 +679,7 @@ def run_unified_benchmark(
                     log(
                         f"[OK cloud] {prov_id}/{model} | {pr['id']} | {resp_data['duration_s']:.2f}s | "
                         f"cloud={cloud_j:.3f} J net={net_res.energy_j:.5f} J "
-                        f"client={local_j:.2f} J | acc={evalres.acc_links:.1f}"
+                        f"client={local_j:.2f} J | acc={_acc_log(evalres)}"
                     )
                 except Exception as exc:
                     summary["errors"] += 1
@@ -633,6 +725,10 @@ def run_unified_benchmark(
             "ollama_models_selected": ";".join(local_models),
             "cloud_models_selected": ";".join(f"{s.get('provider')}/{s.get('model')}" for s in cloud_selection),
             "num_prompts": len(prompts),
+            "test_source_mode": test_mode,
+            "test_source_csv": str(csv_path or ""),
+            "test_source_items_total": len(prompts_all),
+            "test_ground_truth_count": n_gt,
             "temperature": temperature,
             "timeout_s": timeout_s,
             "idle_power_w": SESSION.idle_power_w,
@@ -654,9 +750,18 @@ def run_unified_benchmark(
 
 
 def evalres_placeholder():
-    from evaluator import EvaluationResult
+    """Placeholder N/A per record pre-richiesta / percorsi d'errore."""
+    from evaluator import evaluate_skipped
 
-    return EvaluationResult()
+    return evaluate_skipped("richiesta non completata")
+
+
+def _acc_log(evalres) -> str:
+    """Rappresentazione log-friendly dell'accuratezza (N-A-aware)."""
+    v = evalres.causal_accuracy
+    if v is None:
+        return "N/A"
+    return f"{v:.2f} ({getattr(evalres, 'eval_mode', '?')})"
 
 
 def _flush_incremental(records: List[Dict], log) -> None:
