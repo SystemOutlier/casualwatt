@@ -1,0 +1,552 @@
+# -*- coding: utf-8 -*-
+"""
+energy/energy_session.py — Sessione CasualWatt: campionamento continuo.
+
+Questa modulo espone il singleton ``SESSION`` usato da tutti gli altri moduli
+energetici. Un thread daemon campiona a intervallo fisso:
+
+* energia del package CPU (LibreHardwareMonitor via pythonnet, fallback
+  RAPL Linux, fallback stima TDP psutil);
+* tempo CPU busy di sistema (deriva dal ``cpu_times`` globale);
+* istogrammi I/O del processo Ollama (read+write bytes e cpu_times), per
+  poter interpolare con precisione il delta sull'albero dei processi anche
+  quando la query HTTP non passa dal PID padre;
+* contatori NIC (bytes sent/received) per il tracker di rete;
+* potenza GPU NVIDIA (NVML) se disponibile.
+
+Ogni campione e' un ``SystemSample`` ordinato nel tempo: le funzioni di
+profilo in ``local_energy.py`` interpolano linearmente tra i campioni ai bordi
+di una finestra di richiesta.
+"""
+from __future__ import annotations
+
+import threading
+import time
+from dataclasses import dataclass, field
+from typing import Dict, List, Optional
+
+import psutil
+
+try:  # config e' nella cartella padre: import assoluto protetto
+    from config import MONITOR_INTERVAL_S, OLLAMA_PROCESS_NAMES
+except Exception:  # pragma: no cover - contesto di test standalone
+    MONITOR_INTERVAL_S = 0.5
+    OLLAMA_PROCESS_NAMES = ("ollama.exe", "ollama_llama_server.exe", "ollama")
+
+
+# ---------------------------------------------------------------------------
+# Sorgente energia package CPU
+# ---------------------------------------------------------------------------
+class _CPUJouleSource:
+    """Astrae ``package_energy_j`` cumulata; sceglie il backend disponibile."""
+
+    def __init__(self) -> None:
+        self.method = "unavailable"
+        self._lhm = None
+        self._rapl_last: Optional[float] = None
+        self._rapl_base: Optional[float] = None
+        self._tdp_w: Optional[float] = None
+        self._notes: List[str] = []
+
+        if self._try_lhm():
+            self.method = "librehardwaremonitor"
+        elif self._try_rapl():
+            self.method = "rapl"
+        else:
+            self.method = "tdp_estimate"
+            self._tdp_w = self._guess_tdp()
+            self._notes.append(
+                f"stima da TDP ({self._tdp_w:.0f} W) x busy-time CPU; confine: system-wide"
+            )
+
+    # -- backend LHM -------------------------------------------------------
+    def _try_lhm(self) -> bool:
+        try:
+            import clr  # pythonnet
+
+            from config import LHM_DLL_PATH
+
+            if not LHM_DLL_PATH.exists():
+                self._notes.append("LHM dll mancante")
+                return False
+            clr.AddReference(str(LHM_DLL_PATH))
+            from LibreHardwareMonitor.Hardware import Computer  # type: ignore
+
+            comp = Computer()
+            comp.IsCpuEnabled = True
+            comp.IsGpuEnabled = True
+            comp.Open()
+            self._lhm = comp
+            self._notes.append("LibreHardwareMonitorLib agganciata")
+            return True
+        except Exception as exc:  # noqa: BLE001 - degradazione voluta
+            self._notes.append(f"LHM non disponibile ({type(exc).__name__})")
+            return False
+
+    def _lhm_value(self) -> Optional[float]:
+        """Somma Energy-CPU [mJ] dai sensori LHM -> J cumulati monotoni."""
+        if self._lhm is None:
+            return None
+        try:
+            total_mj = 0.0
+            found = False
+            for hw in self._lhm.Hardware:
+                hw.Update()
+                name = str(hw.Name).lower()
+                if "cpu" not in name and "central" not in name:
+                    continue
+                for sensor in hw.Sensors:
+                    stype = str(sensor.Type)
+                    sname = str(sensor.Name).lower()
+                    if ("Energy" in stype or "energy" in sname) and "Power" not in stype:
+                        val = float(sensor.Value)
+                        if val == val:  # NaN check
+                            total_mj += val
+                            found = True
+            if not found:
+                return None
+            self._last_power_from_lhm = getattr(self, "_last_power_from_lhm", None)
+            return total_mj / 1000.0
+        except Exception:
+            return None
+
+    # -- backend RAPL ------------------------------------------------------
+    def _try_rapl(self) -> bool:
+        if not hasattr(psutil, "sensors_cpu_battery") and not _rapl_files_exist():
+            return False
+        try:
+            v = self._rapl_read()
+            if v is None:
+                return False
+            self._rapl_base = v
+            self._notes.append("contatore energy package RAPL (Linux)")
+            return True
+        except Exception:
+            return False
+
+    @staticmethod
+    def _rapl_read() -> Optional[float]:
+        import glob
+
+        candidates: List[str] = []
+        try:
+            candidates += glob.glob(
+                "/sys/class/power_supply/BAT*/energy_*"
+            )  # container-safe proxy
+        except Exception:
+            pass
+        try:
+            candidates += glob.glob("/sys/class/powercap/intel-rapl/intel-rapl:*/energy_uj")
+            candidates += glob.glob(
+                "/sys/devices/virtual/powercap/intel-rapl/intel-rapl:*/energy_uj"
+            )
+        except Exception:
+            pass
+        best: Optional[float] = None
+        for path in candidates:
+            try:
+                with open(path, "r", encoding="ascii") as fh:
+                    val = float(fh.read().strip())
+                if best is None or val > best:
+                    best = val
+            except Exception:
+                continue
+        if best is None:
+            return None
+        return best / 1_000_000.0  # uJ -> J
+
+    def _rapl_value(self) -> Optional[float]:
+        raw = self._rapl_read()
+        if raw is None:
+            return None
+        base = self._rapl_base if self._rapl_base is not None else 0.0
+        # gestisce il wrap-around del contatore
+        delta_guard = raw if raw >= base else raw + 2 ** 32 * 0 + raw
+        return max(raw - base, delta_guard if raw < base else raw - base)
+
+    # -- backend stima TDP -------------------------------------------------
+    @staticmethod
+    def _guess_tdp() -> float:
+        try:
+            import platform
+
+            name = platform.processor().lower()
+            if any(k in name for k in ("14900", "13900", "i9")):
+                return 65.0
+            if "i7" in name or "ryzen 7" in name:
+                return 45.0
+            if "i5" in name or "ryzen 5" in name:
+                return 35.0
+        except Exception:
+            pass
+        return 45.0
+
+    # -- interfaccia comune --------------------------------------------------
+    def read_package_j(self, busy_seconds_total: float) -> Optional[float]:
+        """Energia package CPU CUMULATA da inizio sessione [J].
+
+        ``busy_seconds_total`` e' il tempo CPU busy aggregato di sistema dall'
+        inizio della sessione (usato solo dal backend di stima).
+        """
+        if self.method == "librehardwaremonitor":
+            return self._lhm_value()
+        if self.method == "rapl":
+            return self._rapl_value()
+        if self.method == "tdp_estimate":
+            # Energia attiva stimata = TDP * frazione di core-busy-second
+            # gia' depurata dell'idle: qui busy_seconds_total e' delta busy,
+            # quindi P_idle NON viene incluso (viene sottratto a monte).
+            return (self._tdp_w or 45.0) * busy_seconds_total
+        return None
+
+    @property
+    def notes(self) -> List[str]:
+        return list(self._notes)
+
+
+def _rapl_files_exist() -> bool:
+    import glob
+
+    return bool(
+        glob.glob("/sys/class/powercap/intel-rapl/intel-rapl:*/energy_uj")
+        or glob.glob("/sys/devices/virtual/powercap/intel-rapl/intel-rapl:*/energy_uj")
+    )
+
+
+# ---------------------------------------------------------------------------
+# Campione e sessione
+# ---------------------------------------------------------------------------
+@dataclass
+class SystemSample:
+    t: float                       # timestamp monotono
+    wall: float                    # timestamp wall-clock epoch
+    package_energy_j: Optional[float]   # cumulata da inizio sessione
+    cpu_busy_seconds: float        # secondi CPU busy aggregati da inizio sessione
+    cpu_percent: float             # % media sistema nell'ultimo intervallo
+    ollama_pids: tuple = ()
+    ollama_io_bytes: int = 0       # read+write cumulati albero Ollama
+    ollama_cpu_seconds: float = 0.0  # utime+stime cumulati albero Ollama
+    nic_bytes: int = 0             # sent+received cumulati
+    gpu_power_w: Optional[float] = None
+    gpu_util_pct: Optional[float] = None
+
+
+@dataclass
+class EnergySession:
+    """Singleton di sessione: thread di campionamento + storico campioni."""
+
+    interval_s: float = MONITOR_INTERVAL_S
+
+    def __post_init__(self) -> None:
+        self._lock = threading.RLock()
+        self._samples: List[SystemSample] = []
+        self._thread: Optional[threading.Thread] = None
+        self._stop = threading.Event()
+        self._running = False
+        self._source = _CPUJouleSource()
+        self._proc = psutil.Process()
+        self._t0_wall = time.time()
+        self._cpu_t0 = self._system_busy_seconds()
+        self._gpu = _GPUMonitor()
+        self.idle_power_w: Optional[float] = None
+        self.calibrated_at: Optional[float] = None
+        self.last_error: Optional[str] = None
+
+    # ------------------------------------------------------------------ util
+    @staticmethod
+    def _system_busy_seconds() -> float:
+        """Secondi CPU busy aggregati di sistema (non-idle)."""
+        try:
+            ct = psutil.cpu_times()
+            idle = getattr(ct, "idle", 0.0)
+            ncpu = max(psutil.cpu_count(logical=True) or 1, 1)
+            total_all_cores = sum(
+                v for v in ct if isinstance(v, (int, float))
+            ) * 0  # placeholder, calcolato sotto
+            # busy = (totale per core) - idle, su tutte le CPU logiche
+            per_core_total = 0.0
+            for c in psutil.cpu_times(percpu=True):
+                per_core_total += sum(
+                    v for v in c if isinstance(v, (int, float))
+                )
+            del total_all_cores, ncpu
+            return max(per_core_total - idle * 1.0, 0.0) if idle is not None else per_core_total
+        except Exception:
+            return 0.0
+
+    @staticmethod
+    def _nic_bytes() -> int:
+        try:
+            counters = psutil.net_io_counters()
+            return int(counters.bytes_sent + counters.bytes_recv)
+        except Exception:
+            return 0
+
+    @staticmethod
+    def find_ollama_procs() -> List[int]:
+        """PID dell'albero Ollama (server + worker llama_server)."""
+        pids: List[int] = []
+        wanted = {n.lower() for n in OLLAMA_PROCESS_NAMES}
+        try:
+            for p in psutil.process_iter(["pid", "name"]):
+                try:
+                    nm = (p.info["name"] or "").lower()
+                    if nm in wanted or nm.rstrip(".exe") in {w.rstrip(".exe") for w in wanted}:
+                        pids.append(int(p.info["pid"]))
+                except (psutil.NoSuchProcess, psutil.AccessDenied):
+                    continue
+        except Exception:
+            pass
+        return sorted(set(pids))
+
+    @classmethod
+    def _ollama_tree_stats(cls, pids: List[int]) -> Dict[str, float]:
+        io_bytes = 0
+        cpu_secs = 0.0
+        seen = set()
+        stack = list(pids)
+        while stack:
+            pid = stack.pop()
+            if pid in seen:
+                continue
+            seen.add(pid)
+            try:
+                pr = psutil.Process(pid)
+                with pr.oneshot():
+                    try:
+                        c = pr.io_counters()
+                        io_bytes += int(c.read_bytes + c.write_bytes)
+                    except (AttributeError, psutil.AccessDenied):
+                        pass
+                    ct = pr.cpu_times()
+                    cpu_secs += float(ct.user + ct.system)
+                    stack += [c.pid for c in pr.children(recursive=False)]
+            except (psutil.NoSuchProcess, psutil.ZombieProcess):
+                continue
+            except Exception:
+                continue
+        return {"io_bytes": io_bytes, "cpu_seconds": cpu_secs, "n": len(seen)}
+
+    # ------------------------------------------------------------- sampling
+    def _loop(self) -> None:
+        prev_busy = self._cpu_t0
+        while not self._stop.is_set():
+            try:
+                self._record_once(prev_busy)
+            except Exception as exc:  # il thread non deve mai morire
+                self.last_error = f"{type(exc).__name__}: {exc}"
+            time.sleep(self.interval_s)
+
+    def _record_once(self, prev_busy: float) -> SystemSample:
+        t = time.monotonic()
+        busy = self._system_busy_seconds()
+        pids = self.find_ollama_procs()
+        stats = self._ollama_tree_stats(pids) if pids else {
+            "io_bytes": 0,
+            "cpu_seconds": 0.0,
+            "n": 0,
+        }
+        pkg = self._source.read_package_j(busy - self._cpu_t0)
+        gpu_w, gpu_u = self._gpu.read()
+        try:
+            cpu_pct = psutil.cpu_percent(interval=None)
+        except Exception:
+            cpu_pct = 0.0
+        sample = SystemSample(
+            t=t,
+            wall=time.time(),
+            package_energy_j=pkg,
+            cpu_busy_seconds=max(busy - self._cpu_t0, 0.0),
+            cpu_percent=cpu_pct,
+            ollama_pids=tuple(pids),
+            ollama_io_bytes=int(stats["io_bytes"]),
+            ollama_cpu_seconds=float(stats["cpu_seconds"]),
+            nic_bytes=self._nic_bytes(),
+            gpu_power_w=gpu_w,
+            gpu_util_pct=gpu_u,
+        )
+        with self._lock:
+            self._samples.append(sample)
+            # tetto difensivo alla memoria (~2 h a 0.5 s)
+            if len(self._samples) > 20_000:
+                del self._samples[:2_000]
+        return sample
+
+    def start(self) -> None:
+        with self._lock:
+            if self._running:
+                return
+            self._stop.clear()
+            self._thread = threading.Thread(
+                target=self._loop, name="cw-energy-sampler", daemon=True
+            )
+            self._running = True
+        self._thread.start()
+
+    def stop(self) -> None:
+        with self._lock:
+            if not self._running:
+                return
+            self._stop.set()
+            self._running = False
+        if self._thread is not None:
+            self._thread.join(timeout=2.0)
+            self._thread = None
+
+    @property
+    def running(self) -> bool:
+        return self._running
+
+    @property
+    def source_method(self) -> str:
+        return self._source.method
+
+    @property
+    def source_notes(self) -> List[str]:
+        return self._source.notes
+
+    def latest(self) -> Optional[SystemSample]:
+        with self._lock:
+            return self._samples[-1] if self._samples else None
+
+    def samples_between(self, t_start: float, t_end: float) -> List[SystemSample]:
+        """Campioni con interpolazione lineare ai bordi della finestra."""
+        with self._lock:
+            inside = [s for s in self._samples if t_start <= s.t <= t_end]
+            before = next(
+                (s for s in reversed(self._samples) if s.t < t_start), None
+            )
+            after = next((s for s in self._samples if s.t > t_end), None)
+        out = list(inside)
+        if before is not None and (not inside or inside[0].t - t_start > self.interval_s * 1.5):
+            out.insert(0, self._interpolate(before, inside[0] if inside else after, t_start))
+        if after is not None and (not inside or t_end - inside[-1].t > self.interval_s * 1.5):
+            out.append(self._interpolate(inside[-1] if inside else before, after, t_end))
+        return [s for s in out if s is not None]
+
+    @staticmethod
+    def _interpolate(a: Optional[SystemSample], b: Optional[SystemSample], t: float):
+        if a is None or b is None or b.t == a.t:
+            return a if (a and abs(a.t - t) < 0.4) else (b if (b and abs(b.t - t) < 0.4) else None)
+        frac = (t - a.t) / (b.t - a.t)
+
+        def num(x, y):
+            if x is None or y is None:
+                return None
+            return x + (y - x) * frac
+
+        return SystemSample(
+            t=t,
+            wall=a.wall + (b.wall - a.wall) * frac,
+            package_energy_j=num(a.package_energy_j, b.package_energy_j),
+            cpu_busy_seconds=num(a.cpu_busy_seconds, b.cpu_busy_seconds),
+            cpu_percent=num(a.cpu_percent, b.cpu_percent),
+            ollama_pids=b.ollama_pids or a.ollama_pids,
+            ollama_io_bytes=int(num(float(a.ollama_io_bytes), float(b.ollama_io_bytes)) or 0),
+            ollama_cpu_seconds=float(num(a.ollama_cpu_seconds, b.ollama_cpu_seconds) or 0.0),
+            nic_bytes=int(num(float(a.nic_bytes), float(b.nic_bytes)) or 0),
+            gpu_power_w=num(a.gpu_power_w, b.gpu_power_w),
+            gpu_util_pct=num(a.gpu_util_pct, b.gpu_util_pct),
+        )
+
+    # ------------------------------------------------------------ calibrazione
+    def calibrate_idle(self, seconds: Optional[float] = None) -> float:
+        """Calibra P_idle [W] senza carico: media mobile dei campioni recenti.
+
+        Con contatore reale (LHM/RAPL): pendenza J/s della finestra pulita.
+        Con stima TDP: legge direttamente la potenza equivalente dalla
+        variazione di busy-time (l'implementazione di stima esclude l'idle,
+        quindi si usa un valore conservativo derivato dalla % CPU osservata).
+        Ritorna il valore in W e lo memorizza in ``self.idle_power_w``.
+        """
+        import config as _cfg
+
+        seconds = seconds or _cfg.IDLE_CALIBRATION_SECONDS
+        # svuota lo storico per una finestra pulita
+        with self._lock:
+            self._samples.clear()
+        deadline = time.monotonic() + max(seconds, 2.0)
+        while time.monotonic() < deadline:
+            time.sleep(0.2)
+        with self._lock:
+            win = list(self._samples)
+        if len(win) < 2:
+            raise RuntimeError("calibrazione idle fallita: nessun campione")
+        dt = win[-1].t - win[0].t
+        if dt <= 0:
+            raise RuntimeError("calibrazione idle fallita: finestra nulla")
+        power_w: Optional[float] = None
+        if self._source.method in ("librehardwaremonitor", "rapl"):
+            e0, e1 = win[0].package_energy_j, win[-1].package_energy_j
+            if e0 is not None and e1 is not None and e1 >= e0:
+                power_w = (e1 - e0) / dt
+        if power_w is None:
+            # fallback: busy-based. In regime quasi-idle il numero di core
+            # busy-equivalenti e' bassissimo; usiamo mediana % CPU * TDP
+            # come proxy CONSERVATIVO (min 3 W, max 25 W su macchine mobili).
+            import statistics
+
+            pct = statistics.median(s.cpu_percent for s in win)
+            tdp = self._source._tdp_w or self._source._guess_tdp()
+            power_w = min(max(tdp * (pct / 100.0) / max(psutil.cpu_count(logical=True) or 1, 1) * 2.0, 3.0), 0.25 * tdp)
+        self.idle_power_w = round(power_w, 3)
+        self.calibrated_at = time.time()
+        return self.idle_power_w
+
+
+# ---------------------------------------------------------------------------
+# GPU NVIDIA (NVML) — opzionale, degradazione silenziosa
+# ---------------------------------------------------------------------------
+class _GPUMonitor:
+    def __init__(self) -> None:
+        self.available = False
+        self.handle = None
+        self.index = 0
+        self.name: Optional[str] = None
+        self.error: Optional[str] = None
+        try:
+            import pynvml  # nvidia-ml-py
+
+            pynvml.nvmlInit()
+            count = pynvml.nvmlDeviceGetCount()
+            if count > 0:
+                self.index = 0
+                self.handle = pynvml.nvmlDeviceGetHandleByIndex(self.index)
+                self.name = pynvml.nvmlDeviceGetName(self.handle)
+                if isinstance(self.name, bytes):
+                    self.name = self.name.decode("utf-8", "replace")
+                self.available = True
+            else:
+                self.error = "nessuna GPU NVML"
+        except Exception as exc:  # noqa: BLE001
+            self.error = f"{type(exc).__name__}"
+
+    def read(self):
+        if not self.available:
+            return None, None
+        try:
+            import pynvml
+
+            mw = pynvml.nvmlDeviceGetPowerUsage(self.handle)
+            util = pynvml.nvmlDeviceGetUtilizationRates(self.handle)
+            return float(mw) / 1000.0, float(util.gpu)
+        except Exception:
+            try:
+                import pynvml
+
+                mw = pynvml.nvmlDeviceGetPowerUsage(self.handle)
+                return float(mw) / 1000.0, None
+            except Exception:
+                return None, None
+
+    def shutdown(self) -> None:
+        try:
+            import pynvml
+
+            pynvml.nvmlShutdown()
+        except Exception:
+            pass
+
+
+# Singleton di sessione (sezione 16: ``from .energy_session import SESSION``)
+SESSION = EnergySession()

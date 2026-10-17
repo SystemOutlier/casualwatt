@@ -1,0 +1,663 @@
+# -*- coding: utf-8 -*-
+"""
+benchmark_unified.py — Motore di benchmark CasualWatt (sezione 7).
+
+``run_unified_benchmark`` orchestra, nell'ordine della specifica:
+1. sessione CasualWatt (SESSION.start);
+2. PID Ollama;
+3. calibrazione idle;
+4. CasualWattLocalEnergyProfiler;
+5. NetworkEnergyTracker;
+6. CloudEnergyEstimator;
+7. CarbonIntensityProvider;
+8. esecuzione SOLO modelli locali selezionati;
+9. esecuzione SOLO modelli cloud selezionati;
+10. valutazione accuratezza/ECE/EPCL (evaluator);
+11. export CSV un record per richiesta + run metadata.
+
+Thread-safe rispetto alla GUI: callback ``on_log/on_progress/on_record``,
+cancellazione via ``stop_event``. Nessuna eccezione esce verso l'alto: gli
+errori finiscono in log e nel campo ``notes`` dei record.
+"""
+from __future__ import annotations
+
+import platform
+import threading
+import time
+import uuid
+from datetime import datetime, timezone
+from typing import Callable, Dict, List, Optional
+
+import requests
+
+import config
+from casualwatt_csv_export import export_results_csv, write_run_metadata
+from cloud_estimator import CloudEnergyEstimator, get_cloud_models
+from energy.carbon_intensity import get_carbon_intensity
+from energy.energy_session import SESSION
+from energy.local_energy import CasualWattLocalEnergyProfiler, LocalEnergyResult
+from energy.network_energy import NetworkEnergyTracker
+from evaluator import evaluate_response
+
+APP_VERSION = "1.0.0"
+
+
+# ---------------------------------------------------------------------------
+# Lettura modelli Ollama (sezione 5)
+# ---------------------------------------------------------------------------
+def get_ollama_models(timeout_s: float = 8.0) -> List[Dict]:
+    """GET /api/tags -> [{name,size,modified_at}]. Mai solleva eccezioni."""
+    try:
+        r = requests.get(config.OLLAMA_TAGS_ENDPOINT, timeout=timeout_s)
+        if r.status_code != 200:
+            return []
+        data = r.json()
+        out = []
+        for m in data.get("models", []) or []:
+            out.append(
+                {
+                    "name": m.get("name", ""),
+                    "size": int(m.get("size", 0) or 0),
+                    "modified_at": m.get("modified_at", ""),
+                }
+            )
+        out.sort(key=lambda d: d["name"])
+        return out
+    except Exception:
+        return []
+
+
+# ---------------------------------------------------------------------------
+# Richieste (sezioni 8 e 9)
+# ---------------------------------------------------------------------------
+def _estimate_tokens(prompt_text: str, response_text: str):
+    """Stima token con tiktoken se installato; altrimenti euristica len//4
+    (dichiarata nelle note del record)."""
+    try:
+        import tiktoken
+
+        enc = tiktoken.get_encoding("cl100k_base")
+        return (
+            max(len(enc.encode(prompt_text)), 1),
+            max(len(enc.encode(response_text)), 0),
+        )
+    except Exception:
+        return (
+            max(len(prompt_text) // 4, 1),
+            max(len(response_text) // 4, 0),
+        )
+
+
+def query_ollama(model: str, prompt: str, temperature: float, timeout_s: float,
+                 num_predict: int = 160):
+    """POST /api/generate (stream:false). Ritorna (response_data, local_result).
+
+    response_data: {text, prompt_tokens, completion_tokens, duration_s}
+    local_result : LocalEnergyResult profilato causalmente sulla finestra.
+    """
+    payload = {
+        "model": model,
+        "prompt": prompt,
+        "stream": False,
+        "options": {"temperature": temperature, "num_predict": num_predict},
+    }
+    profiler = CasualWattLocalEnergyProfiler()
+
+    t0 = time.monotonic()
+    wall_start = time.time()
+    resp = requests.post(config.OLLAMA_GENERATE_ENDPOINT, json=payload, timeout=timeout_s)
+    resp.raise_for_status()
+    data = resp.json()
+    t1 = time.monotonic()
+
+    text = data.get("response", "") or ""
+    p_tok = int(data.get("prompt_eval_count") or data.get("prompt_count") or 0)
+    c_tok = int(data.get("eval_count") or 0)
+    tokens_estimated = False
+    if p_tok == 0 or c_tok == 0:
+        tokens_estimated = True
+        est_p, est_c = _estimate_tokens(prompt, text)
+        if p_tok == 0:
+            p_tok = est_p
+        if c_tok == 0:
+            c_tok = est_c
+    resp_data = {
+        "text": text,
+        "prompt_tokens": p_tok,
+        "completion_tokens": c_tok,
+        "duration_s": round(t1 - t0, 6),
+    }
+    # prefill/decoding se Ollama li espone (campi nativi dell'API, in ns)
+    resp_data["prefill_duration_s"] = float(data.get("prompt_eval_duration") or 0) / 1e9
+    resp_data["decoding_duration_s"] = float(data.get("eval_duration") or 0) / 1e9
+    resp_data["raw_created_at"] = data.get("created_at", "")
+    resp_data["tool_calls"] = 0
+    if tokens_estimated:
+        resp_data["_tokens_note"] = "input/output token stimati (tiktoken/euristica len//4)"
+
+    local = profiler.profile_window(t0, t1)
+    resp_data["_t0"] = t0
+    resp_data["_t1"] = t1
+    resp_data["_wall_start"] = wall_start
+    return resp_data, local
+
+
+def query_cloud(provider_cfg: Dict, model: str, prompt: str, temperature: float,
+                timeout_s: float, max_tokens: int = 160):
+    """POST chat/completions OpenAI-compatible.
+
+    Ritorna (response_data, cloud_result, network_result) come da sezione 9.
+    """
+    net = NetworkEnergyTracker()
+    estimator = CloudEnergyEstimator()
+
+    def _do_request():
+        import json as _json
+
+        body = {
+            "model": model,
+            "messages": [{"role": "user", "content": prompt}],
+            "temperature": temperature,
+            "max_tokens": max_tokens,
+            "stream": False,
+        }
+        json_body = _json.dumps(body).encode("utf-8")
+        t0 = time.monotonic()
+        r = requests.post(
+            provider_cfg["chat_endpoint"],
+            headers={
+                "Authorization": f"Bearer {provider_cfg['api_key']}",
+                "Content-Type": "application/json",
+            },
+            data=json_body,
+            timeout=timeout_s,
+        )
+        r.raise_for_status()
+        j = r.json()
+        t1 = time.monotonic()
+        choice = (j.get("choices") or [{}])[0]
+        msg = choice.get("message", {}) or {}
+        usage = j.get("usage") or {}
+        rd = {
+            "text": (msg.get("content") or "").strip(),
+            "prompt_tokens": int(usage.get("prompt_tokens") or 0),
+            "completion_tokens": int(usage.get("completion_tokens") or 0),
+            "duration_s": round(t1 - t0, 6),
+            "_t0": t0,
+            "_t1": t1,
+            "_req_bytes": len(json_body),
+            "_resp_bytes": len(r.content),
+            "tool_calls": bool(msg.get("tool_calls")),
+        }
+        return rd
+
+    resp_data, network_result = net.measure(_do_request)
+
+    # energia locale del CLIENT durante la chiamata cloud (CPU/GPU host utente)
+    profiler = CasualWattLocalEnergyProfiler()
+    client_local = profiler.profile_window(resp_data["_t0"], resp_data["_t1"])
+
+    cloud_est = estimator.estimate(
+        provider=provider_cfg["id"],
+        model_name=model,
+        prompt_tokens=resp_data["prompt_tokens"],
+        completion_tokens=resp_data["completion_tokens"],
+        duration_s=resp_data["duration_s"],
+    )
+
+    resp_data["cloud_energy_j"] = cloud_est.energy_j if cloud_est.energy_j else 0.0
+    resp_data["network_energy_j"] = network_result.energy_j
+    resp_data["network_upload_bytes"] = network_result.upload_bytes
+    resp_data["network_download_bytes"] = network_result.download_bytes
+
+    cloud_result = {
+        "estimation": cloud_est,
+        "client_local": client_local,
+        "provider": provider_cfg["id"],
+        "model": model,
+        "input_tokens": resp_data["prompt_tokens"],
+        "output_tokens": resp_data["completion_tokens"],
+    }
+    return resp_data, cloud_result, network_result
+
+
+# ---------------------------------------------------------------------------
+# Costruzione record (sezione 11 + regole 12)
+# ---------------------------------------------------------------------------
+def _basic_record(run_id, session_id, model_name, model_label, provider, mode,
+                  ollama_pid, prompt, evalres) -> Dict:
+    ci = get_carbon_intensity()
+    rec = {
+        "run_id": run_id,
+        "session_id": session_id,
+        "timestamp_start": "",
+        "timestamp_end": "",
+        "model_name": model_name,
+        "model_label": model_label,
+        "provider": provider,
+        "mode": mode,
+        "ollama_pid": ollama_pid if ollama_pid is not None else "",
+        "prompt_id": prompt["id"],
+        "prompt": prompt["text"],
+        "is_correct": evalres.is_correct,
+        "causal_accuracy": evalres.causal_accuracy,
+        "explanation_quality": evalres.explanation_quality,
+        "cosine_similarity": evalres.cosine_sim,
+        "n_correct_links": evalres.n_correct_links,
+        "acc_comp": evalres.acc_comp,
+        "tool_calls": 1 if evalres.is_tool else 0,
+        "pyagrum_calls": 0,
+        "llm_calls": 1,
+        "retry_count": 0,
+        # default rete/cloud a zero (regola 12.1)
+        "network_energy_j": 0.0,
+        "cloud_energy_j": 0.0,
+        "network_upload_bytes": 0,
+        "network_download_bytes": 0,
+        "network_total_bytes": 0,
+        "network_energy_coefficient_j_per_bit": config.NETWORK_ENERGY_COEFFICIENT_J_PER_BIT,
+        "network_measurement_boundary": "not-applicable (local mode)" if mode == "local" else "",
+        # carbonio: zona/fonte sempre dichiarate
+        "local_carbon_intensity_gco2eq_kwh": ci.gco2eq_per_kwh,
+        "local_carbon_intensity_zone": ci.zone,
+        "local_carbon_intensity_source": ci.source,
+        "local_carbon_intensity_timestamp": datetime.fromtimestamp(
+            ci.timestamp, tz=timezone.utc
+        ).isoformat(timespec="seconds"),
+        "local_emissions_method": "local_energy_kwh x grid carbon intensity (scope-2)",
+        "cloud_carbon_intensity_gco2eq_kwh": "",
+        "cloud_carbon_intensity_zone": "",
+        "cloud_carbon_intensity_source": "",
+        "cloud_carbon_intensity_timestamp": "",
+        "cloud_emissions_method": "ecologits gwp (server-side, scope-2 incl. PUE)",
+        "energibridge_csv": "",
+        "notes": [],
+    }
+    return rec
+
+
+def _finalize_energy_fields(rec: Dict, local_j: float, network_j: float, cloud_j: float,
+                            evalres) -> None:
+    """Applica le regole 12.1/12.2 e i derivati ECE/EPCL."""
+    rec["local_energy_j"] = round(local_j, 9)
+    rec["network_energy_j"] = round(network_j, 9)
+    rec["cloud_energy_j"] = round(cloud_j, 9)
+    rec["end_to_end_energy_j"] = round(local_j + network_j + cloud_j, 9)
+
+    e2e = rec["end_to_end_energy_j"]
+    out_tok = int(rec.get("output_tokens") or 0)
+    rec["energy_per_output_token_j"] = round(e2e / out_tok, 9) if out_tok > 0 else ""
+
+    n_correct = evalres.n_correct_links
+    rec["energy_per_correct_answer_j"] = (
+        round(e2e / n_correct, 9) if n_correct > 0 else ""
+    )
+    # ECE per joule: accuratezza composita / energia端到端 (J) — dichiarato
+    rec["ece_per_joule"] = (
+        round(evalres.acc_comp / e2e, 9) if e2e > 0 else ""
+    )
+    # EPCL: Joule per causal link corretto (lower is better)
+    rec["epcl_j_per_link"] = (
+        round(e2e / n_correct, 9) if n_correct > 0 else ""
+    )
+
+    kwh = e2e / 3_600_000.0
+    rec["local_energy_kwh"] = round(rec["local_energy_j"] / 3_600_000.0, 12)
+    rec["cloud_energy_kwh"] = round(rec["cloud_energy_j"] / 3_600_000.0, 12)
+    ci_val = float(rec["local_carbon_intensity_gco2eq_kwh"])
+    rec["local_emissions_gco2eq"] = round(rec["local_energy_kwh"] * ci_val, 9)
+
+
+# ---------------------------------------------------------------------------
+# Runner principale
+# ---------------------------------------------------------------------------
+def run_unified_benchmark(
+    local_models: Optional[List[str]] = None,
+    cloud_selection: Optional[List[Dict]] = None,  # [{provider, model}]
+    num_prompts: int = config.DEFAULT_NUM_PROMPTS,
+    temperature: float = config.DEFAULT_TEMPERATURE,
+    timeout_s: float = config.DEFAULT_TIMEOUT_S,
+    on_log: Optional[Callable[[str], None]] = None,
+    on_progress: Optional[Callable[[int, int], None]] = None,
+    stop_event: Optional[threading.Event] = None,
+    run_id: Optional[str] = None,
+    session_id: Optional[str] = None,
+    skip_idle_calibration: bool = False,
+) -> Dict:
+    """Esegue il benchmark completo. Ritorna un summary dict. Mai solleva."""
+    local_models = list(local_models or [])
+    cloud_selection = list(cloud_selection or [])
+    log = on_log or (lambda m: None)
+    progress = on_progress or (lambda i, n: None)
+    stop_event = stop_event or threading.Event()
+
+    run_id = run_id or datetime.now().strftime("R%Y%m%d-%H%M%S-") + uuid.uuid4().hex[:6]
+    session_id = session_id or uuid.uuid4().hex[:12]
+    started_wall = datetime.now(timezone.utc)
+
+    summary = {
+        "run_id": run_id,
+        "session_id": session_id,
+        "records": 0,
+        "errors": 0,
+        "cancelled": False,
+        "csv_path": str(config.CSV_RESULTS_PATH),
+    }
+
+    prompts = config.load_prompts()[: max(int(num_prompts), 1)]
+    total_tasks = len(prompts) * (len(local_models) + len(cloud_selection))
+    done = 0
+    records: List[Dict] = []
+
+    # ---- 1. sessione -------------------------------------------------------
+    was_running = SESSION.running
+    if not was_running:
+        SESSION.start()
+        time.sleep(SESSION.interval_s * 2)
+
+    # ---- 2. PID Ollama -----------------------------------------------------
+    ollama_pids = SESSION.find_ollama_procs()
+    primary_pid = ollama_pids[0] if ollama_pids else None
+    log(f"PID Ollama rilevato: {primary_pid if primary_pid else 'NESSUNO (ollama offline?)'} "
+        f"(albero: {ollama_pids})")
+
+    # ---- 3. calibrazione idle ----------------------------------------------
+    if not skip_idle_calibration and SESSION.idle_power_w is None:
+        try:
+            log(f"Calibrazione idle in corso ({config.IDLE_CALIBRATION_SECONDS:.0f} s, non generare carico)…")
+            pw = SESSION.calibrate_idle()
+            log(f"P_idle calibrata: {pw:.2f} W")
+        except Exception as exc:
+            log(f"AVVISO: calibrazione idle fallita ({exc}); uso baseline dichiarata dal profiler")
+
+    # ---- 4/5/6/7. componenti ------------------------------------------------
+    profiler = CasualWattLocalEnergyProfiler()
+    net_tracker = NetworkEnergyTracker()
+    cloud_estimator = CloudEnergyEstimator()
+    _ = get_carbon_intensity()  # CarbonIntensityProvider warm-up
+    log(
+        f"Sorgente energia package CPU: {SESSION.source_method}"
+        + (f" | note: {'; '.join(SESSION.source_notes)}" if SESSION.source_notes else "")
+    )
+
+    providers_by_id = {pid: dict(cfg, id=pid) for pid, cfg in config.CLOUD_PROVIDERS.items()}
+
+    # ---- 8. modelli locali ---------------------------------------------------
+    for model in local_models:
+        for pr in prompts:
+            if stop_event.is_set():
+                summary["cancelled"] = True
+                break
+            rec = _basic_record(
+                run_id, session_id, model, model, "ollama", "local",
+                primary_pid, pr, evalres_placeholder(),
+            )
+            t_wall0 = time.time()
+            try:
+                resp_data, local = query_ollama(
+                    model, pr["text"], temperature, timeout_s
+                )
+                evalres = evaluate_response(resp_data["text"], is_tool=False)
+                rec.update(
+                    timestamp_start=datetime.fromtimestamp(t_wall0, tz=timezone.utc).isoformat(timespec="seconds"),
+                    timestamp_end=datetime.now(timezone.utc).isoformat(timespec="seconds"),
+                    duration_s=resp_data["duration_s"],
+                    input_tokens=resp_data["prompt_tokens"],
+                    output_tokens=resp_data["completion_tokens"],
+                    total_tokens=resp_data["prompt_tokens"] + resp_data["completion_tokens"],
+                    tokens_per_second=(
+                        round(resp_data["completion_tokens"] / resp_data["duration_s"], 3)
+                        if resp_data["duration_s"] > 0 else ""
+                    ),
+                    prefill_duration_s=round(resp_data.get("prefill_duration_s", 0.0), 6),
+                    decoding_duration_s=round(resp_data.get("decoding_duration_s", 0.0), 6),
+                    decoding_tokens_per_second=(
+                        round(resp_data["completion_tokens"] / resp_data["decoding_duration_s"], 3)
+                        if resp_data.get("decoding_duration_s", 0) > 0 else ""
+                    ),
+                    # campi energetici (regola 12.1/12.3)
+                    package_energy_j=local.package_energy_j,
+                    idle_power_w=local.idle_power_w,
+                    baseline_energy_j=local.baseline_energy_j,
+                    active_energy_j=local.active_energy_j,
+                    ollama_active_energy_j=local.ollama_active_energy_j,
+                    cpu_time_share=local.cpu_time_share,
+                    gpu_available=local.gpu_available,
+                    gpu_device_index=("" if local.gpu_device_index is None else local.gpu_device_index),
+                    gpu_board_energy_j=local.gpu_board_energy_j,
+                    gpu_energy_attributed_j=local.gpu_energy_attributed_j,
+                    gpu_utilization_share=local.gpu_utilization_share,
+                    cpu_attribution_method=local.cpu_attribution_method,
+                    gpu_attribution_method=local.gpu_attribution_method,
+                    measurement_boundary=local.measurement_boundary,
+                )
+                # riscrive qualita' con valutazione reale
+                rec.update(
+                    is_correct=evalres.is_correct,
+                    causal_accuracy=evalres.causal_accuracy,
+                    explanation_quality=evalres.explanation_quality,
+                    cosine_similarity=evalres.cosine_sim,
+                    n_correct_links=evalres.n_correct_links,
+                    acc_comp=evalres.acc_comp,
+                )
+                # regola 12.1: rete e cloud ZERO; locale = solo Ollama attiva+GPU attribuita
+                local_j = local.ollama_active_energy_j + local.gpu_energy_attributed_j
+                _finalize_energy_fields(rec, local_j, 0.0, 0.0, evalres)
+                note_parts = list(local.notes) + list(evalres.notes)
+                if resp_data.get("_tokens_note"):
+                    note_parts.append(resp_data["_tokens_note"])
+                rec["notes"] = "; ".join(note_parts)
+                log(
+                    f"[OK local] {model} | {pr['id']} | {resp_data['duration_s']:.2f}s | "
+                    f"E_ollama={local.ollama_active_energy_j:.2f} J "
+                    f"(share {local.cpu_time_share:.2f}) | acc={evalres.acc_links:.1f}"
+                )
+            except Exception as exc:
+                summary["errors"] += 1
+                rec.update(
+                    timestamp_start=datetime.fromtimestamp(t_wall0, tz=timezone.utc).isoformat(timespec="seconds"),
+                    timestamp_end=datetime.now(timezone.utc).isoformat(timespec="seconds"),
+                    notes=f"ERRORE richiesta locale: {type(exc).__name__}: {exc}",
+                )
+                _finalize_energy_fields(rec, 0.0, 0.0, 0.0, evalres_placeholder())
+                log(f"[ERRORE local] {model} | {pr['id']} | {type(exc).__name__}: {exc}")
+            records.append(rec)
+            done += 1
+            progress(done, total_tasks)
+            _flush_incremental(records, log)
+        if summary["cancelled"]:
+            break
+
+    # ---- 9. modelli cloud ----------------------------------------------------
+    if not summary["cancelled"]:
+        for sel in cloud_selection:
+            prov_id = sel.get("provider")
+            model = sel.get("model")
+            pcfg = providers_by_id.get(prov_id)
+            if not pcfg or not pcfg.get("api_key"):
+                log(f"[SKIP cloud] provider '{prov_id}' senza API key configurata")
+                continue
+            for pr in prompts:
+                if stop_event.is_set():
+                    summary["cancelled"] = True
+                    break
+                rec = _basic_record(
+                    run_id, session_id, model, f"{prov_id} | {model}", prov_id,
+                    "cloud", primary_pid, pr, evalres_placeholder(),
+                )
+                t_wall0 = time.time()
+                try:
+                    resp_data, cloud_res, net_res = query_cloud(
+                        pcfg, model, pr["text"], temperature, timeout_s
+                    )
+                    evalres = evaluate_response(resp_data["text"], is_tool=bool(resp_data.get("tool_calls")))
+                    client_local = cloud_res["client_local"]
+                    est = cloud_res["estimation"]
+
+                    rec.update(
+                        timestamp_start=datetime.fromtimestamp(t_wall0, tz=timezone.utc).isoformat(timespec="seconds"),
+                        timestamp_end=datetime.now(timezone.utc).isoformat(timespec="seconds"),
+                        duration_s=resp_data["duration_s"],
+                        input_tokens=resp_data["prompt_tokens"],
+                        output_tokens=resp_data["completion_tokens"],
+                        total_tokens=resp_data["prompt_tokens"] + resp_data["completion_tokens"],
+                        tokens_per_second=(
+                            round(resp_data["completion_tokens"] / resp_data["duration_s"], 3)
+                            if resp_data["duration_s"] > 0 else ""
+                        ),
+                        tool_calls=1 if resp_data.get("tool_calls") else 0,
+                        # client-local (stessa formula causale, applicata al PC utente)
+                        package_energy_j=client_local.package_energy_j,
+                        idle_power_w=client_local.idle_power_w,
+                        baseline_energy_j=client_local.baseline_energy_j,
+                        active_energy_j=client_local.active_energy_j,
+                        ollama_active_energy_j=client_local.ollama_active_energy_j,
+                        cpu_time_share=client_local.cpu_time_share,
+                        gpu_available=client_local.gpu_available,
+                        gpu_board_energy_j=client_local.gpu_board_energy_j,
+                        gpu_energy_attributed_j=client_local.gpu_energy_attributed_j,
+                        gpu_utilization_share=client_local.gpu_utilization_share,
+                        cpu_attribution_method=client_local.cpu_attribution_method,
+                        gpu_attribution_method=client_local.gpu_attribution_method,
+                        measurement_boundary=(
+                            client_local.measurement_boundary
+                            + " | network: " + net_res.measurement_boundary
+                            + " | cloud: server-side ecologits"
+                        ),
+                        # rete (regola 12.2)
+                        network_upload_bytes=net_res.upload_bytes,
+                        network_download_bytes=net_res.download_bytes,
+                        network_total_bytes=net_res.total_bytes,
+                        network_energy_coefficient_j_per_bit=net_res.coefficient_j_per_bit,
+                        network_measurement_boundary=net_res.measurement_boundary,
+                        # cloud
+                        cloud_energy_method=est.method,
+                        cloud_provider=prov_id,
+                        cloud_model=model,
+                        cloud_input_tokens=resp_data["prompt_tokens"],
+                        cloud_output_tokens=resp_data["completion_tokens"],
+                        cloud_estimation_boundary=(
+                            "ecologits server-side estimate; hw-profile: " + est.hw_profile
+                            + "; zone: " + est.country_code
+                        ),
+                        is_correct=evalres.is_correct,
+                        causal_accuracy=evalres.causal_accuracy,
+                        explanation_quality=evalres.explanation_quality,
+                        cosine_similarity=evalres.cosine_sim,
+                        n_correct_links=evalres.n_correct_links,
+                        acc_comp=evalres.acc_comp,
+                    )
+                    cloud_j = est.energy_j or 0.0
+                    if est.energy_j is None:
+                        rec["cloud_energy_method"] = est.method
+                        rec["notes"] = "; ".join(est.notes)
+                    # carbonio cloud: se EcoLogits ha fornito gwp lo riportiamo
+                    if est.carbon_gco2eq is not None:
+                        rec["cloud_emissions_gco2eq"] = est.carbon_gco2eq
+                        rec["cloud_carbon_intensity_gco2eq_kwh"] = (
+                            round(est.carbon_gco2eq / (est.energy_j / 3_600_000.0), 3)
+                            if est.energy_j else ""
+                        )
+                        rec["cloud_carbon_intensity_zone"] = est.country_code
+                        rec["cloud_carbon_intensity_source"] = "ecologits-electricity-mix-repository"
+                        rec["cloud_carbon_intensity_timestamp"] = datetime.now(timezone.utc).isoformat(timespec="seconds")
+
+                    local_j = (
+                        client_local.ollama_active_energy_j
+                        + client_local.gpu_energy_attributed_j
+                    )
+                    _finalize_energy_fields(rec, local_j, net_res.energy_j, cloud_j, evalres)
+                    extra = "; ".join(client_local.notes + net_res.notes + est.notes)
+                    rec["notes"] = (rec["notes"] + "; " + extra).strip("; ")
+                    log(
+                        f"[OK cloud] {prov_id}/{model} | {pr['id']} | {resp_data['duration_s']:.2f}s | "
+                        f"cloud={cloud_j:.3f} J net={net_res.energy_j:.5f} J "
+                        f"client={local_j:.2f} J | acc={evalres.acc_links:.1f}"
+                    )
+                except Exception as exc:
+                    summary["errors"] += 1
+                    rec.update(
+                        timestamp_start=datetime.fromtimestamp(t_wall0, tz=timezone.utc).isoformat(timespec="seconds"),
+                        timestamp_end=datetime.now(timezone.utc).isoformat(timespec="seconds"),
+                        notes=f"ERRORE richiesta cloud: {type(exc).__name__}: {exc}",
+                    )
+                    _finalize_energy_fields(rec, 0.0, 0.0, 0.0, evalres_placeholder())
+                    log(f"[ERRORE cloud] {prov_id}/{model} | {pr['id']} | {type(exc).__name__}: {exc}")
+                records.append(rec)
+                done += 1
+                progress(done, total_tasks)
+                _flush_incremental(records, log)
+            if summary["cancelled"]:
+                break
+
+    # ---- 11. export finale ---------------------------------------------------
+    finished_wall = datetime.now(timezone.utc)
+    written = 0
+    try:
+        written = export_results_csv(records, config.CSV_RESULTS_PATH)
+        log(f"CSV aggiornato: {config.CSV_RESULTS_PATH} ({written} righe cumulative)")
+    except Exception as exc:
+        log(f"ERRORE export CSV: {exc}")
+        summary["errors"] += 1
+
+    try:
+        meta = {
+            "run_id": run_id,
+            "started_at": started_wall.isoformat(timespec="seconds"),
+            "finished_at": finished_wall.isoformat(timespec="seconds"),
+            "app_version": APP_VERSION,
+            "python": platform.python_version(),
+            "platform": f"{platform.system()} {platform.release()}",
+            "cpu_model": platform.processor() or platform.machine(),
+            "cpu_logical_cores": platform.os.cpu_count(),
+            "gpu_nvml_name": SESSION._gpu.name or "",
+            "gpu_nvml_available": SESSION._gpu.available,
+            "cpu_energy_source_method": SESSION.source_method,
+            "cpu_energy_source_notes": "; ".join(SESSION.source_notes),
+            "ollama_endpoint": config.OLLAMA_API_URL,
+            "ollama_models_selected": ";".join(local_models),
+            "cloud_models_selected": ";".join(f"{s.get('provider')}/{s.get('model')}" for s in cloud_selection),
+            "num_prompts": len(prompts),
+            "temperature": temperature,
+            "timeout_s": timeout_s,
+            "idle_power_w": SESSION.idle_power_w,
+            "idle_calibrated_at": SESSION.calibrated_at,
+            "ecologits_version": _ecologits_version(),
+            "electricity_maps_used": bool(config.ELECTRICITY_MAPS_API_TOKEN),
+            "records_written": len(records),
+            "results_csv": str(config.CSV_RESULTS_PATH),
+            "notes": "cancelled" if summary["cancelled"] else "completed",
+        }
+        write_run_metadata(meta, config.CSV_RUN_METADATA_PATH)
+    except Exception as exc:
+        log(f"ERRORE run metadata: {exc}")
+
+    summary["records"] = len(records)
+    if not was_running:
+        SESSION.stop()
+    return summary
+
+
+def evalres_placeholder():
+    from evaluator import EvaluationResult
+
+    return EvaluationResult()
+
+
+def _flush_incremental(records: List[Dict], log) -> None:
+    """Ogni tot record, salva un checkpoint incrementale (anti-crash)."""
+    n = len(records)
+    if n and n % 5 == 0:
+        try:
+            export_results_csv(records[-5:], config.CSV_RESULTS_PATH)
+        except Exception as exc:
+            log(f"checkpoint CSV fallito: {exc}")
+
+
+def _ecologits_version() -> str:
+    try:
+        import ecologits
+
+        return getattr(ecologits, "__version__", "unknown")
+    except Exception:
+        return "not-installed"
