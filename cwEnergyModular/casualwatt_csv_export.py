@@ -21,6 +21,8 @@ CSV_COLUMNS: List[str] = [
     "prompt_id", "prompt",
     # tracciabilita' sorgente test (Modalita' di Input Universale)
     "test_source", "ground_truth", "eval_mode",
+    # risposta generata dal modello (verifica manuale errori/allucinazioni)
+    "model_response",
     # performance
     "duration_s", "input_tokens", "output_tokens", "total_tokens",
     "tokens_per_second", "prefill_duration_s", "decoding_duration_s",
@@ -63,14 +65,38 @@ CSV_COLUMNS: List[str] = [
 
 
 def ensure_header(path: Path) -> None:
-    """Crea il file con header se assente o con header non valido."""
+    """Crea il file con header se assente o con header non valido.
+
+    Se il file esiste gia' con uno schema *valido* ma privo delle colonne
+    aggiunte nelle release successive (es. 'model_response'), le colonne
+    mancanti vengono inserite nell'header alla loro posizione canonica e
+    tutte le righe esistenti vengono ri-normalizzate allo schema corrente
+    (celle vuote per i campi nuovi): niente perdita di dati, niente righe
+    disallineate.
+    """
     path = Path(path)
     path.parent.mkdir(parents=True, exist_ok=True)
     if path.exists() and path.stat().st_size > 0:
         try:
             with open(path, "r", newline="", encoding="utf-8-sig") as fh:
-                first = next(csv.reader(fh), None)
+                rows = list(csv.reader(fh))
+            first = rows[0] if rows else None
             if first == CSV_COLUMNS:
+                return
+            # header esistente che contiene TUTTE le colonne richieste in
+            # ordine? allora è valido: nessuna riscrittura necessaria
+            if first and len(first) >= len(CSV_COLUMNS) and \
+                    all(first[i] == col for i, col in enumerate(CSV_COLUMNS)):
+                return
+            # migrazione: riaccoda le colonne nuove nello schema canonico
+            if first and any(c in CSV_COLUMNS for c in first):
+                merged_cols = list(CSV_COLUMNS) + [c for c in first if c not in CSV_COLUMNS]
+                migrated = [merged_cols]
+                for r in rows[1:]:
+                    lookup = dict(zip(first, r))
+                    migrated.append([lookup.get(c, "") for c in merged_cols])
+                with open(path, "w", newline="", encoding="utf-8-sig") as fh:
+                    csv.writer(fh).writerows(migrated)
                 return
         except Exception:
             pass

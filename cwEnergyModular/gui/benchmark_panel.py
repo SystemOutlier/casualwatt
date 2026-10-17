@@ -99,7 +99,10 @@ class BenchmarkPanel(ttk.LabelFrame):
                                    font=("Consolas", 9))
         self.manual_text.pack(fill="x", padx=6, pady=2)
         ttk.Label(self.manual_frame,
-                  text="Digita o incolla i prompt: uno per riga (andare a capo li separa)."
+                  text="Un prompt per riga. Opzionale: 'prompt / risposta attesa' "
+                       "(es. 'Qual è la capitale d'Italia? / Roma') — se presente il "
+                       "separatore ' / ', la seconda parte viene usata come ground truth "
+                       "per l'accuratezza; altrimenti accuratezza -> N/A (solo energia)."
                   ).pack(anchor="w", padx=8, pady=(0, 3))
 
         src.columnconfigure(0, weight=1)

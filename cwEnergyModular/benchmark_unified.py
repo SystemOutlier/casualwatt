@@ -284,6 +284,8 @@ def _basic_record(run_id, session_id, model_name, model_label, provider, mode,
         "test_source": prompt.get("source", "unknown"),
         "ground_truth": gt if gt not in (None, "") else "N/A",
         "eval_mode": getattr(evalres, "eval_mode", "skipped"),
+        # testo esatto generato dal modello (verifica manuale errori/allucinazioni)
+        "model_response": "",
         "is_correct": _na_or(evalres.is_correct),
         "causal_accuracy": _na_or(evalres.causal_accuracy),
         "explanation_quality": _na_or(evalres.explanation_quality),
@@ -514,6 +516,7 @@ def run_unified_benchmark(
                     mode=_resolve_eval_mode(pr, eval_mode_override),
                 )
                 rec.update(
+                    model_response=resp_data["text"],
                     timestamp_start=datetime.fromtimestamp(t_wall0, tz=timezone.utc).isoformat(timespec="seconds"),
                     timestamp_end=datetime.now(timezone.utc).isoformat(timespec="seconds"),
                     duration_s=resp_data["duration_s"],
@@ -615,6 +618,7 @@ def run_unified_benchmark(
                     est = cloud_res["estimation"]
 
                     rec.update(
+                        model_response=resp_data["text"],
                         timestamp_start=datetime.fromtimestamp(t_wall0, tz=timezone.utc).isoformat(timespec="seconds"),
                         timestamp_end=datetime.now(timezone.utc).isoformat(timespec="seconds"),
                         duration_s=resp_data["duration_s"],

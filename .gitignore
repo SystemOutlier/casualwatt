@@ -1,8 +1,1 @@
-__pycache__/
-*.pyc
-.env
-.casualwatt_keys.json
-logs/
-results/
-__pycache__/
-*.pyc
+*.dll

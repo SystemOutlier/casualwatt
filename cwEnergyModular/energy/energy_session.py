@@ -62,13 +62,30 @@ class _CPUJouleSource:
     # -- backend LHM -------------------------------------------------------
     def _try_lhm(self) -> bool:
         try:
+            import platform
+
+            if not platform.system().startswith("Win"):
+                self._notes.append("LHM non applicabile (piattaforma non Windows)")
+                return False
             import clr  # pythonnet
 
             from config import LHM_DLL_PATH
 
             if not LHM_DLL_PATH.exists():
-                self._notes.append("LHM dll mancante")
+                self._notes.append(
+                    f"LHM dll mancante in {LHM_DLL_PATH} "
+                    "(reperibile da github.com/LibreHardwareMonitor)"
+                )
                 return False
+            # le DLL di dipendenza (HidSharp, TaskScheduler) devono essere
+            # risolte dal loader .NET: si cerca prima nella cartella della libreria
+            try:
+                import os as _os
+
+                _dir = str(LHM_DLL_PATH.parent)
+                _os.add_dll_directory(_dir) if hasattr(_os, "add_dll_directory") else None
+            except Exception:
+                pass
             clr.AddReference(str(LHM_DLL_PATH))
             from LibreHardwareMonitor.Hardware import Computer  # type: ignore
 

@@ -32,7 +32,23 @@ CSV_VIEW_COLUMNS = [
     ("causal_accuracy", "Acc", 50),
     ("ece_per_joule", "ECE/J", 80),
     ("epcl_j_per_link", "EPCL", 75),
+    # risposta esatta del modello: troncata a video, intera nel CSV e nel
+    # tooltip della cella (verifica manuale errori/allucinazioni)
+    ("model_response", "Risposta Modello", 320),
 ]
+
+# massimo di caratteri mostrati nella colonna "Risposta Modello"
+RESPONSE_PREVIEW_CHARS = 120
+
+
+def _preview_response(raw) -> str:
+    """Anteprima su riga unica della risposta del modello."""
+    if raw is None or raw == "":
+        return ""
+    txt = " ".join(str(raw).split())  # newlines/tabs -> spazi singoli
+    if len(txt) > RESPONSE_PREVIEW_CHARS:
+        return txt[:RESPONSE_PREVIEW_CHARS] + "…"
+    return txt
 
 # colonne con valori energetici/numerici: formattazione a decimali FISSI
 # (2 per i Joule) invece di notazione compatta ".4g" che mostrava interi
@@ -55,6 +71,8 @@ _COL_FORMAT = {
 
 def _fmt_cell(cid: str, raw) -> str:
     """Formattazione pulita per la tabella dei risultati."""
+    if cid == "model_response":
+        return _preview_response(raw)
     rule = _COL_FORMAT.get(cid)
     if rule is None:
         return "N/A" if raw == "N/A" else ("" if raw is None else str(raw))
@@ -116,7 +134,9 @@ class ResultsPanel(ttk.LabelFrame):
         self.tree = ttk.Treeview(table_wrap, columns=cols, show="headings", height=9)
         for cid, label, w in CSV_VIEW_COLUMNS:
             self.tree.heading(cid, text=label)
-            self.tree.column(cid, width=w, anchor="e" if cid not in ("model_label", "prompt_id") else "w")
+            anchor = "w" if cid in ("model_label", "prompt_id", "test_source",
+                                    "model_response") else "e"
+            self.tree.column(cid, width=w, anchor=anchor)
         scroll = ttk.Scrollbar(table_wrap, orient="vertical", command=self.tree.yview)
         hscroll = ttk.Scrollbar(table_wrap, orient="horizontal", command=self.tree.xview)
         self.tree.configure(yscrollcommand=scroll.set, xscrollcommand=hscroll.set)
@@ -125,6 +145,14 @@ class ResultsPanel(ttk.LabelFrame):
         hscroll.grid(row=1, column=0, sticky="ew")
         table_wrap.rowconfigure(0, weight=1)
         table_wrap.columnconfigure(0, weight=1)
+
+        # tooltip + doppio click: mostra la risposta INTERA del modello
+        self._tip = None
+        self.tree.bind("<Motion>", self._on_tree_motion)
+        self.tree.bind("<Double-1>", self._show_full_response)
+        self.tree.bind("<Leave>", lambda e: self._hide_tip())
+        for _wh in ("<MouseWheel>", "<Button-4>", "<Button-5>"):
+            self.tree.bind(_wh, lambda e: self._hide_tip(), add="+")
 
         # ------------------------------ grafici ------------------------------
         charts = ttk.Frame(mid)
@@ -138,12 +166,80 @@ class ResultsPanel(ttk.LabelFrame):
 
         self._rows_cache: List[dict] = []
 
+    # ------------------------------------------------- tooltip / risposta ----
+    def _cell_response(self, event):
+        """Ritorna la risposta COMPLETA della riga sotto il puntatore quando il
+        mouse è sulla colonna 'Risposta Modello' (lookup per row_id sul cache
+        delle righe lette dal CSV, che è allineato agli item del Treeview)."""
+        try:
+            row_id = self.tree.identify_row(event.y)
+            col_id = self.tree.identify_column(event.x)  # es. '#17'
+            if not row_id or not col_id:
+                return None
+            idx = int(col_id.replace("#", "")) - 1
+            if not (0 <= idx < len(CSV_VIEW_COLUMNS)):
+                return None
+            if CSV_VIEW_COLUMNS[idx][0] != "model_response":
+                return None
+            iids = self.tree.get_children()
+            pos = list(iids).index(row_id)
+            if 0 <= pos < len(self._rows_cache):
+                return str(self._rows_cache[pos].get("model_response", "") or "")
+        except Exception:
+            pass
+        return None
+
+    def _on_tree_motion(self, event):
+        text = self._cell_response(event)
+        if text:
+            try:
+                import tkinter as _tk
+
+                if self._tip is None or not self._tip.winfo_exists():
+                    self._tip = _tk.Toplevel(self)
+                    self._tip.overrideredirect(True)
+                    lbl = ttk.Label(self._tip, text="", wraplength=520, justify="left",
+                                    relief="solid", padding=6, background="#fffbe6")
+                    lbl.pack()
+                    self._tip._lbl = lbl  # type: ignore[attr-defined]
+                self._tip._lbl.config(text=text[:4000])  # type: ignore[attr-defined]
+                self._tip.geometry(f"+{event.x_root + 14}+{event.y_root + 14}")
+                self._tip.deiconify()
+                return
+            except Exception:
+                pass
+        self._hide_tip()
+
+    def _hide_tip(self):
+        try:
+            if self._tip is not None and self._tip.winfo_exists():
+                self._tip.withdraw()
+        except Exception:
+            pass
+
+    def _show_full_response(self, event):
+        """Doppio click sulla colonna risposta: finestra di lettura completa."""
+        text = self._cell_response(event)
+        if not text:
+            return
+        win = tk.Toplevel(self)
+        win.title("Risposta del modello")
+        win.geometry("640x420")
+        txt = tk.Text(win, wrap="word", font=("Consolas", 10))
+        sb = ttk.Scrollbar(win, orient="vertical", command=txt.yview)
+        txt.configure(yscrollcommand=sb.set)
+        sb.pack(side="right", fill="y")
+        txt.pack(fill="both", expand=True)
+        txt.insert("1.0", text)
+        txt.configure(state="disabled")
+        self._hide_tip()
+
     # ---------------------------------------------------------------- actions
     def refresh(self):
         rows = _read_rows()
-        self._rows_cache = rows
+        self._rows_cache = rows[-500:][::-1]  # allineato agli item del Treeview
         self.tree.delete(*self.tree.get_children())
-        for r in rows[-500:][::-1]:  # piu' recenti in alto
+        for r in self._rows_cache:  # piu' recenti in alto
             vals = [_fmt_cell(cid, r.get(cid, "")) for cid, _, _ in CSV_VIEW_COLUMNS]
             self.tree.insert("", "end", values=vals)
         self.status.config(text=f"{len(rows)} righe nel CSV")

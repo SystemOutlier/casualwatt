@@ -167,12 +167,37 @@ def _looks_like_header(cells: List[str]) -> bool:
 # ---------------------------------------------------------------------------
 # B) Prompt manuale (textarea della GUI, uno per riga)
 # ---------------------------------------------------------------------------
+# Separatore opzionale prompt / risposta attesa nel box manuale, es.:
+#   Qual è la capitale d'Italia? / Roma
+_MANUAL_GT_SEP = " / "
+
+
+def _split_manual_line(line: str) -> Tuple[str, Optional[str]]:
+    """Separa 'prompt / ground_truth' una sola volta (il primo separatore).
+
+    Se il separatore non c'è, la riga intera è il prompt e la GT resta None
+    (accuratezza -> N/A). La parte dopo il separatore NON può essa stessa
+    contenere altri ' / ': viene presa tutta, spazi allowiti.
+    """
+    if _MANUAL_GT_SEP in line:
+        prompt, gt = line.split(_MANUAL_GT_SEP, 1)
+        return prompt.strip(), (gt.strip() or None)
+    return line.strip(), None
+
+
 def parse_manual_prompts(text: str) -> List[Dict]:
-    """Uno o più prompt separati da newline; righe vuote ignorate."""
+    """Uno o più prompt separati da newline; righe vuote ignorate.
+
+    Ogni riga può avere la forma 'prompt / risposta_attesa': se presente il
+    separatore ' / ', la seconda metà viene usata come ground truth per il
+    calcolo dell'accuratezza; altrimenti l'accuratezza resterà N/A (solo
+    metriche energetiche/di latenza/token).
+    """
     if not text or not text.strip():
         return []
     lines = [ln.strip() for ln in text.replace("\r\n", "\n").replace("\r", "\n").split("\n")]
-    return make_prompt_items([(ln, None) for ln in lines], source="manual", id_prefix="man")
+    pairs = [_split_manual_line(ln) for ln in lines if ln]
+    return make_prompt_items(pairs, source="manual", id_prefix="man")
 
 
 # ---------------------------------------------------------------------------
