@@ -74,8 +74,43 @@ class CasualWattApp(tk.Tk):
         self.after(300, self.selection.reload_local)
         self.after(500, self.selection.reload_cloud)
         self.after(800, self.results.refresh)
+        # diagnostica energetica non bloccante all'avvio (console + log GUI):
+        # segnala subito se clr/pythonnet/DLL/UAC impediscono LHM di leggere
+        # i Joule, prima che l'utente prema "Calibra idle".
+        self.after(1200, self._run_startup_diagnostics)
 
     # ------------------------------------------------------------------ glue
+    def _run_startup_diagnostics(self):
+        import threading
+
+        def _worker():
+            try:
+                import diagnostics
+
+                summary = diagnostics.run_diagnostics(log_callback=self.log_from_thread)
+                if summary.get("errors"):
+                    self.log_from_thread(
+                        "[CasualWatt] Diagnostica avviamento: problemi rilevati "
+                        f"({', '.join(summary['errors'])}). Metodo energia atteso: "
+                        f"{summary.get('method_expected', 'n/d')}"
+                    )
+                else:
+                    self.log_from_thread(
+                        "[CasualWatt] Diagnostica avviamento completata: "
+                        f"metodo energia atteso = {summary.get('method_expected', 'n/d')}"
+                    )
+            except Exception as exc:  # la diagnostica non deve mai crashare l'app
+                self.log_from_thread(f"[CasualWatt] Diagnostica avviamento fallita: {exc}")
+
+        threading.Thread(target=_worker, daemon=True).start()
+
+    def log_from_thread(self, msg: str):
+        """Log thread-safe nel pannello di esecuzione (Tk e' single-thread)."""
+        try:
+            self.after(0, lambda: self.benchmark.log(str(msg)))
+        except Exception:
+            pass
+
     def _get_selections(self):
         return self.selection.get_selected_local(), self.selection.get_selected_cloud()
 

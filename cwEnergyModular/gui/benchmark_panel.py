@@ -480,6 +480,20 @@ class BenchmarkPanel(ttk.LabelFrame):
                 ))
             except Exception as exc:
                 self._q.put(("log", f"Calibrazione fallita: {exc}"))
+                # niente fallimento silenzioso: se il contatore non legge i
+                # Joule, la causa piu' probabile e' UAC o pythonnet/clr:
+                # esegui la diagnostica completa (console + log GUI).
+                try:
+                    import diagnostics
+
+                    self._q.put(("log", "--- Diagnostica LHM/clr in corso (console + qui) ---"))
+                    summary = diagnostics.run_diagnostics(
+                        log_callback=lambda m: self._q.put(("log", m))
+                    )
+                    method = summary.get("method_expected", "n/d")
+                    self._q.put(("log", f"--- Fine diagnostica: metodo atteso = {method} ---"))
+                except Exception as d_exc:
+                    self._q.put(("log", f"Diagnostica non disponibile: {d_exc}"))
             finally:
                 if not was_running:
                     SESSION.stop()

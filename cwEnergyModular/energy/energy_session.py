@@ -20,6 +20,7 @@ di una finestra di richiesta.
 """
 from __future__ import annotations
 
+import sys
 import threading
 import time
 from dataclasses import dataclass, field
@@ -107,7 +108,18 @@ class _CPUJouleSource:
                 _os.add_dll_directory(_dir) if hasattr(_os, "add_dll_directory") else None
             except Exception:
                 pass
-            clr.AddReference(str(LHM_DLL_PATH))
+            # pythonnet 3.x: AddReference(path) fallisce con "Assembly with
+            # same name is already loaded" se la stessa DLL viene richiesta
+            # piu' volte nel processo (es. dopo 'Calibra idle' + riavvio
+            # sessione). Il caricamento via bytes + Assembly.Load e'
+            # idempotente; AddReference resta il fallback per pythonnet 2.x.
+            try:
+                from System.Reflection import Assembly  # type: ignore
+
+                with open(LHM_DLL_PATH, "rb") as _fh:
+                    Assembly.Load(_fh.read())
+            except Exception:
+                clr.AddReference(str(LHM_DLL_PATH))
             from LibreHardwareMonitor.Hardware import Computer  # type: ignore
 
             comp = Computer()
@@ -261,6 +273,18 @@ class _CPUJouleSource:
             pass
         return 45.0
 
+    # -- diagnostica letture -------------------------------------------------
+    @property
+    def last_read_error(self) -> Optional[str]:
+        """Messione d'errore dell'ultima lettura fallita (per GUI/log)."""
+        return getattr(self, "_last_read_error", None)
+
+    def _record_read_error(self, exc: BaseException, ctx: str) -> None:
+        msg = f"{ctx}: {type(exc).__name__}: {exc}"
+        self._last_read_error = msg
+        # log esplicito su console: niente fallimenti silenziosi
+        print(f"[CasualWatt][LHM] {msg}", file=sys.stderr, flush=True)
+
     # -- interfaccia comune --------------------------------------------------
     def read_package_j(self, busy_seconds_total: float) -> Optional[float]:
         """Energia package CPU CUMULATA da inizio sessione [J].
@@ -292,13 +316,22 @@ class _CPUJouleSource:
         """
         try:
             if self.method == "librehardwaremonitor":
-                return self._lhm_value()
+                v = self._lhm_value()
+                if v is None:
+                    self._last_read_error = (
+                        "LHM agganciata ma nessun sensore Energy-CPU leggibile: "
+                        "processo probabilmente NON elevato (UAC) o driver chipset "
+                        "senza Package Energy. Esegui 'avvia_casualwatt.bat' come "
+                        "amministratore oppure lancia 'py diagnostics.py'"
+                    )
+                return v
             if self.method == "rapl":
                 fv = self._file_value()
                 if fv is not None:
                     return fv - self._power_base_j
                 return self._rapl_value()
-        except Exception:
+        except Exception as exc:
+            self._record_read_error(exc, "lettura contatore energia fallita")
             return None
         return None  # tdp_estimate / unavailable: nessun contatore reale
 
@@ -602,10 +635,16 @@ class EnergySession:
             e_start = self._source.read_power_j()
             t_start = time.monotonic()
             if e_start is None:
+                cause = self._source.last_read_error or (
+                    f"metodo attivo: '{self._source.method}' "
+                    "(nessun backend a contatore reale)"
+                )
                 raise RuntimeError(
                     "calibrazione idle fallita: nessun contatore di energia "
                     "package disponibile (LHM/RAPL/file). La calibrazione "
-                    "empirica richiede una lettura reale dei Joule."
+                    "empirica richiede una lettura reale dei Joule. "
+                    f"Causa: {cause}. Esegui 'py diagnostics.py' per il "
+                    "report completo (clr/pythonnet/DLL/UAC)."
                 )
             # campionamento passivo durante la finestra (per note diagnostiche)
             while True:
