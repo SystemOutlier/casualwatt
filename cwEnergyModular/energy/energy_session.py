@@ -84,23 +84,29 @@ class _CPUJouleSource:
             # precedenza 'solo se LHM non disponibile' del vecchio ordine).
             pass
         elif self._try_lhm():
-            # LHM agganciata: metodo definito dai sensori reali disponibili.
+            # LHM agganciata E APERTA con sensori validi verificati.
             if self._lhm_value() is not None:
                 self.method = "librehardwaremonitor-energy"
                 self._notes.append("LHM: contatore Energy-CPU presente")
-            elif self._select_power_sensor() is not None:
-                self.method = "power-integration"
-                self._notes.append(
-                    f"LHM: nessun contatore Energy; metodo 'power-integration' "
-                    f"sul sensore '{self._pi_sensor_name}' @ {self.POWER_SAMPLE_INTERVAL_S}s"
-                )
-                self._start_power_integration()
             else:
-                self.method = "librehardwaremonitor"  # nessuna lettura utile
-                self._notes.append(
-                    "LHM agganciata ma NESSUN sensore Energy/Power CPU esposto: "
-                    "misurazione locale dichiarata indisponibile (non silenziosa)"
-                )
+                # Sensore Power GIA' selezionato/validato durante il probe:
+                # riuso qui, senza doppie scansioni dell'assembly.
+                power_sel = (self._pi_sensor_name
+                             and getattr(self, "_pi_selected", None)) \
+                    or self._select_power_sensor()
+                if power_sel is not None:
+                    self.method = "power-integration"
+                    self._notes.append(
+                        f"LHM: nessun contatore Energy; metodo 'power-integration' "
+                        f"sul sensore '{self._pi_sensor_name}' @ {self.POWER_SAMPLE_INTERVAL_S}s"
+                    )
+                    self._start_power_integration()
+                else:
+                    self.method = "librehardwaremonitor"  # nessuna lettura utile
+                    self._notes.append(
+                        "LHM agganciata ma NESSUN sensore Energy/Power CPU esposto: "
+                        "misurazione locale dichiarata indisponibile (non silenziosa)"
+                    )
         elif platform_system() == "Windows":
             # Windows senza LHM funzionante: niente RAPL/turbostat/perf_event
             # (esclusi per specifica), misurazione locale disabilitata con
@@ -135,7 +141,18 @@ class _CPUJouleSource:
 
     # ------------------------------------------------------------------ probe
     def _lhm_probe_parent(self) -> bool:
-        """Esegue il probe LHM in un sottoprocesso isolato (anti-crash)."""
+        """Esegue il probe LHM in un sottoprocesso isolato (anti-crash).
+
+        Ritorna True SOLO se il figlio conferma l'apertura pulita di
+        Computer() con almeno un sensore valido. In tal caso la stringa
+        ``CW_LHM_PROBE_OK=1`` viene iniettata nell'ambiente: consente alle
+        istanze successive (es. GUI riavviata) di saltare il probe e aprire
+        direttamente in-process — comportamento verificato dal log di
+        diagnostics.py sul machine target. Se invece il figlio fallisce o
+        crasha (.NET non gestito), NON si riprova in-process: si degrada in
+        modo pulito con nota esplicita.
+        """
+        import os as _os
         import subprocess
         import sys
 
@@ -145,15 +162,26 @@ class _CPUJouleSource:
             self._notes.append("LHM non applicabile (piattaforma non Windows)")
             return False
 
+        # Probe gia' superato in questo ambiente (vedi docstring): apertura
+        # diretta, niente figli inutili a ogni avvio.
+        if _os.environ.get("CW_LHM_PROBE_OK") == "1":
+            return self._lhm_probe_child()
+
         cmd = [
             sys.executable, "-B", "-c",
-            "import energy.energy_session as m; m.SESSION._source._probe_and_report()",
+            ("import sys, energy.energy_session as m;"
+             "ok = m.SESSION._source._lhm_probe_child();"
+             "print('LHM_OK' if ok else 'LHM_NO');"
+             "sys.exit(0 if ok else 2)"),
         ]
         try:
             from config import BASE_DIR as _BASE
         except Exception:  # pragma: no cover - standalone
             _BASE = None
-        env = dict(__import__("os").environ, CW_LHM_PROBE_CHILD="1")
+        # CW_LHM_PROBE_OK rimosso dall'ambiente del figlio: il probe deve
+        # essere reale anche se il padre ha ereditato il flag da sessioni ok.
+        env = dict(_os.environ, CW_LHM_PROBE_CHILD="1")
+        env.pop("CW_LHM_PROBE_OK", None)
         try:
             r = subprocess.run(
                 cmd, cwd=(str(_BASE) if _BASE else None), env=env,
@@ -170,7 +198,8 @@ class _CPUJouleSource:
         if r.returncode != 0:
             tail = "\n".join((err or out).splitlines()[-8:])
             self._notes.append(
-                f"PROBE LHM nel figlio FALLITO (rc={r.returncode}): {tail[:400]}"
+                f"PROBE LHM nel figlio FALLITO (rc={r.returncode}): {tail[:400]}. "
+                "Nessun tentativo in-process (rischio crash .NET non gestito)."
             )
             return False
         if "LHM_OK" in out:
@@ -182,7 +211,14 @@ class _CPUJouleSource:
         return False
 
     def _lhm_probe_child(self) -> bool:
-        """Nel FIGLIO: aggancia LHM, apre il Computer e valida i sensori."""
+        """Nel FIGLIO (o dopo probe superato): aggancia LHM e valida i sensori.
+
+        Apre il Computer() UNA sola volta e verifica che ESISTA almeno un
+        sensore leggibile (contatore Energy oppure sensore Power idoneo alla
+        power-integration). Solo allora ritorna True: un False garantisce
+        che il chiamante non avvii mai il thread PI contro un oggetto
+        pythonnet rotto (causa originale dell'InternalPythonnetException).
+        """
         ok = self._try_lhm_direct()
         if not ok:
             return False
@@ -191,8 +227,9 @@ class _CPUJouleSource:
         except BaseException:  # noqa: BLE001 - il crash .NET finisce qui
             import traceback
 
-            print("LHM_NOTE: crash in Computer().Open():\n" + traceback.format_exc())
-            raise
+            print("LHM_NOTE: crash in Computer().Open():\n"
+                  + traceback.format_exc().replace("\n", " | "))
+            return False
         has_energy = self._lhm_value() is not None
         power_sel = None if has_energy else self._select_power_sensor()
         if has_energy or power_sel is not None:
@@ -202,15 +239,6 @@ class _CPUJouleSource:
             "Computer() aperto ma NESSUN sensore Energy/Power CPU esposto"
         )
         return False
-
-    def _probe_and_report(self) -> None:
-        """Entry point del sottoprocesso di probe: stampa note + esito."""
-        src = SESSION._source
-        try:
-            src._try_lhm()
-        finally:
-            for n in src.notes:
-                print("LHM_NOTE:", str(n).replace("\n", " | "))
 
     # ------------------------------------------------------------------ LHM
     def _try_lhm_direct(self) -> bool:
@@ -585,6 +613,9 @@ class _CPUJouleSource:
                 self._pi_sensor_name = str(chosen.Name)
             except Exception:
                 self._pi_sensor_name = "?"
+            # Cache dell'oggetto sensore: _read_power_w_direct() lo riusa e
+            # il costruttore evita una seconda scansione dell'assembly.
+            self._pi_selected = chosen
         return chosen
 
     def _read_power_w_direct(self) -> Optional[float]:
