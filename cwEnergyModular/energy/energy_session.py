@@ -50,6 +50,11 @@ class _CPUJouleSource:
         self._power_base_j: float = 0.0   # base contatore potenza per read_power_j
         self._power_last_j: Optional[float] = None
         self._notes: List[str] = []
+        # Diagnostica LHM: ultimo errore inghiottito durante la scansione
+        # sensori (es. proprieta' rinomate fra versioni dell'assembly) e
+        # modalita' di lettura usata ("package" | "core-sum").
+        self._lhm_last_error: Optional[str] = None
+        self._lhm_mode_notes: set = set()
 
         if self._try_lhm():
             self.method = "librehardwaremonitor"
@@ -159,47 +164,118 @@ class _CPUJouleSource:
         except Exception:
             return False
 
+    # Prefissi di nome sensore che in LHM denotano il PACKAGE/totali della CPU
+    # (usati per escludere i contatori Energy dei singoli core, la cui somma
+    # sovrastimerebbe l'energia del package).
+    _LHM_PACKAGE_TOKENS = ("package", "ppt", "evidp", "cpu total")
+
     @classmethod
     def _lhm_energy_sensor_ok(cls, sensor) -> bool:
-        """SensorType==Energy + nome riconosciuto (Intel/AMD/varianti)."""
+        """Tipo==Energy + nome riconosciuto (Intel/AMD/varianti), solo package.
+
+        Ritorna False se il nome non contiene token di package (es. sensore
+        'Core #3'): in quel caso _lhm_value() usera' il fallback-sum, marcato
+        pero' con una nota nel log diagnostico.
+        """
+        stype = cls._lhm_sensor_type_name(sensor)
+        if "Energy" not in stype and "energysensor" not in stype.lower():
+            return False
         try:
-            stype = str(sensor.Type)
-            if "Energy" not in stype:
-                return False
             sname = str(sensor.Name).lower()
-            return any(tok in sname for tok in cls._LHM_ENERGY_NAME_TOKENS)
         except Exception:
             return False
+        if any(tok in sname for tok in cls._LHM_ENERGY_NAME_TOKENS):
+            return True
+        return False
+
+    @classmethod
+    def _lhm_is_package_energy_sensor(cls, sensor) -> bool:
+        return (cls._lhm_energy_sensor_ok(sensor)
+                and any(tok in str(getattr(sensor, "Name", "")).lower()
+                        for tok in cls._LHM_PACKAGE_TOKENS))
+
+    @staticmethod
+    def _lhm_sensor_type_name(sensor) -> str:
+        """Nome del SensorType LHM, robusto fra le versioni dell'assembly.
+
+        L'interfaccia ISensor di LibreHardwareMonitorLib espone la proprieta'
+        .SensorType (es. enum SensorType.Energy). Alcune build/pythonnet non
+        la risolvono; il fallback su .Type era la causa dell'errore
+        "'ISensor object has no attribute 'Type'". Qui si provano tutti gli
+        attributi noti e, in ultimo, il tipo reale dell'oggetto.
+        """
+        for attr in ("SensorType", "Type"):
+            try:
+                v = getattr(sensor, attr, None)
+                if v is not None:
+                    return str(v)
+            except Exception:
+                continue
+        # Ultimo tentativo: il type python.net dell'oggetto sensore
+        # (es. <class 'LibreHardwareMonitor...+EnergySensor'>)
+        try:
+            return type(sensor).__name__
+        except Exception:
+            return ""
 
     def _lhm_value(self) -> Optional[float]:
-        """Somma Energy-CPU [mJ] dai sensori LHM -> J cumulati monotoni."""
+        """Somma Energy-CPU [mJ] dai sensori LHM -> J cumulati monotoni.
+
+        Preferisce il solo sensore PACKAGE (Intel 'CPU Package', AMD
+        'Package'/'CPU PPT'); se assente, somma i sensori Energy dei core
+        (fallback dichiarato via nota). Non solleva mai eccezioni verso
+        l'alto: gli errori per-sensore sono inghiottiti e tracciati in
+        _lhm_last_error per il log diagnostico.
+        """
         if self._lhm is None:
             return None
         try:
-            total_mj = 0.0
-            found = False
+            package_mj = 0.0
+            core_mj = 0.0
+            n_pkg = 0
+            n_core = 0
             for hw in self._lhm.Hardware:
                 try:
                     hw.Update()          # senza Update() il Value resta None
-                except Exception:
+                except Exception as exc:
+                    self._lhm_last_error = f"Update(): {exc}"
                     continue
                 if not self._lhm_is_cpu_hw(hw):
                     continue
                 for sensor in hw.Sensors:
-                    if not self._lhm_energy_sensor_ok(sensor):
+                    try:
+                        if not self._lhm_energy_sensor_ok(sensor):
+                            continue
+                        raw = sensor.Value
+                        if raw is None:
+                            continue     # sensore presente ma non ancora popolato
+                        val = float(raw)
+                        if val != val:   # NaN check
+                            continue
+                        if self._lhm_is_package_energy_sensor(sensor):
+                            package_mj += val
+                            n_pkg += 1
+                        else:
+                            core_mj += val
+                            n_core += 1
+                    except Exception as exc:
+                        self._lhm_last_error = f"sensore: {exc}"
                         continue
-                    raw = sensor.Value
-                    if raw is None:
-                        continue         # sensore presente ma non ancora popolato
-                    val = float(raw)
-                    if val != val:       # NaN check
-                        continue
-                    total_mj += val
-                    found = True
-            if not found:
-                return None
-            return total_mj / 1000.0
-        except Exception:
+            if n_pkg:
+                if "package" not in self._lhm_mode_notes:
+                    self._lhm_mode_notes.add("package")
+                return package_mj / 1000.0
+            if n_core:
+                if "core-sum" not in self._lhm_mode_notes:
+                    self._lhm_mode_notes.add("core-sum")
+                    self._notes.append(
+                        "LHM: nessun sensore Energy di package; uso somma "
+                        "contatori Energy dei core (attributione approssimata)"
+                    )
+                return core_mj / 1000.0
+            return None
+        except Exception as exc:
+            self._lhm_last_error = str(exc)
             return None
 
     def diagnose_cpu_sensors(self) -> List[dict]:
@@ -220,7 +296,9 @@ class _CPUJouleSource:
                         out.append({
                             "hardware": str(hw.Name),
                             "sensor_name": str(sensor.Name),
-                            "sensor_type": str(sensor.Type),
+                            # _lhm_sensor_type_name(): robusto fra versioni
+                            # LHM/pythonnet (SensorType -> Type -> class name)
+                            "sensor_type": self._lhm_sensor_type_name(sensor),
                             "value": (None if sensor.Value is None
                                       else float(sensor.Value)),
                         })

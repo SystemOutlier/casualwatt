@@ -220,9 +220,17 @@ def run_diagnostics(log_callback: Optional[Callable[[str], None]] = None) -> dic
         return summary
 
     try:
+        # Helper condiviso con il motore (energy_session): robusto fra le
+        # versioni dell'assembly LHM e di pythonnet. In alcune build l'ISensor
+        # .NET non espone 'Type' (da cui AttributeError); la proprieta' reale
+        # e' 'SensorType'. Usare lo stesso helper evita divergenze fra
+        # diagnostica e comportamento del profiler.
+        from energy.energy_session import _CPUJouleSource as _JS
+
         n_cpu_hw = 0
         n_energy = 0
         n_power_cpu = 0
+        n_other_types: dict = {}
         energy_names: List[str] = []
         power_names: List[str] = []
         for hw in comp.Hardware:
@@ -237,15 +245,21 @@ def run_diagnostics(log_callback: Optional[Callable[[str], None]] = None) -> dic
             except Exception:
                 pass
             if not is_cpu:
-                name = str(hw.Name).lower()
-                is_cpu = "cpu" in name or "central" in name
+                try:
+                    name = str(hw.Name).lower()
+                    is_cpu = "cpu" in name or "central" in name
+                except Exception:
+                    continue
             if not is_cpu:
                 continue
             n_cpu_hw += 1
             for sensor in hw.Sensors:
-                stype = str(sensor.Type)
-                sname = str(sensor.Name).lower()
-                if "Energy" in stype:
+                try:
+                    stype = _JS._lhm_sensor_type_name(sensor)
+                    sname = str(sensor.Name).lower()
+                except Exception:
+                    continue
+                if "Energy" in stype or "energysensor" in stype.lower():
                     # AMD Ryzen espone il contatore come "Package"/"Package
                     # Power"/"CPU PPT"; Intel come "CPU Package". Accettare
                     # qualunque token riconosciuto evita il falso negativo.
@@ -253,13 +267,27 @@ def run_diagnostics(log_callback: Optional[Callable[[str], None]] = None) -> dic
                            ("package", "ppt", "core", "cpu", "evidp")):
                         n_energy += 1
                         energy_names.append(str(sensor.Name))
-                elif stype.endswith("Power") or "power" in sname:
+                    else:
+                        energy_names.append(f"{sensor.Name} [non riconosciuto]")
+                elif stype.endswith("Power") or (stype == "Power" and "power" in sname):
                     n_power_cpu += 1
                     power_names.append(str(sensor.Name))
+                else:
+                    key = stype.split(".")[-1] or "?"
+                    n_other_types[key] = n_other_types.get(key, 0) + 1
         summary["energy_sensors_found"] = n_energy
         if energy_names:
             _emit(lines, log_callback, _OK,
                   f"Sensori Energy riconosciuti: {', '.join(energy_names)}")
+        # Dump dei sensori Power W visti (Intel/AMD li espongono spesso): utile
+        # per capire se il sensore c'e' ma ha un nome non in whitelist.
+        if power_names:
+            _emit(lines, log_callback, _INFO,
+                  f"Sensori Power(W) su CPU: {', '.join(power_names[:12])}")
+        if n_other_types:
+            _emit(lines, log_callback, _INFO,
+                  "Altri tipi sensore CPU: "
+                  + ", ".join(f"{k} x{v}" for k, v in sorted(n_other_types.items())))
         if n_power_cpu and not energy_names:
             _emit(lines, log_callback, _WARN,
                   f"Sensori Power presenti ({', '.join(power_names[:8])}) "
