@@ -52,6 +52,14 @@ def env_float(name: str, default: float) -> float:
         return float(default)
 
 
+def env_str(name: str, default: str) -> str:
+    """Legge una variabile d'ambiente come stringa con fallback sicuro."""
+    v = os.getenv(name)
+    if v is None or not v.strip():
+        return default
+    return v.strip().strip('"').strip("'")
+
+
 def _parse_env_file(path: Path) -> dict:
     """Parser minimale e robusto di un file .env (senza dipendenze esterne).
 

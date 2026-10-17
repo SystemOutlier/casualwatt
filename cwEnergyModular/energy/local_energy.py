@@ -78,13 +78,42 @@ class CasualWattLocalEnergyProfiler:
         ollama_pids: Optional[List[int]] = None,
         direct_io_delta: Optional[float] = None,
         direct_cpu_delta: Optional[float] = None,
+        exclude_windows: Optional[List[tuple]] = None,
     ) -> LocalEnergyResult:
+        """Profilazione causale della finestra [t_start, t_end].
+
+        exclude_windows: lista di (a, b) da SCORPORARE dal calcolo (es. la
+        chiamata al LLM Judge, che avviene DOPO l'inferenza e non deve essere
+        attribuita al modello valutato). Le finestre escluse riducono dt,
+        sottraggono il tempo busy Ollama e accorciano la coda dei campioni per
+        lo share CPU — tutto dichiarato nelle note.
+        """
         res = LocalEnergyResult()
         dt = max(t_end - t_start, 1e-6)
+
+        # ---- scorporo sottofinestre escluse (es. LLM Judge) ----------------
+        excl = sorted(
+            [(max(a, t_start), min(b, t_end)) for a, b in (exclude_windows or [])
+             if b > t_start and a < t_end and max(b, t_end) - min(a, t_start) > 0],
+            key=lambda w: w[0],
+        )
+        excl_s = sum(b - a for a, b in excl)
+        if excl_s > 0:
+            excl_txt = ", ".join(f"[{a:.2f}-{b:.2f}]" for a, b in excl)
+            notes_excl = (
+                f"sottofinestre escluse dal profilo ({excl_s:.2f} s: {excl_txt}): "
+                "energia del LLM Judge SCORPORATA dal modello valutato"
+            )
+            dt = max(dt - excl_s, 1e-6)
+        else:
+            notes_excl = ""
+
         res.duration_s = dt
 
         samples: List[SystemSample] = self.session.samples_between(t_start, t_end)
         notes: List[str] = []
+        if notes_excl:
+            notes.append(notes_excl)
 
         # ---------------------------------------------------------- CPU part
         pkg_first = next((s.package_energy_j for s in samples if s.package_energy_j is not None), None)
@@ -95,6 +124,10 @@ class CasualWattLocalEnergyProfiler:
         busy_first = samples[0].cpu_busy_seconds if samples else 0.0
         busy_last = samples[-1].cpu_busy_seconds if samples else 0.0
         dt_cpu_busy = max(busy_last - busy_first, 0.0)
+        if excl_s > 0:
+            # quota busy stimata proporzionale alle finestre escluse
+            # (conservativo: sottostima mai sovrastima l'attribuzione Ollama)
+            dt_cpu_busy = max(dt_cpu_busy - dt_cpu_busy * excl_s / max(excl_s + dt, 1e-6), 0.0)
 
         idle_power_w = self.session.idle_power_w
         if idle_power_w is None:
@@ -181,7 +214,31 @@ class CasualWattLocalEnergyProfiler:
         res.active_energy_j = round(active, 6)
 
         # delta CPU-time albero Ollama: preferisce istogrammi campione-campione
-        d_ollama = self._ollama_cpu_delta(samples)
+        if excl:
+            # scorporo judge: limita il delta agli intervalli NON esclusi
+            def _in_excl(a: float, b: float) -> bool:
+                return any(not (b <= x or a >= y) for x, y in excl)
+            pairs = list(zip(samples[1:], samples[:-1]))
+            kept = [(p, q) for p, q in pairs if not _in_excl(q.t, p.t)]
+            d_ollama = self._ollama_cpu_delta([q for q, p in kept] + [p for p, q in kept]) \
+                if kept else 0.0
+            # calcolo diretto sugli intervalli tenuti (istogrammi consecutivi)
+            d2 = 0.0
+            ok2 = False
+            for p, q in kept:
+                if p.ollama_pids and q.ollama_pids:
+                    try:
+                        pa = sum(p.ollama_pids.values())
+                        qa = sum(q.ollama_pids.values())
+                        if qa >= pa:
+                            d2 += qa - pa
+                            ok2 = True
+                    except Exception:
+                        ok2 = False
+            if ok2:
+                d_ollama = d2
+        else:
+            d_ollama = self._ollama_cpu_delta(samples)
         if d_ollama is None and direct_cpu_delta is not None:
             d_ollama = max(direct_cpu_delta, 0.0)
             notes.append("cpu-time Ollama da contatore diretto della request (fallback)")
@@ -240,6 +297,15 @@ class CasualWattLocalEnergyProfiler:
             res.gpu_attribution_method = "not-applicable"
 
         # ------------------------------------------------------- boundary
+        # scorporo judge: rimuove dai cumulativi la frazione di energia che
+        # ricade nelle sottofinestre escluse (stima temporale conservativa)
+        if excl_s > 0:
+            frac_excl = excl_s / max(excl_s + dt, 1e-6)
+            res.package_energy_j = round(res.package_energy_j * (1.0 - frac_excl), 6)
+            e_pkg_kept = res.package_energy_j
+            active = max(e_pkg_kept - res.baseline_energy_j, 0.0)
+            res.active_energy_j = round(active, 6)
+            res.ollama_active_energy_j = round(active * res.cpu_time_share, 6)
         src_desc = {
             "power-integration": (
                 "LibreHardwareMonitor 'CPU Package' [W] sampled every 0.05 s, "

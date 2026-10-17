@@ -106,10 +106,13 @@ def _estimate_tokens(prompt_text: str, response_text: str):
 
 def query_ollama(model: str, prompt: str, temperature: float, timeout_s: float,
                  num_predict: int = 160):
-    """POST /api/generate (stream:false). Ritorna (response_data, local_result).
+    """POST /api/generate (stream:false) + profilo energetico della finestra.
 
     response_data: {text, prompt_tokens, completion_tokens, duration_s}
     local_result : LocalEnergyResult profilato causalmente sulla finestra.
+    NB: qui NON c'e' scorporo judge — usato dai percorsi senza LLM Judge
+    (cloud, legacy). Il percorso locale del benchmark usa _ollama_infer_only
+    + profile_window(escludendo la sottofinestra del giudice).
     """
     payload = {
         "model": model,
@@ -156,6 +159,53 @@ def query_ollama(model: str, prompt: str, temperature: float, timeout_s: float,
     resp_data["_t1"] = t1
     resp_data["_wall_start"] = wall_start
     return resp_data, local
+
+
+def _ollama_infer_only(model: str, prompt: str, temperature: float,
+                       timeout_s: float, num_predict: int = 160):
+    """Inferenza Ollama SENZA profiling: ritorna (resp_data, None).
+
+    Il profilo viene preso DOPO la valutazione, scorporando la sottofinestra
+    del LLM Judge (benchmark_unified, percorso locale).
+    """
+    payload = {
+        "model": model,
+        "prompt": prompt,
+        "stream": False,
+        "options": {"temperature": temperature, "num_predict": num_predict},
+    }
+    t0 = time.monotonic()
+    wall_start = time.time()
+    resp = requests.post(config.OLLAMA_GENERATE_ENDPOINT, json=payload, timeout=timeout_s)
+    resp.raise_for_status()
+    data = resp.json()
+    t1 = time.monotonic()
+
+    text = data.get("response", "") or ""
+    p_tok = int(data.get("prompt_eval_count") or data.get("prompt_count") or 0)
+    c_tok = int(data.get("eval_count") or 0)
+    resp_data = {
+        "text": text,
+        "prompt_tokens": p_tok,
+        "completion_tokens": c_tok,
+        "duration_s": round(t1 - t0, 6),
+    }
+    if p_tok == 0 or c_tok == 0:
+        est_p, est_c = _estimate_tokens(prompt, text)
+        if p_tok == 0:
+            resp_data["prompt_tokens"] = est_p
+        if c_tok == 0:
+            resp_data["completion_tokens"] = est_c
+        resp_data["_tokens_note"] = "input/output token stimati (tiktoken/euristica len//4)"
+    resp_data["prefill_duration_s"] = float(data.get("prompt_eval_duration") or 0) / 1e9
+    resp_data["decoding_duration_s"] = float(data.get("eval_duration") or 0) / 1e9
+    resp_data["raw_created_at"] = data.get("created_at", "")
+    resp_data["tool_calls"] = 0
+    # finestre della SOLA inferenza (judge escluso dal profiling successivo)
+    resp_data["_t0"] = t0
+    resp_data["_t1"] = t1
+    resp_data["_wall_start"] = wall_start
+    return resp_data, None
 
 
 def query_cloud(provider_cfg: Dict, model: str, prompt: str, temperature: float,
@@ -267,6 +317,27 @@ def _resolve_eval_mode(prompt: Dict, explicit: Optional[str] = None) -> str:
     return "skip"
 
 
+def _estimate_judge_energy(local, duration_s: float) -> float:
+    """Stima DICHIARATA dell'energia del sotto-processo LLM Judge.
+
+    Il profiler della riga scorpora la finestra del judge dal modello
+    valutato (exclude_windows): questo campo riporta quanto energia e' stata
+    rimossa, per tracciabilita'. Stima: P_idle calibrato + delta sopra-idle
+    attribuito con la stessa cpu_time_share della riga. NaN se il profiler
+    non puo' esprimere alcuna stima (misurazione locale assente).
+    """
+    try:
+        if getattr(local, "cpu_attribution_method", "") == "unavailable":
+            return float("nan")
+        p = float(getattr(local, "idle_power_w", 0.0) or 0.0)
+        share = float(getattr(local, "cpu_time_share", 0.0) or 0.0)
+        # il giudice usa l'albero Ollama: quota ~ share; floor conservativo 0.25
+        eff_share = max(share, 0.25)
+        return round(p * eff_share * max(duration_s, 0.0), 6)
+    except Exception:
+        return float("nan")
+
+
 def _basic_record(run_id, session_id, model_name, model_label, provider, mode,
                   ollama_pid, prompt, evalres) -> Dict:
     ci = get_carbon_intensity()
@@ -300,6 +371,18 @@ def _basic_record(run_id, session_id, model_name, model_label, provider, mode,
         "cosine_similarity": _na_or(evalres.cosine_sim),
         "n_correct_links": _na_or(evalres.n_correct_links),
         "acc_comp": _na_or(evalres.acc_comp),
+        # --- tracciabilita' triple causali / F1 (regime A) ---
+        "triples_gt": _na_or(getattr(evalres, "triples_gt", None)),
+        "triples_response": _na_or(getattr(evalres, "triples_response", None)),
+        "triples_matched": _na_or(getattr(evalres, "triples_matched", None)),
+        "f1_precision": _na_or(getattr(evalres, "f1_precision", None)),
+        "f1_recall": _na_or(getattr(evalres, "f1_recall", None)),
+        "acc_links_basis": getattr(evalres, "acc_links_basis", ""),
+        # --- LLM Judge (regime B e arricchimento regime A) ---
+        "judge_model": getattr(evalres, "judge_model", ""),
+        "evaluated_model": getattr(evalres, "evaluated_model", ""),
+        "judge_equals_evaluated": _na_or(getattr(evalres, "judge_equals_evaluated", None)),
+        "judge_source": getattr(evalres, "judge_source", ""),
         "tool_calls": 1 if evalres.is_tool else 0,
         "pyagrum_calls": 0,
         "llm_calls": 1,
@@ -526,14 +609,34 @@ def run_unified_benchmark(
             )
             t_wall0 = time.time()
             try:
-                resp_data, local = query_ollama(
+                # 1) inferenza del modello valutato (senza profilo ancora)
+                resp_data, _local_raw = _ollama_infer_only(
                     model, pr["text"], temperature, timeout_s
                 )
+                # 2) valutazione + LLM Judge (eventuale): registra le sue
+                #    sottofinestre in llm_judge.LAST_WINDOWS
+                _lj.LAST_WINDOWS = []
                 evalres = evaluate_response(
                     resp_data["text"], is_tool=False,
                     ground_truth=pr.get("ground_truth"),
                     mode=_resolve_eval_mode(pr, eval_mode_override),
+                    question=pr["text"], evaluated_model=model,
                 )
+                jw = list(getattr(_lj, "LAST_WINDOWS", []) or [])
+                # 3) UNICO profiling: finestra [t0, t_end_effettivo] con la
+                #    sottofinestra del giudice SCORPORATA esplicitamente.
+                #    Il modello valutato contribuisce solo al segmento inferenza;
+                #    judge_energy_j e' il contatore separato del segmento giudice.
+                t_end_profile = jw[-1][1] if jw else resp_data["_t1"]
+                local = CasualWattLocalEnergyProfiler().profile_window(
+                    resp_data["_t0"], t_end_profile,
+                    exclude_windows=jw if jw else None,
+                )
+                rec["judge_energy_j"] = (
+                    _estimate_judge_energy(local, sum(b - a for a, b in jw))
+                    if jw else ""
+                )
+                rec["judge_window_s"] = round(sum(b - a for a, b in jw), 6) if jw else ""
                 rec.update(
                     model_response=resp_data["text"],
                     timestamp_start=datetime.fromtimestamp(t_wall0, tz=timezone.utc).isoformat(timespec="seconds"),
