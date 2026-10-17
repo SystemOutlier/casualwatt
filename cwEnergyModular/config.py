@@ -69,9 +69,15 @@ _load_dotenv()
 # ---------------------------------------------------------------------------
 # Ollama (sezione 5 e 8)
 # ---------------------------------------------------------------------------
-OLLAMA_HOST = os.getenv("OLLAMA_HOST", "http://localhost:11434").rstrip("/")
+# Host Ollama per le RICHIESTE CLIENT. Default locale.
+# NOTA: 0.0.0.0 è un indirizzo di BINDING (ascolto del server), NON un host a cui connettersi.
+# Se la variabile d'ambiente contiene 0.0.0.0 o ::, viene convertita in 127.0.0.1.
+OLLAMA_HOST = os.getenv("OLLAMA_HOST", "http://127.0.0.1:11434").strip().strip('"').rstrip("/")
 if not OLLAMA_HOST.startswith("http"):
     OLLAMA_HOST = "http://" + OLLAMA_HOST
+_host_no_scheme = OLLAMA_HOST.split("://", 1)[-1]
+if _host_no_scheme.startswith("0.0.0.0") or _host_no_scheme.startswith("[::]") or _host_no_scheme.startswith("::"):
+    OLLAMA_HOST = OLLAMA_HOST.replace(_host_no_scheme, "127.0.0.1:11434" if ":" in _host_no_scheme else "127.0.0.1", 1)
 OLLAMA_API_URL = OLLAMA_HOST
 OLLAMA_TAGS_ENDPOINT = f"{OLLAMA_API_URL}/api/tags"
 OLLAMA_GENERATE_ENDPOINT = f"{OLLAMA_API_URL}/api/generate"
