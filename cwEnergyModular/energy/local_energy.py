@@ -91,16 +91,21 @@ class CasualWattLocalEnergyProfiler:
         idle_power_w = self.session.idle_power_w
         auto_micro_calibrated = False
         if idle_power_w is None:
-            # mai calibrato: usa un valore conservativo DI CALIBRAZIONE
-            # automatica minima, dichiarato in note (non una frazione fissa
-            # arbitraria dell'energia misurata).
+            # mai calibrato: micro-calibrazione empirica a riposo (2 s),
+            # dichiarata in note. Se non esiste un contatore reale di Joule,
+            # la baseline viene esplicitamente marcata indisponibile (0) e
+            # l'energia attiva coincide con il delta package: nessun valore
+            # TDP inventato.
             try:
                 idle_power_w = self.session.calibrate_idle(2.0)
                 auto_micro_calibrated = True
-                notes.append("P_idle non calibrato dall'utente: micro-calibrazione 2 s")
-            except Exception:
+                notes.append("P_idle non calibrato dall'utente: micro-calibrazione empirica 2 s")
+            except Exception as exc:
                 idle_power_w = 0.0
-                notes.append("P_idle indisponibile: baseline_energy_j = 0 (dichiarato)")
+                notes.append(
+                    "P_idle non calibrato e contatore Joule assente "
+                    f"({type(exc).__name__}): baseline_energy_j = 0 (dichiarato)"
+                )
         res.idle_power_w = float(idle_power_w or 0.0)
 
         method = self.session.source_method
@@ -116,8 +121,11 @@ class CasualWattLocalEnergyProfiler:
         # prova di inattivita': si applica solo con P_idle calibrato da
         # GUI/sessione (idle_proven = calibrated|session).
         # ---------------------------------------------------------------
+        # La micro-calibrazione empirica interna usa lo STESSO metodo della
+        # calibrazione GUI (delta Joule a riposo): se il contatore ha risposto,
+        # il valore e' affidabile e abilita lo scorporo code inattive.
         idle_proven = getattr(self.session, "idle_provenance", None) or (
-            "auto_micro" if auto_micro_calibrated else None
+            "calibrated" if auto_micro_calibrated else None
         )
         active_end_dt = dt
         if (

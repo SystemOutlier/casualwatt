@@ -46,17 +46,25 @@ class _CPUJouleSource:
         self._rapl_last: Optional[float] = None
         self._rapl_base: Optional[float] = None
         self._tdp_w: Optional[float] = None
+        self._power_base_j: float = 0.0   # base contatore potenza per read_power_j
+        self._power_last_j: Optional[float] = None
         self._notes: List[str] = []
 
         if self._try_lhm():
             self.method = "librehardwaremonitor"
         elif self._try_rapl():
             self.method = "rapl"
+        elif self._try_power_counter():
+            # contatore di energia disponibile SENZA LHM (es. RAPL esposto
+            # dall'utente come file,vedi CW_ENERGY_FILE): il metodo resta
+            # "rapl" per compatibilita' con il profiler.
+            pass
         else:
             self.method = "tdp_estimate"
             self._tdp_w = self._guess_tdp()
             self._notes.append(
-                f"stima da TDP ({self._tdp_w:.0f} W) x busy-time CPU; confine: system-wide"
+                "contatore package non disponibile: usera' calibrazione idle "
+                "empirica a riposo; stima TDP solo come ultima risorsa"
             )
 
     # -- backend LHM -------------------------------------------------------
@@ -181,6 +189,48 @@ class _CPUJouleSource:
         delta_guard = raw if raw >= base else raw + 2 ** 32 * 0 + raw
         return max(raw - base, delta_guard if raw < base else raw - base)
 
+    # -- contatore energia via file (opzionale, portabile) ------------------
+    def _try_power_counter(self) -> bool:
+        """Backend opzionale: legge un contatore di joule da un file.
+
+        Configurabile con la variabile d'ambiente ``CW_ENERGY_FILE`` (o in
+        .env): il file deve contenere un numero = energia cumulata [J]
+        (es. sysfs RAPL esposto dall'utente, output di powerstat/nvidia-smi
+        wrapper, simulatore nei test). Esporre il path del sysfs RAPL qui
+        equivale al backend rapl nativo.
+        """
+        try:
+            import os
+
+            path = os.environ.get("CW_ENERGY_FILE", "").strip().strip('"')
+            if not path or not os.path.isfile(path):
+                return False
+            v = self._read_energy_file(path)
+            if v is None:
+                return False
+            self._power_path = path
+            self.method = "rapl"  # riusa il metodo dei contatori reali
+            self._notes.append(f"contatore energia da file {path}")
+            return True
+        except Exception:
+            return False
+
+    @staticmethod
+    def _read_energy_file(path: str) -> Optional[float]:
+        try:
+            with open(path, "r", encoding="ascii") as fh:
+                raw = fh.read().strip()
+            val = float(raw.split()[0]) if raw else None
+            return val
+        except Exception:
+            return None
+
+    def _file_value(self) -> Optional[float]:
+        v = getattr(self, "_power_path", None)
+        if not v:
+            return None
+        return self._read_energy_file(v)
+
     # -- backend stima TDP -------------------------------------------------
     @staticmethod
     def _guess_tdp() -> float:
@@ -208,6 +258,9 @@ class _CPUJouleSource:
         if self.method == "librehardwaremonitor":
             return self._lhm_value()
         if self.method == "rapl":
+            fv = self._file_value()
+            if fv is not None:
+                return fv - self._power_base_j
             return self._rapl_value()
         if self.method == "tdp_estimate":
             # Energia attiva stimata = TDP * frazione di core-busy-second
@@ -215,6 +268,26 @@ class _CPUJouleSource:
             # quindi P_idle NON viene incluso (viene sottratto a monte).
             return (self._tdp_w or 45.0) * busy_seconds_total
         return None
+
+    def read_power_j(self) -> Optional[float]:
+        """Lettura DIRETTA del contatore cumulato di energia package [J].
+
+        Usata dalla calibrazione idle puramente empirica (delta joule su
+        finestra a riposo): stessa funzione di lettura energetica usata dal
+        benchmark, nessuna stima TDP. Ritorna None se nessun contatore reale
+        e' disponibile (il chiamante deve dichiarare il fallback).
+        """
+        try:
+            if self.method == "librehardwaremonitor":
+                return self._lhm_value()
+            if self.method == "rapl":
+                fv = self._file_value()
+                if fv is not None:
+                    return fv - self._power_base_j
+                return self._rapl_value()
+        except Exception:
+            return None
+        return None  # tdp_estimate / unavailable: nessun contatore reale
 
     @property
     def notes(self) -> List[str]:
@@ -352,15 +425,21 @@ class EnergySession:
 
     # ------------------------------------------------------------- sampling
     def _loop(self) -> None:
-        prev_busy = self._cpu_t0
         while not self._stop.is_set():
             try:
-                self._record_once(prev_busy)
+                self.record_once()
             except Exception as exc:  # il thread non deve mai morire
                 self.last_error = f"{type(exc).__name__}: {exc}"
             time.sleep(self.interval_s)
 
-    def _record_once(self, prev_busy: float) -> SystemSample:
+    def record_once(self) -> Optional[SystemSample]:
+        """Registra un campione nella sessione (thread sampler o calibrazione)."""
+        with self._lock:
+            if not self._running:
+                return None
+            return self._record_once()
+
+    def _record_once(self) -> SystemSample:
         t = time.monotonic()
         busy = self._system_busy_seconds()
         pids = self.find_ollama_procs()
@@ -400,6 +479,14 @@ class EnergySession:
             if self._running:
                 return
             self._stop.clear()
+            # allinea la base del contatore di potenza al momento dell'avvio:
+            # cosi' read_power_j()/package_energy_j restano coerenti tra
+            # calibrazione empirica e benchmark anche dopo stop/riconnessione
+            pb = self._source.read_power_j()
+            if pb is not None:
+                self._source._power_base_j = pb
+            self._cpu_t0 = self._system_busy_seconds()
+            self._samples.clear()
             self._thread = threading.Thread(
                 target=self._loop, name="cw-energy-sampler", daemon=True
             )
@@ -474,51 +561,67 @@ class EnergySession:
 
     # ------------------------------------------------------------ calibrazione
     def calibrate_idle(self, seconds: Optional[float] = None) -> float:
-        """Calibra P_idle [W] senza carico: media mobile dei campioni recenti.
+        """Calibrazione idle PURAMENTE EMPIRICA basata su campionamento a riposo.
 
-        Con contatore reale (LHM/RAPL): pendenza J/s della finestra pulita.
-        Con stima TDP: legge direttamente la potenza equivalente dalla
-        variazione di busy-time (l'implementazione di stima esclude l'idle,
-        quindi si usa un valore conservativo derivato dalla % CPU osservata).
-        Ritorna il valore in W e lo memorizza in ``self.idle_power_w``.
+        Logica (identica a quella usata per il benchmark, nessuna stima TDP):
+          1. definisce la finestra ``duration_s`` (default da config);
+          2. legge E_start dal contatore cumulato di energia package;
+          3. dorme duration_s con il sistema fermo (nessun carico generato);
+          4. legge E_end dallo stesso contatore;
+          5. P_idle = (E_end - E_start) / duration_s [W].
+
+        L'idle calibrato riflette quindi esattamente il consumo a riposo della
+        macchina corrente. Se nessun contatore reale e' disponibile (ne' LHM
+        ne' RAPL ne' file custom), viene sollevato RuntimeError con messaggio
+        esplicito: il fallback TDP non e' piu' contemplato.
         """
         import config as _cfg
 
-        seconds = seconds or _cfg.IDLE_CALIBRATION_SECONDS
-        # svuota lo storico per una finestra pulita
-        with self._lock:
-            self._samples.clear()
-        deadline = time.monotonic() + max(seconds, 2.0)
-        while time.monotonic() < deadline:
-            time.sleep(0.2)
-        with self._lock:
-            win = list(self._samples)
-        if len(win) < 2:
-            raise RuntimeError("calibrazione idle fallita: nessun campione")
-        dt = win[-1].t - win[0].t
-        if dt <= 0:
-            raise RuntimeError("calibrazione idle fallita: finestra nulla")
-        power_w: Optional[float] = None
-        if self._source.method in ("librehardwaremonitor", "rapl"):
-            e0, e1 = win[0].package_energy_j, win[-1].package_energy_j
-            if e0 is not None and e1 is not None and e1 >= e0:
-                power_w = (e1 - e0) / dt
-        if power_w is None:
-            # fallback: busy-based. In regime quasi-idle il numero di core
-            # busy-equivalenti e' bassissimo; usiamo mediana % CPU * TDP
-            # come proxy CONSERVATIVO (min 3 W, max 25 W su macchine mobili).
-            import statistics
+        duration_s = float(seconds or _cfg.IDLE_CALIBRATION_SECONDS)
+        duration_s = max(duration_s, 0.5)
 
-            pct = statistics.median(s.cpu_percent for s in win)
-            tdp = self._source._tdp_w or self._source._guess_tdp()
-            power_w = min(max(tdp * (pct / 100.0) / max(psutil.cpu_count(logical=True) or 1, 1) * 2.0, 3.0), 0.25 * tdp)
+        was_running = self._running
+        if not was_running:
+            self.start()
+        try:
+            # breve stabilizzazione prima della lettura E_start
+            time.sleep(min(0.5, duration_s * 0.1))
+            e_start = self._source.read_power_j()
+            t_start = time.monotonic()
+            if e_start is None:
+                raise RuntimeError(
+                    "calibrazione idle fallita: nessun contatore di energia "
+                    "package disponibile (LHM/RAPL/file). La calibrazione "
+                    "empirica richiede una lettura reale dei Joule."
+                )
+            # campionamento passivo durante la finestra (per note diagnostiche)
+            while True:
+                elapsed = time.monotonic() - t_start
+                if elapsed >= duration_s:
+                    break
+                time.sleep(min(0.2, max(duration_s - elapsed, 0.01)))
+                self.record_once()
+            e_end = self._source.read_power_j()
+            t_end = time.monotonic()
+            if e_end is None:
+                raise RuntimeError(
+                    "calibrazione idle fallita: contatore non leggibile a fine finestra"
+                )
+            dt = max(t_end - t_start, 1e-6)
+            delta_j = e_end - e_start
+            if delta_j < 0:
+                raise RuntimeError(
+                    "calibrazione idle fallita: contatore decrescente "
+                    f"(E_start={e_start:.3f} J, E_end={e_end:.3f} J)"
+                )
+            power_w = delta_j / dt
+        finally:
+            if not was_running:
+                self.stop()
+
         self.idle_power_w = round(power_w, 3)
-        # provenienza: calibrazione esplicita dell'utente (GUI/pulsante o
-        # chiamata diretta con durata >= 2 s); il profiler la declassera' ad
-        # "auto_micro" se innescata dalla micro-calibrazione interna.
-        # NB: usare ``seconds`` (argomento locale), NON ``duration_s`` che non
-        # esiste in questo scope — era il bug "name 'duration_s' is not defined".
-        self.idle_provenance = "calibrated" if seconds >= 2.0 else "auto_micro"
+        # NB: usare ``duration_s`` locale definita sopra, NON variabili esterne.
+        self.idle_provenance = "calibrated" if duration_s >= 2.0 else "auto_micro"
         self.calibrated_at = time.time()
         return self.idle_power_w
 

@@ -441,19 +441,24 @@ class BenchmarkPanel(ttk.LabelFrame):
         from energy.energy_session import SESSION
 
         def worker():
+            was_running = SESSION.running
             try:
-                was_running = SESSION.running
                 if not was_running:
                     SESSION.start()
                     time.sleep(SESSION.interval_s * 2)
-                self._q.put(("log", "Calibrazione idle: NON generare carico sul PC…"))
+                self._q.put(("log", "Calibrazione idle EMPIRICA: NON generare carico sul PC…"))
                 pw = SESSION.calibrate_idle()
                 self._q.put(("idle", pw))
-                self._q.put(("log", f"P_idle = {pw:.2f} W (fonte: {SESSION.source_method})"))
-                if not was_running:
-                    SESSION.stop()
+                self._q.put((
+                    "log",
+                    f"P_idle = {pw:.2f} W misurata a riposo "
+                    f"(delta Joule / durata; contatore: {SESSION.source_method})",
+                ))
             except Exception as exc:
                 self._q.put(("log", f"Calibrazione fallita: {exc}"))
+            finally:
+                if not was_running:
+                    SESSION.stop()
 
         t = threading.Thread(target=worker, daemon=True, name="cw-idle-calib")
         t.start()

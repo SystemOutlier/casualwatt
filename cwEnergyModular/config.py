@@ -232,7 +232,9 @@ CLOUD_PROVIDERS: dict = {
 DEFAULT_NUM_PROMPTS = int(os.getenv("CW_NUM_PROMPTS", "3"))
 DEFAULT_TEMPERATURE = float(os.getenv("CW_TEMPERATURE", "0.2"))
 DEFAULT_TIMEOUT_S = float(os.getenv("CW_TIMEOUT_S", "60"))
-IDLE_CALIBRATION_SECONDS = float(os.getenv("CW_IDLE_CALIBRATION_SECONDS", "5"))
+IDLE_CALIBRATION_SECONDS = float(os.getenv("CW_IDLE_CALIBRATION_SECONDS", "10"))
+# Calibrazione idle puramente empirica: finestra di riposo consigliata 10 s
+# (delta Joule reali del contatore package / durata). Configurabile via env.
 MONITOR_INTERVAL_S = 0.5  # frequenza campionamento energy tracker
 
 # ---------------------------------------------------------------------------
