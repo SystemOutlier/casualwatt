@@ -212,19 +212,33 @@ def run_diagnostics(log_callback: Optional[Callable[[str], None]] = None) -> dic
         return summary
 
     # --------------------------------------------------- 5. probe Computer+Open
-    comp = None
+    # NOTA CRITICA (crash pythonnet su Python 3.14 x64): se Open() solleva
+    # un'eccezione .NET, pythonnet la converte in oggetto Python chiamando
+    # Exceptions.SetError(...). Su build incompatibili (es. wheel pythonnet
+    # pre-rilasciati per una minor di CPython diversa) la riflessione del
+    # tipo dell'eccezione fallisce INTERNAMENTE con NullReferenceException
+    # che il runtime CLR propaga come crash NON gestito del processo: il
+    # try/except Python non puo' intercettarlo. Percio' qui Open() viene
+    # chiamata SENZA wrapper: se l'assembly si rompe, lo stack .NET grezzo
+    # finisce direttamente in console (diagnostica esatta richiesta); se
+    # passa, la scansione sensori prosegue protetta.
+    comp = Computer()
+    comp.IsCpuEnabled = True
+    comp.IsGpuEnabled = True
+    # Diagnostica pre-Open: versione assembly + runtime .NET (utilissima per
+    # verificare compatibilita' pythonnet/LHM prima di qualsiasi chiamata).
     try:
-        comp = Computer()
-        comp.IsCpuEnabled = True
-        comp.IsGpuEnabled = True
-        comp.Open()
-        summary["computer_opened"] = True
-        _emit(lines, log_callback, _OK, "Computer() aperto: interrogazione hw in corso...")
-    except BaseException as exc:
-        _emit(lines, log_callback, _ERR, f"Computer().Open() FALLITA: {type(exc).__name__}: {exc}")
-        summary["errors"].append(f"open:{type(exc).__name__}")
-        summary["method_expected"] = "lhm-open-failed"
-        return summary
+        from System.Reflection import Assembly  # type: ignore
+
+        _asm_ver = str(Assembly.GetExecutingAssembly().ImageRuntimeVersion)
+        _emit(lines, log_callback, _INFO, f"Runtime assembly LHM: {_asm_ver}")
+    except Exception as exc:
+        _emit(lines, log_callback, _WARN, f"Versione assembly non leggibile ({type(exc).__name__})")
+    _emit(lines, log_callback, _INFO, "Chiamata Computer().Open() (senza wrapper: "
+          "un crash .NET qui e' un problema pythonnet/CLR, non della scansione)...")
+    comp.Open()
+    summary["computer_opened"] = True
+    _emit(lines, log_callback, _OK, "Computer() aperto: interrogazione hw in corso...")
 
     try:
         # Helper condiviso con il motore (energy_session): robusto fra le

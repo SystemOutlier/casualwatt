@@ -51,6 +51,10 @@ class _CPUJouleSource:
     def __init__(self) -> None:
         self.method = "unavailable"
         self._lhm = None
+        # True solo DOPO Computer().Open() riuscito (spec §6: apertura unica).
+        # I lettori di sensori controllano questo flag: un'apertura fallita o
+        # non ancora eseguita non deve mai generare NullReferenceException.
+        self._lhm_opened = False
         self._tdp_w: Optional[float] = None
         self._power_base_j: float = 0.0   # base contatore potenza per read_power_j
         self._power_last_j: Optional[float] = None
@@ -74,7 +78,12 @@ class _CPUJouleSource:
             "LibreHardwareMonitor."
         )
 
-        if self._try_lhm():
+        if self._try_power_counter():
+            # Contatore Joule ESPOSTO DALL'UTENTE (CW_ENERGY_FILE): niente
+            # probe LHM (evita figli inutili su Linux/dev e rispetta la
+            # precedenza 'solo se LHM non disponibile' del vecchio ordine).
+            pass
+        elif self._try_lhm():
             # LHM agganciata: metodo definito dai sensori reali disponibili.
             if self._lhm_value() is not None:
                 self.method = "librehardwaremonitor-energy"
@@ -110,6 +119,101 @@ class _CPUJouleSource:
 
     # -- backend LHM -------------------------------------------------------
     def _try_lhm(self) -> bool:
+        # pythonnet + LHM possono CRASHARE il processo con un'eccezione .NET
+        # NON intercettabile dal try/except Python (caso reale osservato:
+        # InternalPythonnetException/NullReferenceException in
+        # TypeManager.AllocateTypeObject durante Computer().Open() su build
+        # pythonnet non compatibili con la minor CPython corrente). Il probe
+        # completo viene quindi eseguito in un FIGLIO ISOLATO: se il figlio
+        # crasha, il padre degrada in modo pulito e riporta l'eccezione
+        # esatta letta dallo stderr del figlio.
+        import os as _os
+
+        if _os.environ.get("CW_LHM_PROBE_CHILD") == "1":
+            return self._lhm_probe_child()
+        return self._lhm_probe_parent()
+
+    # ------------------------------------------------------------------ probe
+    def _lhm_probe_parent(self) -> bool:
+        """Esegue il probe LHM in un sottoprocesso isolato (anti-crash)."""
+        import subprocess
+        import sys
+
+        if platform_system() != "Windows":
+            # Niente figlio su Linux/macOS: LHM non esiste e il probe
+            # sarebbe solo rumore nei log (nota unica, non doppia).
+            self._notes.append("LHM non applicabile (piattaforma non Windows)")
+            return False
+
+        cmd = [
+            sys.executable, "-B", "-c",
+            "import energy.energy_session as m; m.SESSION._source._probe_and_report()",
+        ]
+        try:
+            from config import BASE_DIR as _BASE
+        except Exception:  # pragma: no cover - standalone
+            _BASE = None
+        env = dict(__import__("os").environ, CW_LHM_PROBE_CHILD="1")
+        try:
+            r = subprocess.run(
+                cmd, cwd=(str(_BASE) if _BASE else None), env=env,
+                capture_output=True, text=True, timeout=60,
+            )
+        except Exception as exc:  # noqa: BLE001
+            self._notes.append(f"probe LHM non eseguibile ({type(exc).__name__})")
+            return False
+        out = (r.stdout or "").strip()
+        err = (r.stderr or "").strip()
+        for ln in out.splitlines():
+            if ln.startswith("LHM_NOTE:"):
+                self._notes.append(ln[9:].strip())
+        if r.returncode != 0:
+            tail = "\n".join((err or out).splitlines()[-8:])
+            self._notes.append(
+                f"PROBE LHM nel figlio FALLITO (rc={r.returncode}): {tail[:400]}"
+            )
+            return False
+        if "LHM_OK" in out:
+            return True
+        self._notes.append(
+            "probe LHM: Computer() aperto ma nessun sensore Energy/Power CPU "
+            "valido (dettaglio nelle note del figlio)"
+        )
+        return False
+
+    def _lhm_probe_child(self) -> bool:
+        """Nel FIGLIO: aggancia LHM, apre il Computer e valida i sensori."""
+        ok = self._try_lhm_direct()
+        if not ok:
+            return False
+        try:
+            self.open_computer()
+        except BaseException:  # noqa: BLE001 - il crash .NET finisce qui
+            import traceback
+
+            print("LHM_NOTE: crash in Computer().Open():\n" + traceback.format_exc())
+            raise
+        has_energy = self._lhm_value() is not None
+        power_sel = None if has_energy else self._select_power_sensor()
+        if has_energy or power_sel is not None:
+            print("LHM_OK")
+            return True
+        self._notes.append(
+            "Computer() aperto ma NESSUN sensore Energy/Power CPU esposto"
+        )
+        return False
+
+    def _probe_and_report(self) -> None:
+        """Entry point del sottoprocesso di probe: stampa note + esito."""
+        src = SESSION._source
+        try:
+            src._try_lhm()
+        finally:
+            for n in src.notes:
+                print("LHM_NOTE:", str(n).replace("\n", " | "))
+
+    # ------------------------------------------------------------------ LHM
+    def _try_lhm_direct(self) -> bool:
         try:
             import platform
 
@@ -165,13 +269,36 @@ class _CPUJouleSource:
             comp = Computer()
             comp.IsCpuEnabled = True
             comp.IsGpuEnabled = True
-            comp.Open()
+            # Il computer NON viene aperto qui: l'apertura e' delegata a
+            # open_computer(), unico punto di creazione/apertura (spec §6)
+            # con gestione esplicita delle eccezioni .NET.
             self._lhm = comp
             self._notes.append("LibreHardwareMonitorLib agganciata")
             return True
         except Exception as exc:  # noqa: BLE001 - degradazione voluta
             self._notes.append(f"LHM non disponibile ({type(exc).__name__})")
             return False
+
+    def open_computer(self) -> None:
+        """Apre il Computer() LHM UNA sola volta (spec §6).
+
+        Idempotente: richiami successivi sono no-op. Le eccezioni vengono
+        propagate al chiamante (che le logga): in questo modo un crash
+        durante Open() non puo' mai essere mascherato da un 'successo'
+        silenzioso, e la diagnostica resta veritiera.
+        """
+        if self._lhm_opened or self._lhm is None:
+            return
+        try:
+            self._lhm.Open()
+        except Exception as exc:  # propagata dopo pulizia stato
+            self._lhm = None
+            self._notes.append(
+                f"Computer().Open() fallita ({type(exc).__name__}): sensore "
+                "CPU non disponibile"
+            )
+            raise
+        self._lhm_opened = True
 
     # ------------------------------------------------------------------ LHM
     # Nomi sensore ENERGY accepted (case-insensitive): LibreHardwareMonitor
@@ -209,7 +336,7 @@ class _CPUJouleSource:
 
     def _lhm_power_w(self) -> Optional[float]:
         """Istantanea potenza CPU [W] dal primo sensore Power valido (o None)."""
-        if self._lhm is None:
+        if self._lhm is None or not self._lhm_opened:
             return None
         try:
             for hw in self._lhm.Hardware:
@@ -317,7 +444,7 @@ class _CPUJouleSource:
         l'alto: gli errori per-sensore sono inghiottiti e tracciati in
         _lhm_last_error per il log diagnostico.
         """
-        if self._lhm is None:
+        if self._lhm is None or not self._lhm_opened:
             return None
         try:
             package_mj = 0.0
@@ -371,7 +498,7 @@ class _CPUJouleSource:
     def diagnose_cpu_sensors(self) -> List[dict]:
         """Ritorna TUTTI i sensori CPU esposti da LHM (per log diagnostico)."""
         out: List[dict] = []
-        if self._lhm is None:
+        if self._lhm is None or not self._lhm_opened:
             return out
         try:
             for hw in self._lhm.Hardware:
@@ -415,7 +542,7 @@ class _CPUJouleSource:
         Ritorna l'oggetto sensore pythonnet oppure None. Memorizza in
         _pi_sensors_seen TUTTI i nomi Power visti (diagnostica completa).
         """
-        if self._lhm is None:
+        if self._lhm is None or not self._lhm_opened:
             return None
         preferred = None
         fallback = None
@@ -462,6 +589,8 @@ class _CPUJouleSource:
 
     def _read_power_w_direct(self) -> Optional[float]:
         """Legge il valore [W] del sensore selezionato (None se non popolato)."""
+        if self._lhm is None or not self._lhm_opened:
+            return None
         sel = getattr(self, "_pi_selected", None)
         if sel is None:
             sel = self._select_power_sensor()
@@ -940,10 +1069,25 @@ class EnergySession:
         with self._lock:
             if self._running:
                 return
-            # spec §6/§7: il Computer() LHM e' aperto UNA sola volta nel
-            # source; qui si riavvia SOLO il thread di power-integration se
-            # era stato fermato da close(), senza mai richiudere l'assembly.
-            if self._source.method == "power-integration":
+            # spec §6: apertura UNICA e protetta del Computer() LHM. Se
+            # Open() fallisce, l'errore .NET viene registrato nelle note di
+            # sessione (visibili in GUI/CSV) e la misurazione locale degrada
+            # a 'unavailable': MAI un crash non gestito del processo.
+            try:
+                self._source.open_computer()
+            except Exception as exc:  # noqa: BLE001 - degradazione voluta
+                self._notes.append(
+                    f"Computer().Open() fallita ({type(exc).__name__}): "
+                    f"{exc!s:.200} — misurazione locale CPU disabilitata"
+                )
+                self._source.method = "unavailable"
+            # spec §6/§7: il thread di power-integration si avvia SOLO se
+            # l'assembly e' realmente aperta; qui si riavvia solo il thread
+            # se era stato fermato da close(), senza mai richiudere l'assembly.
+            if (
+                self._source.method == "power-integration"
+                and getattr(self._source, "_lhm_opened", False)
+            ):
                 self._source._start_power_integration()
             self._stop.clear()
             # allinea la base del contatore di potenza al momento dell'avvio:
@@ -989,10 +1133,15 @@ class EnergySession:
             pass
         if getattr(src, "_lhm", None) is not None:
             try:
-                src._lhm.Close()
+                # Close() solo se Open() era riuscito: chiamarla su un
+                # Computer non aperto puo' sollevare NullReferenceException
+                # .NET (pythonnet la propagherebbe come crash del processo).
+                if src._lhm_opened:
+                    src._lhm.Close()
             except Exception:
                 pass
             src._lhm = None
+            src._lhm_opened = False
             src._pi_selected = None
         self._gpu.shutdown()
 
@@ -1087,6 +1236,17 @@ class EnergySession:
         was_running = self._running
         if not was_running:
             self.start()
+        # guardia esplicita (anti crash .NET non intercettabili): se il
+        # backend LHM NON e' attivo con un metodo reale, la calibrazione si
+        # ferma PRIMA di toccare qualsiasi oggetto pythonnet.
+        if self._source.method not in ("power-integration", "librehardwaremonitor-energy"):
+            cause = "; ".join(self._source.notes[-3:]) or f"metodo='{self._source.method}'"
+            raise RuntimeError(
+                "calibrazione idle fallita: nessun contatore di energia/potenza "
+                "package disponibile (LHM). Causa: " + cause +
+                ". Esegui 'py diagnostics.py' per il report completo "
+                "(clr/pythonnet/DLL/UAC/sensori Power)."
+            )
         try:
             # breve stabilizzazione prima della misura
             time.sleep(1.0)
