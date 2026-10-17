@@ -80,19 +80,64 @@ class _CPUJouleSource:
             "Local CPU energy measurement is available only on Windows with "
             "LibreHardwareMonitor."
         )
+        #: Callback opzionale di avanzamento (impostato da SESSION prima di
+        #: start()/calibrate_idle): mostra i progressivi dell'apertura LHM,
+        #: che puo' richiedere minuti e altrimenti sembra un blocco.
+        self._progress_cb = None
         # Watchdog del probe in-process: se Computer().Open() non risponde
         # entro il timeout (hard-crash .NET che congela il worker), si ripiega
         # sul sottoprocesso isolato. Disattivabile con CW_LHM_WATCHDOG=0.
         import os as _os0
 
         self._probe_watchdog = _os0.environ.get("CW_LHM_WATCHDOG", "1") != "0"
+        # Probe PIGRO (CW_LHM_LAZY=1 di default su Windows): l'apertura di
+        # Computer() puo' richiedere minuti (bus SMBus/HID/EC); eseguirla nel
+        # costruttore significava bloccare l'import del modulo SESSION e
+        # far sembrare la GUI congelata PRIMA di qualunque messaggio. Ora il
+        # backend LHM viene attivato solo al primo start()/calibrazione, con
+        # progressivi espliciti. CW_ENERGY_FILE continua a essere rilevato
+        # subito (e' una lettura di file, non tocca CLR/pythonnet).
+        self._lazy_pending = False
+        try:
+            import os as _os1
+
+            lazy_default = "1" if platform_system() == "Windows" else "0"
+            lazy = _os1.environ.get("CW_LHM_LAZY", lazy_default) != "0"
+        except Exception:  # pragma: no cover
+            lazy = platform_system() == "Windows"
 
         if self._try_power_counter():
             # Contatore Joule ESPOSTO DALL'UTENTE (CW_ENERGY_FILE): niente
             # probe LHM (evita figli inutili su Linux/dev e rispetta la
             # precedenza 'solo se LHM non disponibile' del vecchio ordine).
             pass
-        elif self._try_lhm():
+        elif lazy and platform_system() == "Windows":
+            self._lazy_pending = True
+            self._notes.append(
+                "probe LHM in attesa (lazy): verra' eseguito al primo avvio "
+                "di sessione/calibrazione, con progressivi nel log"
+            )
+        elif platform_system() == "Windows":
+            self._activate_backend()
+        else:
+            # Piattaforma non-Windows: misurazione locale NON supportata.
+            # Niente clr/LHM (spec §2); eventuale simulatore di test gia'
+            # gestito sopra da CW_ENERGY_FILE.
+            self.method = "unavailable"
+            self._notes.append(self._local_disabled_msg)
+
+    def _activate_backend(self) -> bool:
+        """Sonda LHM e classifica il metodo energetico (idempotente).
+
+        Ritorna True se un backend reale risulta attivo dopo la chiamata.
+        Chiamata dal costruttore (modalita' eager) o pigramente al primo
+        start()/calibrazione (modalita' lazy, default su Windows).
+        """
+        if self._lazy_pending:
+            self._lazy_pending = False
+        if self.method != "unavailable":
+            return True
+        if self._try_lhm():
             # LHM agganciata E APERTA con sensori validi verificati.
             if self._lhm_value() is not None:
                 self.method = "librehardwaremonitor-energy"
@@ -122,15 +167,7 @@ class _CPUJouleSource:
             # messaggio chiaro. GUI/Ollama/cloud/CSV restano utilizzabili.
             self.method = "unavailable"
             self._notes.append(self._local_disabled_msg)
-        elif self._try_power_counter():
-            # ONLY Linux/dev: contatore Joule ESPOSTO DALL'UTENTE via
-            # CW_ENERGY_FILE (simulatori di test). Non e' RAPL nativo ne'
-            # perf_event_open: semplice lettura di un file di testo.
-            pass
-        else:
-            # Piattaforma non-Windows: misurazione locale NON supportata.
-            self.method = "unavailable"
-            self._notes.append(self._local_disabled_msg)
+        return self.method not in ("unavailable",)
 
     # -- backend LHM -------------------------------------------------------
     def _try_lhm(self) -> bool:
@@ -172,6 +209,7 @@ class _CPUJouleSource:
         ``_probe_watchdog_fired`` consente al chiamante (il PADRE, ancora
         vivo) di ripiegare sul sottoprocesso isolato. Le eccezioni gestibili
         vengono propagate al chiamante come False con nota esplicita.
+        I progressivi opzionali (GUI) passano tramite ``self._progress_cb``.
         """
         import threading as _th
         import time as _t
@@ -192,7 +230,17 @@ class _CPUJouleSource:
 
         th = _th.Thread(target=_worker, name="cw-lhm-probe", daemon=True)
         th.start()
-        finished = holder["done"].wait(timeout=self.PROBE_INPROCESS_TIMEOUT_S)
+        # cuori pulsanti: senza questi, un'apertura lenta (fino a ~2 minuti
+        # su laptop con molti bus HID/SMBus) sembra un blocco della GUI
+        _t0 = _t.monotonic()
+        while not holder["done"].wait(timeout=5.0):
+            if self._progress_cb:
+                self._progress_cb(
+                    f"Apertura sensori hardware in corso… "
+                    f"{_t.monotonic() - _t0:.0f}s elapsed "
+                    f"(timeout watchdog {self.PROBE_INPROCESS_TIMEOUT_S:.0f}s)"
+                )
+        finished = holder["done"].is_set()
         if not finished:
             self._notes.append(
                 "probe in-process TIMEOUT > "
@@ -288,6 +336,11 @@ class _CPUJouleSource:
         ok = self._try_lhm_direct()
         if not ok:
             return False
+        if self._progress_cb:
+            self._progress_cb(
+                "Computer().Open() in corso (puo' richiedere fino a ~2 minuti "
+                "su laptop con molti bus USB/HID/SMBus)…"
+            )
         try:
             self.open_computer()
         except BaseException:  # noqa: BLE001 - il crash .NET finisce qui
@@ -300,6 +353,12 @@ class _CPUJouleSource:
         power_sel = None if has_energy else self._select_power_sensor()
         if has_energy or power_sel is not None:
             print("LHM_OK")
+            if self._progress_cb:
+                self._progress_cb(
+                    "Sensori LHM validati: metodo "
+                    + ("energy-counter" if has_energy
+                       else f"power-integration su '{self._pi_sensor_name}'")
+                )
             return True
         self._notes.append(
             "Computer() aperto ma NESSUN sensore Energy/Power CPU esposto"
@@ -1199,6 +1258,15 @@ class EnergySession:
         return sample
 
     def start(self) -> None:
+        # NOTE: la sonda LHM pigra viene eseguita FUORI dal lock (puo'
+        # richiedere minuti); open_computer() resta idempotente.
+        if self._source._lazy_pending:
+            if self.on_progress:
+                self.on_progress(
+                    "Inizializzazione LibreHardwareMonitor (primo avvio): "
+                    "apertura Computer() in corso…"
+                )
+            self._source._activate_backend()
         with self._lock:
             if self._running:
                 return
@@ -1209,11 +1277,10 @@ class EnergySession:
             try:
                 already_open = getattr(self._source, "_lhm_opened", False)
                 self._source.open_computer()
-                # Recupero post-probe-figlio: se l'assembly era chiusa e il
-                # probe nel sottoprocesso era fallito (nota "PROBE LHM nel
-                # figlio FALLITO"), Open() appena riuscita in-process va
-                # riclassificata: senza questo ramo il metodo resterebbe
-                # 'unavailable' per sempre anche con sensori validi.
+                # Recupero post-probe-figlio: se il probe completo era
+                # fallito ma Open() appena riuscita in-process, i sensori
+                # vanno riclassificati — senza questo ramo il metodo
+                # resterebbe 'unavailable' per sempre anche con sensori ok.
                 if (not already_open and self._source._lhm is not None
                         and self._source.method == "unavailable"):
                     if self._source._lhm_value() is not None:
@@ -1222,7 +1289,7 @@ class EnergySession:
                         self._source.method = "power-integration"
                     if self._source.method != "unavailable":
                         self._source.notes.append(
-                            "recupero riuscito: probe figlio fallito ma "
+                            "recupero riuscito: probe precedente fallito ma "
                             "apertura in-process OK (metodo: "
                             + self._source.method + ")"
                         )
@@ -1391,6 +1458,9 @@ class EnergySession:
                 "(ambiente di sviluppo secondario)."
             )
 
+        # Propaga il callback di avanzamento alla sorgente: i progressivi
+        # dell'apertura LHM (probe pigro/watchdog) finiscono nel log GUI.
+        self._source._progress_cb = self.on_progress
         was_running = self._running
         if not was_running:
             self.start()
@@ -1441,10 +1511,13 @@ class EnergySession:
             # retry produce un'eccezione .NET gestibile, si degrada con la
             # nota originale (niente tentativi multipli anti-crash).
             recovered = False
-            if (platform_system() == "Windows"
-                    and self._source._lhm is not None
-                    and any("PROBE LHM nel figlio FALLITO" in n for n in self._source.notes)):
+            if platform_system() == "Windows":
                 try:
+                    if self.on_progress:
+                        self.on_progress(
+                            "Recupero LHM in-process: tentativo diretto di "
+                            "apertura/lettura sensori (il probe isolato puo' "
+                            "fallire per limiti del contesto figlio)…")
                     self._source.open_computer()
                     if self._source._lhm_value() is not None:
                         self._source.method = "librehardwaremonitor-energy"
@@ -1459,9 +1532,15 @@ class EnergySession:
                     )
                 if recovered:
                     self._source.notes.append(
-                        "recupero riuscito: probe figlio fallito ma apertura "
-                        "in-process OK (confermata da diagnostics.py sul machine)"
+                        "recupero riuscito: probe precedente fallito ma "
+                        "apertura in-process OK (confermata da diagnostics.py "
+                        "sul machine)"
                     )
+                    if self.on_progress:
+                        self.on_progress(
+                            f"Recupero RIUSCITO: metodo attivo "
+                            f"'{self._source.method}'"
+                        )
         if self._source.method not in ("power-integration", "librehardwaremonitor-energy"):
             cause = "; ".join(self._source.notes[-3:]) or f"metodo='{self._source.method}'"
             raise RuntimeError(
@@ -1520,6 +1599,7 @@ class EnergySession:
             self._idle_samples_count = self._source.pi_stats().get("samples", 0) \
                 if self._source.method == "power-integration" else len(means)
         finally:
+            self._source._progress_cb = None
             if not was_running:
                 self.stop()
 
