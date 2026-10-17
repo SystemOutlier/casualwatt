@@ -223,22 +223,47 @@ def run_diagnostics(log_callback: Optional[Callable[[str], None]] = None) -> dic
         n_cpu_hw = 0
         n_energy = 0
         n_power_cpu = 0
+        energy_names: List[str] = []
+        power_names: List[str] = []
         for hw in comp.Hardware:
             try:
-                hw.Update()
+                hw.Update()          # senza Update() il Value resta None
             except Exception:
                 continue
-            name = str(hw.Name).lower()
-            if "cpu" in name or "central" in name:
-                n_cpu_hw += 1
-                for sensor in hw.Sensors:
-                    stype = str(sensor.Type)
-                    sname = str(sensor.Name).lower()
-                    if ("Energy" in stype or "energy" in sname) and "Power" not in stype:
+            # identificazione CPU robusta: HardwareType prima, nome come fallback
+            is_cpu = False
+            try:
+                is_cpu = str(getattr(hw, "HardwareType", "")) == "Cpu"
+            except Exception:
+                pass
+            if not is_cpu:
+                name = str(hw.Name).lower()
+                is_cpu = "cpu" in name or "central" in name
+            if not is_cpu:
+                continue
+            n_cpu_hw += 1
+            for sensor in hw.Sensors:
+                stype = str(sensor.Type)
+                sname = str(sensor.Name).lower()
+                if "Energy" in stype:
+                    # AMD Ryzen espone il contatore come "Package"/"Package
+                    # Power"/"CPU PPT"; Intel come "CPU Package". Accettare
+                    # qualunque token riconosciuto evita il falso negativo.
+                    if any(tok in sname for tok in
+                           ("package", "ppt", "core", "cpu", "evidp")):
                         n_energy += 1
-                    elif "power" in sname and stype.endswith("Power"):
-                        n_power_cpu += 1
+                        energy_names.append(str(sensor.Name))
+                elif stype.endswith("Power") or "power" in sname:
+                    n_power_cpu += 1
+                    power_names.append(str(sensor.Name))
         summary["energy_sensors_found"] = n_energy
+        if energy_names:
+            _emit(lines, log_callback, _OK,
+                  f"Sensori Energy riconosciuti: {', '.join(energy_names)}")
+        if n_power_cpu and not energy_names:
+            _emit(lines, log_callback, _WARN,
+                  f"Sensori Power presenti ({', '.join(power_names[:8])}) "
+                  "MA nessun contatore Energy cumulato")
         if n_energy > 0:
             _emit(lines, log_callback, _OK, f"Trovati {n_energy} sensori Energy-CPU: il backend LHM sara' attivo (metodo: librehardwaremonitor)")
             summary["method_expected"] = "librehardwaremonitor"

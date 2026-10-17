@@ -133,6 +133,44 @@ class _CPUJouleSource:
             self._notes.append(f"LHM non disponibile ({type(exc).__name__})")
             return False
 
+    # ------------------------------------------------------------------ LHM
+    # Nomi sensore ENERGY accepted (case-insensitive): LibreHardwareMonitor
+    # espone il contatore di energia del package con nomi diversi a seconda
+    # di vendor/generazione:
+    #   Intel  -> "CPU Package"          AMD Ryzen -> "Package"/"Core (Tctl/Tdie)"
+    #   alcuni BIOS/chipset -> "Package Power", "CPU PPT", "PPT"/"EDP Limits"
+    # Filtrare SOLO per SensorType=="Energy" e accettare qualunque nome che
+    # contenga package/ppt/core/cpu/evidp evita il falso negativo
+    # "energy_sensors_found=0" su AMD.
+    _LHM_ENERGY_NAME_TOKENS = ("package", "ppt", "core", "cpu", "evidp")
+
+    @staticmethod
+    def _lhm_is_cpu_hw(hw) -> bool:
+        """True se l'hardware LHM e' una CPU (tipo prima, nome come fallback)."""
+        try:
+            htype = getattr(hw, "HardwareType", None)
+            if htype is not None and str(htype) == "Cpu":
+                return True
+        except Exception:
+            pass
+        try:
+            n = str(hw.Name).lower()
+            return "cpu" in n or "central" in n
+        except Exception:
+            return False
+
+    @classmethod
+    def _lhm_energy_sensor_ok(cls, sensor) -> bool:
+        """SensorType==Energy + nome riconosciuto (Intel/AMD/varianti)."""
+        try:
+            stype = str(sensor.Type)
+            if "Energy" not in stype:
+                return False
+            sname = str(sensor.Name).lower()
+            return any(tok in sname for tok in cls._LHM_ENERGY_NAME_TOKENS)
+        except Exception:
+            return False
+
     def _lhm_value(self) -> Optional[float]:
         """Somma Energy-CPU [mJ] dai sensori LHM -> J cumulati monotoni."""
         if self._lhm is None:
@@ -141,24 +179,56 @@ class _CPUJouleSource:
             total_mj = 0.0
             found = False
             for hw in self._lhm.Hardware:
-                hw.Update()
-                name = str(hw.Name).lower()
-                if "cpu" not in name and "central" not in name:
+                try:
+                    hw.Update()          # senza Update() il Value resta None
+                except Exception:
+                    continue
+                if not self._lhm_is_cpu_hw(hw):
                     continue
                 for sensor in hw.Sensors:
-                    stype = str(sensor.Type)
-                    sname = str(sensor.Name).lower()
-                    if ("Energy" in stype or "energy" in sname) and "Power" not in stype:
-                        val = float(sensor.Value)
-                        if val == val:  # NaN check
-                            total_mj += val
-                            found = True
+                    if not self._lhm_energy_sensor_ok(sensor):
+                        continue
+                    raw = sensor.Value
+                    if raw is None:
+                        continue         # sensore presente ma non ancora popolato
+                    val = float(raw)
+                    if val != val:       # NaN check
+                        continue
+                    total_mj += val
+                    found = True
             if not found:
                 return None
-            self._last_power_from_lhm = getattr(self, "_last_power_from_lhm", None)
             return total_mj / 1000.0
         except Exception:
             return None
+
+    def diagnose_cpu_sensors(self) -> List[dict]:
+        """Ritorna TUTTI i sensori CPU esposti da LHM (per log diagnostico)."""
+        out: List[dict] = []
+        if self._lhm is None:
+            return out
+        try:
+            for hw in self._lhm.Hardware:
+                try:
+                    hw.Update()
+                except Exception:
+                    continue
+                if not self._lhm_is_cpu_hw(hw):
+                    continue
+                for sensor in hw.Sensors:
+                    try:
+                        out.append({
+                            "hardware": str(hw.Name),
+                            "sensor_name": str(sensor.Name),
+                            "sensor_type": str(sensor.Type),
+                            "value": (None if sensor.Value is None
+                                      else float(sensor.Value)),
+                        })
+                    except Exception:
+                        continue
+        except Exception:
+            pass
+        return out
 
     # -- backend RAPL ------------------------------------------------------
     def _try_rapl(self) -> bool:
@@ -318,12 +388,33 @@ class _CPUJouleSource:
             if self.method == "librehardwaremonitor":
                 v = self._lhm_value()
                 if v is None:
+                    # DIAGNOSTICA REALE (non fallire silenziosamente): elenca
+                    # i sensori CPU esposti da LHM cosi' l'utente capisce se
+                    # mancano del tutto (UAC/driver) o se hanno nomi inattesi.
+                    sensors = self.diagnose_cpu_sensors()
+                    n_power = sum(1 for s in sensors
+                                  if "Power" in s["sensor_type"])
+                    n_energy = sum(1 for s in sensors
+                                   if "Energy" in s["sensor_type"])
+                    names = sorted({s["sensor_name"] for s in sensors})
+                    detail = (
+                        f"{len(sensors)} sensori CPU trovati "
+                        f"(Energy={n_energy}, Power={n_power}); "
+                        f"nomi sensori: {', '.join(names[:12]) or '-'}"
+                    ) if sensors else \
+                        "LHM non espone ALCUN sensore CPU (0 hw CPU interrogabili)"
                     self._last_read_error = (
-                        "LHM agganciata ma nessun sensore Energy-CPU leggibile: "
-                        "processo probabilmente NON elevato (UAC) o driver chipset "
-                        "senza Package Energy. Esegui 'avvia_casualwatt.bat' come "
-                        "amministratore oppure lancia 'py diagnostics.py'"
+                        "LHM agganciata ma nessun contatore Energy-CPU leggibile. "
+                        + detail + ". Se i sensori Power ci sono ma Energy=0: "
+                        "processo NON elevato (UAC) o driver chipset senza "
+                        "Package Energy -> riavvia con 'avvia_casualwatt.bat' "
+                        "(amministratore) e riesegui 'py diagnostics.py'; "
+                        "in alternativa imposta CW_ENERGY_FILE su un contatore "
+                        "Joule esterno"
                     )
+                    self._notes.append(
+                        "diagnostica lettura LHM: " + detail
+                    ) if detail not in " ".join(self._notes) else None
                 return v
             if self.method == "rapl":
                 fv = self._file_value()
