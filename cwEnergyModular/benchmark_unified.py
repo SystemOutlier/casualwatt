@@ -45,26 +45,41 @@ APP_VERSION = "1.0.0"
 # ---------------------------------------------------------------------------
 # Lettura modelli Ollama (sezione 5)
 # ---------------------------------------------------------------------------
-def get_ollama_models(timeout_s: float = 8.0) -> List[Dict]:
-    """GET /api/tags -> [{name,size,modified_at}]. Mai solleva eccezioni."""
-    try:
-        r = requests.get(config.OLLAMA_TAGS_ENDPOINT, timeout=timeout_s)
-        if r.status_code != 200:
-            return []
-        data = r.json()
-        out = []
-        for m in data.get("models", []) or []:
-            out.append(
-                {
-                    "name": m.get("name", ""),
-                    "size": int(m.get("size", 0) or 0),
-                    "modified_at": m.get("modified_at", ""),
-                }
-            )
-        out.sort(key=lambda d: d["name"])
-        return out
-    except Exception:
-        return []
+def get_ollama_models(timeout_s: float = 8.0):
+    """GET /api/tags -> (lista_modelli, errore). Mai solleva eccezioni.
+
+    Se il connection-test fallisce su 127.0.0.1 ma OLLAMA_HOST puntava a
+    0.0.0.0/::, riprova anche su localhost (equivalente locale).
+    Ritorna ([], "") se Ollama risponde ma non ha modelli; ([], msg) in caso
+    di errore di rete/endpoint (il messaggio viene mostrato nella GUI).
+    """
+    candidates = [config.OLLAMA_TAGS_ENDPOINT]
+    if "127.0.0.1" in config.OLLAMA_TAGS_ENDPOINT:
+        candidates.append(config.OLLAMA_TAGS_ENDPOINT.replace("127.0.0.1", "localhost"))
+    last_err = ""
+    for url in candidates:
+        try:
+            r = requests.get(url, timeout=timeout_s)
+            if r.status_code != 200:
+                last_err = f"HTTP {r.status_code} su {url}"
+                continue
+            data = r.json()
+            out = []
+            for m in data.get("models", []) or []:
+                out.append(
+                    {
+                        "name": m.get("name", ""),
+                        "size": int(m.get("size", 0) or 0),
+                        "modified_at": m.get("modified_at", ""),
+                    }
+                )
+            out.sort(key=lambda d: d["name"])
+            return out, ""
+        except requests.exceptions.ConnectionError:
+            last_err = f"connessione rifiutata su {url} (Ollama e' in esecuzione?)"
+        except Exception as exc:
+            last_err = f"{type(exc).__name__}: {exc} su {url}"
+    return [], last_err
 
 
 # ---------------------------------------------------------------------------

@@ -38,30 +38,52 @@ for _d in (RESULTS_DIR, LOGS_DIR, DATASET_DIR):
     _d.mkdir(parents=True, exist_ok=True)
 
 
-def _load_dotenv() -> None:
-    """Carica un eventuale file .env nella root del progetto (best effort)."""
-    env_file = BASE_DIR / ".env"
-    if not env_file.exists():
-        return
-    try:
-        from dotenv import load_dotenv  # opzionale
+def _parse_env_file(path: Path) -> dict:
+    """Parser minimale e robusto di un file .env (senza dipendenze esterne).
 
-        load_dotenv(env_file)
-        return
-    except Exception:
-        pass
-    # fallback minimale senza dipendenze
+    Gestisce: commenti (#), righe vuote, virgolette, BOM UTF-8, CRLF.
+    Ritorna una dict chiave->valore (vuota se il file non esiste/legibile).
+    """
+    parsed: dict = {}
     try:
-        for line in env_file.read_text(encoding="utf-8").splitlines():
+        if not path.exists():
+            return parsed
+        for line in path.read_text(encoding="utf-8-sig").splitlines():
             line = line.strip()
             if not line or line.startswith("#") or "=" not in line:
                 continue
             k, _, v = line.partition("=")
-            k, v = k.strip(), v.strip().strip('"').strip("'")
-            if k and k not in os.environ:
-                os.environ[k] = v
+            k = k.strip()
+            v = v.split("#", 1)[0].strip().strip('"').strip("'")
+            if k:
+                parsed[k] = v
     except Exception:
         pass
+    return parsed
+
+
+def _load_dotenv() -> None:
+    """Carica un eventuale file .env nella root del progetto (best effort).
+
+    Priorita': per OLLAMA_HOST il valore del .env LOCALE vince sempre
+    sull'ambiente di sistema. Motivo: su Windows il servizio Ollama spesso
+    imposta OLLAMA_HOST="0.0.0.0:11434" a livello globale (e' un indirizzo di
+    ASCOLTO, non di connessione) e bloccherebbe la correzione via .env.
+    Per le altre chiavi vale la precedenza standard (var esistente non
+    sovrascritta).
+    """
+    env_file = BASE_DIR / ".env"
+    local_vars = _parse_env_file(env_file)
+    try:
+        from dotenv import load_dotenv  # opzionale
+
+        if env_file.exists():
+            load_dotenv(env_file, override=False)
+    except Exception:
+        pass
+    for k, v in local_vars.items():
+        if k == "OLLAMA_HOST" or k not in os.environ:
+            os.environ[k] = v
 
 
 _load_dotenv()

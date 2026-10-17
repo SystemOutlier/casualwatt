@@ -100,13 +100,14 @@ class ModelSelectionPanel(ttk.Frame):
         try:
             from benchmark_unified import get_ollama_models
 
-            models = get_ollama_models()
-            self.after(0, lambda: self._populate_local(models))
+            models, err = get_ollama_models()
+            self.after(0, lambda: self._populate_local(models, err))
         except Exception as exc:
+            # errore imprevisto (es. import) -> mostra causa
             self.after(0, lambda e=exc: self.local_status.config(
                 text=f"errore: {e}", foreground="red"))
 
-    def _populate_local(self, models: List[Dict]):
+    def _populate_local(self, models: List[Dict], err: str = ""):
         self.local_tree.delete(*self.local_tree.get_children())
         for m in models:
             self.local_tree.insert(
@@ -123,10 +124,14 @@ class ModelSelectionPanel(ttk.Frame):
                 text=f"{len(models)} modelli trovati ({self._endpoint_hint()})",
                 foreground="green",
             )
+        elif err:
+            # endpoint irraggiungibile / errore di rete: mostra la causa reale
+            self.local_status.config(text=f"Ollama offline — {err}", foreground="red")
         else:
             self.local_status.config(
-                text=f"nessun modello — Ollama offline su {self._endpoint_hint()}",
-                foreground="red",
+                text=f"nessun modello installato — Ollama online su {self._endpoint_hint()} "
+                     f"(usa 'ollama pull ...')",
+                foreground="orange",
             )
 
     @staticmethod
