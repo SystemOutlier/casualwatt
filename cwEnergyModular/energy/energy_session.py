@@ -149,6 +149,61 @@ class _CPUJouleSource:
     # "energy_sensors_found=0" su AMD.
     _LHM_ENERGY_NAME_TOKENS = ("package", "ppt", "core", "cpu", "evidp")
 
+    # ------------------------------------------------------------------ POWER
+    # Sensori POWER [W] della CPU: usati come fallback quando il driver non
+    # espunge alcun contatore Energy cumulato (alcune build LHM / chipset OEM).
+    # La calibrazione empirica li accetta come sorgente istantanea: E_start/E_end
+    # vengono integrati numericamente dalla potenza W letta ai due estremi.
+    # Nota: la stima e' meno precisa dei Joule hardware ma resta misurata,
+    # non modellistica (niente TDP).
+    _LHM_POWER_NAME_TOKENS = (
+        "package", "ppt", "cpu total", "total cpu", "core (tctl",
+    )
+
+    @staticmethod
+    def _lhm_power_sensor_ok(sensor) -> bool:
+        """SensorType==Power + nome plausibile di package/PPT (Intel/AMD)."""
+        stype = _CPUJouleSource._lhm_sensor_type_name(sensor)
+        if stype.strip().lower() != "power":
+            return False
+        try:
+            sname = str(sensor.Name).lower()
+        except Exception:
+            return False
+        return any(tok in sname for tok in _CPUJouleSource._LHM_POWER_NAME_TOKENS)
+
+    def _lhm_power_w(self) -> Optional[float]:
+        """Istantanea potenza CPU [W] dal primo sensore Power valido (o None)."""
+        if self._lhm is None:
+            return None
+        try:
+            for hw in self._lhm.Hardware:
+                try:
+                    hw.Update()
+                except Exception as exc:
+                    self._lhm_last_error = f"Update(power): {exc}"
+                    continue
+                if not self._lhm_is_cpu_hw(hw):
+                    continue
+                for sensor in hw.Sensors:
+                    try:
+                        if not self._lhm_power_sensor_ok(sensor):
+                            continue
+                        raw = sensor.Value
+                        if raw is None:
+                            continue
+                        val = float(raw)
+                        if val != val or val < 0:
+                            continue
+                        return val
+                    except Exception as exc:
+                        self._lhm_last_error = f"sensore power: {exc}"
+                        continue
+            return None
+        except Exception as exc:
+            self._lhm_last_error = str(exc)
+            return None
+
     @staticmethod
     def _lhm_is_cpu_hw(hw) -> bool:
         """True se l'hardware LHM e' una CPU (tipo prima, nome come fallback)."""
@@ -504,6 +559,44 @@ class _CPUJouleSource:
             return None
         return None  # tdp_estimate / unavailable: nessun contatore reale
 
+    def read_idle_window_j(self, duration_s: float) -> Optional[tuple]:
+        """Delta-energy [J] su una finestra passiva di ``duration_s`` secondi.
+
+        Ritorna ``(delta_j, dt_real, mode)`` oppure None se nessun contatore
+        reale e' disponibile. Due modalita':
+          * mode="energy-counter": usa il contatore cumulato Joule (LHM/RAPL/
+            file), identico al percorso del benchmark — E_end - E_start;
+          * mode="power-integration": fallback quando il driver espone solo
+            sensori POWER [W] (alcune build LHM/AMD): media della potenza
+            istantanea letta ai bordi della finestra x durata reale.
+        Nessuna delle due modalita' usa stime TDP: sono entrambe misure reali.
+        """
+        duration_s = max(float(duration_s), 0.5)
+        # 1) tentativo contatore Joule reale (via preferita)
+        e_start = self.read_power_j()
+        err_after_counter = getattr(self, "_last_read_error", None)
+        t0 = time.monotonic()
+        if e_start is not None:
+            time.sleep(duration_s)
+            e_end = self.read_power_j()
+            dt = max(time.monotonic() - t0, 1e-6)
+            if e_end is not None and e_end >= e_start:
+                return (e_end - e_start, dt, "energy-counter")
+        # 2) fallback: integrazione dei sensori Power [W] (solo LHM)
+        if self.method == "librehardwaremonitor":
+            p_start = self._lhm_power_w()
+            if p_start is not None:
+                time.sleep(duration_s)
+                p_end = self._lhm_power_w()
+                dt = max(time.monotonic() - t0, 1e-6)
+                if p_end is not None:
+                    avg_w = (p_start + p_end) / 2.0
+                    return (avg_w * dt, dt, "power-integration")
+        # 3) nessun contatore: propagazione diagnostica al chiamante
+        if err_after_counter:
+            self._last_read_error = err_after_counter
+        return None
+
     @property
     def notes(self) -> List[str]:
         return list(self._notes)
@@ -801,9 +894,13 @@ class EnergySession:
         try:
             # breve stabilizzazione prima della lettura E_start
             time.sleep(min(0.5, duration_s * 0.1))
-            e_start = self._source.read_power_j()
-            t_start = time.monotonic()
-            if e_start is None:
+            # Unica finestra di misura: read_idle_window_j legge E_start,
+            # dorme duration_s a sistema fermo (nessun carico generato),
+            # rilegge E_end e ritorna il delta reale. Supporta sia il
+            # contatore cumulato Joule (energy-counter) sia, in assenza,
+            # l'integrazione dei sensori Power [W] (power-integration).
+            window = self._source.read_idle_window_j(duration_s)
+            if window is None:
                 cause = self._source.last_read_error or (
                     f"metodo attivo: '{self._source.method}' "
                     "(nessun backend a contatore reale)"
@@ -815,27 +912,14 @@ class EnergySession:
                     f"Causa: {cause}. Esegui 'py diagnostics.py' per il "
                     "report completo (clr/pythonnet/DLL/UAC)."
                 )
-            # campionamento passivo durante la finestra (per note diagnostiche)
-            while True:
-                elapsed = time.monotonic() - t_start
-                if elapsed >= duration_s:
-                    break
-                time.sleep(min(0.2, max(duration_s - elapsed, 0.01)))
-                self.record_once()
-            e_end = self._source.read_power_j()
-            t_end = time.monotonic()
-            if e_end is None:
-                raise RuntimeError(
-                    "calibrazione idle fallita: contatore non leggibile a fine finestra"
-                )
-            dt = max(t_end - t_start, 1e-6)
-            delta_j = e_end - e_start
+            delta_j, dt, mode = window
             if delta_j < 0:
                 raise RuntimeError(
                     "calibrazione idle fallita: contatore decrescente "
-                    f"(E_start={e_start:.3f} J, E_end={e_end:.3f} J)"
+                    f"(delta={delta_j:.3f} J)"
                 )
-            power_w = delta_j / dt
+            power_w = delta_j / max(dt, 1e-6)
+            self._idle_mode = mode
         finally:
             if not was_running:
                 self.stop()

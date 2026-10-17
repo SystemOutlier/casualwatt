@@ -233,6 +233,7 @@ def run_diagnostics(log_callback: Optional[Callable[[str], None]] = None) -> dic
         n_other_types: dict = {}
         energy_names: List[str] = []
         power_names: List[str] = []
+        all_sensors_dumped = 0
         for hw in comp.Hardware:
             try:
                 hw.Update()          # senza Update() il Value resta None
@@ -253,58 +254,95 @@ def run_diagnostics(log_callback: Optional[Callable[[str], None]] = None) -> dic
             if not is_cpu:
                 continue
             n_cpu_hw += 1
+            _emit(lines, log_callback, _INFO, f"Hardware CPU: {hw.Name}")
             for sensor in hw.Sensors:
                 try:
                     stype = _JS._lhm_sensor_type_name(sensor)
-                    sname = str(sensor.Name).lower()
+                    sname = str(sensor.Name)
+                    sval = sensor.Value
                 except Exception:
                     continue
-                if "Energy" in stype or "energysensor" in stype.lower():
+                all_sensors_dumped += 1
+                sl = sname.lower()
+                stl = stype.strip().lower()
+                # --- dump completo di ogni sensore (richiesta utente #2) ---
+                if all_sensors_dumped <= 40:
+                    _emit(lines, log_callback, _INFO,
+                          f"  sensore | {stype:<8} | {sname:<28} | valore={sval}")
+                if "energy" in stl:
                     # AMD Ryzen espone il contatore come "Package"/"Package
                     # Power"/"CPU PPT"; Intel come "CPU Package". Accettare
                     # qualunque token riconosciuto evita il falso negativo.
-                    if any(tok in sname for tok in
+                    if any(tok in sl for tok in
                            ("package", "ppt", "core", "cpu", "evidp")):
                         n_energy += 1
-                        energy_names.append(str(sensor.Name))
+                        energy_names.append(sname)
                     else:
-                        energy_names.append(f"{sensor.Name} [non riconosciuto]")
-                elif stype.endswith("Power") or (stype == "Power" and "power" in sname):
+                        energy_names.append(f"{sname} [non riconosciuto]")
+                elif stl == "power":
                     n_power_cpu += 1
-                    power_names.append(str(sensor.Name))
+                    power_names.append(sname)
                 else:
                     key = stype.split(".")[-1] or "?"
                     n_other_types[key] = n_other_types.get(key, 0) + 1
         summary["energy_sensors_found"] = n_energy
+        # --- requisito #3/#4: evidenziazione sensori Power e nome CPU power ---
+        if power_names:
+            _emit(lines, log_callback, _OK,
+                  f"[POWER] Sensori Power(W) su CPU: {', '.join(power_names[:12])}")
+            cpu_power_sel = next(
+                (n for n in power_names if "package" in n.lower()),
+                next((n for n in power_names if "ppt" in n.lower()),
+                     power_names[0]))
+            _emit(lines, log_callback, _INFO,
+                  f"Sensore di potenza CPU selezionato (fallback): '{cpu_power_sel}'")
         if energy_names:
             _emit(lines, log_callback, _OK,
-                  f"Sensori Energy riconosciuti: {', '.join(energy_names)}")
-        # Dump dei sensori Power W visti (Intel/AMD li espongono spesso): utile
-        # per capire se il sensore c'e' ma ha un nome non in whitelist.
-        if power_names:
+                  f"[ENERGY] Contatori Energy riconosciuti: {', '.join(energy_names)}")
+            sel = next((n for n in energy_names if "package" in n.lower()),
+                       energy_names[0])
             _emit(lines, log_callback, _INFO,
-                  f"Sensori Power(W) su CPU: {', '.join(power_names[:12])}")
+                  f"Sensore di energia CPU selezionato: '{sel}'")
         if n_other_types:
             _emit(lines, log_callback, _INFO,
                   "Altri tipi sensore CPU: "
                   + ", ".join(f"{k} x{v}" for k, v in sorted(n_other_types.items())))
-        if n_power_cpu and not energy_names:
-            _emit(lines, log_callback, _WARN,
-                  f"Sensori Power presenti ({', '.join(power_names[:8])}) "
-                  "MA nessun contatore Energy cumulato")
+        _emit(lines, log_callback, _INFO,
+              f"Scansione sensori completata: {all_sensors_dumped} sensori totali "
+              f"sulla CPU (Energy={n_energy}, Power={n_power_cpu})")
         if n_energy > 0:
-            _emit(lines, log_callback, _OK, f"Trovati {n_energy} sensori Energy-CPU: il backend LHM sara' attivo (metodo: librehardwaremonitor)")
+            _emit(lines, log_callback, _OK,
+                  f"Trovati {n_energy} sensori Energy-CPU: il backend LHM sara' attivo "
+                  "(metodo: librehardwaremonitor, calibrazione empirica Joule)")
             summary["method_expected"] = "librehardwaremonitor"
+        elif n_power_cpu > 0:
+            _emit(lines, log_callback, _WARN,
+                  f"Nessun contatore Energy ma {n_power_cpu} sensori POWER presenti: "
+                  "la calibrazione idle usera' l'integrazione della potenza W "
+                  "(modalita' 'power-integration', dichiarata nelle note CSV)")
+            summary["method_expected"] = "librehardwaremonitor-power-only"
         elif admin is False:
-            _emit(lines, log_callback, _WARN, f"CPU rilevata ({n_cpu_hw} hw, {n_power_cpu} sensori power) MA ZERO sensori Energy: comportamento TIPICO senza elevazione UAC. Riavvia come Amministratore e riesegui la calibrazione")
+            _emit(lines, log_callback, _WARN,
+                  f"CPU rilevata ({n_cpu_hw} hw) MA ZERO sensori Energy/Power: "
+                  "comportamento TIPICO senza elevazione UAC. Riavvia come "
+                  "Amministratore e riesegui la calibrazione")
             summary["method_expected"] = "lhm-no-energy-unprivileged"
             summary["errors"].append("energy_sensors_unavailable_unprivileged")
         else:
-            _emit(lines, log_callback, _WARN, f"Elevato, ma ZERO sensori Energy-CPU esposti dal driver: alcuni chipset (es. AMD recenti o laptop OEM) richiedono LHM >= 0.9.x aggiornata o non espongono Package Energy. In alternativa imposta CW_ENERGY_FILE puntato a un contatore Joule esterno")
+            _emit(lines, log_callback, _ERR,
+                  "Elevato, ma il driver NON espone ALCUN sensore Energy o Power "
+                  "per la CPU: questo hardware/chipset non fornisce la misura via "
+                  "LHM. Aggiorna LibreHardwareMonitorLib alla >= 0.9.4 oppure "
+                  "impostate CW_ENERGY_FILE su un contatore Joule esterno. "
+                  "La calibrazione idle fallira' CON MESSAGGIO ESPLICITO "
+                  "(nessun fallimento silenzioso)")
             summary["method_expected"] = "lhm-no-energy-sensors"
             summary["errors"].append("energy_sensors_absent")
     except BaseException as exc:
+        tb = traceback.format_exc(limit=4)
         _emit(lines, log_callback, _ERR, f"Scansione sensori fallita: {type(exc).__name__}: {exc}")
+        for ln in tb.rstrip().splitlines():
+            _emit(lines, log_callback, _ERR, f"    {ln}")
         summary["errors"].append(f"scan:{type(exc).__name__}")
     finally:
         try:
