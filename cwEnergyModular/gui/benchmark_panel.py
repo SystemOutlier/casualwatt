@@ -470,13 +470,27 @@ class BenchmarkPanel(ttk.LabelFrame):
                 if not was_running:
                     SESSION.start()
                     time.sleep(SESSION.interval_s * 2)
-                self._q.put(("log", "Calibrazione idle EMPIRICA: NON generare carico sul PC…"))
+                # avanzamento live nel log GUI (finestre da 30 s x 3: senza
+                # questi messaggi sembra un blocco, invece e' in misura)
+                SESSION.on_progress = lambda m: self._q.put(("log", m))
+                self._q.put((
+                    "log",
+                    "Calibrazione idle EMPIRICA: NON generare carico sul PC… "
+                    "(durata prevista: ~92 s = stabilizzazione + 3 finestre "
+                    "da 30 s; progressivo sotto)",
+                ))
                 pw = SESSION.calibrate_idle()
                 self._q.put(("idle", pw))
+                reps = getattr(SESSION, "_idle_reps", None) or []
+                det = (
+                    " | rep: " + ", ".join(f"{r:.2f} W" for r in reps)
+                    if reps else ""
+                )
                 self._q.put((
                     "log",
                     f"P_idle = {pw:.2f} W misurata a riposo "
-                    f"(delta Joule / durata; contatore: {SESSION.source_method})",
+                    f"(mediana di 3 ripetizioni; contatore: "
+                    f"{SESSION.source_method}){det}",
                 ))
             except Exception as exc:
                 self._q.put(("log", f"Calibrazione fallita: {exc}"))

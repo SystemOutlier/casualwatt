@@ -1041,6 +1041,9 @@ class EnergySession:
     """Singleton di sessione: thread di campionamento + storico campioni."""
 
     interval_s: float = MONITOR_INTERVAL_S
+    # callback opzionale di avanzamento (usato dalla GUI durante la
+    # calibrazione idle per mostrare le ripetizioni in corso)
+    on_progress: Optional[object] = None
 
     def __post_init__(self) -> None:
         self._lock = threading.RLock()
@@ -1371,8 +1374,15 @@ class EnergySession:
         import config as _cfg
 
         duration_s = float(seconds or _cfg.IDLE_CALIBRATION_SECONDS)
-        # spec §5: almeno 30 secondi per finestra
-        duration_s = max(duration_s, 30.0)
+        # spec §5: almeno 30 secondi per finestra (override via env
+        # CW_IDLE_WINDOW_S per collaudi rapidi; il floor di 30 s resta se
+        # non impostato esplicitamente).
+        try:
+            import os as _os
+            window_floor = float(_os.getenv("CW_IDLE_WINDOW_S", "30"))
+        except (TypeError, ValueError):
+            window_floor = 30.0
+        duration_s = max(duration_s, window_floor)
 
         if platform_system() != "Windows":
             raise RuntimeError(
@@ -1394,6 +1404,11 @@ class EnergySession:
             # creato) ma il metodo risulta non attivo: possibile probe
             # fallito al primo colpo. Si ritenta UNA sola volta la catena
             # completa apertura+selezione, sempre con eccezioni gestite.
+            if self.on_progress:
+                self.on_progress(
+                    "Aggancio LHM in-process (Computer().Open(): puo' richiedere "
+                    "fino a ~2 minuti su laptop con molti bus USB/HID)…"
+                )
             try:
                 self._source.open_computer()
                 if self._source._lhm_value() is not None:
@@ -1406,6 +1421,11 @@ class EnergySession:
                         "recupero LHM: retry post-probe riuscito "
                         f"(metodo: {self._source.method})"
                     )
+                    if self.on_progress:
+                        self.on_progress(
+                            f"Aggancio LHM in-process RIUSCITO: metodo attivo "
+                            f"'{self._source.method}'"
+                        )
             except BaseException as exc:  # noqa: BLE001
                 self._source.notes.append(
                     f"retry LHM aggiuntivo fallito ({type(exc).__name__})"
@@ -1455,7 +1475,18 @@ class EnergySession:
             time.sleep(1.0)
             means: List[float] = []
             mode_used = None
+            if self.on_progress:
+                self.on_progress(
+                    f"Finestra idle: {duration_s:.0f} s x 3 ripetizioni "
+                    f"(totale stimato ~{duration_s * 3 + 2:.0f} s). "
+                    "NON generare carico…"
+                )
             for rep in range(3):
+                if self.on_progress:
+                    self.on_progress(
+                        f"Calibrazione idle: ripetizione {rep + 1}/3 in corso "
+                        f"({duration_s:.0f} s)… tieni il PC a riposo"
+                    )
                 window = self._source.read_idle_window_j(duration_s)
                 if window is None:
                     cause = self._source.last_read_error or (
@@ -1478,6 +1509,11 @@ class EnergySession:
                 p_rep = delta_j / max(dt, 1e-6)
                 means.append(p_rep)
                 mode_used = mode
+                if self.on_progress:
+                    self.on_progress(
+                        f"Ripetizione {rep + 1}/3 completata: "
+                        f"P_media = {p_rep:.2f} W su finestra di {dt:.1f} s"
+                    )
             power_w = sorted(means)[len(means) // 2]   # mediana di 3 misure
             self._idle_mode = mode_used
             self._idle_reps = means
