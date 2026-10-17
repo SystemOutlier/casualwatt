@@ -104,8 +104,15 @@ def run_diagnostics(log_callback: Optional[Callable[[str], None]] = None) -> dic
 
     # ------------------------------------------------------- 2. file DLL presenti
     if not _is_windows():
-        _emit(lines, log_callback, _INFO, "LHM applicabile solo su Windows: su Linux il motore usera' RAPL/CW_ENERGY_FILE")
-        summary["method_expected"] = "rapl-or-file" if (Path("/sys/class/powercap").exists() or os.environ.get("CW_ENERGY_FILE")) else "unavailable"
+        _emit(lines, log_callback, _INFO,
+              "LHM applicabile solo su Windows 11: su Linux la misurazione "
+              "locale CPU e' DISABILITATA (GUI/Ollama/cloud/CSV restano "
+              "utilizzabili). Eventuale simulatore di test solo via "
+              "CW_ENERGY_FILE.")
+        summary["method_expected"] = (
+            "energy-file(dev/test)" if os.environ.get("CW_ENERGY_FILE")
+            else "unavailable-non-windows"
+        )
         return summary
 
     missing = [d for d in REQUIRED_DLLS if not (LHM_DIR / d).exists()]
@@ -313,14 +320,29 @@ def run_diagnostics(log_callback: Optional[Callable[[str], None]] = None) -> dic
         if n_energy > 0:
             _emit(lines, log_callback, _OK,
                   f"Trovati {n_energy} sensori Energy-CPU: il backend LHM sara' attivo "
-                  "(metodo: librehardwaremonitor, calibrazione empirica Joule)")
-            summary["method_expected"] = "librehardwaremonitor"
+                  "(metodo: librehardwaremonitor-energy, calibrazione empirica Joule)")
+            summary["method_expected"] = "librehardwaremonitor-energy"
         elif n_power_cpu > 0:
+            # Intel (es. i9-13900HK): nessun contatore Energy -> il metodo
+            # UFFICIALE e' power-integration sul sensore 'CPU Package' [W]
+            # campionato ogni 0.05 s con integrazione trapezoidale.
+            preferred = next((n for n in power_names
+                              if n.strip().lower() == "cpu package"), None)
+            fb = next((n for n in power_names
+                       if n.strip().lower() in ("package", "package power", "cpu ppt")), None)
+            sel = preferred or fb
             _emit(lines, log_callback, _WARN,
                   f"Nessun contatore Energy ma {n_power_cpu} sensori POWER presenti: "
-                  "la calibrazione idle usera' l'integrazione della potenza W "
-                  "(modalita' 'power-integration', dichiarata nelle note CSV)")
-            summary["method_expected"] = "librehardwaremonitor-power-only"
+                  "METODO ATTIVO: 'power-integration' — integrazione trapezoidale "
+                  "del sensore di potenza CPU a 0.05 s (dichiarata nelle note CSV). "
+                  "Sensore preferito: 'CPU Package'; fallback: 'Package', "
+                  "'Package Power', 'CPU PPT'. Esclusi: 'CPU Cores', 'CPU Memory', "
+                  "'CPU Platform'.")
+            _emit(lines, log_callback, _OK,
+                  f"Sensore selezionato per power-integration: "
+                  f"'{sel}'" + (" (preferito)" if preferred else " (fallback)"))
+            summary["method_expected"] = "power-integration"
+            summary["power_sensor_selected"] = sel
         elif admin is False:
             _emit(lines, log_callback, _WARN,
                   f"CPU rilevata ({n_cpu_hw} hw) MA ZERO sensori Energy/Power: "

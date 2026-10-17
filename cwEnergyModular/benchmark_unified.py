@@ -464,9 +464,20 @@ def run_unified_benchmark(
     # ---- 3. calibrazione idle ----------------------------------------------
     if not skip_idle_calibration and SESSION.idle_power_w is None:
         try:
-            log(f"Calibrazione idle in corso ({config.IDLE_CALIBRATION_SECONDS:.0f} s, non generare carico)…")
+            log(
+                "Calibrazione idle in corso (>=30 s x 3 ripetizioni, mediana, "
+                "non generare carico)…"
+            )
             pw = SESSION.calibrate_idle()
-            log(f"P_idle calibrata: {pw:.2f} W")
+            reps = getattr(SESSION, "_idle_reps", []) or []
+            n_samp = getattr(SESSION, "_idle_samples_count", None)
+            log(
+                f"P_idle calibrata: {pw:.2f} W "
+                f"(mediana di {[round(r, 2) for r in reps]} W; "
+                f"metodo: {getattr(SESSION, '_idle_mode', '?')}"
+                + (f"; campioni power-integration: {n_samp}" if n_samp else "")
+                + ")"
+            )
         except Exception as exc:
             log(f"AVVISO: calibrazione idle fallita ({exc}); uso baseline dichiarata dal profiler")
 

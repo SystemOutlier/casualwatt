@@ -122,7 +122,10 @@ class CasualWattApp(tk.Tk):
             self.benchmark.stop()
             from energy.energy_session import SESSION
 
+            # stop() NON chiude LHM/NVML (spec §6); close() li chiude una
+            # sola volta alla fine della sessione applicativa.
             SESSION.stop()
+            SESSION.close()
         except Exception:
             pass
         self.destroy()

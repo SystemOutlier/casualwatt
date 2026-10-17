@@ -8,10 +8,18 @@ Formule implementate (sezione 2 della specifica, nessuna invenzione):
     E_ollama = E_attiva * (dt_cpu_ollama / dt_cpu_busy)
 
 con:
-* E_package      : energia package CPU nella finestra della richiesta
-                   (LibreHardwareMonitor su Windows; RAPL su Linux; stima
-                   TDP-busy come ultima risorsa);
-* P_idle         : potenza idle calibrata (SESSION.calibrate_idle);
+* E_package      : energia package CPU nella finestra della richiesta.
+                   METODO UFFICIALE SU WINDOWS 11 (CPU senza contatore
+                   Energy, es. Intel i9-13900HK): "power-integration" ->
+                   sensore LibreHardwareMonitor 'CPU Package' [W] campionato
+                   ogni 0.05 s e integrato nel tempo con regola trapezoidale
+                   sum(((P_i + P_i+1)/2) * (t_i+1 - t_i)). NIENTE RAPL/
+                   perf_event_open/turbostat, NIENTE stime TDP, NIENTE
+                   moltiplicatori arbitrari. Su piattaforme non-Windows la
+                   misurazione locale CPU e' disabilitata con messaggio
+                   esplicito (GUI/Ollama/cloud/CSV restano utilizzabili).
+* P_idle         : potenza idle calibrata (SESSION.calibrate_idle, solo
+                   Windows+LHM, >=30 s x 3 ripetizioni, mediana);
 * dt_cpu_ollama  : secondi CPU dell'albero Ollama nella finestra;
 * dt_cpu_busy    : secondi CPU busy NON-idle di tutto il sistema nella finestra.
 
@@ -89,21 +97,19 @@ class CasualWattLocalEnergyProfiler:
         dt_cpu_busy = max(busy_last - busy_first, 0.0)
 
         idle_power_w = self.session.idle_power_w
-        auto_micro_calibrated = False
         if idle_power_w is None:
-            # mai calibrato: micro-calibrazione empirica a riposo (2 s),
-            # dichiarata in note. Se non esiste un contatore reale di Joule,
-            # la baseline viene esplicitamente marcata indisponibile (0) e
-            # l'energia attiva coincide con il delta package: nessun valore
-            # TDP inventato.
+            # mai calibrato: tenta la micro-calibrazione empirica a riposo
+            # (2 s) con la STESSA funzione di lettura del benchmark. Su
+            # piattaforme non-Windows o senza backend reale il valore viene
+            # esplicitamente marcato indisponibile (baseline 0): nessun
+            # numero inventato, nessun fallback TDP.
             try:
                 idle_power_w = self.session.calibrate_idle(2.0)
-                auto_micro_calibrated = True
                 notes.append("P_idle non calibrato dall'utente: micro-calibrazione empirica 2 s")
             except Exception as exc:
                 idle_power_w = 0.0
                 notes.append(
-                    "P_idle non calibrato e contatore Joule assente "
+                    "P_idle non calibrato e misurazione locale non disponibile "
                     f"({type(exc).__name__}): baseline_energy_j = 0 (dichiarato)"
                 )
         res.idle_power_w = float(idle_power_w or 0.0)
@@ -124,14 +130,11 @@ class CasualWattLocalEnergyProfiler:
         # La micro-calibrazione empirica interna usa lo STESSO metodo della
         # calibrazione GUI (delta Joule a riposo): se il contatore ha risposto,
         # il valore e' affidabile e abilita lo scorporo code inattive.
-        idle_proven = getattr(self.session, "idle_provenance", None) or (
-            "calibrated" if auto_micro_calibrated else None
-        )
+        idle_proven = getattr(self.session, "idle_provenance", None)
         active_end_dt = dt
         if (
             idle_proven in ("calibrated", "session")
             and len(samples) >= 3
-            and method != "tdp_estimate"
         ):
             d_tail = self._ollama_cpu_delta(samples[-2:])
             if d_tail is not None and d_tail <= 1e-6:
@@ -144,29 +147,37 @@ class CasualWattLocalEnergyProfiler:
                     )
 
         if pkg_first is not None and pkg_last is not None and pkg_last >= pkg_first:
-            e_package = pkg_last - pkg_first
+            # Energia reale della finestra: integrazione trapezoidale dei
+            # campioni (P_i+P_i+1)/2*dt — con method="power-integration" i
+            # campioni provengono dal sensore CPU Package [W] a 0.05 s.
+            e_package = 0.0
+            prev = samples[0]
+            for cur in samples[1:]:
+                seg_dt = cur.t - prev.t
+                if seg_dt > 0 and prev.package_energy_j is not None \
+                        and cur.package_energy_j is not None:
+                    e_package += max(cur.package_energy_j - prev.package_energy_j, 0.0)
+                prev = cur
             res.cpu_attribution_method = (
-                f"package-{method}; cpu-time-share attribution "
+                f"{method}; cpu-time-share attribution "
                 "(E_attiva * dt_cpu_ollama/dt_cpu_busy)"
             )
-        elif method == "tdp_estimate":
-            # read_package_j restituisce gia' TDP*busy_seconds: la differenza
-            # tra fine e inizio e' TDP * dt_cpu_busy (solo carico attivo).
-            e_package = (pkg_last - pkg_first) if (pkg_last is not None and pkg_first is not None) else 0.0
-            res.cpu_attribution_method = "tdp-busy-estimate; cpu-time-share attribution"
-            notes.append("contatore package assente: stima TDP x busy-seconds")
         else:
             e_package = 0.0
-            notes.append("nessun campione package nella finestra")
+            notes.append(
+                "nessun campione package nella finestra: misurazione locale "
+                "dichiarata indisponibile (metodo attivo: "
+                f"'{self.session.source_method}')"
+            )
             res.cpu_attribution_method = "unavailable"
 
         res.package_energy_j = round(max(e_package, 0.0), 6)
         # baseline: P_idle per la PORZIONE ATTIVA della finestra (mai per
-        # code idle residue); sul tdp_estimate la baseline e' gia' insita
-        # nel modello busy-only.
-        baseline_dt = dt if method == "tdp_estimate" else min(dt, active_end_dt)
+        # code idle residue). La baseline NON entra in local_energy_j ne'
+        # end_to_end_energy_j: viene solo sottratta per isolare l'attiva.
+        baseline_dt = min(dt, active_end_dt)
         res.baseline_energy_j = round(res.idle_power_w * baseline_dt, 6)
-        active = max(e_package - res.baseline_energy_j, 0.0) if method != "tdp_estimate" else max(e_package, 0.0)
+        active = max(e_package - res.baseline_energy_j, 0.0)
         res.active_energy_j = round(active, 6)
 
         # delta CPU-time albero Ollama: preferisce istogrammi campione-campione
@@ -212,9 +223,9 @@ class CasualWattLocalEnergyProfiler:
                 "nvml-power-integral minus calibrated idle; utilization-share attribution"
             )
             notes.append(f"GPU '{gpu_mon.name}': board {board_j:.2f} J, attribuiti {res.gpu_energy_attributed_j:.2f} J")
-        elif method != "librehardwaremonitor" and active > 0:
-            # iGPU Intel/AMD: nessuna riga GPU separata dal package; quota
-            # dichiarata sull'energia ATTIVA (mai sul totale).
+        elif method not in ("librehardwaremonitor", "librehardwaremonitor-energy") and active > 0:
+            # iGPU Intel/AMD senza NVML: nessuna riga GPU separata dal package;
+            # quota dichiarata sull'energia ATTIVA (mai sul totale).
             from config import IGPU_POWER_SHARE
 
             res.gpu_available = True
@@ -230,9 +241,17 @@ class CasualWattLocalEnergyProfiler:
 
         # ------------------------------------------------------- boundary
         src_desc = {
-            "librehardwaremonitor": "LibreHardwareMonitor package energy sensor",
-            "rapl": "RAPL package counter",
-            "tdp_estimate": "TDP-busy model estimate",
+            "power-integration": (
+                "LibreHardwareMonitor 'CPU Package' [W] sampled every 0.05 s, "
+                "trapezoidal time integration (no Energy counter on this CPU)"
+            ),
+            "librehardwaremonitor-energy": "LibreHardwareMonitor package energy counter",
+            "librehardwaremonitor": "LibreHardwareMonitor (no readable counters)",
+            "energy-file": "[DEV/TEST non-Windows] user-provided joule counter file",
+            "unavailable": (
+                "LOCAL CPU ENERGY MEASUREMENT DISABLED: available only on "
+                "Windows with LibreHardwareMonitor"
+            ),
         }.get(method, method)
         res.measurement_boundary = (
             f"client-host system boundary; window interpolation over {len(samples)} "
