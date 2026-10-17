@@ -15,6 +15,12 @@ from gui.benchmark_panel import BenchmarkPanel
 from gui.model_selection import ModelSelectionPanel
 from gui.results_panel import ResultsPanel
 
+import sys
+
+
+def _is_windows() -> bool:
+    return sys.platform.startswith("win")
+
 
 class CasualWattApp(tk.Tk):
     def __init__(self):
@@ -22,6 +28,17 @@ class CasualWattApp(tk.Tk):
         self.title("CasualWatt Energy Benchmark v1.0")
         self.geometry("1280x860")
         self.minsize(980, 700)
+
+        # controllo privilegi all'avvio: LHM (sensori Energy-CPU) richiede un
+        # token elevato su Windows; l'utente puo' ri-elevarsi con un click
+        # dal pulsante nel pannello di esecuzione.
+        try:
+            from elevation import elevate_available, is_admin
+
+            if _is_windows() and not is_admin() and elevate_available():
+                self.title("CasualWatt Energy Benchmark v1.0 — [privilegi standard]")
+        except Exception:
+            pass
 
         try:
             style = ttk.Style(self)

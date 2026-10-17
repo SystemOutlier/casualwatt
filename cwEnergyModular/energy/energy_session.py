@@ -85,6 +85,19 @@ class _CPUJouleSource:
                     "(reperibile da github.com/LibreHardwareMonitor)"
                 )
                 return False
+            # NOTA: i sensori Energy-CPU di LHM richiedono token elevato.
+            # Senza UAC la libreria si aggancia ma legge zero/None: il
+            # messaggio e' reso esplicito qui (usato anche dalla GUI).
+            try:
+                from elevation import is_admin as _is_admin
+
+                if not _is_admin():
+                    self._notes.append(
+                        "processo NON elevato: LHM potra' leggere i sensori "
+                        "solo dopo 'Riavvia come Amministratore'"
+                    )
+            except Exception:
+                pass
             # le DLL di dipendenza (HidSharp, TaskScheduler) devono essere
             # risolte dal loader .NET: si cerca prima nella cartella della libreria
             try:
