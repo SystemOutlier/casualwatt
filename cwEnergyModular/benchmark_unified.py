@@ -21,6 +21,7 @@ errori finiscono in log e nel campo ``notes`` dei record.
 """
 from __future__ import annotations
 
+import os
 import platform
 import threading
 import time
@@ -477,7 +478,20 @@ def run_unified_benchmark(
         + (f" | note: {'; '.join(SESSION.source_notes)}" if SESSION.source_notes else "")
     )
 
-    providers_by_id = {pid: dict(cfg, id=pid) for pid, cfg in config.CLOUD_PROVIDERS.items()}
+    # Snapshot dei provider al momento dell'avvio, con API key letta LIVE da
+    # os.environ (la GUI può aver salvato/aggiornato le chiavi a caldo dopo
+    # l'import di config: refresh_provider_keys() risincronizza i flag 'enabled').
+    try:
+        config.refresh_provider_keys()
+    except Exception:
+        pass
+    providers_by_id = {}
+    for pid, cfg in config.CLOUD_PROVIDERS.items():
+        live_key = os.getenv(cfg.get("api_key_env", ""), "") or cfg.get("api_key", "")
+        c2 = dict(cfg, id=pid)
+        c2["api_key"] = live_key
+        c2["enabled"] = bool(live_key)
+        providers_by_id[pid] = c2
 
     # ---- 8. modelli locali ---------------------------------------------------
     for model in local_models:
@@ -734,7 +748,7 @@ def run_unified_benchmark(
             "idle_power_w": SESSION.idle_power_w,
             "idle_calibrated_at": SESSION.calibrated_at,
             "ecologits_version": _ecologits_version(),
-            "electricity_maps_used": bool(config.ELECTRICITY_MAPS_API_TOKEN),
+            "electricity_maps_used": bool(os.getenv("ELECTRICITY_MAPS_API_TOKEN", "")),
             "records_written": len(records),
             "results_csv": str(config.CSV_RESULTS_PATH),
             "notes": "cancelled" if summary["cancelled"] else "completed",

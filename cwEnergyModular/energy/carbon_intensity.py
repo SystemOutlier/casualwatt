@@ -15,6 +15,7 @@ componente LOCALE (energia prelevata dalla presa di casa dell'utente).
 from __future__ import annotations
 
 import json
+import os
 import time
 from dataclasses import dataclass
 from typing import Optional
@@ -22,11 +23,19 @@ from typing import Optional
 import requests
 
 try:
-    from config import ELECTRICITYMAPS_API_URL, ELECTRICITY_MAPS_API_TOKEN, ECO_CARBON_ZONE
+    from config import ELECTRICITYMAPS_API_URL, ECO_CARBON_ZONE
 except Exception:  # pragma: no cover
     ELECTRICITYMAPS_API_URL = "https://api.electricitymap.org/v3/carbon-intensity/latest"
-    ELECTRICITY_MAPS_API_TOKEN = ""
     ECO_CARBON_ZONE = "IT"
+
+# NOTA: il token NON viene letto come snapshot all'import perche' la GUI puo'
+# salvarlo a caldo (pannello Chiavi API) DOPO l'import di questo modulo.
+# La fonte canonica e' os.environ, letta ad ogni chiamata.
+def _maps_token() -> str:
+    try:
+        return os.getenv("ELECTRICITY_MAPS_API_TOKEN", "") or ""
+    except Exception:
+        return ""
 
 # Valori medi annuali Scope-2 gCO2eq/kWh (fonti: Ember 2024 / IEU dati pubblici)
 OFFLINE_TABLE = {
@@ -58,11 +67,12 @@ def get_carbon_intensity(zone: Optional[str] = None) -> CarbonIntensity:
     value: Optional[float] = None
     source = ""
 
-    # 1) Electricity Maps
-    if ELECTRICITY_MAPS_API_TOKEN:
+    # 1) Electricity Maps (token live da os.environ: aggiornabile a caldo via GUI)
+    _token = _maps_token()
+    if _token:
         try:
-            headers = {"X-RapidAPI-Key": ELECTRICITY_MAPS_API_TOKEN} \
-                if "rapidapi" in ELECTRICITYMAPS_API_URL else {"auth-token": ELECTRICITY_MAPS_API_TOKEN}
+            headers = {"X-RapidAPI-Key": _token} \
+                if "rapidapi" in ELECTRICITYMAPS_API_URL else {"auth-token": _token}
             r = requests.get(
                 ELECTRICITYMAPS_API_URL,
                 params={"distance": 100, "zone": zone},

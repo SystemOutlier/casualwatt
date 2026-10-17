@@ -92,14 +92,30 @@ _load_dotenv()
 # Ollama (sezione 5 e 8)
 # ---------------------------------------------------------------------------
 # Host Ollama per le RICHIESTE CLIENT. Default locale.
-# NOTA: 0.0.0.0 è un indirizzo di BINDING (ascolto del server), NON un host a cui connettersi.
-# Se la variabile d'ambiente contiene 0.0.0.0 o ::, viene convertita in 127.0.0.1.
+# NOTE:
+#  * 0.0.0.0 / :: sono indirizzi di BINDING (ascolto del server), NON host a cui
+#    connettersi -> vengono convertiti in 127.0.0.1.
+#  * Se l'host non ha una porta esplicita, viene aggiunta la porta di default
+#    di Ollama (:11434). Senza questo fix, "http://localhost" punterebbe alla
+#    porta 80 e la connessione verrebbe rifiutata.
+OLLAMA_DEFAULT_PORT = 11434
 OLLAMA_HOST = os.getenv("OLLAMA_HOST", "http://127.0.0.1:11434").strip().strip('"').rstrip("/")
 if not OLLAMA_HOST.startswith("http"):
     OLLAMA_HOST = "http://" + OLLAMA_HOST
 _host_no_scheme = OLLAMA_HOST.split("://", 1)[-1]
 if _host_no_scheme.startswith("0.0.0.0") or _host_no_scheme.startswith("[::]") or _host_no_scheme.startswith("::"):
     OLLAMA_HOST = OLLAMA_HOST.replace(_host_no_scheme, "127.0.0.1:11434" if ":" in _host_no_scheme else "127.0.0.1", 1)
+    _host_no_scheme = OLLAMA_HOST.split("://", 1)[-1]
+# Aggiunta automatica della porta di default se assente (es. http://localhost -> http://localhost:11434)
+try:
+    from urllib.parse import urlsplit, urlunsplit
+
+    _parts = urlsplit(OLLAMA_HOST)
+    if _parts.port is None and _parts.netloc:
+        _netloc = f"{_parts.netloc}:{OLLAMA_DEFAULT_PORT}"
+        OLLAMA_HOST = urlunsplit((_parts.scheme, _netloc, _parts.path.rstrip("/"), "", ""))
+except Exception:
+    pass
 OLLAMA_API_URL = OLLAMA_HOST
 OLLAMA_TAGS_ENDPOINT = f"{OLLAMA_API_URL}/api/tags"
 OLLAMA_GENERATE_ENDPOINT = f"{OLLAMA_API_URL}/api/generate"
@@ -115,11 +131,64 @@ OLLAMA_PROCESS_NAMES = (
 # ---------------------------------------------------------------------------
 # Provider cloud compatibili OpenAI (sezione 6 e 9)
 # ---------------------------------------------------------------------------
-# Chiavi d'ambiente richieste dalla specifica (sezione 14)
+# Chiavi d'ambiente richieste dalla specifica (sezione 14).
+# NOTA: i valori qui sotto sono SNAPSHOT dell'ambiente al momento del import.
+# La fonte canonica a runtime e' sempre os.environ: la GUI puo' aggiornare le
+# chiavi a caldo con apply_api_keys() (pulsante "Salva Chiavi"), e i moduli
+# che effettuano richieste (cloud_estimator, carbon_intensity) leggono da li'.
+API_KEY_ENV_VARS = (
+    "GROQ_API_KEY",
+    "OPENROUTER_API_KEY",
+    "GOOGLE_API_KEY",
+    "ELECTRICITY_MAPS_API_TOKEN",
+)
+
 GROQ_API_KEY = os.getenv("GROQ_API_KEY", "")
 OPENROUTER_API_KEY = os.getenv("OPENROUTER_API_KEY", "")
 GOOGLE_API_KEY = os.getenv("GOOGLE_API_KEY", "")
 ELECTRICITY_MAPS_API_TOKEN = os.getenv("ELECTRICITY_MAPS_API_TOKEN", "")
+
+
+def _provider_base_url(cfg: dict) -> str:
+    """Ricostruisce un endpoint OpenAI-style dal solo base_url."""
+    base = str(cfg.get("base_url", "")).rstrip("/")
+    return {
+        "models_endpoint": f"{base}/models",
+        "chat_endpoint": f"{base}/chat/completions",
+    }
+
+
+def refresh_provider_keys() -> None:
+    """Risincronizza CLOUD_PROVIDERS (e i globali XXX_API_KEY) con os.environ.
+
+    Chiamata dopo apply_api_keys()/load_saved_api_keys() perche' i campi
+    'api_key'/'enabled' dei provider non restino congelati all'import.
+    """
+    global GROQ_API_KEY, OPENROUTER_API_KEY, GOOGLE_API_KEY
+    global ELECTRICITY_MAPS_API_TOKEN
+    GROQ_API_KEY = os.getenv("GROQ_API_KEY", "")
+    OPENROUTER_API_KEY = os.getenv("OPENROUTER_API_KEY", "")
+    GOOGLE_API_KEY = os.getenv("GOOGLE_API_KEY", "")
+    ELECTRICITY_MAPS_API_TOKEN = os.getenv("ELECTRICITY_MAPS_API_TOKEN", "")
+    live = {
+        "GROQ_API_KEY": GROQ_API_KEY,
+        "OPENROUTER_API_KEY": OPENROUTER_API_KEY,
+        "GOOGLE_API_KEY": GOOGLE_API_KEY,
+    }
+    for name, cfg in CLOUD_PROVIDERS.items():
+        key = live.get(cfg.get("api_key_env", ""), "")
+        cfg["api_key"] = key
+        cfg["enabled"] = bool(key)
+        # self-healing: se gli endpoint mancano o puntano ancora alla porta 80
+        # (es. base_url senza schema/porta), rigenerarli dal base_url corrente
+        need = False
+        for ep in ("models_endpoint", "chat_endpoint"):
+            u = str(cfg.get(ep, ""))
+            if not u or u.startswith(("http://localhost/", "http://127.0.0.1/")):
+                need = True
+        if need and cfg.get("base_url"):
+            cfg.update(_provider_base_url(cfg))
+
 
 CLOUD_PROVIDERS: dict = {
     "groq": {
@@ -241,3 +310,97 @@ def load_prompts() -> list:
         except Exception:
             pass
     return list(DEFAULT_CAUSAL_PROMPTS)
+
+
+# ---------------------------------------------------------------------------
+# Persistenza delle API key (pannello "Impostazioni / Chiavi API" della GUI)
+# ---------------------------------------------------------------------------
+# File nascosto nella root del progetto. Le chiavi sono secreti: NON finisce
+# nel repository (.gitignore), perms 0600 su POSIX, e il file non contiene
+# path/endpoint — solo le variabili d'ambiente della sezione 14.
+API_KEYS_FILE = BASE_DIR / ".casualwatt_keys.json"
+
+
+def load_saved_api_keys() -> dict:
+    """Legge il file chiavi salvato (best effort). Ritorna {} se assente/corrotto."""
+    try:
+        if not API_KEYS_FILE.exists():
+            return {}
+        import json
+
+        data = json.loads(API_KEYS_FILE.read_text(encoding="utf-8-sig"))
+        if isinstance(data, dict):
+            return {
+                k: str(v).strip()
+                for k, v in data.items()
+                if k in API_KEY_ENV_VARS and str(v or "").strip()
+            }
+    except Exception:
+        pass
+    return {}
+
+
+def save_api_keys(keys: dict) -> bool:
+    """Salva le chiavi nel file nascosto con permessi restrittivi. True se OK."""
+    try:
+        import json
+
+        payload = {k: str(v).strip() for k, v in (keys or {}).items() if k in API_KEY_ENV_VARS}
+        API_KEYS_FILE.write_text(
+            json.dumps(payload, indent=2, ensure_ascii=False), encoding="utf-8"
+        )
+        try:
+            os.chmod(API_KEYS_FILE, 0o600)
+        except Exception:
+            pass  # su Windows il chmod può essere inerte: non è un errore
+        return True
+    except Exception:
+        return False
+
+
+def apply_api_keys(keys: dict, persist: bool = True) -> bool:
+    """Applica le chiavi alla sessione corrente.
+
+    * aggiorna os.environ (fonte canonica a runtime);
+    * risincronizza CLOUD_PROVIDERS via refresh_provider_keys();
+    * persiste nel file nascosto .casualwatt_keys.json (se persist=True).
+
+    Le stringhe vuote rimuovono la variabile dall'ambiente (il provider
+    corrispondente torna 'disabled'). Ritorna True se il salvataggio è riuscito.
+    """
+    for var in API_KEY_ENV_VARS:
+        val = str((keys or {}).get(var, "") or "").strip()
+        if val:
+            os.environ[var] = val
+        else:
+            os.environ.pop(var, None)
+    refresh_provider_keys()
+    if persist:
+        merged = load_saved_api_keys()
+        for var in API_KEY_ENV_VARS:
+            nv = str((keys or {}).get(var, "") or "").strip()
+            if nv:
+                merged[var] = nv
+            else:
+                merged.pop(var, None)
+        return save_api_keys(merged)
+    return True
+
+
+def init_secrets_from_disk() -> None:
+    """Auto-caricamento all'avvio: file chiavi -> os.environ -> provider.
+
+    Precedenza: variabile d'ambiente già esistente > file .casualwatt_keys.json
+    (le env reali dell'utente non vengono mai sovrascritte dal file).
+    """
+    saved = load_saved_api_keys()
+    changed = False
+    for var, val in saved.items():
+        if not os.environ.get(var) and val:
+            os.environ[var] = val
+            changed = True
+    if changed:
+        refresh_provider_keys()
+
+
+init_secrets_from_disk()
