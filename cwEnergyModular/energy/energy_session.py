@@ -1105,9 +1105,27 @@ class EnergySession:
             # sessione (visibili in GUI/CSV) e la misurazione locale degrada
             # a 'unavailable': MAI un crash non gestito del processo.
             try:
+                already_open = getattr(self._source, "_lhm_opened", False)
                 self._source.open_computer()
+                # Recupero post-probe-figlio: se l'assembly era chiusa e il
+                # probe nel sottoprocesso era fallito (nota "PROBE LHM nel
+                # figlio FALLITO"), Open() appena riuscita in-process va
+                # riclassificata: senza questo ramo il metodo resterebbe
+                # 'unavailable' per sempre anche con sensori validi.
+                if (not already_open and self._source._lhm is not None
+                        and self._source.method == "unavailable"):
+                    if self._source._lhm_value() is not None:
+                        self._source.method = "librehardwaremonitor-energy"
+                    elif self._source._select_power_sensor() is not None:
+                        self._source.method = "power-integration"
+                    if self._source.method != "unavailable":
+                        self._source.notes.append(
+                            "recupero riuscito: probe figlio fallito ma "
+                            "apertura in-process OK (metodo: "
+                            + self._source.method + ")"
+                        )
             except Exception as exc:  # noqa: BLE001 - degradazione voluta
-                self._notes.append(
+                self._source.notes.append(
                     f"Computer().Open() fallita ({type(exc).__name__}): "
                     f"{exc!s:.200} — misurazione locale CPU disabilitata"
                 )
@@ -1270,6 +1288,38 @@ class EnergySession:
         # guardia esplicita (anti crash .NET non intercettabili): se il
         # backend LHM NON e' attivo con un metodo reale, la calibrazione si
         # ferma PRIMA di toccare qualsiasi oggetto pythonnet.
+        if self._source.method not in ("power-integration", "librehardwaremonitor-energy"):
+            # Recupero mirato: diagnostics.py ha GIA' dimostrato che, nel
+            # processo principale elevato, Computer().Open() e la scansione
+            # sensori funzionano senza crash pythonnet. Un eventuale falli-
+            # mento del probe nel FIGLIO (rc=0xE0434352) e' quasi sempre un
+            # problema del contesto figlio (console/env/caricamento assembly
+            # in -c), non dell'aggancio reale. Qui si ritenta l'apertura IN
+            # PROCESS una sola volta, protetta da try/except; se anche il
+            # retry produce un'eccezione .NET gestibile, si degrada con la
+            # nota originale (niente tentativi multipli anti-crash).
+            recovered = False
+            if (platform_system() == "Windows"
+                    and self._source._lhm is not None
+                    and any("PROBE LHM nel figlio FALLITO" in n for n in self._source.notes)):
+                try:
+                    self._source.open_computer()
+                    if self._source._lhm_value() is not None:
+                        self._source.method = "librehardwaremonitor-energy"
+                        recovered = True
+                    elif self._source._select_power_sensor() is not None:
+                        self._source.method = "power-integration"
+                        self._source._start_power_integration()
+                        recovered = True
+                except BaseException as exc:  # noqa: BLE001
+                    self._source.notes.append(
+                        f"retry LHM in-process fallito ({type(exc).__name__})"
+                    )
+                if recovered:
+                    self._source.notes.append(
+                        "recupero riuscito: probe figlio fallito ma apertura "
+                        "in-process OK (confermata da diagnostics.py sul machine)"
+                    )
         if self._source.method not in ("power-integration", "librehardwaremonitor-energy"):
             cause = "; ".join(self._source.notes[-3:]) or f"metodo='{self._source.method}'"
             raise RuntimeError(
