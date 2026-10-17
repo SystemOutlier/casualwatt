@@ -20,7 +20,8 @@ CSV_COLUMNS: List[str] = [
     "model_name", "model_label", "provider", "mode", "ollama_pid",
     "prompt_id", "prompt",
     # tracciabilita' sorgente test (Modalita' di Input Universale)
-    "test_source", "ground_truth", "eval_mode",
+    "test_source", "ground_truth", "eval_mode", "eval_method",
+    "semantic_similarity", "lexical_similarity", "semantic_threshold",
     # risposta generata dal modello (verifica manuale errori/allucinazioni)
     "model_response",
     # performance

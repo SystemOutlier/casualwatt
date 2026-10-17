@@ -248,19 +248,22 @@ def _na_or(v):
 def _resolve_eval_mode(prompt: Dict, explicit: Optional[str] = None) -> str:
     """Sceglie il regime di valutazione in base ai dati RICEVUTI dal test.
 
-    - ground_truth presente nel dataset esterno   -> 'auto' (usa la GT);
-    - item marcato causale (flag/id/contenuto)    -> 'causal' (sez. 10);
+    - ground_truth presente nel dataset esterno   -> 'auto' (GT semantica);
+    - item marcato causale (flag/id/contenuto)    -> 'heuristic_keyword_fallback'
+      (euristica keyword cause/effect, NON una ground-truth accuracy);
     - altrimenti                                  -> 'skip' (solo energia).
-    L'override esplicito ('auto'|'causal'|'skip') ha sempre priorita'.
+    L'override esplicito ('auto'|'causal'|'skip') ha sempre priorita'; il
+    valore storico 'causal' e' accettato come alias del fallback euristico.
     """
     if explicit:
-        return explicit.strip().lower()
+        e = explicit.strip().lower()
+        return "heuristic_keyword_fallback" if e == "causal" else e
     if prompt.get("ground_truth"):
         return "auto"
     pid = str(prompt.get("id", "")).lower()
     txt = str(prompt.get("text", "")).lower()
     if prompt.get("causal") or "causal" in pid or ("cause" in txt and "effect" in txt):
-        return "causal"
+        return "heuristic_keyword_fallback"
     return "skip"
 
 
@@ -284,6 +287,11 @@ def _basic_record(run_id, session_id, model_name, model_label, provider, mode,
         "test_source": prompt.get("source", "unknown"),
         "ground_truth": gt if gt not in (None, "") else "N/A",
         "eval_mode": getattr(evalres, "eval_mode", "skipped"),
+        # provenienza/declinazione metrica: embedding semantico vs fallback lessicale
+        "eval_method": getattr(evalres, "eval_method", ""),
+        "semantic_similarity": _na_or(getattr(evalres, "semantic_similarity", None)),
+        "lexical_similarity": _na_or(getattr(evalres, "lexical_similarity", None)),
+        "semantic_threshold": getattr(evalres, "semantic_threshold", ""),
         # testo esatto generato dal modello (verifica manuale errori/allucinazioni)
         "model_response": "",
         "is_correct": _na_or(evalres.is_correct),
@@ -682,6 +690,12 @@ def run_unified_benchmark(
                         n_correct_links=_na_or(evalres.n_correct_links),
                         acc_comp=_na_or(evalres.acc_comp),
                         eval_mode=evalres.eval_mode,
+                        eval_method=getattr(evalres, "eval_method", ""),
+                        semantic_similarity=_na_or(
+                            getattr(evalres, "semantic_similarity", None)),
+                        lexical_similarity=_na_or(
+                            getattr(evalres, "lexical_similarity", None)),
+                        semantic_threshold=getattr(evalres, "semantic_threshold", ""),
                     )
                     cloud_j = est.energy_j or 0.0
                     if est.energy_j is None:

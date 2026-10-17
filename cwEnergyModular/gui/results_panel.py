@@ -29,7 +29,10 @@ CSV_VIEW_COLUMNS = [
     ("cloud_energy_j", "Cloud J", 75),
     ("end_to_end_energy_j", "E2E J", 85),
     ("energy_per_output_token_j", "J/token", 75),
-    ("causal_accuracy", "Acc", 50),
+    ("semantic_similarity", "Sim sem", 68),
+    ("lexical_similarity", "Sim less", 68),
+    ("eval_mode", "Regime", 92),
+    ("causal_accuracy", "Acc(comp)", 70),
     ("ece_per_joule", "ECE/J", 80),
     ("epcl_j_per_link", "EPCL", 75),
     # risposta esatta del modello: troncata a video, intera nel CSV e nel
@@ -64,6 +67,9 @@ _COL_FORMAT = {
     "end_to_end_energy_j": "joule",
     "energy_per_output_token_j": "joule",
     "causal_accuracy": "ratio",      # 2 decimali
+    "semantic_similarity": "ratio",  # metrica principale regime GT (proxy semantico)
+    "lexical_similarity": "ratio",   # metrica secondaria
+    "eval_mode": "text",             # ground_truth | heuristic_keyword_fallback | skipped
     "ece_per_joule": "sci",          # valori piccolissimi -> 4 decimali
     "epcl_j_per_link": "joule",
 }

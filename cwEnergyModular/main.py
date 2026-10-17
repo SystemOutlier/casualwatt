@@ -20,9 +20,13 @@ def _selftest() -> int:
     import test_source  # noqa: F401
     from casualwatt_csv_export import export_results_csv, CSV_COLUMNS  # noqa: F401
 
-    # regola sez. 10 — regime causale esplicito (mode="causal")
+    # euristica keyword cause/effect (NON ground-truth accuracy):
+    # eval_mode rinominato esplicitamente in "heuristic_keyword_fallback"
     r = evaluator.evaluate_response("The cause of X has an effect on Y", is_tool=False, mode="causal")
+    assert r.eval_mode == "heuristic_keyword_fallback"
     assert r.acc_links == 1.0 and r.judge_score == 4.0 and r.cosine_sim == 0.75
+    # formula approvata: acc_comp = 0.6*acc_links + 0.3*(judge/5) + 0.1*cosine
+    assert abs(r.acc_comp - (0.6 * 1.0 + 0.3 * (4.0 / 5.0) + 0.1 * 0.75)) < 1e-9
     r2 = evaluator.evaluate_response("only a cause here", is_tool=True, mode="causal")
     assert r2.acc_links == 0.5 and r2.judge_score == 3.0 and r2.cosine_sim == 0.88
     r3 = evaluator.evaluate_response("nothing relevant", is_tool=True, mode="causal")
@@ -30,9 +34,15 @@ def _selftest() -> int:
     r4 = evaluator.evaluate_response("cause + effect", is_tool=True, mode="causal")
     assert r4.judge_score == 4.5
 
-    # valutazione UNIVERSALE: ground truth -> accuratezza per confronto
+    # valutazione UNIVERSALE regime GT: metrica principale SEMANTICA
+    # (embedding multilingua se disponibile; fallback lessicale dichiarato).
     gt = evaluator.evaluate_response("Paris", ground_truth="Paris")
-    assert gt.eval_mode == "ground_truth" and gt.is_correct is True and gt.causal_accuracy == 1.0
+    assert gt.eval_mode == "ground_truth" and gt.is_correct is True
+    assert gt.causal_accuracy == 1.0 and gt.lexical_similarity == 1.0
+    assert gt.eval_method in ("embedding:paraphrase-multilingual-MiniLM-L12-v2",
+                              "lexical_only(fallback)")
+    if gt.semantic_similarity is not None:
+        assert gt.acc_comp == gt.semantic_similarity  # GT: acc_comp = sim semantica
     gt_bad = evaluator.evaluate_response("London", ground_truth="Paris")
     assert gt_bad.is_correct is False
 
@@ -59,6 +69,9 @@ def _selftest() -> int:
     # schema CSV completo
     assert "baseline_energy_j" in CSV_COLUMNS and "ollama_active_energy_j" in CSV_COLUMNS
     assert {"test_source", "ground_truth", "eval_mode"} <= set(CSV_COLUMNS), "colonne sorgente test mancanti!"
+    # nuove colonne valutazione semantica (proposta approvata)
+    assert {"eval_method", "semantic_similarity", "lexical_similarity",
+            "semantic_threshold"} <= set(CSV_COLUMNS), "colonne semantiche mancanti!"
     assert len(CSV_COLUMNS) == len(set(CSV_COLUMNS)), "colonne duplicate!"
 
     # stima cloud eco-logits (offline, modello registrato proxy)

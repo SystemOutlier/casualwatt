@@ -34,8 +34,22 @@ LHM_DLL_PATH = (
 CSV_RESULTS_PATH = RESULTS_DIR / "casualwatt_results.csv"
 CSV_RUN_METADATA_PATH = RESULTS_DIR / "casualwatt_run_metadata.csv"
 
-for _d in (RESULTS_DIR, LOGS_DIR, DATASET_DIR):
+# Cache locale modello embeddings (valutazione semantica ground-truth):
+# il modello viene scaricato una volta qui e riutilizzato offline.
+EMBED_MODEL_DIR = BASE_DIR / "models" / os.getenv(
+    "CW_EMBED_MODEL_DIR", "paraphrase-multilingual-MiniLM-L12-v2"
+).strip().strip('"')
+
+for _d in (RESULTS_DIR, LOGS_DIR, DATASET_DIR, EMBED_MODEL_DIR.parent):
     _d.mkdir(parents=True, exist_ok=True)
+
+
+def env_float(name: str, default: float) -> float:
+    """Legge una variabile d'ambiente come float con fallback sicuro."""
+    try:
+        return float(os.getenv(name, "").strip().strip('"') or default)
+    except (TypeError, ValueError):
+        return float(default)
 
 
 def _parse_env_file(path: Path) -> dict:
