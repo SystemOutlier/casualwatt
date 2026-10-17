@@ -43,6 +43,9 @@ class _CPUJouleSource:
 
     #: Campionamento del sensore CPU Package [W] per power-integration (spec §4)
     POWER_SAMPLE_INTERVAL_S = 0.05
+    # Timeout massimo del probe LHM in-process: oltre, si presume un hard-
+    # crash .NET e si ripiega sul sottoprocesso isolato (watchdog).
+    PROBE_INPROCESS_TIMEOUT_S = 90.0
     #: Nome sensore PREFERITO su Intel (i9-13900HK espone "CPU Package")
     _PREFERRED_POWER_NAMES = ("cpu package",)
     #: Fallback accettati SOLO se il preferito manca (AMD / varianti chipset)
@@ -77,6 +80,12 @@ class _CPUJouleSource:
             "Local CPU energy measurement is available only on Windows with "
             "LibreHardwareMonitor."
         )
+        # Watchdog del probe in-process: se Computer().Open() non risponde
+        # entro il timeout (hard-crash .NET che congela il worker), si ripiega
+        # sul sottoprocesso isolato. Disattivabile con CW_LHM_WATCHDOG=0.
+        import os as _os0
+
+        self._probe_watchdog = _os0.environ.get("CW_LHM_WATCHDOG", "1") != "0"
 
         if self._try_power_counter():
             # Contatore Joule ESPOSTO DALL'UTENTE (CW_ENERGY_FILE): niente
@@ -137,7 +146,64 @@ class _CPUJouleSource:
 
         if _os.environ.get("CW_LHM_PROBE_CHILD") == "1":
             return self._lhm_probe_child()
+        # STRATEGIA (validata sul machine target): il processo PRINCIPALE
+        # elevato apre Computer() e scansiona i sensori senza crash — lo
+        # dimostrano i log di diagnostics.py (CPU Package trovato, 4 Power).
+        # Si tenta quindi prima IN-PROCESS con try/except: se pythonnet
+        # solleva in modo gestibile si degrada; se invece CRASHA il figlio
+        # watchdog muore e il padre riprova nel FIGLIO isolato (anti-crash
+        # per le build pythonnet difettose). L'ordine precedente (figlio
+        # primo) produceva falsi negativi: rc=0xE0434352 nel contesto del
+        # figlio -c anche quando l'in-process funzionava perfettamente.
+        ok = self._lhm_probe_inprocess()
+        if ok:
+            return True
+        if not getattr(self, "_probe_watchdog", False):
+            # Watchdog disattivato (CW_LHM_WATCHDOG=0): niente figli.
+            return False
         return self._lhm_probe_parent()
+
+    def _lhm_probe_inprocess(self) -> bool:
+        """Probe LHM nel processo corrente, con watchdog anti-crash .NET.
+
+        Il tentativo in-process e' sorvegliato da un thread watchdog: se la
+        chiamata a Computer().Open() non completa entro il timeout (segno di
+        un hard-crash .NET/pythonnet che congela o uccide il worker), il flag
+        ``_probe_watchdog_fired`` consente al chiamante (il PADRE, ancora
+        vivo) di ripiegare sul sottoprocesso isolato. Le eccezioni gestibili
+        vengono propagate al chiamante come False con nota esplicita.
+        """
+        import threading as _th
+        import time as _t
+
+        holder: dict = {"done": _th.Event(), "result": None}
+
+        def _worker():
+            try:
+                holder["result"] = self._lhm_probe_child()
+            except BaseException as exc:  # noqa: BLE001
+                holder["result"] = False
+                self._notes.append(
+                    f"probe in-process eccezione ({type(exc).__name__}): "
+                    f"{exc!s:.200}"
+                )
+            finally:
+                holder["done"].set()
+
+        th = _th.Thread(target=_worker, name="cw-lhm-probe", daemon=True)
+        th.start()
+        finished = holder["done"].wait(timeout=self.PROBE_INPROCESS_TIMEOUT_S)
+        if not finished:
+            self._notes.append(
+                "probe in-process TIMEOUT > "
+                f"{self.PROBE_INPROCESS_TIMEOUT_S:.0f}s (possibile crash .NET "
+                "non gestito): ripiego sul sottoprocesso isolato"
+            )
+            return False
+        result = holder["result"] is True
+        if result:
+            self._notes.append("probe LHM in-process OK (Computer() aperto)")
+        return result
 
     # ------------------------------------------------------------------ probe
     def _lhm_probe_parent(self) -> bool:
@@ -242,6 +308,13 @@ class _CPUJouleSource:
 
     # ------------------------------------------------------------------ LHM
     def _try_lhm_direct(self) -> bool:
+        # Anti-ricorsione: se l'assembly e' gia' agganciata in questo
+        # processo (es. secondo tentativo di calibrazione dopo un fallimento,
+        # o retry del padre dopo il probe), non si ricrea un Computer():
+        # AddReference/Assembly.Load ripetuti su pythonnet 3.x possono dare
+        # eccezioni gestite che verrebbero scambiate per "LHM assente".
+        if self._lhm is not None:
+            return True
         try:
             import platform
 
@@ -536,19 +609,21 @@ class _CPUJouleSource:
                     continue
                 if not self._lhm_is_cpu_hw(hw):
                     continue
-                for sensor in hw.Sensors:
-                    try:
-                        out.append({
-                            "hardware": str(hw.Name),
-                            "sensor_name": str(sensor.Name),
-                            # _lhm_sensor_type_name(): robusto fra versioni
-                            # LHM/pythonnet (SensorType -> Type -> class name)
-                            "sensor_type": self._lhm_sensor_type_name(sensor),
-                            "value": (None if sensor.Value is None
-                                      else float(sensor.Value)),
-                        })
-                    except Exception:
-                        continue
+                subs = list(getattr(hw, "SubHardware", []) or [])
+                for sub in [hw] + subs:
+                    for sensor in sub.Sensors:
+                        try:
+                            out.append({
+                                "hardware": str(hw.Name),
+                                "sensor_name": str(sensor.Name),
+                                # _lhm_sensor_type_name(): robusto fra versioni
+                                # LHM/pythonnet (SensorType -> Type -> class name)
+                                "sensor_type": self._lhm_sensor_type_name(sensor),
+                                "value": (None if sensor.Value is None
+                                          else float(sensor.Value)),
+                            })
+                        except Exception:
+                            continue
         except Exception:
             pass
         return out
@@ -564,9 +639,9 @@ class _CPUJouleSource:
 
         Preferito : nome esatto "CPU Package" (Intel, es. i9-13900HK).
         Fallback  : "Package", "Package Power", "CPU PPT" (AMD Ryzen), solo se
-                    il preferito non esiste.
+                il preferito non esiste.
         Esclusi   : "CPU Cores", "CPU Memory", "CPU Platform" (parziali/altre
-                    componenti) e qualunque sensore non di tipo Power.
+                componenti) e qualunque sensore non di tipo Power.
         Ritorna l'oggetto sensore pythonnet oppure None. Memorizza in
         _pi_sensors_seen TUTTI i nomi Power visti (diagnostica completa).
         """
@@ -616,6 +691,15 @@ class _CPUJouleSource:
             # Cache dell'oggetto sensore: _read_power_w_direct() lo riusa e
             # il costruttore evita una seconda scansione dell'assembly.
             self._pi_selected = chosen
+            # Nota DIAGNOSTICA sempre presente quando si seleziona un
+            # sensore Power: rende nel log la scelta fatta (preferito vs
+            # fallback) — richiesta di verifica sul machine target.
+            kind = ("preferito" if chosen is preferred else "fallback")
+            self._notes.append(
+                f"sensore Power selezionato per power-integration: "
+                f"'{self._pi_sensor_name}' ({kind}); Power visti: "
+                f"{', '.join(seen_power) or '-'}"
+            )
         return chosen
 
     def _read_power_w_direct(self) -> Optional[float]:
@@ -872,24 +956,39 @@ class _CPUJouleSource:
         Nessuna modalita' usa stime TDP: entrambe sono misure reali.
         """
         duration_s = max(float(duration_s), 0.5)
-        # 1) POWER-INTEGRATION: campionamento fitto durante la finestra a riposo
+        # 1) POWER-INTEGRATION: delta dell'energia INTEGRATA DAL THREAD
+        #    dedicato (campioni CPU Package ogni 0.05 s, spec §4). Il polling
+        #    inline dal thread GUI era la causa di falsi negativi "Value
+        #    sempre None" su Windows: le chiamate .NET da thread non-STA si
+        #    incrociano con quelle del thread PI. Ora qui si legge SOLO il
+        #    contatore cumulato _pi_energy_j — nessuna chiamata .NET da
+        #    questo contesto. Se il thread non e' attivo lo si avvia.
         if self.method == "power-integration":
-            powers: List[float] = []
+            if self._pi_thread is None or not self._pi_thread.is_alive():
+                self._start_power_integration()
+            with self._pi_lock:
+                e_start = self._pi_energy_j
+                n_start = len(self._pi_samples)
             t0 = time.monotonic()
-            end = t0 + duration_s
-            while time.monotonic() < end:
-                w = self._read_power_w_direct()
-                if w is not None:
-                    powers.append(w)
-                time.sleep(self.POWER_SAMPLE_INTERVAL_S)
+            time.sleep(duration_s)
             dt = max(time.monotonic() - t0, 1e-6)
-            if powers:
-                avg_w = sum(powers) / len(powers)
+            with self._pi_lock:
+                e_end = self._pi_energy_j
+                n_end = len(self._pi_samples)
+            if n_end > n_start and e_end >= e_start:
+                delta = e_end - e_start
+                return (delta, dt, "power-integration")
+            if n_end > n_start:
+                # campioni presenti ma energia non integrata (primo punto?):
+                # media delle potenze osservate nella finestra
+                window = self._pi_samples[n_start:]
+                avg_w = sum(w for _, w in window) / len(window)
                 return (avg_w * dt, dt, "power-integration")
             self._last_read_error = (
-                f"sensore '{self._pi_sensor_name}' agganciato ma Value sempre "
-                "None durante la finestra: Update()/driver non popolano il "
-                "sensore (riavviare come amministratore)"
+                f"sensore '{self._pi_sensor_name}' agganciato ma senza campioni "
+                "validi nella finestra (thread power-integration inattivo o "
+                "Update()/driver non popolano il sensore): riavviare come "
+                "amministratore ed eseguire 'py diagnostics.py'"
             )
             return None
         # 2) contatore Joule reale (LHM Energy / file dev-test)
@@ -1288,6 +1387,29 @@ class EnergySession:
         # guardia esplicita (anti crash .NET non intercettabili): se il
         # backend LHM NON e' attivo con un metodo reale, la calibrazione si
         # ferma PRIMA di toccare qualsiasi oggetto pythonnet.
+        if (self._source.method not in ("power-integration", "librehardwaremonitor-energy")
+                and self._source._lhm is not None
+                and platform_system() == "Windows"):
+            # LHM era gia' stata AGGANCIATA in questo processo (Computer()
+            # creato) ma il metodo risulta non attivo: possibile probe
+            # fallito al primo colpo. Si ritenta UNA sola volta la catena
+            # completa apertura+selezione, sempre con eccezioni gestite.
+            try:
+                self._source.open_computer()
+                if self._source._lhm_value() is not None:
+                    self._source.method = "librehardwaremonitor-energy"
+                elif self._source._select_power_sensor() is not None:
+                    self._source.method = "power-integration"
+                    self._source._start_power_integration()
+                if self._source.method != "unavailable":
+                    self._source.notes.append(
+                        "recupero LHM: retry post-probe riuscito "
+                        f"(metodo: {self._source.method})"
+                    )
+            except BaseException as exc:  # noqa: BLE001
+                self._source.notes.append(
+                    f"retry LHM aggiuntivo fallito ({type(exc).__name__})"
+                )
         if self._source.method not in ("power-integration", "librehardwaremonitor-energy"):
             # Recupero mirato: diagnostics.py ha GIA' dimostrato che, nel
             # processo principale elevato, Computer().Open() e la scansione
