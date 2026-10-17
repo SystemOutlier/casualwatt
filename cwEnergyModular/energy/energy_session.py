@@ -516,7 +516,9 @@ class EnergySession:
         # provenienza: calibrazione esplicita dell'utente (GUI/pulsante o
         # chiamata diretta con durata >= 2 s); il profiler la declassera' ad
         # "auto_micro" se innescata dalla micro-calibrazione interna.
-        self.idle_provenance = "calibrated" if duration_s >= 2.0 else "auto_micro"
+        # NB: usare ``seconds`` (argomento locale), NON ``duration_s`` che non
+        # esiste in questo scope — era il bug "name 'duration_s' is not defined".
+        self.idle_provenance = "calibrated" if seconds >= 2.0 else "auto_micro"
         self.calibrated_at = time.time()
         return self.idle_power_w
 

@@ -10,8 +10,10 @@ la comunicazione con Tk avviene solo via ``after()``.
 Sorgente dei Test (Modalita' di Input Universale): radiobutton con due
 opzioni dinamiche — A) Dataset Esterno CSV (pulsante "Sfoglia..." per file
 generati da tool esterni tipo MUDILab, colonna prompt + eventuale
-ground_truth/expected_result) oppure B) Prompt Manuale (textarea, un prompt
-per riga). I test NON sono mai hardcodati nel framework.
+ground_truth/expected_result) oppure B) Prompt Manuale: blocchi dinamici
+numerati ("Test 1", "Test 2", ...) in un'area scrollabile, ognuno con due
+campi espliciti Domanda + Risposta Attesa (opzionale), "+ Aggiungi Prompt"
+e "✕" per rimuovere. I test NON sono mai hardcodati nel framework.
 """
 from __future__ import annotations
 
@@ -20,6 +22,7 @@ import threading
 import time
 import tkinter as tk
 from tkinter import ttk
+from typing import List, Optional, Tuple
 
 
 class BenchmarkPanel(ttk.LabelFrame):
@@ -93,17 +96,49 @@ class BenchmarkPanel(ttk.LabelFrame):
                                   foreground="gray")
         self.csv_info.grid(row=2, column=0, columnspan=2, sticky="w", padx=8, pady=(0, 2))
 
-        # --- B) fila manuale: textarea, un prompt per riga --------------------
+        # --- B) fila manuale: blocchi dinamici Domanda + Risposta Attesa ------
+        # UI esplicita a campi separati: niente parsing del separatore " / ",
+        # rischio di errori azzerato anche con prompt lunghi. La lista interna
+        # e' persistente tra i cambi di modalita' (grid_forget non distrugge).
         self.manual_frame = ttk.Frame(src)
-        self.manual_text = tk.Text(self.manual_frame, height=4, wrap="word",
-                                   font=("Consolas", 9))
-        self.manual_text.pack(fill="x", padx=6, pady=2)
-        ttk.Label(self.manual_frame,
-                  text="Un prompt per riga. Opzionale: 'prompt / risposta attesa' "
-                       "(es. 'Qual è la capitale d'Italia? / Roma') — se presente il "
-                       "separatore ' / ', la seconda parte viene usata come ground truth "
-                       "per l'accuratezza; altrimenti accuratezza -> N/A (solo energia)."
-                  ).pack(anchor="w", padx=8, pady=(0, 3))
+        self._manual_rows: List[dict] = []
+
+        man_head = ttk.Frame(self.manual_frame)
+        man_head.pack(fill="x", padx=6, pady=(4, 2))
+        ttk.Button(man_head, text="+ Aggiungi Prompt", width=16,
+                   command=self._manual_add_row).pack(side="left")
+        ttk.Label(
+            man_head,
+            text="Inserisci la domanda nel campo \"Domanda\"; la risposta attesa "
+                 "in \"Risposta Attesa\" (opzionale: se vuota -> accuratezza N/A, "
+                 "salvate solo metriche energetiche/latenza/token).",
+            foreground="gray", wraplength=560, justify="left",
+        ).pack(side="left", padx=12)
+
+        # contenitore scrollabile (canvas + inner frame + scrollbar verticale)
+        man_body = ttk.Frame(self.manual_frame)
+        man_body.pack(fill="both", expand=True, padx=6, pady=(0, 4))
+        self._man_canvas = tk.Canvas(man_body, height=132, highlightthickness=0)
+        man_vsbar = ttk.Scrollbar(man_body, orient="vertical",
+                                  command=self._man_canvas.yview)
+        self._man_inner = ttk.Frame(self._man_canvas)
+        self._man_inner.bind(
+            "<Configure>",
+            lambda e: self._man_canvas.configure(scrollregion=self._man_canvas.bbox("all")),
+        )
+        self._man_win = self._man_canvas.create_window((0, 0), window=self._man_inner, anchor="nw")
+        self._man_canvas.bind(
+            "<Configure>", lambda e: self._man_canvas.itemconfigure(self._man_win, width=e.width)
+        )
+        self._man_canvas.configure(yscrollcommand=man_vsbar.set)
+        self._man_canvas.pack(side="left", fill="both", expand=True)
+        man_vsbar.pack(side="right", fill="y")
+        # rotellina del mouse dentro il canvas (Windows/Tk standard)
+        self._man_canvas.bind_all("<MouseWheel>", self._man_on_wheel)
+        self._man_canvas.bind_all("<Button-4>", self._man_on_wheel)   # X11 fallback
+        self._man_canvas.bind_all("<Button-5>", self._man_on_wheel)   # X11 fallback
+
+        self._manual_add_row()  # primo blocco "Test 1" gia' pronto
 
         src.columnconfigure(0, weight=1)
         src.columnconfigure(1, weight=1)
@@ -177,11 +212,105 @@ class BenchmarkPanel(ttk.LabelFrame):
             self.log(f"CSV non valido: {err}")
 
     def get_test_source_kwargs(self) -> dict:
-        """Estrapola la selezione corrente per il runner (usato anche da CLI)."""
+        """Estrapola la selezione corrente per il runner (usato anche da CLI).
+
+        Modalita' manuale: costruisce un testo compatibile con il parser di
+        test_source ('prompt / ground_truth' per riga) dai campi espliciti.
+        Gli a capo dentro i singoli campi vengono appiattiti con uno spazio
+        per non corrompere il formato one-per-line; il separatore ' / ' e'
+        generato SOLO noi blocchi con risposta attesa compilata, quindi il
+        parsing downstream e' deterministico (niente ambiguita' utente).
+        NB: questo metodo viene invocato dal thread del benchmark -> legge i
+        widget Tk in modo thread-safe via invoke sul thread principale.
+        """
         mode = self.var_test_mode.get()
         if mode == "manual":
-            return {"test_mode": "manual", "manual_text": self.manual_text.get("1.0", "end")}
+            return {"test_mode": "manual", "manual_text": self._collect_manual_text()}
         return {"test_mode": "csv", "csv_path": self.var_csv_path.get().strip()}
+
+    # ----------------------------------------------------- righe manuali -----
+    def _man_on_wheel(self, event):
+        """Scrolla la lista dei blocchi con la rotellina (Windows delta 120)."""
+        try:
+            if getattr(event, "num", None) == 4:      # X11 scroll giu'
+                self._man_canvas.yview_scroll(1, "units")
+            elif getattr(event, "num", None) == 5:    # X11 scroll su'
+                self._man_canvas.yview_scroll(-1, "units")
+            else:
+                step = -1 if getattr(event, "delta", 0) > 0 else 1
+                self._man_canvas.yview_scroll(step, "units")
+        except Exception:
+            pass
+
+    def _manual_add_row(self):
+        """Aggiunge un blocco numerato 'Test N' con Domanda + Risposta Attesa."""
+        idx = len(self._manual_rows) + 1
+        row_frame = ttk.Frame(self._man_inner, padding=(2, 2))
+        row_frame.pack(fill="x", padx=2, pady=1)
+
+        lbl_num = ttk.Label(row_frame, text=f"Test {idx}:", width=8)
+        lbl_num.grid(row=0, column=0, sticky="w")
+
+        var_q = tk.StringVar()
+        var_gt = tk.StringVar()
+        ent_q = ttk.Entry(row_frame, textvariable=var_q)
+        ent_q.grid(row=0, column=1, sticky="ew", padx=(2, 6))
+        ttk.Label(row_frame, text="Risposta Attesa (opz.):").grid(
+            row=0, column=2, sticky="e", padx=(0, 2))
+        ent_gt = ttk.Entry(row_frame, textvariable=var_gt, width=22)
+        ent_gt.grid(row=0, column=3, sticky="ew", padx=(0, 6))
+        row_frame.columnconfigure(1, weight=3)
+        row_frame.columnconfigure(3, weight=1)
+
+        entry = {"frame": row_frame, "label": lbl_num, "var_q": var_q,
+                 "var_gt": var_gt, "ent_q": ent_q, "ent_gt": ent_gt}
+        btn_rm = ttk.Button(row_frame, text="✕", width=3,
+                            command=lambda e=entry: self._manual_remove_row(e))
+        btn_rm.grid(row=0, column=4, sticky="e")
+        entry["btn_rm"] = btn_rm
+        self._manual_rows.append(entry)
+        ent_q.focus_set()
+        self._man_canvas.update_idletasks()
+        try:  # porta la vista sull'ultima riga aggiunta
+            self._man_canvas.yview_moveto(1.0)
+        except Exception:
+            pass
+
+    def _manual_remove_row(self, entry):
+        """Rimuove un blocco e rinumeria i restanti (Test 1..N)."""
+        try:
+            self._manual_rows.remove(entry)
+        except ValueError:
+            return
+        entry["frame"].destroy()
+        for i, row in enumerate(self._manual_rows, start=1):
+            row["label"].config(text=f"Test {i}:")
+
+    def _read_manual_entries(self) -> List[Tuple[str, Optional[str]]]:
+        """Legge le coppie (domanda, risposta_attesa) dai campi Tk.
+
+        Chiamato solo dal thread principale (start() prima di avviare il
+        worker); lettura diretta degli StringVar, niente cross-thread.
+        """
+        out: List[Tuple[str, Optional[str]]] = []
+        for row in self._manual_rows:
+            q = row["var_q"].get().replace("\n", " ").replace("\r", " ").strip()
+            gt = row["var_gt"].get().replace("\n", " ").replace("\r", " ").strip()
+            out.append((q, gt or None))
+        return out
+
+    def _collect_manual_text(self) -> str:
+        """Serializza i blocchi nel formato parseato da test_source."""
+        lines = []
+        for q, gt in self._read_manual_entries():
+            if not q:
+                continue
+            lines.append(f"{q} / {gt}" if gt else q)
+        return "\n".join(lines)
+
+    def count_manual_prompts(self) -> int:
+        """Numero di blocchi con domanda compilata (per log/validazione GUI)."""
+        return sum(1 for q, _ in self._read_manual_entries() if q)
 
     # ------------------------------------------------------------------- log
     def log(self, msg: str):
