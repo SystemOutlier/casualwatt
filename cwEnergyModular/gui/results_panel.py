@@ -19,8 +19,10 @@ CSV_VIEW_COLUMNS = [
     ("model_label", "Modello", 170),
     ("mode", "Mode", 60),
     ("prompt_id", "Prompt", 90),
-    ("duration_s", "Durata s", 70),
-    ("total_tokens", "Token tot", 70),
+    ("duration_s", "Latenza (s)", 80),
+    ("input_tokens", "Token in", 72),
+    ("output_tokens", "Token out", 78),
+    ("total_tokens", "Token tot", 78),
     ("local_energy_j", "Locale J", 80),
     ("network_energy_j", "Rete J", 70),
     ("cloud_energy_j", "Cloud J", 75),
@@ -30,6 +32,48 @@ CSV_VIEW_COLUMNS = [
     ("ece_per_joule", "ECE/J", 80),
     ("epcl_j_per_link", "EPCL", 75),
 ]
+
+# colonne con valori energetici/numerici: formattazione a decimali FISSI
+# (2 per i Joule) invece di notazione compatta ".4g" che mostrava interi
+# grandi o troncava la precisione; token e durata hanno regole proprie.
+_COL_FORMAT = {
+    "duration_s": "durata",          # 3 decimali (latenza sub-secondo utile)
+    "input_tokens": "int",
+    "output_tokens": "int",
+    "total_tokens": "int",
+    "local_energy_j": "joule",
+    "network_energy_j": "joule",
+    "cloud_energy_j": "joule",
+    "end_to_end_energy_j": "joule",
+    "energy_per_output_token_j": "joule",
+    "causal_accuracy": "ratio",      # 2 decimali
+    "ece_per_joule": "sci",          # valori piccolissimi -> 4 decimali
+    "epcl_j_per_link": "joule",
+}
+
+
+def _fmt_cell(cid: str, raw) -> str:
+    """Formattazione pulita per la tabella dei risultati."""
+    rule = _COL_FORMAT.get(cid)
+    if rule is None:
+        return "" if raw is None else str(raw)
+    try:
+        fv = float(raw)
+    except (TypeError, ValueError):
+        return str(raw) if raw not in (None, "") else ""
+    if fv != fv:  # NaN
+        return ""
+    if rule == "int":
+        return f"{int(round(fv))}"
+    if rule == "durata":
+        return f"{fv:.3f}"
+    if rule == "joule":
+        return f"{fv:.2f}"
+    if rule == "ratio":
+        return f"{fv:.2f}"
+    if rule == "sci":
+        return f"{fv:.4f}"
+    return str(raw)
 
 
 def _read_rows() -> List[dict]:
@@ -97,15 +141,7 @@ class ResultsPanel(ttk.LabelFrame):
         self._rows_cache = rows
         self.tree.delete(*self.tree.get_children())
         for r in rows[-500:][::-1]:  # piu' recenti in alto
-            vals = []
-            for cid, _, _ in CSV_VIEW_COLUMNS:
-                v = r.get(cid, "")
-                try:
-                    fv = float(v)
-                    v = f"{fv:.4g}" if fv != int(fv) else f"{int(fv)}"
-                except (TypeError, ValueError):
-                    pass
-                vals.append(v)
+            vals = [_fmt_cell(cid, r.get(cid, "")) for cid, _, _ in CSV_VIEW_COLUMNS]
             self.tree.insert("", "end", values=vals)
         self.status.config(text=f"{len(rows)} righe nel CSV")
         self._draw_scatter(self.canvas_acc, rows, x="end_to_end_energy_j", y="causal_accuracy",

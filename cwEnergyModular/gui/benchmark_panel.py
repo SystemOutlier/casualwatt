@@ -41,10 +41,13 @@ class BenchmarkPanel(ttk.LabelFrame):
         self.var_timeout = tk.DoubleVar(value=self._default("DEFAULT_TIMEOUT_S", 60))
         ttk.Spinbox(params, from_=5, to=600, increment=5, width=6, textvariable=self.var_timeout).grid(row=0, column=5, padx=(2, 14))
 
-        ttk.Label(params, text="Potenza idle calibrata (W):").grid(row=1, column=0, columnspan=3, sticky="w")
+        # etichetta su colonna propria (no overlap coi campi della row 0) e
+        # box di lettura largo quanto basta per "non calibrata" e per il
+        # valore "xx.xx W" post-calibrazione
+        ttk.Label(params, text="Potenza idle calibrata (W):").grid(row=1, column=0, sticky="w")
         self.var_idle = tk.StringVar(value="non calibrata")
-        self.idle_label = ttk.Entry(params, textvariable=self.var_idle, width=10, state="readonly")
-        self.idle_label.grid(row=1, column=3, padx=2, sticky="w")
+        self.idle_label = ttk.Entry(params, textvariable=self.var_idle, width=18, state="readonly")
+        self.idle_label.grid(row=1, column=1, columnspan=2, padx=(2, 14), sticky="w")
 
         btns = ttk.Frame(self)
         btns.pack(fill="x", padx=6, pady=2)

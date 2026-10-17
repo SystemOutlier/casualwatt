@@ -89,12 +89,14 @@ class CasualWattLocalEnergyProfiler:
         dt_cpu_busy = max(busy_last - busy_first, 0.0)
 
         idle_power_w = self.session.idle_power_w
+        auto_micro_calibrated = False
         if idle_power_w is None:
             # mai calibrato: usa un valore conservativo DI CALIBRAZIONE
             # automatica minima, dichiarato in note (non una frazione fissa
             # arbitraria dell'energia misurata).
             try:
                 idle_power_w = self.session.calibrate_idle(2.0)
+                auto_micro_calibrated = True
                 notes.append("P_idle non calibrato dall'utente: micro-calibrazione 2 s")
             except Exception:
                 idle_power_w = 0.0
@@ -102,6 +104,37 @@ class CasualWattLocalEnergyProfiler:
         res.idle_power_w = float(idle_power_w or 0.0)
 
         method = self.session.source_method
+        # ---------------------------------------------------------------
+        # Anti-overstatement su finestre con code inattive: se l'albero
+        # Ollama NON consuma CPU-time negli ultimi ~1.5 intervalli prima di
+        # t_end, il worker e' gia' tornato in idle ma il contatore package
+        # continua a integrare P_idle per tutta la coda della finestra.
+        # In quel caso la baseline viene scalata sulla sola porzione attiva
+        # [t_start, t_last_active], cosi' E_attiva non accumula energia
+        # idle residua. Il confine reale resta dichiarato in
+        # measurement_boundary. La micro-calibrazione interna NON vale come
+        # prova di inattivita': si applica solo con P_idle calibrato da
+        # GUI/sessione (idle_proven = calibrated|session).
+        # ---------------------------------------------------------------
+        idle_proven = getattr(self.session, "idle_provenance", None) or (
+            "auto_micro" if auto_micro_calibrated else None
+        )
+        active_end_dt = dt
+        if (
+            idle_proven in ("calibrated", "session")
+            and len(samples) >= 3
+            and method != "tdp_estimate"
+        ):
+            d_tail = self._ollama_cpu_delta(samples[-2:])
+            if d_tail is not None and d_tail <= 1e-6:
+                last_active = samples[-2]
+                active_end_dt = max(last_active.t - t_start, 1e-6)
+                if active_end_dt < dt:
+                    notes.append(
+                        f"coda inattiva rilevata ({dt - active_end_dt:.2f} s): "
+                        "baseline scalata sulla sola finestra attiva"
+                    )
+
         if pkg_first is not None and pkg_last is not None and pkg_last >= pkg_first:
             e_package = pkg_last - pkg_first
             res.cpu_attribution_method = (
@@ -120,7 +153,11 @@ class CasualWattLocalEnergyProfiler:
             res.cpu_attribution_method = "unavailable"
 
         res.package_energy_j = round(max(e_package, 0.0), 6)
-        res.baseline_energy_j = round(res.idle_power_w * dt, 6)
+        # baseline: P_idle per la PORZIONE ATTIVA della finestra (mai per
+        # code idle residue); sul tdp_estimate la baseline e' gia' insita
+        # nel modello busy-only.
+        baseline_dt = dt if method == "tdp_estimate" else min(dt, active_end_dt)
+        res.baseline_energy_j = round(res.idle_power_w * baseline_dt, 6)
         active = max(e_package - res.baseline_energy_j, 0.0) if method != "tdp_estimate" else max(e_package, 0.0)
         res.active_energy_j = round(active, 6)
 

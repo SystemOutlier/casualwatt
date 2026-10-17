@@ -249,6 +249,12 @@ class EnergySession:
         self._cpu_t0 = self._system_busy_seconds()
         self._gpu = _GPUMonitor()
         self.idle_power_w: Optional[float] = None
+        # provenienza della calibrazione: "calibrated" (utente/GUI),
+        # "session" (ripristinata da sessione precedente), "auto_micro"
+        # (micro-calibrazione automatica del profiler). Usata dal profiler
+        # per abilitare lo scorporo delle code inattive solo con idle
+        # affidabile.
+        self.idle_provenance: Optional[str] = None
         self.calibrated_at: Optional[float] = None
         self.last_error: Optional[str] = None
 
@@ -490,6 +496,10 @@ class EnergySession:
             tdp = self._source._tdp_w or self._source._guess_tdp()
             power_w = min(max(tdp * (pct / 100.0) / max(psutil.cpu_count(logical=True) or 1, 1) * 2.0, 3.0), 0.25 * tdp)
         self.idle_power_w = round(power_w, 3)
+        # provenienza: calibrazione esplicita dell'utente (GUI/pulsante o
+        # chiamata diretta con durata >= 2 s); il profiler la declassera' ad
+        # "auto_micro" se innescata dalla micro-calibrazione interna.
+        self.idle_provenance = "calibrated" if duration_s >= 2.0 else "auto_micro"
         self.calibrated_at = time.time()
         return self.idle_power_w
 
