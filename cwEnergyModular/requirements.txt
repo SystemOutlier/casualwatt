@@ -1,0 +1,26 @@
+# CasualWatt Energy Benchmark — dipendenze (Python 3.11+, testato su 3.14 x64)
+# Installazione: py -m pip install -r requirements.txt
+
+# --- Nucleo (obbligatorio) ---
+requests>=2.31          # API Ollama locale + provider cloud (Groq/OpenRouter/Google/OpenAI/Anthropic)
+psutil>=5.9             # PID/albero processi Ollama, CPU time share, contatori NIC
+pandas>=2.0             # risultati CSV
+rich>=13.0              # dashboard/testi formattati
+python-dotenv>=1.0      # eventuale file .env nel progetto
+
+# --- Valutazione semantica (ground truth) ---
+# Al primo uso scarica il modello HF 'paraphrase-multilingual-MiniLM-L12-v2'
+# nella cache GLOBALE di default (~/.cache/huggingface): nessun file binario
+# finisce dentro la cartella del progetto/GitHub.
+sentence-transformers>=3.0
+
+# --- Misurazione energia GPU NVIDIA (opzionale: degrada senza crash) ---
+nvidia-ml-py>=12.538    # NVML; fornisce anche il modulo 'pynvml'
+
+# --- Energia inferenza cloud (opzionale: fallback dichiarato se assente) ---
+ecologits>=0.4
+
+# --- Windows 11: sensori CPU via LibreHardwareMonitor (solo Windows) ---
+pythonnet>=3.0.3        # clr per LibreHardwareMonitorLib.dll (avviare come amministratore)
+wmi>=1.5.1;             sys_platform == "win32"   # metriche WMI (scenario iGPU/fallback)
+pywin32>=306;           sys_platform == "win32"   # backend di wmi

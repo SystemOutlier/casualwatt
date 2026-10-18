@@ -1,0 +1,148 @@
+# -*- coding: utf-8 -*-
+"""Test sintetici (senza hardware) delle correzioni A1-A3, B2, C1."""
+from types import SimpleNamespace
+
+import pytest
+
+from energy.energy_session import SystemSample
+from energy.local_energy import CasualWattLocalEnergyProfiler
+
+T0 = 1000.0
+STEP = 0.5
+
+
+class FakeGpu:
+    def __init__(self, available=False):
+        self.available = available
+        self.index = 0
+        self.name = "FakeGPU"
+
+
+class FakeSession:
+    """Sessione sintetica: potenza CPU/GPU e CPU-time definiti da funzioni."""
+
+    def __init__(self, p_cpu, p_gpu=None, util=None, ollama_rate=1.0, busy_rate=1.0,
+                 idle_w=10.0, idle_gpu_w=20.0, gpu_available=False, t_end=10.0):
+        self.interval_s = STEP
+        self.idle_power_w = idle_w
+        self.idle_provenance = "calibrated"
+        self.idle_gpu_power_w = idle_gpu_w
+        self.source_method = "power-integration"
+        self._gpu = FakeGpu(gpu_available)
+        self.p_cpu = p_cpu                  # f(t_rel) -> W
+        self.ollama_rate = ollama_rate      # f(t_rel) -> cpu-s/s dell'albero Ollama
+        self.busy_rate = busy_rate          # f(t_rel) -> cpu-s/s del sistema
+        self.samples = []
+        e = o = b = 0.0
+        n = int(round(t_end / STEP))
+        for i in range(n + 1):
+            tr = i * STEP
+            if i:
+                e += p_cpu(tr - STEP / 2) * STEP
+                o += self._rate(ollama_rate, tr - STEP / 2) * STEP
+                b += self._rate(busy_rate, tr - STEP / 2) * STEP
+            self.samples.append(SystemSample(
+                t=T0 + tr, wall=0.0, package_energy_j=e, cpu_busy_seconds=b,
+                cpu_percent=0.0, ollama_pids=(123,), ollama_cpu_seconds=o,
+                gpu_power_w=(p_gpu(tr) if p_gpu else None),
+                gpu_util_pct=(util(tr) if util else None)))
+
+    @staticmethod
+    def _rate(r, t):
+        return r(t) if callable(r) else r
+
+    def samples_between(self, a, b):
+        return [s for s in self.samples if a <= s.t <= b]
+
+    def package_energy_exact_between(self, a, b, excl=None):
+        """Integrale esatto di p_cpu su [a,b] meno le finestre escluse."""
+        def integ(x, y):
+            n = 2000
+            h = (y - x) / n
+            return sum(self.p_cpu((x - T0) + (k + .5) * h) * h for k in range(n))
+        total = integ(a, b)
+        for xa, xb in (excl or []):
+            total -= integ(xa, xb)
+        return total
+
+    def read_igpu_energy_j(self, a, b):
+        return None
+
+
+def profile(sess, t_a=0.0, t_b=10.0, excl=None):
+    prof = CasualWattLocalEnergyProfiler()
+    prof.session = sess
+    return prof.profile_window(T0 + t_a, T0 + t_b, ollama_pids=[123],
+                               exclude_windows=excl)
+
+
+# ---------------------------------------------------------------- A1
+@pytest.mark.parametrize("tail", [1.0, 5.0])
+def test_A1_coda_inattiva_non_gonfia_energia_attiva(tail):
+    """30 W per 2 s poi idle (10 W): E_attiva = (30-10)*2 = 40 J qualunque coda."""
+    t_active = 2.0
+    p = lambda t: 30.0 if t < t_active else 10.0
+    o = lambda t: 1.0 if t < t_active else 0.0
+    s = FakeSession(p, ollama_rate=o, busy_rate=o, t_end=t_active + tail)
+    res = profile(s, 0.0, t_active + tail)
+    assert res.active_energy_j == pytest.approx(40.0, abs=1.0)
+    assert res.ollama_active_energy_j == pytest.approx(40.0, abs=1.0)
+
+
+# ---------------------------------------------------------------- A2
+@pytest.mark.parametrize("util", [0.3, 0.9])
+def test_A2_gpu_energia_indipendente_dall_utilizzo(util):
+    """100 W costanti, idle 20 W, 10 s -> 800 J a prescindere dall'utilizzo."""
+    s = FakeSession(lambda t: 10.0, p_gpu=lambda t: 100.0,
+                    util=lambda t: util * 100.0, gpu_available=True)
+    res = profile(s)
+    assert res.gpu_energy_attributed_j == pytest.approx(800.0, rel=0.02)
+
+
+# ---------------------------------------------------------------- A3
+def test_A3_senza_nvml_nessun_termine_igpu_sommato():
+    s = FakeSession(lambda t: 30.0, gpu_available=False)
+    res = profile(s)
+    local_j = res.ollama_active_energy_j + res.gpu_energy_attributed_j
+    assert res.gpu_energy_attributed_j == 0.0
+    assert local_j == pytest.approx(res.ollama_active_energy_j)
+
+
+# ---------------------------------------------------------------- B1
+def test_B1_energia_finestra_da_contatore_esatto():
+    s = FakeSession(lambda t: 25.0)
+    res = profile(s, 1.2, 7.7)       # bordi non allineati ai campioni (0,5 s)
+    assert res.package_energy_j == pytest.approx(25.0 * 6.5, rel=1e-3)
+    assert res.package_window_source == "exact-counter"
+
+
+# ---------------------------------------------------------------- B2
+def test_B2_judge_escluso_coerente_su_energia_baseline_e_cpu():
+    """Judge in [6,10]: potenza 30 W. Ollama usa 1 cpu-s/s, sistema 2 cpu-s/s
+    -> quota reale 0.5 sugli intervalli tenuti ([0,6])."""
+    s = FakeSession(lambda t: 30.0, ollama_rate=1.0, busy_rate=2.0)
+    res = profile(s, 0.0, 10.0, excl=[(T0 + 6.0, T0 + 10.0)])
+    assert res.duration_s == pytest.approx(6.0, abs=0.05)
+    assert res.package_energy_j == pytest.approx(30.0 * 6.0, rel=1e-2)
+    assert res.baseline_energy_j == pytest.approx(10.0 * 6.0, rel=1e-2)
+    assert res.cpu_time_share == pytest.approx(0.5, abs=0.02)
+    assert res.ollama_active_energy_j == pytest.approx(0.5 * 120.0, rel=0.03)
+
+
+def test_B2_gpu_esclude_la_finestra_del_judge():
+    """GPU 100 W costanti, idle 20 W; Judge escluso 4 s su 10 -> (100-20)*6 J."""
+    s = FakeSession(lambda t: 10.0, p_gpu=lambda t: 100.0, gpu_available=True)
+    res = profile(s, 0.0, 10.0, excl=[(T0 + 6.0, T0 + 10.0)])
+    assert res.gpu_energy_attributed_j == pytest.approx(80.0 * 6.0, rel=0.03)
+
+
+# ---------------------------------------------------------------- C1
+def test_C1_epcl_ed_energia_per_risposta_corretta_sono_distinte():
+    from benchmark_unified import _finalize_energy_fields
+    ev = SimpleNamespace(n_correct_links=3, acc_comp=0.8, is_correct=True,
+                         acc_links_basis="f1_triples")
+    rec = {"output_tokens": 10, "local_energy_j": 0, "notes": [],
+           "local_carbon_intensity_gco2eq_kwh": 0}
+    _finalize_energy_fields(rec, 60.0, 0.0, 0.0, ev)
+    assert rec["energy_per_correct_answer_j"] == pytest.approx(60.0)
+    assert rec["epcl_j_per_link"] == pytest.approx(20.0)
