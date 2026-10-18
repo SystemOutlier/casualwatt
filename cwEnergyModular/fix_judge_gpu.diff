@@ -1,0 +1,46 @@
+diff --git a/cwEnergyModular/energy/local_energy.py b/cwEnergyModular/energy/local_energy.py
+index 057e5cf..216f4ce 100644
+--- a/cwEnergyModular/energy/local_energy.py
++++ b/cwEnergyModular/energy/local_energy.py
+@@ -247,24 +247,12 @@ class CasualWattLocalEnergyProfiler:
+ 
+         # delta CPU-time albero Ollama: preferisce istogrammi campione-campione
+         if excl:
+-            # scorporo judge: limita il delta agli intervalli NON esclusi
+-            d_ollama = self._ollama_cpu_delta([q for q, p in kept] + [p for p, q in kept]) \
+-                if kept else 0.0
+-            # calcolo diretto sugli intervalli tenuti (istogrammi consecutivi)
+-            d2 = 0.0
+-            ok2 = False
++            # scorporo judge: somma i delta di ollama_cpu_seconds SOLO sugli
++            # intervalli non esclusi (p = campione piu' recente, q = precedente)
++            d_ollama = 0.0
+             for p, q in kept:
+                 if p.ollama_pids and q.ollama_pids:
+-                    try:
+-                        pa = sum(p.ollama_pids.values())
+-                        qa = sum(q.ollama_pids.values())
+-                        if qa >= pa:
+-                            d2 += qa - pa
+-                            ok2 = True
+-                    except Exception:
+-                        ok2 = False
+-            if ok2:
+-                d_ollama = d2
++                    d_ollama += max(p.ollama_cpu_seconds - q.ollama_cpu_seconds, 0.0)
+         else:
+             d_ollama = self._ollama_cpu_delta(samples)
+         if d_ollama is None and direct_cpu_delta is not None:
+@@ -291,9 +279,11 @@ class CasualWattLocalEnergyProfiler:
+             prev = gpu_samples[0]
+             util_sum = 0.0
+             util_n = 0
++            def _gpu_excl(a, b):
++                return any(not (b <= x or a >= y) for x, y in excl)
+             for cur in gpu_samples[1:]:
+                 seg_dt = cur.t - prev.t
+-                if seg_dt > 0:
++                if seg_dt > 0 and not (excl and _gpu_excl(prev.t, cur.t)):
+                     board_j += ((prev.gpu_power_w + cur.gpu_power_w) / 2.0) * seg_dt
+                     gpu_dt += seg_dt
+                 if cur.gpu_util_pct is not None:
