@@ -49,15 +49,24 @@ def _valid(node: str) -> bool:
 # Pattern principali
 # ---------------------------------------------------------------------------
 _CAUSE_VERB_IT_EN = (
-    r"(?:causes?|caused|provoca|provocano|ha\s+causato|hanno\s+causato|"
-    r"determina|determinano|comporta|comportano|genera|generano|"
-    r"produce|producono|innesca|innescano)"
+    r"(?:causes?|caused|causing|causano|causa|provocano|provoca|provocando|"
+    r"ha\s+causato|hanno\s+causato|determina|determinano|comporta|comportano|"
+    r"genera|generano|produce|producono|innesca|innescano)"
+)
+# Passivo italiano molto comune: "X causato da Y", "X provocato dalla Y".
+# Le preposizioni articolate sono gestite in modo aperto (da/dal/dalla/...).
+_CAUSE_PASSIVE_IT = (
+    r"(?:causat[oi]e?|provocat[oi]e?|determinat[oi]e?|prodott[oi]e?|"
+    r"innescat[oi]e?)\s+(?:da|dal|dalla|dallo|dall'|dai|dagli|dalle|dei|"
+    r"degli|nelle|negli)\s+"
 )
 _PATTERNS: List[re.Pattern] = [
-    # "X <verbo causa> Y"
+    # "X <verbo causa> Y"  (attivo IT/EN)
     re.compile(rf"(.+?)\s+{_CAUSE_VERB_IT_EN}\s+(.+)", re.IGNORECASE),
+    # "X causato/provocato/determinato da Y" (passivo IT -> X e' l'effetto)
+    re.compile(rf"(.+?)\s+{_CAUSE_PASSIVE_IT}(.+)", re.IGNORECASE | re.DOTALL),
     # "because X, Y" / "perche' X, Y" / "poiche' X, Y"
-    re.compile(r"(?:because|perch[e\xe9]|poich[e\xe9])\s+(.+?)[,.]\s*(.+)",
+    re.compile("(?:because|perch[e\\u00e9]|poich[e\\u00e9])\\s+(.+?)[,.]\\s*(.+)",
                re.IGNORECASE | re.DOTALL),
     # "Y because/per via di/a causa di due to X"
     re.compile(r"(.+?)\s+(?:because|per\s+via\s+di|a\s+causa\s+di|"
@@ -69,7 +78,7 @@ _PATTERNS: List[re.Pattern] = [
     re.compile(r"the\s+effect\s+of\s+(.+?)\s+on\s+(.+?)\s+is\s+(.+)",
                re.IGNORECASE | re.DOTALL),
     # "l'effetto di X su Y e' Z"
-    re.compile(r"l['\u2019]?effetto\s+di\s+(.+?)\s+s[uo]\s+(.+?)\s+\xe8\s+(.+)",
+    re.compile("l['\\u2019]?effetto\\s+di\\s+(.+?)\\s+s[uo]\\s+(.+?)\\s+[\\u00e8e]\\s+(.+)",
                re.IGNORECASE | re.DOTALL),
 ]
 
@@ -100,6 +109,10 @@ def extract_triples(text: str) -> List[Triple]:
             elif pat.pattern.startswith("(?:because"):
                 subj, obj = _clean(g[0]), _clean(g[1])
                 rel = "because_of"   # invertito: Y avviene perche' X
+            elif _CAUSE_PASSIVE_IT in pat.pattern:
+                # passivo IT: "X causato da Y" -> la causa e' Y, l'effetto X
+                subj, obj = _clean(g[1]), _clean(g[0])
+                rel = "causes"
             elif "per\\s+via" in pat.pattern or "due\\s+to" in pat.pattern:
                 subj, obj = _clean(g[1]), _clean(g[0])
                 rel = "because_of"
