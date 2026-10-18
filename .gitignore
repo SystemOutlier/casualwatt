@@ -14,3 +14,6 @@ cwEnergyModular/logs/*
 venv/
 .idea/
 .vscode/
+
+# Cache locale modello embeddings (si riscarica al primo avvio, ~470 MB)
+cwEnergyModular/models/
