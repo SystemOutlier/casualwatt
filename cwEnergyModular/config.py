@@ -34,13 +34,14 @@ LHM_DLL_PATH = (
 CSV_RESULTS_PATH = RESULTS_DIR / "casualwatt_results.csv"
 CSV_RUN_METADATA_PATH = RESULTS_DIR / "casualwatt_run_metadata.csv"
 
-# Cache locale modello embeddings (valutazione semantica ground-truth):
-# il modello viene scaricato una volta qui e riutilizzato offline.
-EMBED_MODEL_DIR = BASE_DIR / "models" / os.getenv(
-    "CW_EMBED_MODEL_DIR", "paraphrase-multilingual-MiniLM-L12-v2"
-).strip().strip('"')
+# Valutazione semantica ground-truth: il modello sentence-transformers
+# (paraphrase-multilingual-MiniLM-L12-v2) segue il comportamento DI DEFAULT di
+# Hugging Face: al primo avvio viene scaricato nella cache globale di sistema
+# (su Windows C:\Users\<nome>\.cache\huggingface\hub), MAI dentro la cartella
+# del progetto/GitHub. Devia la cache solo con le env standard HF_HOME/HF_HUB_CACHE.
+EMBED_MODEL_NAME = "sentence-transformers/paraphrase-multilingual-MiniLM-L12-v2"
 
-for _d in (RESULTS_DIR, LOGS_DIR, DATASET_DIR, EMBED_MODEL_DIR.parent):
+for _d in (RESULTS_DIR, LOGS_DIR, DATASET_DIR):
     _d.mkdir(parents=True, exist_ok=True)
 
 

@@ -25,17 +25,47 @@ from tkinter import ttk
 from typing import List, Optional, Tuple
 
 
-class BenchmarkPanel(ttk.LabelFrame):
+class BenchmarkPanel(ttk.Frame):
+    """Pannello 'Esecuzione benchmark' + Log, con sotto-pannelli regolabili.
+
+    Il log e' separato dal resto del pannello tramite un PanedWindow
+    verticale: l'utente puo' trascinare il divisore per espandere o ridurre
+    la console senza perderla di vista (richiesta UX).
+    """
+
     def __init__(self, master, get_selections=None, **kw):
-        super().__init__(master, text="Esecuzione benchmark", **kw)
+        super().__init__(master, **kw)
         self.get_selections = get_selections or (lambda: ([], []))
         self._stop_event = threading.Event()
         self._worker = None
         self._q: queue.Queue = queue.Queue()
         self._running = False
 
+        # sotto-pannello superiore: controlli di esecuzione (fisso, min 240px)
+        top = ttk.LabelFrame(self, text="Esecuzione benchmark")
+        # sotto-pannello inferiore: console log (regolabile, min 110px)
+        log_frame = ttk.LabelFrame(self, text="Log / Console")
+        self.pane_log = ttk.PanedWindow(self, orient=tk.VERTICAL)
+        # NOTE: PanedWindow.add() NON accetta 'minsize' (solo weight); il
+        # vincolo minimo si applica dopo con paneconfigure. Il tag della
+        # pane e' la path Tcl del widget figlio (compatibile Tk 8.6/9).
+        def _pane_min(p_child, px):
+            try:
+                self.pane_log.paneconfigure(p_child, minsize=px)
+            except Exception:
+                try:
+                    self.pane_log.paneconfigure(str(p_child), minsize=px)
+                except Exception:
+                    pass
+
+        self.pane_log.add(top, weight=1)
+        self.pane_log.add(log_frame, weight=1)
+        _pane_min(top, 240)
+        _pane_min(log_frame, 110)
+        self.pane_log.pack(fill="both", expand=True)
+
         # ------------------------- parametri ---------------------------------
-        params = ttk.Frame(self)
+        params = ttk.Frame(top)
         params.pack(fill="x", padx=6, pady=4)
 
         ttk.Label(params, text="Numero prompt:").grid(row=0, column=0, sticky="w")
@@ -58,7 +88,7 @@ class BenchmarkPanel(ttk.LabelFrame):
         self.idle_label = ttk.Entry(params, textvariable=self.var_idle, width=18, state="readonly")
         self.idle_label.grid(row=1, column=1, columnspan=2, padx=(2, 14), sticky="w")
 
-        btns = ttk.Frame(self)
+        btns = ttk.Frame(top)
         btns.pack(fill="x", padx=6, pady=2)
         self.btn_start = ttk.Button(btns, text="Avvia benchmark", command=self.start)
         self.btn_start.pack(side="left", padx=2)
@@ -91,7 +121,7 @@ class BenchmarkPanel(ttk.LabelFrame):
         self.lbl_uac.pack(side="right", padx=6)
 
         # ---------------- sorgente dei test (universale) ---------------------
-        src = ttk.LabelFrame(self, text="Sorgente dei Test")
+        src = ttk.LabelFrame(top, text="Sorgente dei Test")
         src.pack(fill="x", padx=6, pady=(4, 2))
 
         self.var_test_mode = tk.StringVar(value="csv")
@@ -169,10 +199,10 @@ class BenchmarkPanel(ttk.LabelFrame):
         self._on_test_mode_change()  # stato iniziale widget dinamici
 
         # ------------------------- progress + log ----------------------------
-        self.progress = ttk.Progressbar(self, mode="determinate", maximum=100)
+        self.progress = ttk.Progressbar(log_frame, mode="determinate", maximum=100)
         self.progress.pack(fill="x", padx=6, pady=(4, 2))
 
-        self.log_text = tk.Text(self, height=9, wrap="word", state="disabled",
+        self.log_text = tk.Text(log_frame, height=9, wrap="word", state="disabled",
                                 font=("Consolas", 9))
         self.log_text.pack(fill="both", expand=True, padx=6, pady=(2, 6))
 
@@ -367,6 +397,9 @@ class BenchmarkPanel(ttk.LabelFrame):
         except queue.Empty:
             pass
         finally:
+            # Il poller DEVE restare attivo finche' la coda e' vuota: i
+            # messaggi di calibrazione (idle/log) arrivano dal worker thread
+            # e, senza questa guardia, il campo GUI non si aggiornava.
             if self._running or not self._q.empty():
                 self.after(120, self._drain_queue)
             else:
@@ -480,17 +513,34 @@ class BenchmarkPanel(ttk.LabelFrame):
                     "da 30 s; progressivo sotto)",
                 ))
                 pw = SESSION.calibrate_idle()
-                self._q.put(("idle", pw))
+                # FIX: il campo 'Potenza idle calibrata (W)' non si aggiornava
+                # perche' il poller della coda veniva fermato appena la
+                # calibrazione terminava prima che il messaggio ("idle", W)
+                # venisse consumato. Si inserisce il valore DIRETTAMENTE nel
+                # thread worker con after() (marco Tcl e' thread-safe per
+                # StringVar.set da thread non-Tk? no: serve after), e si tiene
+                # vivo il poller finche' la coda e' prosciugata.
+                def _apply_idle(value=pw):
+                    try:
+                        self.var_idle.set(f"{value:.2f} W")
+                    except Exception:  # pragma: no cover - widget distrutto
+                        pass
+                try:
+                    self.after(0, _apply_idle)
+                except Exception:
+                    self._q.put(("idle", pw))
                 reps = getattr(SESSION, "_idle_reps", None) or []
                 det = (
                     " | rep: " + ", ".join(f"{r:.2f} W" for r in reps)
                     if reps else ""
                 )
+                n_camp = getattr(SESSION, "_idle_samples_count", None)
+                camp_txt = f"; campioni PI: {n_camp}" if n_camp else ""
                 self._q.put((
                     "log",
                     f"P_idle = {pw:.2f} W misurata a riposo "
                     f"(mediana di 3 ripetizioni; contatore: "
-                    f"{SESSION.source_method}){det}",
+                    f"{SESSION.source_method}){det}{camp_txt} — campo GUI aggiornato",
                 ))
             except Exception as exc:
                 self._q.put(("log", f"Calibrazione fallita: {exc}"))
