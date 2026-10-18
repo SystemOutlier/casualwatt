@@ -61,26 +61,70 @@ class CasualWattApp(tk.Tk):
         self.selection = ModelSelectionPanel(self, log=self._log_to_benchmark)
         self.selection.pack(fill="both", expand=False, padx=10, pady=4)
 
-        # Pannelli 2+3 dentro un PanedWindow VERTICALE: l'utente puo'
-        # trascinare i divisori (sash) per aumentare/diminuire l'altezza di
-        # Esecuzione/Log e dei Risultati. minsize impedisce che una sezione
-        # scompaia del tutto o comprima quella superiore oltre l'usabilita'.
         main_pane = ttk.PanedWindow(self, orient=tk.VERTICAL)
         main_pane.pack(fill="both", expand=True, padx=10, pady=(0, 8))
 
         # pannello 2 — esecuzione + log (al suo interno un ulteriore sash
         # separa i controlli dal Log: vedi BenchmarkPanel.pane_log)
         self.benchmark = BenchmarkPanel(main_pane, get_selections=self._get_selections)
+
+        # Pannelli 2+3 dentro un PanedWindow VERTICALE: l'utente puo'
+        # trascinare i divisori (sash) per aumentare/diminuire l'altezza di
+        # Esecuzione/Log e dei Risultati. Il vincolo minimo (richiesta UX:
+        # nessuna sezione deve sparire o schiacciare quella superiore) e'
+        # realizzato con wrapper grid + sentinella, perche' su Tk 8.6 (la
+        # Tcl/Tk distribuita con Python Windows, inclusa la 3.14) NON
+        # esistono ne' "paneconfigure"/"panconfigure" ne' -minsize per le
+        # pane (solo -weight): chiamarli solleva TclError a runtime ed e'
+        # esattamente il crash osservato all'avvio via .bat. Su eventuali
+        # Tk >= 8.7 si usa invece il pane -minsize nativo.
+        def _apply_pane_min(pane_widget, p_child, px, index=None):
+            try:
+                pane_widget.tk.call(str(pane_widget), "pane", str(p_child),
+                                    "-minsize", str(px))   # Tk 8.7+/9
+                return
+            except Exception:
+                pass
+            try:
+                if index is None:
+                    index = len(pane_widget.panes())
+                p_child.forget()               # niente figli non incapsulati
+                wrapper = tk.Frame(pane_widget)
+                pane_widget.insert(index, wrapper, weight=1)
+                p_child.grid(row=0, column=0, sticky="nsew", in_=wrapper)
+                sentinel = tk.Frame(wrapper, height=px, bd=0)
+                sentinel.grid(row=1, column=0, sticky="ew", in_=wrapper)
+                sentinel.grid_propagate(False)
+                wrapper.grid_rowconfigure(0, weight=1)
+                wrapper.grid_columnconfigure(0, weight=1)
+                p_child._casualwatt_sentinel = sentinel
+            except Exception:
+                pass
+
         main_pane.add(self.benchmark, weight=1)
+        _apply_pane_min(main_pane, self.benchmark, 260, index=0)
 
         # pannello 3 — risultati
         self.results = ResultsPanel(main_pane)
         main_pane.add(self.results, weight=1)
+        _apply_pane_min(main_pane, self.results, 220, index=1)
 
-        # vincoli minimi: nessuna sezione puo' essere trascinata fino a
-        # sparire o a schiacciare la sezione superiore sopra l'usabilita'
-        main_pane.paneconfigure(self.benchmark, minsize=260)
-        main_pane.paneconfigure(self.results, minsize=220)
+        def _apply_log_pane_min():
+            # sotto-pannello Log interno al BenchmarkPanel (stesso criterio;
+            # riferimenti diretti ai widget, per non dipendere da winfo_children
+            # che sul master mostra anche il PanedWindow stesso)
+            pl = getattr(self.benchmark, "pane_log", None)
+            kids = getattr(self.benchmark, "_log_children", {})
+            if pl is None or not kids:
+                return
+            for i, key in enumerate(("top", "log")):
+                child = kids.get(key)
+                px = getattr(child, "_casualwatt_min_h", None) if child else None
+                if not px:
+                    continue
+                _apply_pane_min(pl, child, px, index=i)
+
+        self.after(150, _apply_log_pane_min)
 
         # altezze iniziali ragionevoli appena il widget ha una geometria
         def _set_initial_sashes():

@@ -46,23 +46,32 @@ class BenchmarkPanel(ttk.Frame):
         # sotto-pannello inferiore: console log (regolabile, min 110px)
         log_frame = ttk.LabelFrame(self, text="Log / Console")
         self.pane_log = ttk.PanedWindow(self, orient=tk.VERTICAL)
-        # NOTE: PanedWindow.add() NON accetta 'minsize' (solo weight); il
-        # vincolo minimo si applica dopo con paneconfigure. Il tag della
-        # pane e' la path Tcl del widget figlio (compatibile Tk 8.6/9).
+        # NOTE: su Tk 8.6 (Tcl/Tk distribuita con Python Windows, inclusa
+        # la 3.14) le pane di ttk::panedwindow ammettono SOLO -weight: i
+        # comandi "paneconfigure"/"panconfigure" e l'opzione -minsize NON
+        # esistono -> TclError a runtime. Il vincolo minimo viene applicato
+        # in gui/app.py::_apply_log_pane_min tramite wrapper grid con
+        # sentinella; qui ci limitiamo a marcare i figli e tentare il
+        # comando nativo (valido solo su Tk >= 8.7), senza mai propagare
+        # errori.
         def _pane_min(p_child, px):
             try:
-                self.pane_log.paneconfigure(p_child, minsize=px)
+                p_child._casualwatt_min_h = px   # letto da app.py per il wrapper
             except Exception:
-                try:
-                    self.pane_log.paneconfigure(str(p_child), minsize=px)
-                except Exception:
-                    pass
+                pass
+            try:
+                self.pane_log.tk.call(str(self.pane_log), "pane", str(p_child),
+                                      "-minsize", str(px))   # Tk 8.7+/9
+            except Exception:
+                pass
 
         self.pane_log.add(top, weight=1)
         self.pane_log.add(log_frame, weight=1)
         _pane_min(top, 240)
         _pane_min(log_frame, 110)
         self.pane_log.pack(fill="both", expand=True)
+        # reference utili per il riordino dei sotto-pannelli nel wrapper
+        self._log_children = {"top": top, "log": log_frame}
 
         # ------------------------- parametri ---------------------------------
         params = ttk.Frame(top)
