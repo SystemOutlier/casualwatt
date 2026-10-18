@@ -39,7 +39,7 @@ class ModelSelectionPanel(ttk.Frame):
         left.pack(side="left", fill="both", expand=True, padx=6, pady=4)
 
         cols = ("name", "size", "modified")
-        self.local_tree = ttk.Treeview(left, columns=cols, selectmode="extended", show="headings")
+        self.local_tree = ttk.Treeview(left, columns=cols, selectmode="extended", show="headings", height=4)
         self.local_tree.heading("name", text="Modello")
         self.local_tree.heading("size", text="Dimensione")
         self.local_tree.heading("modified", text="Ultima modifica")
@@ -167,7 +167,7 @@ class ModelSelectionPanel(ttk.Frame):
         self._load_keys_into_fields()
 
         ccols = ("provider", "model")
-        self.cloud_tree = ttk.Treeview(right, columns=ccols, selectmode="extended", show="headings")
+        self.cloud_tree = ttk.Treeview(right, columns=ccols, selectmode="extended", show="headings", height=4)
         self.cloud_tree.heading("provider", text="Provider")
         self.cloud_tree.heading("model", text="Modello")
         self.cloud_tree.column("provider", width=110)
