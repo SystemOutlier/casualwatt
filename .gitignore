@@ -15,3 +15,6 @@ cwEnergyModular/models/
 .DS_Store
 Thumbs.db
 *.log
+.casualwatt_keys.json
+cwEnergyModular/results/*.csv
+.pytest_cache/
