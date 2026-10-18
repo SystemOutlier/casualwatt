@@ -220,40 +220,74 @@ def query_cloud(provider_cfg: Dict, model: str, prompt: str, temperature: float,
     def _do_request():
         import json as _json
 
-        body = {
-            "model": model,
-            "messages": [{"role": "user", "content": prompt}],
-            "temperature": temperature,
-            "max_tokens": max_tokens,
-            "stream": False,
-        }
+        native = (provider_cfg.get("style") == "anthropic_native"
+                  or provider_cfg.get("id") == "anthropic")
+        if native:
+            # Anthropic Messages API nativa: x-api-key + anthropic-version,
+            # max_tokens OBBLIGATORIO, risposta con content[0].text e usage.
+            body = {
+                "model": model,
+                "messages": [{"role": "user", "content": prompt}],
+                "temperature": temperature,
+                "max_tokens": max_tokens,
+            }
+        else:
+            body = {
+                "model": model,
+                "messages": [{"role": "user", "content": prompt}],
+                "temperature": temperature,
+                "max_tokens": max_tokens,
+                "stream": False,
+            }
         json_body = _json.dumps(body).encode("utf-8")
         t0 = time.monotonic()
-        r = requests.post(
-            provider_cfg["chat_endpoint"],
-            headers={
+        if native:
+            headers = {
+                "x-api-key": provider_cfg["api_key"],
+                "anthropic-version": "2023-06-01",
+                "Content-Type": "application/json",
+            }
+        else:
+            headers = {
                 "Authorization": f"Bearer {provider_cfg['api_key']}",
                 "Content-Type": "application/json",
-            },
+            }
+        r = requests.post(
+            provider_cfg["chat_endpoint"],
+            headers=headers,
             data=json_body,
             timeout=timeout_s,
         )
         r.raise_for_status()
         j = r.json()
         t1 = time.monotonic()
-        choice = (j.get("choices") or [{}])[0]
-        msg = choice.get("message", {}) or {}
-        usage = j.get("usage") or {}
+        if native:
+            blocks = j.get("content") or []
+            text = "".join(str(b.get("text", "")) for b in blocks
+                           if isinstance(b, dict))
+            usage = j.get("usage") or {}
+            ptok = int(usage.get("input_tokens") or 0)
+            ctok = int(usage.get("output_tokens") or 0)
+            tool_calls = any(isinstance(b, dict) and b.get("type") == "tool_use"
+                             for b in blocks)
+        else:
+            choice = (j.get("choices") or [{}])[0]
+            msg = choice.get("message", {}) or {}
+            usage = j.get("usage") or {}
+            text = (msg.get("content") or "").strip()
+            ptok = int(usage.get("prompt_tokens") or 0)
+            ctok = int(usage.get("completion_tokens") or 0)
+            tool_calls = bool(msg.get("tool_calls"))
         rd = {
-            "text": (msg.get("content") or "").strip(),
-            "prompt_tokens": int(usage.get("prompt_tokens") or 0),
-            "completion_tokens": int(usage.get("completion_tokens") or 0),
+            "text": text,
+            "prompt_tokens": ptok,
+            "completion_tokens": ctok,
             "duration_s": round(t1 - t0, 6),
             "_t0": t0,
             "_t1": t1,
             "_req_bytes": len(json_body),
             "_resp_bytes": len(r.content),
-            "tool_calls": bool(msg.get("tool_calls")),
+            "tool_calls": tool_calls,
         }
         return rd
 

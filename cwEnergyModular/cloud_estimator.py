@@ -88,7 +88,31 @@ def _fetch_provider_models(prov_id: str, cfg: Dict, api_key: str,
                         "free": free, "label": f"{prov_id} | {mid}"})
         return out
 
-    # percorso OpenAI-compatible (groq, openrouter, eventuali aggiunti)
+    if cfg.get("style") == "anthropic_native" or prov_id == "anthropic":
+        # Anthropic Messages API nativa: x-api-key + anthropic-version.
+        # GET /v1/models -> {"data": [{"id","display_name",...}]}
+        r = requests.get(
+            cfg.get("models_endpoint",
+                    "https://api.anthropic.com/v1/models"),
+            headers={"x-api-key": api_key,
+                     "anthropic-version": "2023-06-01"},
+            timeout=timeout_s)
+        if r.status_code != 200:
+            raise RuntimeError(f"HTTP {r.status_code}")
+        data = r.json()
+        items = data.get("data") or data.get("models") or []
+        for it in items:
+            mid = it.get("id") or it.get("name")
+            if not mid:
+                continue
+            mid = str(mid)
+            # Anthropic non espone tier gratuiti nel /models: free=False
+            label = f"{prov_id} | {mid}"
+            out.append({"provider": prov_id, "model": mid,
+                        "free": False, "label": label})
+        return out
+
+    # percorso OpenAI-compatible (groq, openrouter, openai, eventuali aggiunti)
     r = requests.get(cfg["models_endpoint"], headers=headers, timeout=timeout_s)
     if r.status_code != 200:
         raise RuntimeError(f"HTTP {r.status_code}")

@@ -162,6 +162,8 @@ API_KEY_ENV_VARS = (
     "GROQ_API_KEY",
     "OPENROUTER_API_KEY",
     "GOOGLE_API_KEY",
+    "OPENAI_API_KEY",
+    "ANTHROPIC_API_KEY",
     "ELECTRICITY_MAPS_API_TOKEN",
 )
 
@@ -169,6 +171,8 @@ GROQ_API_KEY = os.getenv("GROQ_API_KEY", "")
 OPENROUTER_API_KEY = os.getenv("OPENROUTER_API_KEY", "")
 GOOGLE_API_KEY = os.getenv("GOOGLE_API_KEY", "")
 ELECTRICITY_MAPS_API_TOKEN = os.getenv("ELECTRICITY_MAPS_API_TOKEN", "")
+OPENAI_API_KEY = os.getenv("OPENAI_API_KEY", "")
+ANTHROPIC_API_KEY = os.getenv("ANTHROPIC_API_KEY", "")
 
 
 def _provider_base_url(cfg: dict) -> str:
@@ -187,18 +191,25 @@ def refresh_provider_keys() -> None:
     'api_key'/'enabled' dei provider non restino congelati all'import.
     """
     global GROQ_API_KEY, OPENROUTER_API_KEY, GOOGLE_API_KEY
-    global ELECTRICITY_MAPS_API_TOKEN
+    global ELECTRICITY_MAPS_API_TOKEN, OPENAI_API_KEY, ANTHROPIC_API_KEY
     GROQ_API_KEY = os.getenv("GROQ_API_KEY", "")
     OPENROUTER_API_KEY = os.getenv("OPENROUTER_API_KEY", "")
     GOOGLE_API_KEY = os.getenv("GOOGLE_API_KEY", "")
     ELECTRICITY_MAPS_API_TOKEN = os.getenv("ELECTRICITY_MAPS_API_TOKEN", "")
+    OPENAI_API_KEY = os.getenv("OPENAI_API_KEY", "")
+    ANTHROPIC_API_KEY = os.getenv("ANTHROPIC_API_KEY", "")
     live = {
         "GROQ_API_KEY": GROQ_API_KEY,
         "OPENROUTER_API_KEY": OPENROUTER_API_KEY,
         "GOOGLE_API_KEY": GOOGLE_API_KEY,
+        "OPENAI_API_KEY": OPENAI_API_KEY,
+        # Anthropic usa il suo endpoint nativo (x-api-key), non OpenAI-style:
+        # la chiave viene letta direttamente da os.environ in cloud_estimator.
+        "ANTHROPIC_API_KEY": ANTHROPIC_API_KEY,
     }
     for name, cfg in CLOUD_PROVIDERS.items():
-        key = live.get(cfg.get("api_key_env", ""), "")
+        key = live.get(cfg.get("api_key_env", ""), "") or \
+            os.getenv(cfg.get("api_key_env", ""), "")
         cfg["api_key"] = key
         cfg["enabled"] = bool(key)
         # self-healing: se gli endpoint mancano o puntano ancora alla porta 80
@@ -245,6 +256,28 @@ CLOUD_PROVIDERS: dict = {
         "api_key_env": "GOOGLE_API_KEY",
         "api_key": GOOGLE_API_KEY,
         "enabled": bool(GOOGLE_API_KEY),
+    },
+    "openai": {
+        "label": "OpenAI",
+        "base_url": "https://api.openai.com/v1",
+        "models_endpoint": "https://api.openai.com/v1/models",
+        "chat_endpoint": "https://api.openai.com/v1/chat/completions",
+        "api_key_env": "OPENAI_API_KEY",
+        "api_key": OPENAI_API_KEY,
+        "enabled": bool(OPENAI_API_KEY),
+    },
+    "anthropic": {
+        "label": "Anthropic",
+        # API nativa Anthropic Messages (x-api-key + anthropic-version):
+        # il fetch e la chat sono gestiti con ramo dedicato in cloud_estimator
+        # e benchmark_unified (NON OpenAI-compatible).
+        "style": "anthropic_native",
+        "base_url": "https://api.anthropic.com/v1",
+        "models_endpoint": "https://api.anthropic.com/v1/models",
+        "chat_endpoint": "https://api.anthropic.com/v1/messages",
+        "api_key_env": "ANTHROPIC_API_KEY",
+        "api_key": ANTHROPIC_API_KEY,
+        "enabled": bool(ANTHROPIC_API_KEY),
     },
 }
 

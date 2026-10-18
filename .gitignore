@@ -1,2 +1,16 @@
 __pycache__/
 *.pyc
+*.pyo
+.env
+.env.local
+.env.*.local
+.casualwatt_keys.json
+cwEnergyModular/results/*
+!cwEnergyModular/results/.gitkeep
+cwEnergyModular/logs/*
+!cwEnergyModular/logs/.gitkeep
+*.log
+.venv/
+venv/
+.idea/
+.vscode/

@@ -72,27 +72,37 @@ class ModelSelectionPanel(ttk.Frame):
         keys_frame.pack(fill="x", padx=4, pady=(4, 2))
 
         # ---- Provider disponibili nei menu a tendina ------------------------
-        # Default iniziali esattamente come le voci preesistenti (retrocompat):
-        # Groq, OpenRouter, Google, Electricity Maps. La lista e' estesa con i
-        # provider configurati in config.CLOUD_PROVIDERS (estendibile).
-        _default_rows = (
-            ("Groq", "GROQ_API_KEY"),
-            ("OpenRouter", "OPENROUTER_API_KEY"),
-            ("Google", "GOOGLE_API_KEY"),
-            ("Electricity Maps", "ELECTRICITY_MAPS_API_TOKEN"),
+        # Elenco selezionabile del Combobox (specifica richiesta):
+        #   Groq, OpenRouter, Google, OpenAI, Anthropic, Electricity Maps.
+        # All'avvio le 4 righe preimpostate mostrano Groq, OpenRouter, Google,
+        # Electricity Maps (retrocompat con .casualwatt_keys.json); aprendo una
+        # tendina l'utente vede l'elenco COMPLETO e puo' cambiare provider.
+        _env_by_label = {
+            "Groq": "GROQ_API_KEY",
+            "OpenRouter": "OPENROUTER_API_KEY",
+            "Google": "GOOGLE_API_KEY",
+            "OpenAI": "OPENAI_API_KEY",
+            "Anthropic": "ANTHROPIC_API_KEY",
+            "Electricity Maps": "ELECTRICITY_MAPS_API_TOKEN",
+        }
+        # ordine ESATTO dell'elenco della tendina come da specifica
+        self._provider_names: List[str] = [
+            "Groq", "OpenRouter", "Google", "OpenAI", "Anthropic",
+            "Electricity Maps",
+        ]
+        self._provider_by_label: Dict[str, str] = dict(_env_by_label)
+        _default_rows = tuple(
+            (lbl, _env_by_label[lbl])
+            for lbl in ("Groq", "OpenRouter", "Google", "Electricity Maps")
         )
         _alias = {"Google Gemini": "Google"}          # etichetta storica
-        _env_by_label = {lbl: env for lbl, env in _default_rows}
-
-        self._provider_names: List[str] = [lbl for lbl, _ in _default_rows]
-        self._provider_by_label: Dict[str, str] = {
-            lbl: _env_by_label[lbl] for lbl in self._provider_names}
         try:
             import config
 
             for pid, pcfg in config.CLOUD_PROVIDERS.items():
                 lbl = _alias.get(pcfg.get("label", pid), pcfg.get("label", pid))
                 if lbl not in self._provider_by_label:
+                    # provider esteso in config -> aggiungibile dalla tendina
                     self._provider_names.append(lbl)
                 # map: label -> variabile d'ambiente del provider
                 self._provider_by_label[lbl] = pcfg.get(
@@ -103,14 +113,16 @@ class ModelSelectionPanel(ttk.Frame):
         # ---- Righe dinamiche: Combobox provider + Entry chiave oscurato -----
         self._key_rows: List[Dict] = []   # {prov_var, key_var, entry, frame}
         self._key_vars: Dict[str, tk.StringVar] = {}  # env -> StringVar (API storica)
-        _combo_values = list(self._provider_names)
 
         def _make_row(prov_label: str, env_name: str = "", value: str = ""):
             rowf = ttk.Frame(keys_frame)
             idx = len(self._key_rows)
             pv = tk.StringVar(value=prov_label)
             kv = tk.StringVar(value=value)
-            combo = ttk.Combobox(rowf, textvariable=pv, values=_combo_values,
+            # values preso dalla LISTA VIVA: '+ Aggiungi Provider' / estensioni
+            # di config.CLOUD_PROVIDERS aggiornano il combobox al volo
+            combo = ttk.Combobox(rowf, textvariable=pv,
+                                 values=self._provider_names,
                                  state="readonly", width=17)
             combo.pack(side="left", padx=(6, 4))
             ent = ttk.Entry(rowf, textvariable=kv, show="*", width=34)
