@@ -78,9 +78,13 @@ class CasualWattApp(tk.Tk):
         self.selection = ModelSelectionPanel(self.paned, log=self._log_to_benchmark)
         self.benchmark = BenchmarkPanel(self.paned, get_selections=self._get_selections)
         self.results = ResultsPanel(self.paned)
-        self.paned.add(self.selection, minsize=200, stretch="never")
-        self.paned.add(self.benchmark, minsize=200, stretch="always")
-        self.paned.add(self.results, minsize=180, stretch="always")
+        # FIX finestre nascoste: con i vecchi minsize (200+200+180=580) il
+        # pannello centrale (Esecuzione+Log) veniva compresso sotto la sua
+        # impronta minima e il LOG spariva. Ora benchmark ha un minsize che
+        # garantisce la visibilita' di log_text; gli altri due sono comprimibili.
+        self.paned.add(self.selection, minsize=120, stretch="always")
+        self.paned.add(self.benchmark, minsize=170, stretch="always")
+        self.paned.add(self.results, minsize=120, stretch="always")
 
         self.protocol("WM_DELETE_WINDOW", self._on_close)
 

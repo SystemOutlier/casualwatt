@@ -41,9 +41,9 @@ class BenchmarkPanel(ttk.Frame):
         self._q: queue.Queue = queue.Queue()
         self._running = False
 
-        # sotto-pannello superiore: controlli di esecuzione (min 240px)
+        # sotto-pannello superiore: controlli di esecuzione
         top = ttk.LabelFrame(self, text="Esecuzione benchmark")
-        # sotto-pannello inferiore: console log (regolabile, min 110px)
+        # sotto-pannello inferiore: console log (regolabile col drag)
         log_frame = ttk.LabelFrame(self, text="Log / Console")
         # NOTE (Tk 8.6 / Python Windows): le pane di ttk::panedwindow
         # ammettono SOLO -weight; "paneconfigure" e "-minsize" NON esistono
@@ -57,9 +57,12 @@ class BenchmarkPanel(ttk.Frame):
         inner = tk.Frame(self)
         inner.pack(fill="both", expand=True)
         inner.columnconfigure(0, weight=1)
-        inner.rowconfigure(0, weight=5)
+        # Il Log ha peso 0 + minsize: la griglia gli riserva SEMPRE un'altezza
+        # fissa (>= 90px) qualunque sia lo spazio disponibile; i controlli in
+        # alto si comprimono per primi. Il drag regola solo la parte alta.
+        inner.rowconfigure(0, weight=1, minsize=150)
         inner.rowconfigure(1, weight=0)
-        inner.rowconfigure(2, weight=2)
+        inner.rowconfigure(2, weight=0, minsize=90)
 
         top.grid(row=0, column=0, sticky="nsew", in_=inner)
         sash_log = tk.Frame(inner, height=6, bd=1, relief="raised",
@@ -71,16 +74,15 @@ class BenchmarkPanel(ttk.Frame):
         sash_log.grid(row=1, column=0, sticky="ew", in_=inner)
         log_frame.grid(row=2, column=0, sticky="nsew", in_=inner)
 
-        # drag con pesi assoluti (px) + clamp ai minimi: vedi app.py::_bind_sash
+        # drag: regola solo il minsize della riga alta; la riga log resta
+        # weight=0 -> mantiene sempre il suo spazio naturale (>=90px)
         def _apply(pos_y):
             try:
                 h_top = top.winfo_height()
                 h_log = log_frame.winfo_height()
                 span = max(h_top + h_log, MIN_TOP_H + MIN_LOG_H, 1)
                 new_top = max(MIN_TOP_H, min(span - MIN_LOG_H, pos_y))
-                new_log = span - new_top
-                inner.rowconfigure(0, weight=max(int(new_top), 1))
-                inner.rowconfigure(2, weight=max(int(new_log), 1))
+                inner.rowconfigure(0, weight=1, minsize=int(new_top))
             except Exception:
                 pass
         _st = {"y0": None}
@@ -234,7 +236,7 @@ class BenchmarkPanel(ttk.Frame):
         self.progress = ttk.Progressbar(log_frame, mode="determinate", maximum=100)
         self.progress.pack(fill="x", padx=6, pady=(4, 2))
 
-        self.log_text = tk.Text(log_frame, height=4, wrap="word", state="disabled",
+        self.log_text = tk.Text(log_frame, height=5, wrap="word", state="disabled",
                                 font=("Consolas", 9))
         self.log_text.pack(fill="both", expand=True, padx=6, pady=(2, 6))
 
