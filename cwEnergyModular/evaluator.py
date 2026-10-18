@@ -42,9 +42,13 @@ import causal_extractor as _cx
 
 try:  # soglia configurabile via env (.env/CW_SEMANTIC_THRESHOLD)
     from config import env_float
-    _DEFAULT_THRESHOLD = env_float("CW_SEMANTIC_THRESHOLD", 0.75)
+    SEMANTIC_THRESHOLD = env_float("CW_SEMANTIC_THRESHOLD", 0.75)
 except Exception:
-    _DEFAULT_THRESHOLD = 0.75
+    SEMANTIC_THRESHOLD = 0.75
+
+# Alias storico (usato da test_validazione_valutazione.py e script legacy):
+# mantiene la stessa variabile, non un valore congelato a import-time.
+_DEFAULT_THRESHOLD = SEMANTIC_THRESHOLD
 
 NA = None  # rappresentazione N/A nei record (il writer CSV la rende "")
 
@@ -186,6 +190,57 @@ def _f1_acc_links(text: str, ground_truth: str, res: EvaluationResult):
     return 0.0, "none"
 
 
+def _keyword_fallback_result(text: str, is_tool: bool, res: EvaluationResult,
+                             weights=(0.6, 0.3, 0.1)) -> EvaluationResult:
+    """REGIME DIAGNOSTICO 'heuristic_keyword_fallback' (legacy, NON usare nei
+    benchmark: e' un proxy di struttura, non una ground-truth accuracy).
+
+    Regole storiche approvate nella specifica originale:
+      acc_links: 1.0 se compaiono sia 'cause' sia 'effect'; 0.5 se uno solo;
+                 0.0 se nessuno.
+      judge_score: is_tool=True & links=1.0 -> 4.5; non-tool & links=1.0 -> 4.0;
+                   links=0.5 -> 3.0; links=0.0 -> 1.5.
+      cosine_sim: 0.88 se is_tool, altrimenti 0.75 (costanti diagnostiche,
+                  dichiarate come tali nelle note del record).
+      acc_comp = w1*acc_links + w2*(judge/5) + w3*cosine (default 0.6/0.3/0.1).
+    I campi semantic_similarity / lexical_similarity restano N/A: nessuna GT
+    e' stata confrontata.
+    """
+    has_c, has_e = res.has_cause, res.has_effect
+    if has_c and has_e:
+        res.acc_links = 1.0
+    elif has_c or has_e:
+        res.acc_links = 0.5
+    else:
+        res.acc_links = 0.0
+    if res.acc_links == 1.0:
+        res.judge_score = 4.5 if is_tool else 4.0
+    elif res.acc_links == 0.5:
+        res.judge_score = 3.0
+    else:
+        res.judge_score = 1.5
+    res.cosine_sim = 0.88 if is_tool else 0.75
+    res.semantic_similarity = NA   # nessun confronto semantica vs GT
+    res.lexical_similarity = NA
+    res.explanation_quality = res.judge_score / 5.0
+    res.causal_accuracy = res.acc_links
+    res.is_correct = res.acc_links == 1.0
+    res.n_correct_links = int(res.acc_links) if res.acc_links in (0.0, 1.0) else None
+    res.acc_links_basis = "keyword_presence_only"
+    res.eval_mode = "heuristic_keyword_fallback"
+    res.eval_method = "keyword(cause/effect)+fixed-diagnostic-constants"
+    w1, w2, w3 = (float(weights[0]), float(weights[1]), float(weights[2]))
+    res.acc_comp = round(w1 * res.acc_links + w2 * (res.judge_score / 5.0)
+                         + w3 * res.cosine_sim, 6)
+    res.notes.append(
+        "regime diagnostico keyword: presence of 'cause'/'effect' words, NOT a "
+        "ground-truth accuracy; cosine_sim/judge_score are fixed diagnostic "
+        f"constants; acc_comp={w1}*acc_links+{w2}*(judge/5)+{w3}*cosine "
+        "(legacy formula); non usare per EPCL ne' per confronti causali formali"
+    )
+    return res
+
+
 def evaluate_response(text: str, is_tool: bool = False,
                       ground_truth: Optional[str] = None,
                       mode: str = "auto", question: str = "",
@@ -197,6 +252,11 @@ def evaluate_response(text: str, is_tool: bool = False,
       * "auto": ground_truth presente -> REGIME A ("ground_truth");
                 altrimenti -> REGIME B ("causal_agent_eval") con LLM Judge.
       * "skip": forza N/A anche con GT presente.
+      * "causal" / "heuristic_keyword_fallback": REGIME LEGACY diagnostico
+        ('heuristic_keyword_fallback'): euristica keyword cause/effect con
+        costanti fisse. NON e' una ground-truth accuracy e NON va usato nei
+        benchmark ufficiali; mantenuto solo per retrocompatibilita' dei test
+        storici (main.py --selftest, test_validazione_valutazione.py).
     judge_fn: iniettabile per i test (firma: (question, answer, model?) ->
               (score|None, info dict)). Default: llm_judge.call_llm_judge.
     Non solleva MAI eccezioni.
@@ -218,6 +278,10 @@ def evaluate_response(text: str, is_tool: bool = False,
         w_nogt = tuple(_cfg.ACC_COMP_WEIGHTS_NOGT)  # (links, judge)
     except Exception:
         w_gt, w_nogt = (0.50, 0.30, 0.20), (0.65, 0.35)
+
+    # --- REGIME LEGACY keyword (alias storico 'causal') ----------------------
+    if mode in ("causal", "heuristic_keyword_fallback"):
+        return _keyword_fallback_result(text, bool(is_tool), res)
 
     # ------------------------- REGIME A: ground truth -----------------------
     if ground_truth not in (None, "", NA):
