@@ -31,11 +31,92 @@ __all__ = [
 ]
 
 
-def get_cloud_models(timeout_s: float = 10.0) -> List[Dict]:
-    """Elenca i modelli dei provider abilitati (GET <models_endpoint>).
+# ---------------------------------------------------------------------------
+# Fetch dinamico dei modelli cloud (nessuna lista hardcodata): gli ID vengono
+# sempre letti dagli endpoint ufficiali dei provider, cosi' la GUI non puo'
+# proporre modelli obsoleti (errori 400/404).
+#
+# Endpoint di riferimento:
+#   Groq          GET https://api.groq.com/openai/v1/models      (Bearer)
+#   OpenRouter    GET https://openrouter.ai/api/v1/models        (Bearer;
+#                 gratuito se id termina con ':free' o costi == 0)
+#   Google Gemini GET https://generativelanguage.googleapis.com/v1beta/
+#                      models?key=<KEY>  (solo modelli con 'generateContent')
+# ---------------------------------------------------------------------------
 
-    Ritorna [{provider, model, label}]. Provider senza API key o offline
-    vengono saltati con nota silenziosa (mai eccezioni verso la GUI).
+
+def _is_free_model(it: Dict, mid: str) -> bool:
+    """Rileva i modelli gratuiti (OpenRouter e simili).
+
+    Criteri: suffisso ':free' nell'id, oppure metadati 'pricing' con
+    prompt/completion azzerati ('0' o 0.0). Nessun criterio inventato.
+    """
+    if str(mid).endswith(":free"):
+        return True
+    pricing = it.get("pricing") or {}
+    try:
+        vals = [pricing.get("prompt"), pricing.get("completion")]
+        if all(v is not None and float(v) == 0.0 for v in vals):
+            return True
+    except (TypeError, ValueError):
+        pass
+    return False
+
+
+def _fetch_provider_models(prov_id: str, cfg: Dict, api_key: str,
+                           timeout_s: float) -> List[Dict]:
+    """Fetch singolo provider con adattamento per provider. Non solleva."""
+    out: List[Dict] = []
+    headers = {"Authorization": f"Bearer {api_key}"}
+
+    if prov_id == "google":
+        # v1beta nativo: filtra solo supportedGenerationMethods ~ generateContent
+        url = ("https://generativelanguage.googleapis.com/v1beta/models"
+               f"?key={api_key}")
+        r = requests.get(url, timeout=timeout_s)
+        if r.status_code != 200:
+            raise RuntimeError(f"HTTP {r.status_code}")
+        for it in r.json().get("models", []):
+            methods = it.get("supportedGenerationMethods") or []
+            if not any("generateContent" in str(m) for m in methods):
+                continue
+            mid = str(it.get("name", "")).replace("models/", "")
+            if not mid:
+                continue
+            free = bool(it.get("flags")) and "FREE" in str(it.get("flags")).upper()
+            out.append({"provider": prov_id, "model": mid,
+                        "free": free, "label": f"{prov_id} | {mid}"})
+        return out
+
+    # percorso OpenAI-compatible (groq, openrouter, eventuali aggiunti)
+    r = requests.get(cfg["models_endpoint"], headers=headers, timeout=timeout_s)
+    if r.status_code != 200:
+        raise RuntimeError(f"HTTP {r.status_code}")
+    data = r.json()
+    items = data.get("data") or data.get("models") or []
+    for it in items:
+        mid = it.get("id") or it.get("name")
+        if not mid:
+            continue
+        mid = str(mid)
+        free = _is_free_model(it, mid)
+        # ID inviato al provider: per OpenRouter/Groq serve l'ID COMPLETO
+        # ('meta-llama/llama-3.2-3b-instruct:free'); lo stripping del prefisso
+        # 'models/' vale solo per Google (gestita sopra). Mostriamo l'ID intero
+        # e tagghiamo [Gratuito] a parte -> niente 404 su modelli annidati.
+        label = f"{prov_id} | {mid}" + (" [Gratuito]" if free else "")
+        out.append({"provider": prov_id, "model": mid,
+                    "free": free, "label": label})
+    return out
+
+
+def get_cloud_models(timeout_s: float = 15.0) -> List[Dict]:
+    """Elenca i modelli disponibili dai provider configurati (fetch live).
+
+    Ritorna [{provider, model, label, free}] ordinati. Provider senza API
+    key o irraggiungibili vengono saltati (nota nel campo 'errors').
+    Mai liste statiche: gli ID obsoleti spariscono quando il provider li
+    ritira, evitando errori 400/404 a runtime.
     """
     out: List[Dict] = []
     for prov_id, cfg in (CLOUD_PROVIDERS or {}).items():
@@ -43,30 +124,13 @@ def get_cloud_models(timeout_s: float = 10.0) -> List[Dict]:
         if not api_key:
             continue
         try:
-            r = requests.get(
-                cfg["models_endpoint"],
-                headers={"Authorization": f"Bearer {api_key}"},
-                timeout=timeout_s,
-            )
-            if r.status_code != 200:
-                continue
-            data = r.json()
-            items = data.get("data") or data.get("models") or []
-            for it in items:
-                mid = it.get("id") or it.get("name")
-                if not mid:
-                    continue
-                # google restituisce nomi tipo 'models/gemini-2.0-flash'
-                clean = str(mid).split("/")[-1]
-                out.append(
-                    {
-                        "provider": prov_id,
-                        "model": clean,
-                        "label": f"{prov_id} | {clean}",
-                    }
-                )
+            out.extend(_fetch_provider_models(prov_id, cfg, api_key, timeout_s))
         except Exception:
-            continue
+            continue  # provider offline / chiave invalida: skip silenzioso
+    # etichetta '[Gratuito]' anche per i provider che non la espongono
+    for d in out:
+        if d.get("free") and "[Gratuito]" not in d["label"]:
+            d["label"] += " [Gratuito]"
     out.sort(key=lambda d: (d["provider"], d["model"]))
     return out
 

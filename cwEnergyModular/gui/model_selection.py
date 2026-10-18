@@ -70,24 +70,82 @@ class ModelSelectionPanel(ttk.Frame):
         # dallo stesso file (config.load_saved_api_keys).
         keys_frame = ttk.LabelFrame(right, text="Impostazioni / Chiavi API")
         keys_frame.pack(fill="x", padx=4, pady=(4, 2))
-        self._key_vars: Dict[str, tk.StringVar] = {}
-        _key_fields = (
-            ("GROQ_API_KEY", "Groq"),
-            ("OPENROUTER_API_KEY", "OpenRouter"),
-            ("GOOGLE_API_KEY", "Google"),
-            ("ELECTRICITY_MAPS_API_TOKEN", "Electricity Maps"),
+
+        # ---- Provider disponibili nei menu a tendina ------------------------
+        # Default iniziali esattamente come le voci preesistenti (retrocompat):
+        # Groq, OpenRouter, Google, Electricity Maps. La lista e' estesa con i
+        # provider configurati in config.CLOUD_PROVIDERS (estendibile).
+        _default_rows = (
+            ("Groq", "GROQ_API_KEY"),
+            ("OpenRouter", "OPENROUTER_API_KEY"),
+            ("Google", "GOOGLE_API_KEY"),
+            ("Electricity Maps", "ELECTRICITY_MAPS_API_TOKEN"),
         )
-        for row, (var, label) in enumerate(_key_fields):
-            ttk.Label(keys_frame, text=f"{label}:").grid(
-                row=row, column=0, sticky="e", padx=(6, 4), pady=1)
-            sv = tk.StringVar()
-            ent = ttk.Entry(keys_frame, textvariable=sv, show="*", width=38)
-            ent.grid(row=row, column=1, sticky="we", pady=1)
-            self._key_vars[var] = sv
-        keys_frame.columnconfigure(1, weight=1)
+        _alias = {"Google Gemini": "Google"}          # etichetta storica
+        _env_by_label = {lbl: env for lbl, env in _default_rows}
+
+        self._provider_names: List[str] = [lbl for lbl, _ in _default_rows]
+        self._provider_by_label: Dict[str, str] = {
+            lbl: _env_by_label[lbl] for lbl in self._provider_names}
+        try:
+            import config
+
+            for pid, pcfg in config.CLOUD_PROVIDERS.items():
+                lbl = _alias.get(pcfg.get("label", pid), pcfg.get("label", pid))
+                if lbl not in self._provider_by_label:
+                    self._provider_names.append(lbl)
+                # map: label -> variabile d'ambiente del provider
+                self._provider_by_label[lbl] = pcfg.get(
+                    "api_key_env", _env_by_label.get(lbl, lbl))
+        except Exception:
+            pass
+
+        # ---- Righe dinamiche: Combobox provider + Entry chiave oscurato -----
+        self._key_rows: List[Dict] = []   # {prov_var, key_var, entry, frame}
+        self._key_vars: Dict[str, tk.StringVar] = {}  # env -> StringVar (API storica)
+        _combo_values = list(self._provider_names)
+
+        def _make_row(prov_label: str, env_name: str = "", value: str = ""):
+            rowf = ttk.Frame(keys_frame)
+            idx = len(self._key_rows)
+            pv = tk.StringVar(value=prov_label)
+            kv = tk.StringVar(value=value)
+            combo = ttk.Combobox(rowf, textvariable=pv, values=_combo_values,
+                                 state="readonly", width=17)
+            combo.pack(side="left", padx=(6, 4))
+            ent = ttk.Entry(rowf, textvariable=kv, show="*", width=34)
+            ent.pack(side="left", fill="x", expand=True, pady=1)
+            delb = ttk.Button(rowf, text="✕", width=3,
+                              command=lambda r=rowf: self._remove_key_row(r))
+            delb.pack(side="left", padx=4)
+            rowf.grid(row=idx, column=0, columnspan=2, sticky="we", pady=1)
+            rec = {"prov": pv, "key": kv, "entry": ent, "frame": rowf}
+            self._key_rows.append(rec)
+            if env_name:
+                self._key_vars[env_name] = kv
+            return rec
+
+        # exposed as method so '+ Aggiungi Provider' can create dynamic rows
+        self._make_key_row = lambda prov_label, env_name="", value="": _make_row(
+            prov_label, env_name, value)
+
+        for lbl, env in _default_rows:
+            _make_row(lbl, env)
+        keys_frame.columnconfigure(0, weight=1)
+
+        add_row = ttk.Frame(keys_frame)
+        add_row.grid(row=len(self._key_rows), column=0, columnspan=2, sticky="we", pady=1)
+        ttk.Button(add_row, text="+ Aggiungi Provider",
+                   command=self._add_key_row).pack(side="left", padx=6)
+        ttk.Label(add_row, foreground="gray",
+                  text="(righe preimpostate: Groq, OpenRouter, Google, Electricity Maps — "
+                       "aggiungi/rimuovi righe per estendere i provider)").pack(side="left", padx=4)
 
         btn_row = ttk.Frame(keys_frame)
-        btn_row.grid(row=len(_key_fields), column=0, columnspan=2, sticky="we", pady=3)
+        btn_row.grid(row=len(self._key_rows) + 1, column=0, columnspan=2, sticky="we", pady=3)
+        self._keys_frame = keys_frame
+        self._keys_addrow = add_row
+        self._keys_btnrow = btn_row
         ttk.Button(btn_row, text="Salva Chiavi", command=self.save_keys).pack(side="left", padx=6)
         self.show_keys_var = tk.BooleanVar(value=False)
         ttk.Checkbutton(btn_row, text="Mostra", variable=self.show_keys_var,
@@ -115,6 +173,43 @@ class ModelSelectionPanel(ttk.Frame):
         self.cloud_status = ttk.Label(right, text="— non caricato —", foreground="gray")
         self.cloud_status.pack(fill="x", padx=4, pady=(0, 3))
 
+    # ------------------------------------------------------- righe dinamiche
+    def _add_key_row(self):
+        """'+ Aggiungi Provider': nuova riga Combobox + Entry vuota."""
+        try:
+            import config
+
+            config._reconfigure_grid  # noqa (solo check modulo presente)
+        except Exception:
+            pass
+        first_free = next(
+            (lbl for lbl in self._provider_names
+             if all(r["prov"].get() != lbl for r in self._key_rows)),
+            self._provider_names[0] if self._provider_names else "Groq")
+        _make = getattr(self, "_make_key_row", None)
+        if _make is not None:
+            _make(first_free)
+        self._relayout_keys_frame()
+
+    def _remove_key_row(self, rowf):
+        for rec in list(self._key_rows):
+            if rec["frame"] is rowf:
+                self._key_rows.remove(rec)
+                break
+        rowf.destroy()
+        self._relayout_keys_frame()
+
+    def _relayout_keys_frame(self):
+        """Rigridda le righe dopo add/remove (indici contigui)."""
+        try:
+            keys_frame = self._keys_frame
+            for i, rec in enumerate(self._key_rows):
+                rec["frame"].grid_configure(row=i)
+            self._keys_addrow.grid_configure(row=len(self._key_rows))
+            self._keys_btnrow.grid_configure(row=len(self._key_rows) + 1)
+        except Exception:
+            pass
+
     # ------------------------------------------------------------------ utils
     @staticmethod
     def _select_all(tree):
@@ -125,6 +220,25 @@ class ModelSelectionPanel(ttk.Frame):
         tree.selection_remove(tree.get_children())
 
     # ------------------------------------------------------------- chiavi API
+    def _collect_keys(self) -> Dict[str, str]:
+        """Raccoglie {env_name: chiave} da TUTTE le righe correnti.
+
+        Le quattro righe preimpostate mappano sulle variabili storiche
+        (retrocompat con .casualwatt_keys.json); le righe aggiunte dinamicamente
+        risolvono il provider dal Combobox tramite _provider_by_label.
+        Chiavi vuote = rimozione; duplicati provider -> prima non vuota.
+        """
+        keys: Dict[str, str] = {}
+        for rec in self._key_rows:
+            lbl = rec["prov"].get().strip()
+            env = self._provider_by_label.get(lbl, "")
+            if not env:
+                continue
+            val = rec["key"].get().strip()
+            if val or env not in keys:
+                keys[env] = val
+        return keys
+
     def _load_keys_into_fields(self):
         """Auto-popola i campi all'avvio: prima env di sessione, poi file salvato."""
         import os
@@ -156,11 +270,25 @@ class ModelSelectionPanel(ttk.Frame):
         _walk(self)
 
     def save_keys(self):
-        """Pulsante 'Salva Chiavi': aggiorna env + provider + file nascosto."""
+        """Pulsante 'Salva Chiavi': aggiorna env + provider + file nascosto.
+
+        Le chiavi sono raccolte da tutte le righe (preimpostate e dinamiche);
+        il formato del file .casualwatt_keys.json resta quello storico
+        {ENV_NAME: chiave} -> piena retrocompatibilita' con i salvataggi
+        esistenti, che vengono anche fusi per non perdere eventuali chiavi di
+        provider rimossi temporaneamente dal pannello.
+        """
         try:
             import config
 
-            keys = {var: sv.get().strip() for var, sv in self._key_vars.items()}
+            keys = self._collect_keys()
+            try:
+                saved = config.load_saved_api_keys() or {}
+                for k, v in saved.items():
+                    if k not in keys and v:
+                        keys[k] = v  # conserva chiavi di provider non esposti
+            except Exception:
+                pass
             ok = config.apply_api_keys(keys, persist=True)
             enabled = [
                 name for name, cfg in config.CLOUD_PROVIDERS.items()
@@ -251,10 +379,19 @@ class ModelSelectionPanel(ttk.Frame):
     def _populate_cloud(self, models: List[Dict]):
         self.cloud_tree.delete(*self.cloud_tree.get_children())
         for m in models:
-            self.cloud_tree.insert("", "end", values=(m.get("provider", ""), m.get("model", "")))
+            # colonna 'model': solo nome + tag visivo (il provider ha la sua
+            # colonna; il prefisso 'provider |' della label e' scartato per
+            # non sporcare l'ID che viene riletto in get_selected_cloud)
+            name = str(m.get("model", ""))
+            if m.get("free") and "[Gratuito]" not in name:
+                name += " [Gratuito]"
+            self.cloud_tree.insert("", "end", values=(m.get("provider", ""), name))
         if models:
+            n_free = sum(1 for m in models if m.get("free"))
             self.cloud_status.config(
-                text=f"{len(models)} modelli disponibili", foreground="green")
+                text=f"{len(models)} modelli disponibili"
+                     + (f" ({n_free} gratuiti)" if n_free else ""),
+                foreground="green")
         else:
             self.cloud_status.config(
                 text="nessun modello: imposta GROQ_API_KEY / OPENROUTER_API_KEY / GOOGLE_API_KEY (.env)",
@@ -266,8 +403,15 @@ class ModelSelectionPanel(ttk.Frame):
         return [self.local_tree.item(iid)["values"][0] for iid in self.local_tree.selection()]
 
     def get_selected_cloud(self) -> List[Dict]:
+        """Ritorna i modelli selezionati con ID pulito (senza tag '[Gratuito]').
+
+        Il tag e' solo visivo nella colonna label; l'ID inviato al provider
+        deve essere quello nudo restituito dal fetch (altrimenti 404).
+        """
         out = []
         for iid in self.cloud_tree.selection():
             v = self.cloud_tree.item(iid)["values"]
-            out.append({"provider": str(v[0]), "model": str(v[1])})
+            model = str(v[1])
+            model = model.replace("[Gratuito]", "").strip()
+            out.append({"provider": str(v[0]), "model": model})
         return out
