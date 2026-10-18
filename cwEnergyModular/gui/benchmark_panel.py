@@ -52,7 +52,7 @@ class BenchmarkPanel(ttk.Frame):
         # che CLAMP-A la posizione alle altezze minime: nessuna sezione puo'
         # sparire o schiacciare l'altra. Nessun comando ttk::panedwindow
         # "pane" invocato: layout identico su Tcl/Tk 8.6 e 8.7+.
-        MIN_TOP_H, MIN_LOG_H = 240, 110
+        MIN_TOP_H, MIN_LOG_H = 200, 60
 
         inner = tk.Frame(self)
         inner.pack(fill="both", expand=True)
@@ -234,7 +234,7 @@ class BenchmarkPanel(ttk.Frame):
         self.progress = ttk.Progressbar(log_frame, mode="determinate", maximum=100)
         self.progress.pack(fill="x", padx=6, pady=(4, 2))
 
-        self.log_text = tk.Text(log_frame, height=9, wrap="word", state="disabled",
+        self.log_text = tk.Text(log_frame, height=4, wrap="word", state="disabled",
                                 font=("Consolas", 9))
         self.log_text.pack(fill="both", expand=True, padx=6, pady=(2, 6))
 

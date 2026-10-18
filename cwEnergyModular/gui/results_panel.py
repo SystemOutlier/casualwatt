@@ -137,7 +137,7 @@ class ResultsPanel(ttk.LabelFrame):
         table_wrap = ttk.Frame(mid)
         table_wrap.pack(side="left", fill="both", expand=True)
         cols = [c for c, _, _ in CSV_VIEW_COLUMNS]
-        self.tree = ttk.Treeview(table_wrap, columns=cols, show="headings", height=9)
+        self.tree = ttk.Treeview(table_wrap, columns=cols, show="headings", height=4)
         for cid, label, w in CSV_VIEW_COLUMNS:
             self.tree.heading(cid, text=label)
             anchor = "w" if cid in ("model_label", "prompt_id", "test_source",
