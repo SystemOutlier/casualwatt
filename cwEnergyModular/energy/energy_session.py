@@ -845,6 +845,138 @@ class _CPUJouleSource:
                 "power_sensors_seen": list(self._pi_sensors_seen),
             }
 
+    # -- B1: energia ESATTA su una finestra dal buffer a 0,05 s -------------
+    def pi_window_energy_j(self, t_start: float, t_end: float,
+                           exclude_windows: Optional[List[tuple]] = None
+                           ) -> Optional[float]:
+        """Energia trapezoidale integrata ESATTAMENTE tra t_start e t_end.
+
+        Usa il buffer (t, W) del thread di integrazione a 0,05 s con lo
+        STESSO lock del thread: interpola linearmente la potenza ai bordi
+        della finestra e somma i segmenti interni. Se vengono passate
+        sottofinestre ``exclude_windows`` (es. chiamata LLM Judge), i segmenti
+        che le intersecano vengono INTERPOLATI/TRONCATI al bordo dell'esclusione
+        (integrazione reale sugli intervalli tenuti, nessuno scaling per
+        frazione temporale). Ritorna None se il backend non e' attivo o il
+        buffer non copre la finestra (il chiamante usa il fallback dichiarato).
+        """
+        if self.method != "power-integration":
+            return None
+        with self._pi_lock:
+            buf = list(self._pi_samples)
+        if len(buf) < 2 or buf[0][0] > t_start + 0.1 or buf[-1][0] < t_end - 0.1:
+            return None
+
+        def power_at(t: float) -> Optional[float]:
+            # potenza interpolata linearmente all'istante t
+            import bisect
+            ts = [p[0] for p in buf]
+            i = bisect.bisect_left(ts, t)
+            if i <= 0:
+                return buf[0][1] if abs(buf[0][0] - t) < 1.0 else None
+            if i >= len(buf):
+                return None
+            t0, w0 = buf[i - 1]
+            t1, w1 = buf[i]
+            if t1 == t0:
+                return w1
+            return w0 + (w1 - w0) * (t - t0) / (t1 - t0)
+
+        excl = sorted(exclude_windows or [], key=lambda w: w[0])
+
+        def _in_excl(a: float, b: float) -> bool:
+            return any(not (b <= x or a >= y) for x, y in excl)
+
+        e = 0.0
+        prev_t, prev_w = t_start, power_at(t_start)
+        if prev_w is None:
+            return None
+        for (ct, cw) in buf:
+            if ct <= t_start:
+                continue
+            if ct > t_end:
+                break
+            seg_a, seg_b = prev_t, ct
+            if not _in_excl(seg_a, seg_b):
+                e += ((prev_w + cw) / 2.0) * (seg_b - seg_a)
+            else:
+                # segmento parzialmente nell'esclusione: integra solo la
+                # parte tenuta (tronca ai bordi delle finestre escluse)
+                free = [(seg_a, seg_b)]
+                for (xa, xb) in excl:
+                    nf = []
+                    for (fa, fb) in free:
+                        if xb <= fa or xa >= fb:
+                            nf.append((fa, fb))
+                            continue
+                        if xa > fa:
+                            nf.append((fa, min(xa, fb)))
+                        if xb < fb:
+                            nf.append((max(xb, fa), fb))
+                    free = nf
+                for (fa, fb) in free:
+                    if fb - fa > 1e-9:
+                        wa = prev_w + (cw - prev_w) * (fa - seg_a) / max(ct - prev_t, 1e-9) \
+                            if ct > prev_t else prev_w
+                        wb = prev_w + (cw - prev_w) * (fb - seg_a) / max(ct - prev_t, 1e-9) \
+                            if ct > prev_t else cw
+                        e += ((wa + wb) / 2.0) * (fb - fa)
+            prev_t, prev_w = ct, cw
+        end_w = power_at(t_end)
+        if end_w is not None and prev_t < t_end:
+            if not _in_excl(prev_t, t_end):
+                e += ((prev_w + end_w) / 2.0) * (t_end - prev_t)
+            else:
+                free = [(prev_t, t_end)]
+                for (xa, xb) in excl:
+                    nf = []
+                    for (fa, fb) in free:
+                        if xb <= fa or xa >= fb:
+                            nf.append((fa, fb))
+                            continue
+                        if xa > fa:
+                            nf.append((fa, min(xa, fb)))
+                        if xb < fb:
+                            nf.append((max(xb, fa), fb))
+                    free = nf
+                for (fa, fb) in free:
+                    if fb - fa > 1e-9:
+                        wa = prev_w + (end_w - prev_w) * (fa - prev_t) / max(t_end - prev_t, 1e-9)
+                        wb = prev_w + (end_w - prev_w) * (fb - prev_t) / max(t_end - prev_t, 1e-9)
+                        e += ((wa + wb) / 2.0) * (fb - fa)
+        return round(max(e, 0.0), 6)
+
+    # -- A3: sensore grafico integrato (solo informativo) -------------------
+    def read_igpu_power_w(self) -> Optional[float]:
+        """Potenza istantanea del sensore 'CPU Graphics'/'IA GPU' se esposto."""
+        if self._lhm is None or not self._lhm_opened:
+            return None
+        try:
+            for hw in self._lhm.Hardware:
+                try:
+                    hw.Update()
+                except Exception:
+                    pass
+                if str(hw.Type) != "Cpu":
+                    continue
+                for sensor in list(hw.Sensors) + [
+                    s for sub in (list(getattr(hw, "SubHardware", []) or []))
+                    for s in sub.Sensors
+                ]:
+                    try:
+                        n = str(sensor.Name)
+                        if ("Graphics" in n or "GPU" in n.upper()) \
+                                and str(sensor.SensorType) == "Power":
+                            v = float(sensor.Value)
+                            if v == v and v >= 0:
+                                return v
+                    except Exception:
+                        continue
+        except Exception as exc:
+            self._lhm_last_error = f"read_igpu_power_w: {exc}"
+        return None
+
+
     # -- contatore energia via file (SOLO dev/test non-Windows) -------------
     def _try_power_counter(self) -> bool:
         """Backend DEV/TEST su piattaforme non-Windows: contatore Joule da file.
@@ -1371,6 +1503,65 @@ class EnergySession:
     def source_method(self) -> str:
         return self._source.method
 
+    # ---- B1: energia della finestra letta ESATTA dal contatore -----------
+    def package_energy_exact_between(self, t_start: float, t_end: float,
+                                     exclude_windows: Optional[List[tuple]] = None
+                                     ) -> Optional[float]:
+        """Energia package sulla finestra [t_start, t_end], letta esattamente
+        ai bordi (stesso lock del thread di integrazione a 0,05 s).
+
+        * power-integration: integrale trapezoidale reale sul buffer (t,W),
+          con truncation delle sottofinestre escluse (B2);
+        * energy-counter (LHM Energy / file dev-test): delta del contatore
+          cumulato read_power_j() agli estremi; le sottofinestre escluse
+          vengono sottratte integrando i campioni package nella regione
+          esclusa (i campioni ci sono: niente scaling per frazione temporale).
+        Ritorna None se il backend non puo' esprimere una lettura esatta
+        (il profiler degrada al fallback dichiarato sui campioni).
+        """
+        m = self._source.method
+        if m == "power-integration":
+            return self._source.pi_window_energy_j(t_start, t_end, exclude_windows)
+        if m in ("librehardwaremonitor-energy", "energy-file"):
+            # finestra trascorsa: fonte affidabile sono i campioni del
+            # contatore cumulato ai bordi REALI della finestra (nessuna
+            # interpolazione), con sottrazione delle regioni escluse.
+            with self._lock:
+                inside = [s for s in self._samples
+                          if t_start <= s.t <= t_end and s.package_energy_j is not None]
+            if len(inside) < 2:
+                return None
+            base = max(inside[-1].package_energy_j - inside[0].package_energy_j, 0.0)
+            if exclude_windows:
+                removed = 0.0
+                for (xa, xb) in exclude_windows:
+                    seg = [s for s in inside if xa <= s.t <= xb]
+                    if len(seg) >= 2:
+                        removed += max(seg[-1].package_energy_j
+                                       - seg[0].package_energy_j, 0.0)
+                base = max(base - removed, 0.0)
+            return round(base, 6)
+        return None
+
+    # ---- A3: energia iGPU informativa dal sensore grafico LHM ------------
+    def read_igpu_energy_j(self, t_start: float, t_end: float) -> Optional[float]:
+        """Energia stimata dal sensore 'CPU Graphics' [W] sulla finestra.
+
+        CAMPO INFORMATIVO: su Intel/AMD il package include gia' la grafica,
+        quindi il valore NON viene mai sommato a local_energy_j. Ritorna None
+        se il sensore non esiste o non e' leggibile (N/A dichiarato).
+        """
+        if self._source.method != "power-integration" or not self._source._lhm_opened:
+            return None
+        w0 = self._source.read_igpu_power_w()
+        if w0 is None:
+            return None
+        dt = max(t_end - t_start, 0.0)
+        if dt <= 0:
+            return 0.0
+        # lettura singola istantanea: stima dichiarata P_media~P_now * dt
+        return round(w0 * dt, 6)
+
     @property
     def source_notes(self) -> List[str]:
         return self._source.notes
@@ -1661,6 +1852,47 @@ class _GPUMonitor:
             pynvml.nvmlShutdown()
         except Exception:
             pass
+
+    # ---- A2: attribuzione per processo (opzionale, dichiarata) ------------
+    def process_energy_j(self, t_start: float, t_end: float,
+                         pids: Optional[List[int]] = None) -> Optional[float]:
+        """Energia GPU attribuibile ai processi indicati (es. albero Ollama).
+
+        Usa nvmlDeviceGetProcessUtilization [ms/GPU per PID] nella finestra e
+        lo converte in frazione del tempo di finestra; la quota si applica
+        all'energia board attiva (whole-device minus idle), che e' l'unica
+        grandezza energetica misurata da NVML. Ritorna None (N/A dichiarato)
+        se NVML non espone il contatore o i PID non compaiono — mai un valore
+        inventato. Campo INFORMATIVO: non sostituisce l'attribuzione
+        whole-device usata in gpu_energy_attributed_j.
+        """
+        if not self.available or not pids:
+            return None
+        try:
+            import pynvml
+
+            # timestamp NVML in microsecondi: finestra degli ultimi 10 s
+            samples = pynvml.nvmlDeviceGetProcessUtilization(
+                self.handle, int(time.time_ns() // 1000) - 10_000_000)
+            span_ms = max((t_end - t_start) * 1000.0, 1e-6)
+            busy_ms = 0.0
+            for s in samples or []:
+                pid = getattr(s, "pid", None)
+                if pid in pids:
+                    u = getattr(s, "utilization", None) or {}
+                    sm = u.get("gpu", 0) or 0
+                    st = getattr(s, "time_range", None)
+                    dur = (st.end - st.start) / 1e6 if st else 0.0
+                    busy_ms += dur * float(sm) / 100.0
+            if busy_ms <= 0:
+                return None
+            frac = min(busy_ms / span_ms, 1.0)
+            board_active = getattr(self, "_last_window_board_active_j", None)
+            if board_active is None:
+                return None
+            return round(board_active * frac, 6)
+        except Exception:
+            return None
 
 
 # Singleton di sessione (sezione 16: ``from .energy_session import SESSION``)

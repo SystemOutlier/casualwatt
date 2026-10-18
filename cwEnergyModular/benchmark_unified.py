@@ -33,6 +33,7 @@ import requests
 
 import config
 from casualwatt_csv_export import export_results_csv, write_run_metadata
+import llm_judge as _lj  # LAST_WINDOWS: finestre reali del sotto-processo giudice
 from cloud_estimator import CloudEnergyEstimator, get_cloud_models
 from energy.carbon_intensity import get_carbon_intensity
 from energy.energy_session import SESSION
@@ -351,25 +352,30 @@ def _resolve_eval_mode(prompt: Dict, explicit: Optional[str] = None) -> str:
     return "skip"
 
 
-def _estimate_judge_energy(local, duration_s: float) -> float:
-    """Stima DICHIARATA dell'energia del sotto-processo LLM Judge.
+def _estimate_judge_energy(t_start: float, t_end: float) -> Optional[float]:
+    """Energia REALE della finestra del LLM Judge (B2: niente floor arbitrari).
 
-    Il profiler della riga scorpora la finestra del judge dal modello
-    valutato (exclude_windows): questo campo riporta quanto energia e' stata
-    rimossa, per tracciabilita'. Stima: P_idle calibrato + delta sopra-idle
-    attribuito con la stessa cpu_time_share della riga. NaN se il profiler
-    non puo' esprimere alcuna stima (misurazione locale assente).
+    Integra la potenza CPU (o legge il contatore Energy cumulato, a seconda
+    del backend attivo) ESATTAMENTE sulla sottofinestra [t_start, t_end] del
+    giudice e ne sottrae la baseline P_idle * dt con lo stesso metodo del
+    profiler. Nessuna stima inventata: se la misurazione locale non puo'
+    esprimere la lettura, ritorna None (il runner scrive N/A nel CSV).
     """
     try:
-        if getattr(local, "cpu_attribution_method", "") == "unavailable":
-            return float("nan")
-        p = float(getattr(local, "idle_power_w", 0.0) or 0.0)
-        share = float(getattr(local, "cpu_time_share", 0.0) or 0.0)
-        # il giudice usa l'albero Ollama: quota ~ share; floor conservativo 0.25
-        eff_share = max(share, 0.25)
-        return round(p * eff_share * max(duration_s, 0.0), 6)
+        dur = max(float(t_end) - float(t_start), 0.0)
+        if dur <= 0:
+            return 0.0
+        m = SESSION.source_method
+        if m not in ("power-integration", "librehardwaremonitor-energy",
+                     "energy-file"):
+            return None
+        e_raw = SESSION.package_energy_exact_between(t_start, t_end)
+        if e_raw is None:
+            return None
+        p_idle = float(SESSION.idle_power_w or 0.0)
+        return round(max(e_raw - p_idle * dur, 0.0), 6)
     except Exception:
-        return float("nan")
+        return None
 
 
 def _basic_record(run_id, session_id, model_name, model_label, provider, mode,
@@ -469,14 +475,23 @@ def _finalize_energy_fields(rec: Dict, local_j: float, network_j: float, cloud_j
 
     n_correct = getattr(evalres, "n_correct_links", None)
     acc_comp = getattr(evalres, "acc_comp", None)
+    is_correct = getattr(evalres, "is_correct", None)
+    basis = getattr(evalres, "acc_links_basis", "") or ""
 
-    # energia per risposta corretta: ha senso solo se la valutazione c'e'
-    if n_correct is None:
+    # --- C1: energy_per_correct_answer_j ed epcl_j_per_link SONO DUE METRICHE
+    # DIVERSE (prima avevano la stessa formula):
+    #   * energy_per_correct_answer_j = e2e / 1 se is_correct, altrimenti N/A
+    #     (per riga; non dipende dai link causali);
+    #   * epcl_j_per_link = e2e / n_correct_links calcolata SOLO per task con
+    #     triple causali realmente strutturate (basis == 'f1_triples');
+    #     altrove N/A con nota (un proxy semantico/lessicale o una struttura
+    #     auto-consistente regime B NON sono causal link corretti).
+    if is_correct is None:
         rec["energy_per_correct_answer_j"] = "N/A"
+    elif is_correct:
+        rec["energy_per_correct_answer_j"] = round(e2e, 9)
     else:
-        rec["energy_per_correct_answer_j"] = (
-            round(e2e / n_correct, 9) if n_correct > 0 else ""
-        )
+        rec["energy_per_correct_answer_j"] = ""  # risposta errata: non definita
     # ECE per joule: accuratezza composita / energia end-to-end (J) — dichiarato
     if acc_comp is None:
         rec["ece_per_joule"] = "N/A"
@@ -485,8 +500,37 @@ def _finalize_energy_fields(rec: Dict, local_j: float, network_j: float, cloud_j
     # EPCL: Joule per causal link corretto (lower is better)
     if n_correct is None:
         rec["epcl_j_per_link"] = "N/A"
+    elif basis != "f1_triples":
+        rec["epcl_j_per_link"] = "N/A"
+        rec.setdefault("notes", []).append(
+            f"epcl_j_per_link=N/A: n_correct_links basato su '{basis}' "
+            "(proxy/auto-consistenza), non su triple causali verificate contro GT"
+        )
     else:
         rec["epcl_j_per_link"] = round(e2e / n_correct, 9) if n_correct > 0 else ""
+    # C1: nota che dichiara quale delle due metriche derivate e' valida
+    rec.setdefault("notes", []).append(
+        "metriche derivate: energy_per_correct_answer_j=e2e se is_correct "
+        "altrimenti N/A; epcl_j_per_link=e2e/n_correct_links solo con triple "
+        "causali F1 vs GT valide"
+    )
+
+    # --- C2: componenti di acc_comp sempre separate e dichiarate -----------
+    comps = []
+    if getattr(evalres, "acc_links", None) is not None:
+        comps.append("acc_links")
+    if getattr(evalres, "judge_score", None) is not None:
+        comps.append("judge_score")
+    if getattr(evalres, "cosine_sim", None) is not None:
+        comps.append("cosine_similarity")
+    rec["acc_comp_components"] = "|".join(comps) if comps else "none"
+    try:
+        import config as _cfg
+        rec["acc_comp_weights"] = (
+            f"A:{_cfg.ACC_COMP_WEIGHTS_GT}/B:{_cfg.ACC_COMP_WEIGHTS_NOGT}"
+        )
+    except Exception:
+        rec["acc_comp_weights"] = ""
 
     rec["local_energy_kwh"] = round(rec["local_energy_j"] / 3_600_000.0, 12)
     rec["cloud_energy_kwh"] = round(rec["cloud_energy_j"] / 3_600_000.0, 12)
@@ -660,16 +704,27 @@ def run_unified_benchmark(
                 # 3) UNICO profiling: finestra [t0, t_end_effettivo] con la
                 #    sottofinestra del giudice SCORPORATA esplicitamente.
                 #    Il modello valutato contribuisce solo al segmento inferenza;
-                #    judge_energy_j e' il contatore separato del segmento giudice.
+                #    judge_energy_j e' l'energia REALE misurata del segmento
+                #    giudice (B2: integrazione sulla sua finestra, niente floor).
                 t_end_profile = jw[-1][1] if jw else resp_data["_t1"]
                 local = CasualWattLocalEnergyProfiler().profile_window(
                     resp_data["_t0"], t_end_profile,
                     exclude_windows=jw if jw else None,
                 )
-                rec["judge_energy_j"] = (
-                    _estimate_judge_energy(local, sum(b - a for a, b in jw))
-                    if jw else ""
-                )
+                if jw:
+                    je_parts = []
+                    for (ja, jb) in jw:
+                        je = _estimate_judge_energy(ja, jb)
+                        if je is None:
+                            je_parts.append(None)
+                        else:
+                            je_parts.append(je)
+                    rec["judge_energy_j"] = (
+                        "N/A" if any(p is None for p in je_parts)
+                        else round(sum(je_parts), 6)
+                    )
+                else:
+                    rec["judge_energy_j"] = ""
                 rec["judge_window_s"] = round(sum(b - a for a, b in jw), 6) if jw else ""
                 rec.update(
                     model_response=resp_data["text"],
@@ -704,6 +759,13 @@ def run_unified_benchmark(
                     cpu_attribution_method=local.cpu_attribution_method,
                     gpu_attribution_method=local.gpu_attribution_method,
                     measurement_boundary=local.measurement_boundary,
+                    # B3/A1: provenienza P_idle per riga (calibrated|session|uncalibrated)
+                    idle_provenance=getattr(local, "idle_provenance", "") or "",
+                    # B1: origine lettura finestra package (exact-counter|samples-fallback)
+                    package_window_source=getattr(local, "package_window_source", "") or "",
+                    # A2/A3: campi diagnostici GPU/iGPU (mai sommati a local_energy_j)
+                    gpu_process_energy_j=_na_or(getattr(local, "gpu_process_energy_j", None)),
+                    igpu_energy_j=_na_or(getattr(local, "igpu_energy_j", None)),
                 )
                 # riscrive qualita' con valutazione reale (N/A se saltata)
                 rec.update(

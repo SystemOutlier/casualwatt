@@ -13,7 +13,13 @@ Strategia (sezione 9 della specifica):
    esplicitamente "unavailable": nessuna formula inventata fuori EcoLogits.
 
 L'energia risultante (kWh -> J) ha confine: server-side datacenter
-(usage GPU + PUE + embodied), esclude rete e client.
+(usage GPU + PUE). La quota EMBODIED di EcoLogits NON entra in energy_j: e' un
+impatto GWP separato, come dichiarato nelle note di ogni stima. Esclude rete e
+client. NOTE B4: llm_impacts (0.11.3) usa solo output_token_count e
+request_latency -> i token di input NON sono inclusi nella stima; la latenza
+passata include la rete end-to-end (sovrastima d'attesa dichiarata); il valore
+principale e' la MEDIA del range EcoLogits, con min/max nei campi
+energy_min_j / energy_max_j.
 """
 from __future__ import annotations
 
@@ -39,7 +45,31 @@ class CloudEnergyResult:
     hw_profile: str = ""
     carbon_gco2eq: Optional[float] = None
     country_code: str = ""
+    # B4: range EcoLogits (Value/RangeValue) salvati separatamente; il valore
+    # principale resta la MEDIA del range, dichiarata come tale nelle note.
+    energy_min_j: Optional[float] = None
+    energy_max_j: Optional[float] = None
     notes: List[str] = field(default_factory=list)
+
+
+def _range_of(node):
+    """Ritorna (min, max, medio) da campi EcoLogits Value o RangeValue."""
+    if node is None:
+        return None, None, None
+    val = getattr(node, "value", node)
+    lo = getattr(val, "min", None)
+    hi = getattr(val, "max", None)
+    if lo is not None and hi is not None:
+        try:
+            lo_f, hi_f = float(lo), float(hi)
+            return lo_f, hi_f, (lo_f + hi_f) / 2.0
+        except Exception:
+            return None, None, None
+    try:
+        f = float(val)
+        return f, f, f
+    except Exception:
+        return None, None, None
 
 
 def _value_of(node) -> Optional[float]:
@@ -110,7 +140,7 @@ def estimate_cloud_energy(
         except Exception as exc:  # provider sconosciuto in eco, ecc.
             last_errors.append(f"{prov}/{mdl}: {type(exc).__name__}")
             continue
-        kwh = _value_of(getattr(res, "energy", None)) if res is not None else None
+        kwh_lo, kwh_hi, kwh = _range_of(getattr(res, "energy", None))
         if kwh and kwh > 0:
             gwp_kg = _value_of(getattr(res, "gwp", None))
             notes = []
@@ -121,14 +151,41 @@ def estimate_cloud_energy(
                     "misurata reale"
                 )
             notes.append(
-                "confine: inference server-side datacenter (usage+PUE+embodied), "
-                "esclude rete e client"
+                "confine: inference server-side datacenter (usage+PUE), esclude "
+                "rete e client; NOTA: la quota EMBODIED (fabbricazione hardware) "
+                "NON fa parte dell'energia stimata in cloud_energy_j (e' un "
+                "impatto GWP separato)"
             )
+            # B4: llm_impacts (verificato su ecologits 0.11.3) accetta solo
+            # output_token_count e request_latency -> i TOKEN DI INPUT NON
+            # sono inclusi nella stima; il conteggio resta nel campo CSV
+            # cloud_input_tokens a scopo dichiarativo.
+            notes.append(
+                f"token di input ({int(prompt_tokens)}) NON inclusi nella stima: "
+                "llm_impacts usa solo output_token_count + request_latency"
+            )
+            # B4: la latenza MISURATA passata a EcoLogits include il tempo di
+            # rete client->server: la stima server-side ne risulta lievemente
+            # sovrastimata per la porzione d'attesa (dichiarato, non corretto).
+            notes.append(
+                f"request_latency={float(duration_s):.3f}s MISURATA end-to-end: "
+                "include la latenza di rete, non solo il tempo server-side"
+            )
+            if kwh_lo is not None and kwh_hi is not None and kwh_hi > kwh_lo:
+                notes.append(
+                    "valore principale = MEDIA del range EcoLogits "
+                    f"[{kwh_lo:.6g}, {kwh_hi:.6g}] kWh; min/max salvati in "
+                    "cloud_energy_min_j / cloud_energy_max_j"
+                )
             energy_j = round(kwh * 3_600_000.0, 6)
+            e_min_j = round(kwh_lo * 3_600_000.0, 6) if kwh_lo is not None else None
+            e_max_j = round(kwh_hi * 3_600_000.0, 6) if kwh_hi is not None else None
             carbon_g = round(gwp_kg * 1000.0, 6) if gwp_kg is not None else None
             zone = electricity_mix_zone or "WOR/provider-default"
             return CloudEnergyResult(
                 energy_j=energy_j,
+                energy_min_j=e_min_j,
+                energy_max_j=e_max_j,
                 method=(
                     f"ecologits llm_impacts v{getattr(ecologits, '__version__', 'unknown')}"
                 ),

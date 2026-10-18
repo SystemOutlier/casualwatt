@@ -116,26 +116,36 @@ def lexical_similarity(response_text: str, ground_truth: str) -> float:
 
 def compute_acc_comp(has_ground_truth: bool, acc_links: Optional[float],
                      judge_score: Optional[float],
-                     cosine_sim: Optional[float] = None) -> Optional[float]:
+                     cosine_sim: Optional[float] = None,
+                     weights=None) -> Optional[float]:
     """Accuratezza composita con pesi DINAMICI (nessuna costante magica).
 
-    Regime A (GT + cosine disponibile):
-        0.50*acc_links + 0.30*(judge/5) + 0.20*cosine
-    Regime B (senza GT / cosine None):
-        0.65*acc_links + 0.35*(judge/5)
-    Se un componente e' N/A, i suoi pesi vengono RIDISTRIBUITI proporzionalmente
-    sui componenti disponibili (comportamento dichiarato nelle note), mai
+    Regime A (GT + cosine disponibile), default 0.50/0.30/0.20:
+        w1*acc_links + w2*(judge/5) + w3*cosine
+    Regime B (senza GT / cosine None), default 0.65/0.35:
+        w1*acc_links + w2*(judge/5)
+    ``weights`` consente di sovrascrivere i pesi (da config.py, C2). Se un
+    componente e' N/A, i suoi pesi vengono RIDISTRIBUITI proporzionalmente sui
+    componenti disponibili (comportamento dichiarato nelle note), mai
     sostituito da valori fittizi. Ritorna None se non c'e' nulla di calcolabile.
     """
+    if weights is not None and len(weights) == 3:
+        w_links_gt, w_judge_gt, w_cos = float(weights[0]), float(weights[1]), float(weights[2])
+    else:
+        w_links_gt, w_judge_gt, w_cos = 0.50, 0.30, 0.20
+    if weights is not None and len(weights) == 2:
+        w_links_b, w_judge_b = float(weights[0]), float(weights[1])
+    else:
+        w_links_b, w_judge_b = 0.65, 0.35
     parts = []  # (weight, normalized_value)
     if acc_links is not None:
-        parts.append((0.50 if has_ground_truth else 0.65,
+        parts.append((w_links_gt if has_ground_truth else w_links_b,
                       max(0.0, min(1.0, acc_links))))
     if judge_score is not None:
-        parts.append((0.30 if has_ground_truth else 0.35,
+        parts.append((w_judge_gt if has_ground_truth else w_judge_b,
                       max(0.0, min(1.0, judge_score / 5.0))))
     if has_ground_truth and cosine_sim is not None:
-        parts.append((0.20, max(0.0, min(1.0, cosine_sim))))
+        parts.append((w_cos, max(0.0, min(1.0, cosine_sim))))
 
     if not parts:
         return None
@@ -201,6 +211,14 @@ def evaluate_response(text: str, is_tool: bool = False,
         res.notes.append("valutazione saltata per richiesta esplicita")
         return res
 
+    # --- C2: pesi acc_comp configurabili (dichiarati nelle note della riga) -
+    try:
+        import config as _cfg
+        w_gt = tuple(_cfg.ACC_COMP_WEIGHTS_GT)      # (links, judge, cosine)
+        w_nogt = tuple(_cfg.ACC_COMP_WEIGHTS_NOGT)  # (links, judge)
+    except Exception:
+        w_gt, w_nogt = (0.50, 0.30, 0.20), (0.65, 0.35)
+
     # ------------------------- REGIME A: ground truth -----------------------
     if ground_truth not in (None, "", NA):
         res.eval_mode = "ground_truth"
@@ -227,12 +245,13 @@ def evaluate_response(text: str, is_tool: bool = False,
         j_score, j_info = _run_judge(question, text, res, judge_fn)
         res.judge_score = j_score
         res.explanation_quality = (j_score / 5.0) if j_score is not None else NA
-        res.acc_comp = compute_acc_comp(True, res.acc_links, j_score, sem)
+        res.acc_comp = compute_acc_comp(True, res.acc_links, j_score, sem,
+                                        weights=(w_gt[0], w_gt[1], w_gt[2]))
         res.notes.append(GT_LABEL)
         res.notes.append(
-            f"regime A: acc_comp=0.50*acc_links+0.30*(judge/5)+0.20*cosine "
-            f"(componenti N/A rinormalizzati e dichiarati); "
-            f"basis acc_links={res.acc_links_basis}"
+            f"regime A: acc_comp={w_gt[0]}*acc_links+{w_gt[1]}*(judge/5)"
+            f"+{w_gt[2]}*cosine (pesi da config; componenti N/A rinormalizzati "
+            f"e dichiarati); basis acc_links={res.acc_links_basis}"
         )
         return res
 
@@ -248,12 +267,22 @@ def evaluate_response(text: str, is_tool: bool = False,
     res.triples_response = len(t_ans)
     res.triples_gt = NA               # inesistente in regime B
     if t_ans:
-        res.acc_links = 1.0           # struttura presente ed estraibile
-        res.acc_links_basis = "f1_triples"
-        res.triples_matched = len(t_ans)
+        # C3: 1.0 qui significa SOLO "struttura causale presente ed
+        # estraibile" — NON e' una misura di correttezza (nessuna GT con cui
+        # confrontare). Campo dichiaratamente diagnostico; non usare per EPCL.
+        res.acc_links = 1.0
+        res.acc_links_basis = "structure_presence_only"
+        res.triples_matched = None    # nessun confronto vs GT: link corretti N/A
+        res.n_correct_links = None    # C1/C3: EPCL non calcolabile in regime B
+        res.notes.append(
+            "regime B: acc_links=1.0 indica PRESENZA DI STRUTTURA, NON "
+            "correttezza (diagnostico); n_correct_links=N/A perche' i causal "
+            "link corretti sono definiti solo contro una ground truth"
+        )
     else:
         res.acc_links = 0.0
         res.acc_links_basis = "none"
+        res.n_correct_links = None    # idem: mai 0 come se fosse misurato
         res.notes.append(
             "nessuna tripla causale estraibile dalla risposta: acc_links=0.0, "
             "punteggio qualitativo interamente demandato al LLM Judge"
@@ -267,13 +296,16 @@ def evaluate_response(text: str, is_tool: bool = False,
         )
     res.judge_score = j_score
     res.explanation_quality = (j_score / 5.0) if j_score is not None else NA
-    res.n_correct_links = res.triples_matched if res.triples_matched else 0
+    # C3: n_correct_links NON sovrascritto qui: in regime B resta N/A (nessuna
+    # GT -> nessun causal link "corretto" misurabile; triples_matched e' solo
+    # conteggio di struttura estratta).
     res.is_correct = (j_score >= 4.0) if j_score is not None else NA
     res.causal_accuracy = NA          # in regime B non esiste causal accuracy GT-based
-    res.acc_comp = compute_acc_comp(False, res.acc_links, j_score, None)
+    res.acc_comp = compute_acc_comp(False, res.acc_links, j_score, None,
+                                    weights=(w_nogt[0], w_nogt[1]))
     res.notes.append(
-        "regime B: acc_comp=0.65*acc_links+0.35*(judge/5); "
-        "cosine_sim/semantic_similarity=N/A (nessuna ground truth)"
+        f"regime B: acc_comp={w_nogt[0]}*acc_links+{w_nogt[1]}*(judge/5) "
+        f"(pesi da config); cosine_sim/semantic_similarity=N/A (nessuna ground truth)"
     )
     return res
 

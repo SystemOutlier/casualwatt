@@ -62,6 +62,17 @@ CSV_COLUMNS: List[str] = [
     # metadodi metodologici
     "cpu_attribution_method", "gpu_attribution_method", "measurement_boundary",
     "energibridge_csv", "notes",
+    # --- colonne aggiunte (release successive: accodate, header migrato) ---
+    # B3: provenienza P_idle salvata per riga; B1: origine lettura finestra
+    "idle_provenance", "package_window_source",
+    # A2/A3: GPU diagnostica e iGPU informativa (mai sommata)
+    "gpu_process_energy_j", "igpu_energy_j",
+    # B2: energia REALE della sottofinestra del LLM Judge (scorporata)
+    "judge_energy_j", "judge_window_s",
+    # B4: range EcoLogits (il valore principale e' la media, dichiarata)
+    "cloud_energy_min_j", "cloud_energy_max_j",
+    # C1/C2: metriche derivate separate e tracciabilita' pesi acc_comp
+    "acc_comp_components", "acc_comp_weights",
 ]
 
 
