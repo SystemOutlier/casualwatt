@@ -49,93 +49,144 @@ class CasualWattApp(tk.Tk):
         except Exception:
             pass
 
+        # STRUTTURA A 3 ZONE (pack side=top): header fisso, SELEZIONE
+        # scrollabile (canvas+scrollbar: le liste Treeview possono chiedere
+        # piu' altezza della finestra; senza scrollregion Tk comprimeva
+        # l'area espandibile fino a far "sparire" Log e Risultati — bug
+        # osservato su Windows 11), poi il body ESPANDIBILE che riceve tutto
+        # lo spazio residuo. I sash custom dentro il body regolano
+        # Esecuzione/Log <-> Risultati con clamp reale ai minimi MIN_*; il
+        # divisorio interno Controlli <-> Log sta in benchmark_panel.py.
         header = ttk.Label(
             self,
             text="CasualWatt — benchmark energetico causale per LLM locali (Ollama) e cloud",
             font=("Segoe UI", 11, "bold"),
         )
-        header.pack(fill="x", padx=10, pady=(8, 2))
+        header.pack(side="top", fill="x", padx=10, pady=(8, 2))
 
-        # pannello 1 — selezione (non viene mai "schiacciato": sta sopra il
-        # PanedWindow ed e' a dimensione fissa)
-        self.selection = ModelSelectionPanel(self, log=self._log_to_benchmark)
-        self.selection.pack(fill="both", expand=False, padx=10, pady=4)
+        SEL_H = 240   # altezza zona selezione (le liste scrollano al suo interno)
+        sel_holder = tk.Frame(self, height=SEL_H)
+        sel_holder.pack(side="top", fill="x", padx=10, pady=(0, 4))
+        # propagate disattivata DOPO la creazione del canvas-figlio: cosi'
+        # l'altezza resta SEL_H (i figli non possono schiacciare Log/Risultati)
+        # ma la LARGHEZZA continua a seguire il contenuto (liste piene).
+        sel_canvas = tk.Canvas(sel_holder, highlightthickness=0, bd=0,
+                               width=900, height=SEL_H - 8)
+        sel_canvas.pack(side="left", fill="both", expand=True)
+        sel_holder.pack_propagate(False)
+        sel_vsb = ttk.Scrollbar(sel_holder, orient="vertical",
+                                command=sel_canvas.yview)
+        sel_vsb.pack(side="right", fill="y")
+        sel_canvas.configure(yscrollcommand=sel_vsb.set)
 
-        main_pane = ttk.PanedWindow(self, orient=tk.VERTICAL)
-        main_pane.pack(fill="both", expand=True, padx=10, pady=(0, 8))
+        shell = tk.Frame(sel_canvas)
+        _shell_win = sel_canvas.create_window((0, 0), window=shell, anchor="nw")
 
-        # pannello 2 — esecuzione + log (al suo interno un ulteriore sash
-        # separa i controlli dal Log: vedi BenchmarkPanel.pane_log)
-        self.benchmark = BenchmarkPanel(main_pane, get_selections=self._get_selections)
-
-        # Pannelli 2+3 dentro un PanedWindow VERTICALE: l'utente puo'
-        # trascinare i divisori (sash) per aumentare/diminuire l'altezza di
-        # Esecuzione/Log e dei Risultati. Il vincolo minimo (richiesta UX:
-        # nessuna sezione deve sparire o schiacciare quella superiore) e'
-        # realizzato con wrapper grid + sentinella, perche' su Tk 8.6 (la
-        # Tcl/Tk distribuita con Python Windows, inclusa la 3.14) NON
-        # esistono ne' "paneconfigure"/"panconfigure" ne' -minsize per le
-        # pane (solo -weight): chiamarli solleva TclError a runtime ed e'
-        # esattamente il crash osservato all'avvio via .bat. Su eventuali
-        # Tk >= 8.7 si usa invece il pane -minsize nativo.
-        def _apply_pane_min(pane_widget, p_child, px, index=None):
+        def _sync_sel_region(*_a):
             try:
-                pane_widget.tk.call(str(pane_widget), "pane", str(p_child),
-                                    "-minsize", str(px))   # Tk 8.7+/9
-                return
+                sel_canvas.configure(scrollregion=sel_canvas.bbox("all"))
+                w = sel_canvas.winfo_width()
+                if w > 1:
+                    sel_canvas.itemconfigure(_shell_win, width=w)
             except Exception:
                 pass
+        shell.bind("<Configure>", lambda e: _sync_sel_region())
+        def _sel_wheel(e):
             try:
-                if index is None:
-                    index = len(pane_widget.panes())
-                p_child.forget()               # niente figli non incapsulati
-                wrapper = tk.Frame(pane_widget)
-                pane_widget.insert(index, wrapper, weight=1)
-                p_child.grid(row=0, column=0, sticky="nsew", in_=wrapper)
-                sentinel = tk.Frame(wrapper, height=px, bd=0)
-                sentinel.grid(row=1, column=0, sticky="ew", in_=wrapper)
-                sentinel.grid_propagate(False)
-                wrapper.grid_rowconfigure(0, weight=1)
-                wrapper.grid_columnconfigure(0, weight=1)
-                p_child._casualwatt_sentinel = sentinel
+                if getattr(e, "delta", 0):
+                    sel_canvas.yview_scroll(-int(e.delta / 120) or (-1 if e.delta else 0), "units")
+                elif e.num == 4:
+                    sel_canvas.yview_scroll(-1, "units")
+                elif e.num == 5:
+                    sel_canvas.yview_scroll(1, "units")
             except Exception:
                 pass
+        sel_canvas.bind("<MouseWheel>", _sel_wheel)
+        sel_canvas.bind("<Button-4>", _sel_wheel)
+        sel_canvas.bind("<Button-5>", _sel_wheel)
 
-        main_pane.add(self.benchmark, weight=1)
-        _apply_pane_min(main_pane, self.benchmark, 260, index=0)
+        self.selection = ModelSelectionPanel(shell, log=self._log_to_benchmark)
+        self.selection.pack(fill="x", expand=False)
 
-        # pannello 3 — risultati
-        self.results = ResultsPanel(main_pane)
-        main_pane.add(self.results, weight=1)
-        _apply_pane_min(main_pane, self.results, 220, index=1)
+        # Pannelli 2+3 in un layout GRID a righe pesate con divisori
+        # custom trascinabili (mouse) tra Esecuzione/Log e Risultati.
+        #
+        # CRONACA DEI TENTATIVI (Windows 11 / Python 3.14 / Tcl-Tk 8.6.x):
+        #  1) "paneconfigure"/"panconfigure": comandi INESISTENTI su Tk 8.6
+        #     -> TclError all'avvio ("bad command paneconfigure").
+        #  2) ttk.PanedWindow + wrapper grid/sentinella per simulare il
+        #     -minsize: i pannelli Log/Risultati sono SPARITI dalla vista
+        #     (ttk::panedwindow gestisce i figli col gestore nativo "place";
+        #     rimetterli in un wrapper con grid() ne azzera il rendering).
+        #  3) SOLUZIONE ADO TTATA: guscio pack (header + selezione fissa in
+        #     alto) + area "body" che espande, al suo interno grid a righe
+        #     pesate con sash custom trascinabili. Il min-height E' REALE:
+        #     durante il drag la posizione viene clampata ai valori MIN_*,
+        #     quindi nessuna sezione puo' sparire o schiacciare l'altra.
+        #     Nessun comando ttk::panedwindow "pane" invocato: layout
+        #     identico su qualunque Tcl/Tk (8.6 e 8.7+).
+        MIN_BENCH_H, MIN_RESULTS_H = 260, 220
 
-        def _apply_log_pane_min():
-            # sotto-pannello Log interno al BenchmarkPanel (stesso criterio;
-            # riferimenti diretti ai widget, per non dipendere da winfo_children
-            # che sul master mostra anche il PanedWindow stesso)
-            pl = getattr(self.benchmark, "pane_log", None)
-            kids = getattr(self.benchmark, "_log_children", {})
-            if pl is None or not kids:
-                return
-            for i, key in enumerate(("top", "log")):
-                child = kids.get(key)
-                px = getattr(child, "_casualwatt_min_h", None) if child else None
-                if not px:
-                    continue
-                _apply_pane_min(pl, child, px, index=i)
+        body = tk.Frame(self, height=MIN_BENCH_H + MIN_RESULTS_H + 16)
+        body.pack(side="top", fill="both", expand=True, padx=10, pady=(0, 8))
+        body.columnconfigure(0, weight=1)
+        for _r, _w in ((0, 5), (1, 0), (2, 4)):
+            body.rowconfigure(_r, weight=_w)
 
-        self.after(150, _apply_log_pane_min)
+        # pannello 2 — esecuzione + log (riga 0; contiene gia' il suo
+        # divisorio interno controlli/log, vedi benchmark_panel.py)
+        self.benchmark = BenchmarkPanel(body, get_selections=self._get_selections)
+        self.benchmark.grid(row=0, column=0, sticky="nsew")
 
-        # altezze iniziali ragionevoli appena il widget ha una geometria
-        def _set_initial_sashes():
-            try:
-                total = main_pane.winfo_height()
-                if total > 480:
-                    main_pane.sashpos(0, int(total * 0.55))
-            except Exception:
-                pass
+        # divisore custom Esecuzione <-> Risultati (riga 1)
+        sash_br = tk.Frame(body, height=6, bd=1, relief="raised",
+                           background="#d8d8d8")
+        try:  # cursore doppio-arco verticale (valido su Windows/Tk 8.6)
+            sash_br.configure(cursor="sb_vdouble_arrow")
+        except Exception:
+            pass
+        sash_br.grid(row=1, column=0, sticky="ew")
 
-        self.after(250, _set_initial_sashes)
+        # pannello 3 — risultati (riga 2)
+        self.results = ResultsPanel(body)
+        self.results.grid(row=2, column=0, sticky="nsew")
+
+        def _bind_sash(sash, min_above, min_below, widget_above, widget_below,
+                       row_above, row_below):
+            """Trascina il sash regolando i PESI ASSOLUTI (px) delle righe
+            grid soprastante/sottostante. Il container ha pack_propagate
+            disattivato: le righe pesate si dividono l'altezza disponibile
+            in proporzione ai pesi, che qui sono esattamente gli height in
+            pixel voluti. Clamp reale: nessun pannello puo' scendere sotto
+            il proprio minimo -> nessuna sezione sparisce o schiaccia
+            l'altra."""
+            def _apply(pos_y):
+                try:
+                    h_a = widget_above.winfo_height()
+                    h_b = widget_below.winfo_height()
+                    span = max(h_a + h_b, min_above + min_below, 1)
+                    new_above = max(min_above, min(span - min_below, pos_y))
+                    new_below = span - new_above
+                    body.rowconfigure(row_above, weight=max(int(new_above), 1))
+                    body.rowconfigure(row_below, weight=max(int(new_below), 1))
+                except Exception:
+                    pass
+            state = {"y0": None}
+            def _press(event):
+                state["y0"] = event.y_root
+            def _drag(event):
+                if state["y0"] is None:
+                    return
+                h_a = widget_above.winfo_height()
+                _apply(h_a + (event.y_root - state["y0"]))
+            def _release(_e):
+                state["y0"] = None
+            sash.bind("<ButtonPress-1>", _press)
+            sash.bind("<B1-Motion>", _drag)
+            sash.bind("<ButtonRelease-1>", _release)
+
+        _bind_sash(sash_br, MIN_BENCH_H, MIN_RESULTS_H,
+                   self.benchmark, self.results, 0, 2)
 
         self.protocol("WM_DELETE_WINDOW", self._on_close)
 
