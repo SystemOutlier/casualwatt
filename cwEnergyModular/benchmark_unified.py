@@ -699,6 +699,7 @@ def run_unified_benchmark(
                     ground_truth=pr.get("ground_truth"),
                     mode=_resolve_eval_mode(pr, eval_mode_override),
                     question=pr["text"], evaluated_model=model,
+                    judge_fn=_judge_via_energy_session,
                 )
                 jw = list(getattr(_lj, "LAST_WINDOWS", []) or [])
                 # 3) UNICO profiling: finestra [t0, t_end_effettivo] con la
@@ -831,6 +832,7 @@ def run_unified_benchmark(
                         resp_data["text"], is_tool=bool(resp_data.get("tool_calls")),
                         ground_truth=pr.get("ground_truth"),
                         mode=_resolve_eval_mode(pr, eval_mode_override),
+                        judge_fn=_judge_via_energy_session,
                     )
                     client_local = cloud_res["client_local"]
                     est = cloud_res["estimation"]
