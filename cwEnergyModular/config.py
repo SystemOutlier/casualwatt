@@ -294,18 +294,43 @@ IDLE_CALIBRATION_SECONDS = float(os.getenv("CW_IDLE_CALIBRATION_SECONDS", "10"))
 MONITOR_INTERVAL_S = 0.5  # frequenza campionamento energy tracker
 
 # ---------------------------------------------------------------------------
-# Stima energia di rete (sezione 9/12.2) — coefficienti documentati
-# J/bit per trasmissione dati su rete geografica, valori conservativi da
-# letteratura sugli access network (FTTx); confine: client-side NIC delta.
+# Stima energia di rete (sezione 9/12.2) — coefficiente dichiarato (B5)
+# J/bit per trasmissione dati; confine reale della misura: SOLO la NIC del
+# client (delta bytes su interfaccia), NON l'intero accesso FTTx o il core di
+# rete. Il valore conservativo 3,4e-8 J/bit (~270 J/GB ~ 7,6e-5 kWh/GB) e'
+# allineato a quella sola porzione; fonte bibliografica specifica non ancora
+# fissata nel progetto (segnalato, NON modificato senza fonte). Il campo CSV
+# network_energy_coefficient_j_per_bit riporta il valore usato per riga.
 # ---------------------------------------------------------------------------
 NETWORK_ENERGY_COEFFICIENT_J_PER_BIT = float(
     os.getenv("CW_NET_J_PER_BIT", "3.4e-8")
 )
 
-# GPU integrata: quota di potenza attiva package attribuibile all'iGPU
-# quando non esiste contatore separato (euristica dichiarata, NON applicata
-# come frazione dell'energia totale: opera sulla sola energia ATTIVA).
-IGPU_POWER_SHARE = float(os.getenv("CW_IGPU_SHARE", "0.30"))
+# GPU integrata: DEPRECATA (correzione A3). Il sensore 'CPU Package' di LHM
+# INCLUDE gia' la grafica integrata: NON viene aggiunta alcuna quota separata
+# a local_energy_j e IGPU_POWER_SHARE NON e' piu' usata da alcun calcolo.
+# Mantenuta solo per retrocompatibilita' di eventuali .env; ignorata dal codice.
+IGPU_POWER_SHARE = float(os.getenv("CW_IGPU_SHARE", "0.30"))  # DEPRECATED, unused
+
+# ---------------------------------------------------------------------------
+# Pesi Accuratezza Composita (acc_comp) — C2: configurabili, mai magici.
+# Regime A (con ground truth): (links, judge/5, cosine) default 0.50/0.30/0.20
+# Regime B (senza ground truth): (links, judge/5)        default 0.65/0.35
+# I pesi effettivi vengono scritti nelle note di ogni riga CSV.
+# ---------------------------------------------------------------------------
+def _parse_weights(env_val: str, default) -> list:
+    try:
+        parts = [float(x) for x in env_val.replace(";", ",").split(",") if x.strip()]
+        return parts if len(parts) == len(default) else list(default)
+    except Exception:
+        return list(default)
+
+ACC_COMP_WEIGHTS_GT = _parse_weights(
+    os.getenv("CW_ACC_COMP_W_GT", "0.50,0.30,0.20"), [0.50, 0.30, 0.20]
+)
+ACC_COMP_WEIGHTS_NOGT = _parse_weights(
+    os.getenv("CW_ACC_COMP_W_NOGT", "0.65,0.35"), [0.65, 0.35]
+)
 
 # EcoLogits: profilo hardware cloud assunto per la stima (sezione 9)
 ECOLOGITS_HW_PROFILE = os.getenv("ECOLOGITS_HW_PROFILE", "H100")

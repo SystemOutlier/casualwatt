@@ -11,11 +11,29 @@ Configurazione (env / .env):
   CW_JUDGE_MODEL        modello supervisore (default llama3.2:1b)
   CW_JUDGE_TIMEOUT_S    timeout chiamata (default 60)
   CW_JUDGE_ENABLED      "0" per disattivare il judge (default attivo)
+
+Tracciabilita' energetica: ogni chiamata riuscita registra in ``LAST_WINDOWS``
+la finestra monotona [t0, t1] della richiesta HTTP. Il runner azzera la lista
+prima della valutazione e usa le finestre come ``exclude_windows`` del
+profilatore: l'energia del giudice viene cosi' SCORPORATA misurandola
+realmente (non stimata con floor arbitrari).
 """
 from __future__ import annotations
 
 import re
-from typing import Optional, Tuple
+import threading
+import time as _time_mod
+from typing import List, Optional, Tuple
+
+# finestre (t_start, t_end) monotone delle chiamate al giudice nell'ultimo lotto
+LAST_WINDOWS: List[Tuple[float, float]] = []
+_LW_LOCK = threading.Lock()
+
+
+def record_window(t0: float, t1: float) -> None:
+    """Registra una finestra di chiamata al giudice (usato da info['window'])."""
+    with _LW_LOCK:
+        LAST_WINDOWS.append((float(t0), float(t1)))
 
 try:
     from config import env_str, env_float, OLLAMA_API_URL
@@ -94,7 +112,8 @@ def call_llm_judge(question: str, answer: str,
     duration_s. Nessuna eccezione viene propagata.
     """
     info = {"judge_model": model or judge_model_name(), "ok": False,
-            "reason": "", "raw_response": "", "duration_s": None}
+            "reason": "", "raw_response": "", "duration_s": None,
+            "window": None}
     if not judge_enabled():
         info["reason"] = "CW_JUDGE_ENABLED=0 (judge disattivato dall'utente)"
         return None, info
@@ -108,10 +127,13 @@ def call_llm_judge(question: str, answer: str,
             "stream": False,
             "options": {"temperature": 0.0},
         }
-        t0 = _t.monotonic()
+        t0 = _time_mod.monotonic()
         r = requests.post(OLLAMA_API_URL, json=payload,
                           timeout=env_float("CW_JUDGE_TIMEOUT_S", 60.0))
-        info["duration_s"] = round(_t.monotonic() - t0, 3)
+        t1 = _time_mod.monotonic()
+        info["duration_s"] = round(t1 - t0, 3)
+        info["window"] = (t0, t1)
+        record_window(t0, t1)
         if r.status_code != 200:
             info["reason"] = f"HTTP {r.status_code}: {r.text[:160]}"
             return None, info
