@@ -97,6 +97,49 @@ def _try_load(st_cls, path, offline: bool):
         return None
 
 
+def _looks_like_model(path) -> bool:
+    """True se la cartella contiene davvero un checkpoint SentenceTransformer."""
+    try:
+        p = str(path)
+        return (p.endswith(".safetensors") or p.endswith(".bin")) and path.is_file() \
+            if False else (path / "config.json").is_file() and any(
+                (path / n).is_file() for n in ("model.safetensors", "pytorch_model.bin"))
+    except Exception:
+        return False
+
+
+def _find_snapshot(root):
+    """Cerca un checkout HF valido sotto <root>/models--…/snapshots/<rev>/content."""
+    try:
+        snap_parent = root / f"models--{EMBED_MODEL_NAME.replace('/', '--')}"
+        snaps = snap_parent / "snapshots"
+        if not snaps.is_dir():
+            return None
+        candidates = []
+        for rev in snaps.iterdir():
+            content = rev / "content" if (rev / "content").is_dir() else rev
+            if _looks_like_model(content):
+                candidates.append(content)
+        if candidates:
+            # snapshot più recente per data di modifica
+            candidates.sort(key=lambda c: c.stat().st_mtime)
+            return candidates[-1]
+    except Exception:
+        return None
+    return None
+
+
+def _try_load(st_cls, path, offline: bool):
+    """Carica da percorso locale esplicito; ritorna None se non valido/manca."""
+    try:
+        if not path or not str(path):
+            return None
+        m = st_cls(str(path), local_files_only=offline)
+        return m
+    except Exception:
+        return None
+
+
 def _get_model():
     """Carica pigro + thread-safe del modello embeddings.
 

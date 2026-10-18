@@ -1,0 +1,31 @@
+TERMS OF SURRENDER AND LICENSE - CASUALWATT PROJECT
+Copyright (c) 2026 CasualWatt
+All rights reserved.
+
+1. PERMITTED USES (FREE & ACADEMIC)
+Permission is hereby granted, free of charge, to any person or institution obtaining a copy of this software, to use, copy, modify, and test the software solely for:
+- Personal, educational, and academic research purposes.
+- Non-commercial evaluation and testing.
+
+2. COMMERCIAL RESTRICTIONS (PAID)
+Any commercial use, commercial distribution, integration into corporate environments, or utilization of this software to provide paid services (including but not limited to SaaS, internal enterprise automation, or commercial AI pipelines) is STRICTLY PROHIBITED without a separate, written, and signed Commercial License from the copyright holder.
+
+3. CONTACT FOR COMMERCIAL LICENSING
+To obtain a Commercial License, please contact: systemoutlier.mind@gmail.com
+
+-------------------------------------------------------------------------------
+
+TERMINI DI LICENZA E UTILIZZO - PROGETTO CASUALWATT
+Copyright (c) 2026 CasualWatt
+Tutti i diritti riservati.
+
+1. USI CONSENTITI (GRATUITI E ACCADEMICI)
+Si concede gratuitamente a chiunque ottenga una copia di questo software il diritto di utilizzare, copiare, modificare e testare il software esclusivamente per:
+- Scopi personali, educativi e di ricerca accademica.
+- Valutazione e test non commerciali.
+
+2. RESTRIZIONI COMMERCIALI (A PAGAMENTO)
+Qualsiasi uso commerciale, distribuzione commerciale, integrazione in ambienti aziendali o utilizzo di questo software per fornire servizi a pagamento (incluso, ma non limitato a, servizi SaaS, automazione aziendale interna o pipeline di IA commerciali) è SEVERAMENTE VIETATO senza una licenza commerciale separata, scritta e firmata dal titolare del copyright.
+
+3. CONTATTI PER LICENZE COMMERCIALI
+Per richiedere una licenza commerciale, contattare: systemoutlier.mind@gmail.com
