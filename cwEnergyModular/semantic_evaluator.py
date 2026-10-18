@@ -18,7 +18,9 @@ similarità lessicale secondaria, dichiarandolo esplicitamente in eval_method
 """
 from __future__ import annotations
 
+import os
 import threading
+from pathlib import Path
 from typing import Optional
 
 EMBED_MODEL_NAME = "sentence-transformers/paraphrase-multilingual-MiniLM-L12-v2"
@@ -29,8 +31,23 @@ _model = None                # SentenceTransformer istanziato (o sentinel False)
 _init_error: str = ""        # motivo del fallback, dichiarato nel CSV/GUI
 
 
-def _resolve_local_dir():
-    """Directory cache locale del modello (config.EMBED_MODEL_DIR)."""
+def _cache_root():
+    """Radice della cache HF usata dal progetto (config.EMBED_MODEL_DIR.parent).
+
+    Il download di huggingface_hub salva i pesi in
+    <root>/models--sentence-transformers--paraphrase-multilingual-MiniLM-L12-v2/
+    e li ricostruisce in snapshot puntati da refs/main + blobs.
+    """
+    try:
+        from config import EMBED_MODEL_DIR
+        return EMBED_MODEL_DIR.parent
+    except Exception:
+        from pathlib import Path
+        return Path(__file__).resolve().parent / "models"
+
+
+def _flat_dir():
+    """Vecchia cache 'piatta' (cartella con i file del modello direttamente dentro)."""
     try:
         from config import EMBED_MODEL_DIR
         return EMBED_MODEL_DIR
@@ -39,11 +56,62 @@ def _resolve_local_dir():
         return Path(__file__).resolve().parent / "models" / EMBED_MODEL_SHORT
 
 
+def _looks_like_model(path) -> bool:
+    """True se la cartella contiene davvero un checkpoint SentenceTransformer."""
+    try:
+        p = str(path)
+        return (p.endswith(".safetensors") or p.endswith(".bin")) and path.is_file() \
+            if False else (path / "config.json").is_file() and any(
+                (path / n).is_file() for n in ("model.safetensors", "pytorch_model.bin"))
+    except Exception:
+        return False
+
+
+def _find_snapshot(root):
+    """Cerca un checkout HF valido sotto <root>/models--…/snapshots/<rev>/content."""
+    try:
+        snap_parent = root / f"models--{EMBED_MODEL_NAME.replace('/', '--')}"
+        snaps = snap_parent / "snapshots"
+        if not snaps.is_dir():
+            return None
+        candidates = []
+        for rev in snaps.iterdir():
+            content = rev / "content" if (rev / "content").is_dir() else rev
+            if _looks_like_model(content):
+                candidates.append(content)
+        if candidates:
+            # snapshot più recente per data di modifica
+            candidates.sort(key=lambda c: c.stat().st_mtime)
+            return candidates[-1]
+    except Exception:
+        return None
+    return None
+
+
+def _try_load(st_cls, path, offline: bool):
+    """Carica da percorso locale esplicito; ritorna None se non valido/manca."""
+    try:
+        if not path or not str(path):
+            return None
+        m = st_cls(str(path), local_files_only=offline)
+        return m
+    except Exception:
+        return None
+
+
 def _get_model():
     """Carica pigro + thread-safe del modello embeddings.
 
-    Ritorna l'istanza SentenceTransformer oppure None se non disponibile
-    (sentinel False memorizzato per non ritentare il download a ogni riga).
+    Ordine di risoluzione (nessun crash garantito):
+      1. cache HF standard del progetto (models/models--sentence-transformers--…)
+         — è quella creata dal download e NON richiede internet;
+      2. vecchia cache 'piatta' models/paraphrase-multilingual-… (retrocompat.);
+      3. cache HF globale dell'utente (~/.cache/huggingface);
+      4. download una tantum su Hugging Face (richiede rete);
+      5. fallback lessicale dichiarato (eval_method='lexical_only(fallback)').
+
+    Ritorna l'istanza SentenceTransformer oppure None (sentinel False memorizzato
+    per non ritentare a ogni riga).
     """
     global _model, _init_error
     if _model is not None and _model is not False:
@@ -56,22 +124,40 @@ def _get_model():
         if _model is False:
             return None
         try:
-            from sentence_transformers import SentenceTransformer
-            local_dir = _resolve_local_dir()
+            from sentence_transformers import SentenceTransformer as ST
+            root = _cache_root()
             try:
-                local_dir.mkdir(parents=True, exist_ok=True)
+                root.mkdir(parents=True, exist_ok=True)
             except Exception:
                 pass
-            # 1° tentativo: cache locale; 2°: download HF (che popola la cache).
-            try:
-                _model = SentenceTransformer(str(local_dir), local_files_only=True)
-            except Exception:
-                _model = SentenceTransformer(
-                    EMBED_MODEL_NAME, cache_folder=str(local_dir.parent)
-                )
+            # 1) snapshot HF nella cache del progetto
+            _model = _try_load(ST, _find_snapshot(root), offline=True)
+            # 2) cache piatta legacy (retrocompatibilità)
+            if _model is None:
+                flat = _flat_dir()
+                if _looks_like_model(flat):
+                    _model = _try_load(ST, flat, offline=True)
+            # 3) cache HF globale dell'utente
+            if _model is None:
+                home_cache = None
+                try:
+                    hf_home = os.getenv("HF_HOME")
+                    home_cache = (Path(hf_home) / "hub" if hf_home
+                                  else Path.home() / ".cache" / "huggingface" / "hub")
+                except Exception:
+                    home_cache = None
+                _model = _try_load(ST, _find_snapshot(home_cache) if home_cache else None,
+                                   offline=True)
+            # 4) download una tantum (popola la cache del progetto)
+            if _model is None:
+                _model = ST(EMBED_MODEL_NAME, cache_folder=str(root))
         except Exception as exc:  # ImportError, download fallito, torch assente…
             _model = False
             _init_error = f"{type(exc).__name__}: {str(exc)[:160]}"
+            return None
+        if _model is None:
+            _model = False
+            _init_error = "modello embeddings introvabile in tutte le cache note"
             return None
         return _model
 
