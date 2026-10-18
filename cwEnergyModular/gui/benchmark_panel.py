@@ -41,36 +41,59 @@ class BenchmarkPanel(ttk.Frame):
         self._q: queue.Queue = queue.Queue()
         self._running = False
 
-        # sotto-pannello superiore: controlli di esecuzione (fisso, min 240px)
+        # sotto-pannello superiore: controlli di esecuzione (min 240px)
         top = ttk.LabelFrame(self, text="Esecuzione benchmark")
         # sotto-pannello inferiore: console log (regolabile, min 110px)
         log_frame = ttk.LabelFrame(self, text="Log / Console")
-        self.pane_log = ttk.PanedWindow(self, orient=tk.VERTICAL)
-        # NOTE: su Tk 8.6 (Tcl/Tk distribuita con Python Windows, inclusa
-        # la 3.14) le pane di ttk::panedwindow ammettono SOLO -weight: i
-        # comandi "paneconfigure"/"panconfigure" e l'opzione -minsize NON
-        # esistono -> TclError a runtime. Il vincolo minimo viene applicato
-        # in gui/app.py::_apply_log_pane_min tramite wrapper grid con
-        # sentinella; qui ci limitiamo a marcare i figli e tentare il
-        # comando nativo (valido solo su Tk >= 8.7), senza mai propagare
-        # errori.
-        def _pane_min(p_child, px):
-            try:
-                p_child._casualwatt_min_h = px   # letto da app.py per il wrapper
-            except Exception:
-                pass
-            try:
-                self.pane_log.tk.call(str(self.pane_log), "pane", str(p_child),
-                                      "-minsize", str(px))   # Tk 8.7+/9
-            except Exception:
-                pass
+        # NOTE (Tk 8.6 / Python Windows): le pane di ttk::panedwindow
+        # ammettono SOLO -weight; "paneconfigure" e "-minsize" NON esistono
+        # -> TclError. Il vincolo minimo viene quindi applicato con un
+        # divisorio custom trascinabile (frame-stretta con bind B1-Motion)
+        # che CLAMP-A la posizione alle altezze minime: nessuna sezione puo'
+        # sparire o schiacciare l'altra. Nessun comando ttk::panedwindow
+        # "pane" invocato: layout identico su Tcl/Tk 8.6 e 8.7+.
+        MIN_TOP_H, MIN_LOG_H = 240, 110
 
-        self.pane_log.add(top, weight=1)
-        self.pane_log.add(log_frame, weight=1)
-        _pane_min(top, 240)
-        _pane_min(log_frame, 110)
-        self.pane_log.pack(fill="both", expand=True)
-        # reference utili per il riordino dei sotto-pannelli nel wrapper
+        inner = tk.Frame(self)
+        inner.pack(fill="both", expand=True)
+        inner.columnconfigure(0, weight=1)
+        inner.rowconfigure(0, weight=5)
+        inner.rowconfigure(1, weight=0)
+        inner.rowconfigure(2, weight=2)
+
+        top.grid(row=0, column=0, sticky="nsew", in_=inner)
+        sash_log = tk.Frame(inner, height=6, bd=1, relief="raised",
+                            background="#d8d8d8")
+        try:
+            sash_log.configure(cursor="sb_vdouble_arrow")
+        except Exception:
+            pass
+        sash_log.grid(row=1, column=0, sticky="ew", in_=inner)
+        log_frame.grid(row=2, column=0, sticky="nsew", in_=inner)
+
+        # drag con pesi assoluti (px) + clamp ai minimi: vedi app.py::_bind_sash
+        def _apply(pos_y):
+            try:
+                h_top = top.winfo_height()
+                h_log = log_frame.winfo_height()
+                span = max(h_top + h_log, MIN_TOP_H + MIN_LOG_H, 1)
+                new_top = max(MIN_TOP_H, min(span - MIN_LOG_H, pos_y))
+                new_log = span - new_top
+                inner.rowconfigure(0, weight=max(int(new_top), 1))
+                inner.rowconfigure(2, weight=max(int(new_log), 1))
+            except Exception:
+                pass
+        _st = {"y0": None}
+        def _press(e): _st["y0"] = e.y_root
+        def _drag(e):
+            if _st["y0"] is not None:
+                _apply(top.winfo_height() + (e.y_root - _st["y0"]))
+        def _rel(_e): _st["y0"] = None
+        sash_log.bind("<ButtonPress-1>", _press)
+        sash_log.bind("<B1-Motion>", _drag)
+        sash_log.bind("<ButtonRelease-1>", _rel)
+
+        self.pane_log = inner          # retro-compatibilita' (riferimenti)
         self._log_children = {"top": top, "log": log_frame}
 
         # ------------------------- parametri ---------------------------------
