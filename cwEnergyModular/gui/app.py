@@ -56,17 +56,42 @@ class CasualWattApp(tk.Tk):
         )
         header.pack(fill="x", padx=10, pady=(8, 2))
 
-        # pannello 1 — selezione
+        # pannello 1 — selezione (non viene mai "schiacciato": sta sopra il
+        # PanedWindow ed e' a dimensione fissa)
         self.selection = ModelSelectionPanel(self, log=self._log_to_benchmark)
         self.selection.pack(fill="both", expand=False, padx=10, pady=4)
 
-        # pannello 2 — esecuzione
-        self.benchmark = BenchmarkPanel(self, get_selections=self._get_selections)
-        self.benchmark.pack(fill="both", expand=True, padx=10, pady=4)
+        # Pannelli 2+3 dentro un PanedWindow VERTICALE: l'utente puo'
+        # trascinare i divisori (sash) per aumentare/diminuire l'altezza di
+        # Esecuzione/Log e dei Risultati. minsize impedisce che una sezione
+        # scompaia del tutto o comprima quella superiore oltre l'usabilita'.
+        main_pane = ttk.PanedWindow(self, orient=tk.VERTICAL)
+        main_pane.pack(fill="both", expand=True, padx=10, pady=(0, 8))
+
+        # pannello 2 — esecuzione + log (al suo interno un ulteriore sash
+        # separa i controlli dal Log: vedi BenchmarkPanel.pane_log)
+        self.benchmark = BenchmarkPanel(main_pane, get_selections=self._get_selections)
+        main_pane.add(self.benchmark, weight=1)
 
         # pannello 3 — risultati
-        self.results = ResultsPanel(self)
-        self.results.pack(fill="both", expand=True, padx=10, pady=(4, 8))
+        self.results = ResultsPanel(main_pane)
+        main_pane.add(self.results, weight=1)
+
+        # vincoli minimi: nessuna sezione puo' essere trascinata fino a
+        # sparire o a schiacciare la sezione superiore sopra l'usabilita'
+        main_pane.paneconfigure(self.benchmark, minsize=260)
+        main_pane.paneconfigure(self.results, minsize=220)
+
+        # altezze iniziali ragionevoli appena il widget ha una geometria
+        def _set_initial_sashes():
+            try:
+                total = main_pane.winfo_height()
+                if total > 480:
+                    main_pane.sashpos(0, int(total * 0.55))
+            except Exception:
+                pass
+
+        self.after(250, _set_initial_sashes)
 
         self.protocol("WM_DELETE_WINDOW", self._on_close)
 

@@ -180,6 +180,14 @@ class ModelSelectionPanel(ttk.Frame):
         cbtns = ttk.Frame(right)
         cbtns.pack(fill="x", pady=3)
         ttk.Button(cbtns, text="Ricarica", command=self.reload_cloud).pack(side="left", padx=2)
+        # 'Modelli Gratuiti': riordina la lista gia' caricata portando in
+        # testa i modelli gratuiti (toggle: una seconda clic riporta l'ordine
+        # originale provider/modello senza ricaricare dalle API)
+        self._cloud_models_cache: List[Dict] = []
+        self._cloud_free_first = False
+        self.btn_free_first = ttk.Button(
+            cbtns, text="Modelli Gratuiti", command=self.toggle_free_first)
+        self.btn_free_first.pack(side="left", padx=2)
         ttk.Button(cbtns, text="Seleziona tutti", command=lambda: self._select_all(self.cloud_tree)).pack(side="left", padx=2)
         ttk.Button(cbtns, text="Deseleziona tutti", command=lambda: self._deselect_all(self.cloud_tree)).pack(side="left", padx=2)
         self.cloud_status = ttk.Label(right, text="— non caricato —", foreground="gray")
@@ -389,15 +397,9 @@ class ModelSelectionPanel(ttk.Frame):
                 text=f"errore: {e}", foreground="red"))
 
     def _populate_cloud(self, models: List[Dict]):
-        self.cloud_tree.delete(*self.cloud_tree.get_children())
-        for m in models:
-            # colonna 'model': solo nome + tag visivo (il provider ha la sua
-            # colonna; il prefisso 'provider |' della label e' scartato per
-            # non sporcare l'ID che viene riletto in get_selected_cloud)
-            name = str(m.get("model", ""))
-            if m.get("free") and "[Gratuito]" not in name:
-                name += " [Gratuito]"
-            self.cloud_tree.insert("", "end", values=(m.get("provider", ""), name))
+        # cache per il riordino 'Modelli Gratuiti' senza ricaricare le API
+        self._cloud_models_cache = list(models)
+        self._render_cloud_tree(self._cloud_sorted())
         if models:
             n_free = sum(1 for m in models if m.get("free"))
             self.cloud_status.config(
@@ -409,6 +411,49 @@ class ModelSelectionPanel(ttk.Frame):
                 text="nessun modello: imposta GROQ_API_KEY / OPENROUTER_API_KEY / GOOGLE_API_KEY (.env)",
                 foreground="red",
             )
+
+    def _cloud_sorted(self) -> List[Dict]:
+        """Lista cloud nell'ordine corrente (free-first se toggle attivo)."""
+        models = list(self._cloud_models_cache)
+        if self._cloud_free_first:
+            # gratuiti prima, poi il resto; stabile entro i due gruppi
+            models.sort(key=lambda m: 0 if m.get("free") else 1)
+        return models
+
+    def _render_cloud_tree(self, models: List[Dict]):
+        sel_before = {tuple(self.cloud_tree.item(i)["values"])
+                      for i in self.cloud_tree.selection()}
+        self.cloud_tree.delete(*self.cloud_tree.get_children())
+        new_ids = []
+        for m in models:
+            # colonna 'model': solo nome + tag visivo (il provider ha la sua
+            # colonna; il prefisso 'provider |' della label e' scartato per
+            # non sporcare l'ID che viene riletto in get_selected_cloud)
+            name = str(m.get("model", ""))
+            if m.get("free") and "[Gratuito]" not in name:
+                name += " [Gratuito]"
+            iid = self.cloud_tree.insert(
+                "", "end", values=(m.get("provider", ""), name))
+            if (m.get("provider", ""), name) in sel_before:
+                new_ids.append(iid)
+        # conserva la selezione dell'utente attraverso il riordino
+        if new_ids:
+            self.cloud_tree.selection_set(new_ids)
+
+    def toggle_free_first(self):
+        """Pulsante 'Modelli Gratuiti': porta i gratuiti in cima alla lista."""
+        if not self._cloud_models_cache:
+            self.cloud_status.config(
+                text="carica prima i modelli con 'Ricarica'", foreground="orange")
+            return
+        self._cloud_free_first = not self._cloud_free_first
+        try:
+            self.btn_free_first.config(
+                text="Ordine originale" if self._cloud_free_first
+                else "Modelli Gratuiti")
+        except Exception:
+            pass
+        self._render_cloud_tree(self._cloud_sorted())
 
     # ------------------------------------------------------------- selections
     def get_selected_local(self) -> List[str]:
