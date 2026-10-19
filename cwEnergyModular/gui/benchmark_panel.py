@@ -42,9 +42,7 @@ class BenchmarkPanel(ttk.Frame):
         self._running = False
 
         # sotto-pannello superiore: controlli di esecuzione
-        top = ttk.LabelFrame(self, text="Esecuzione benchmark")
         # sotto-pannello inferiore: console log (regolabile col drag)
-        log_frame = ttk.LabelFrame(self, text="Log / Console")
         # NOTE (Tk 8.6 / Python Windows): le pane di ttk::panedwindow
         # ammettono SOLO -weight; "paneconfigure" e "-minsize" NON esistono
         # -> TclError. Il vincolo minimo viene quindi applicato con un
@@ -64,15 +62,21 @@ class BenchmarkPanel(ttk.Frame):
         inner.rowconfigure(1, weight=0)
         inner.rowconfigure(2, weight=0, minsize=90)
 
-        top.grid(row=0, column=0, sticky="nsew", in_=inner)
+        # FIX: top e log_frame devono essere figli di inner, NON di self.
+        # Usare grid(..., in_=inner) su widget creati con parent self fa
+        # sparire i widget (pitfall Tkinter: reparenting via in_ non funziona
+        # in modo affidabile su tutte le piattaforme).
+        top = ttk.LabelFrame(inner, text="Esecuzione benchmark")
+        log_frame = ttk.LabelFrame(inner, text="Log / Console")
         sash_log = tk.Frame(inner, height=6, bd=1, relief="raised",
                             background="#d8d8d8")
         try:
             sash_log.configure(cursor="sb_vdouble_arrow")
         except Exception:
             pass
-        sash_log.grid(row=1, column=0, sticky="ew", in_=inner)
-        log_frame.grid(row=2, column=0, sticky="nsew", in_=inner)
+        top.grid(row=0, column=0, sticky="nsew")
+        sash_log.grid(row=1, column=0, sticky="ew")
+        log_frame.grid(row=2, column=0, sticky="nsew")
 
         # drag: regola solo il minsize della riga alta; la riga log resta
         # weight=0 -> mantiene sempre il suo spazio naturale (>=90px)
