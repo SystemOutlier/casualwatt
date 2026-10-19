@@ -703,10 +703,19 @@ def run_unified_benchmark(
             )
             t_wall0 = time.time()
             try:
+                # Ricalcola albero processi Ollama a OGNI richiesta (non solo all'avvio)
+                current_ollama_pids = SESSION.find_ollama_procs()
+                # Leggi cpu_times agli estremi esatti della finestra (non dai campioni)
+                from energy.local_energy import CasualWattLocalEnergyProfiler
+                cpu_t_start = CasualWattLocalEnergyProfiler._read_ollama_cpu_times(current_ollama_pids)
+                
                 # 1) inferenza del modello valutato (senza profilo ancora)
                 resp_data, _local_raw = _ollama_infer_only(
                     model, pr["text"], temperature, timeout_s
                 )
+                # Leggi cpu_times a t_end (dopo inferenza, prima del judge)
+                cpu_t_end = CasualWattLocalEnergyProfiler._read_ollama_cpu_times(current_ollama_pids)
+                direct_cpu_delta = max(cpu_t_end - cpu_t_start, 0.0)
                 # 2) valutazione + LLM Judge (eventuale): registra le sue
                 #    sottofinestre in llm_judge.LAST_WINDOWS
                 _lj.LAST_WINDOWS = []
@@ -726,6 +735,8 @@ def run_unified_benchmark(
                 t_end_profile = jw[-1][1] if jw else resp_data["_t1"]
                 local = CasualWattLocalEnergyProfiler().profile_window(
                     resp_data["_t0"], t_end_profile,
+                    ollama_pids=current_ollama_pids,
+                    direct_cpu_delta=direct_cpu_delta,
                     exclude_windows=jw if jw else None,
                 )
                 if jw:
@@ -785,6 +796,11 @@ def run_unified_benchmark(
                     igpu_energy_j=_na_or(getattr(local, "igpu_energy_j", None)),
                     # Punto 2: provenienza idle GPU (calibrated|missing)
                     gpu_idle_provenance=getattr(local, "gpu_idle_provenance", "") or "",
+                    # Diagnostica cpu-time-share (per riga)
+                    ollama_pids_used=getattr(local, "ollama_pids_used", "") or "",
+                    d_ollama_cpu_s=getattr(local, "d_ollama_cpu_s", 0.0),
+                    d_busy_s=getattr(local, "d_busy_s", 0.0),
+                    n_samples_in_window=getattr(local, "n_samples_in_window", 0),
                 )
                 # riscrive qualita' con valutazione reale (N/A se saltata)
                 rec.update(
@@ -810,12 +826,18 @@ def run_unified_benchmark(
                 )
             except Exception as exc:
                 summary["errors"] += 1
+                # Usa una lista per le note, poi fai join alla fine
+                note_parts = [f"ERRORE richiesta locale: {type(exc).__name__}: {exc}"]
                 rec.update(
                     timestamp_start=datetime.fromtimestamp(t_wall0, tz=timezone.utc).isoformat(timespec="seconds"),
                     timestamp_end=datetime.now(timezone.utc).isoformat(timespec="seconds"),
-                    notes=f"ERRORE richiesta locale: {type(exc).__name__}: {exc}",
                 )
                 _finalize_energy_fields(rec, 0.0, 0.0, 0.0, evalres_placeholder())
+                # Unisci le note alla fine (dopo _finalize_energy_fields)
+                existing_notes = rec.get("notes", "")
+                if existing_notes:
+                    note_parts.insert(0, existing_notes)
+                rec["notes"] = "; ".join(note_parts)
                 log(f"[ERRORE local] {model} | {pr['id']} | {type(exc).__name__}: {exc}")
             records.append(rec)
             done += 1

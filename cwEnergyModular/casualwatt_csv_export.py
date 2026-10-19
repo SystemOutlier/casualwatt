@@ -75,6 +75,8 @@ CSV_COLUMNS: List[str] = [
     "acc_comp_components", "acc_comp_weights",
     # Punto 2: provenienza dell'idle GPU usato nello scorporo (calibrated|missing)
     "gpu_idle_provenance",
+    # Diagnostica cpu-time-share (per riga: perche' share=0?)
+    "ollama_pids_used", "d_ollama_cpu_s", "d_busy_s", "n_samples_in_window",
 ]
 
 
