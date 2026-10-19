@@ -78,6 +78,9 @@ class LocalEnergyResult:
     gpu_utilization_share: float = 0.0
     # attribuzione per processo NVIDIA (N/A se NVML non la espone)
     gpu_process_energy_j: Optional[float] = None
+    # Punto 2: provenienza della potenza idle GPU usata nello scorporo
+    # ("calibrated" | "missing"); "" se la GPU dedicata non e' stata misurata.
+    gpu_idle_provenance: str = ""
     igpu_energy_j: Optional[float] = None   # informativo, MAI sommato
     package_window_source: str = ""         # exact-counter | samples-fallback
     idle_provenance: Optional[str] = None   # calibrated|session|uncalibrated
@@ -290,7 +293,12 @@ class CasualWattLocalEnergyProfiler:
                     util_sum += cur.gpu_util_pct
                     util_n += 1
                 prev = cur
-            idle_gpu_w = getattr(self.session, "idle_gpu_power_w", None) or 0.0
+            idle_gpu_raw = getattr(self.session, "idle_gpu_power_w", None)
+            idle_gpu_w = float(idle_gpu_raw) if idle_gpu_raw else 0.0
+            # Punto 2: provenienza dell'idle GPU. Se manca (o e' 0) lo scorporo
+            # non avviene: l'energia attribuita e' la POTENZA TOTALE della
+            # scheda, quindi una sovrastima — dichiarata nel campo e nelle note.
+            res.gpu_idle_provenance = "calibrated" if idle_gpu_w > 0.0 else "missing"
             # A2: NESSUNA moltiplicazione per lo share di utilizzo: la potenza
             # board riflette gia' il carico. Attribuzione whole-device:
             #     E_gpu_attr = max(board_j - P_idle_gpu * dt_gpu, 0)
@@ -300,8 +308,10 @@ class CasualWattLocalEnergyProfiler:
             res.gpu_board_energy_j = round(board_j, 6)
             res.gpu_utilization_share = round(util_share, 6)  # SOLO diagnostico
             res.gpu_energy_attributed_j = round(active_gpu_j, 6)
+            idle_txt = ("calibrated idle" if res.gpu_idle_provenance == "calibrated"
+                        else "NO idle baseline (gpu_idle_provenance=missing)")
             res.gpu_attribution_method = (
-                "nvml-power-integral minus calibrated idle over the same "
+                f"nvml-power-integral minus {idle_txt} over the same "
                 f"integrated span ({gpu_dt:.3f}s); boundary=whole-device; "
                 "utilization kept as diagnostic field only (NOT a multiplier)"
             )
@@ -309,6 +319,11 @@ class CasualWattLocalEnergyProfiler:
                 f"GPU '{gpu_mon.name}': board {board_j:.2f} J, attribuiti "
                 f"{res.gpu_energy_attributed_j:.2f} J (whole-device, no double count)"
             )
+            if res.gpu_idle_provenance == "missing":
+                notes.append(
+                    "idle GPU non calibrato: energia GPU = potenza totale della "
+                    "scheda, sovrastima (eseguire 'Calibra idle' con GPU a riposo)"
+                )
             # attribuzione per processo (opzionale, dichiarata)
             proc_fn = getattr(gpu_mon, "process_energy_j", None)
             if callable(proc_fn):

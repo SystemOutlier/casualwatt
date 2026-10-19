@@ -195,6 +195,52 @@ def test_B2_gpu_esclude_la_finestra_del_judge():
     assert res.gpu_energy_attributed_j == pytest.approx(80.0 * 6.0, rel=0.03)
 
 
+# ------------------------------------------- Punto 2: provenienza idle GPU
+def test_P2_idle_gpu_assente_provenance_missing_e_nota():
+    """100 W costanti senza idle calibrato -> tutta la scheda, dichiarata."""
+    s = FakeSession(lambda t: 10.0, p_gpu=lambda t: 100.0, gpu_available=True,
+                    idle_gpu_w=0.0)
+    res = profile(s)
+    assert res.gpu_idle_provenance == "missing"
+    assert res.gpu_energy_attributed_j == pytest.approx(1000.0, rel=0.02)
+    assert any("idle GPU non calibrato" in n and "sovrastima" in n
+               for n in res.notes)
+
+
+def test_P2_idle_gpu_non_impostato_provenance_missing():
+    s = FakeSession(lambda t: 10.0, p_gpu=lambda t: 100.0, gpu_available=True,
+                    idle_gpu_w=None)
+    res = profile(s)
+    assert res.gpu_idle_provenance == "missing"
+    assert any("idle GPU non calibrato" in n for n in res.notes)
+
+
+def test_P2_idle_gpu_calibrato_provenance_calibrated():
+    """100 W costanti, idle 20 W -> 800 J e nessuna nota di sovrastima."""
+    s = FakeSession(lambda t: 10.0, p_gpu=lambda t: 100.0, gpu_available=True,
+                    idle_gpu_w=20.0)
+    res = profile(s)
+    assert res.gpu_idle_provenance == "calibrated"
+    assert res.gpu_energy_attributed_j == pytest.approx(800.0, rel=0.02)
+    assert not any("idle GPU non calibrato" in n for n in res.notes)
+
+
+def test_P2_senza_gpu_dedicata_provenance_vuota():
+    s = FakeSession(lambda t: 30.0, gpu_available=False)
+    assert profile(s).gpu_idle_provenance == ""
+
+
+def test_P2_colonna_csv_accodata_senza_cambiare_ordine():
+    from casualwatt_csv_export import CSV_COLUMNS
+    assert CSV_COLUMNS.count("gpu_idle_provenance") == 1
+    assert CSV_COLUMNS[-1] == "gpu_idle_provenance"
+    assert CSV_COLUMNS[-2] == "acc_comp_weights"
+    assert CSV_COLUMNS[:6] == [
+        "run_id", "session_id", "timestamp_start", "timestamp_end",
+        "model_name", "model_label",
+    ]
+
+
 # ---------------------------------------------------------------- C1
 def test_C1_epcl_ed_energia_per_risposta_corretta_sono_distinte():
     from benchmark_unified import _finalize_energy_fields
