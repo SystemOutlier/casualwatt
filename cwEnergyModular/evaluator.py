@@ -189,7 +189,9 @@ class EvaluationResult:
     causal_accuracy: Optional[float] = NA
     explanation_quality: Optional[float] = NA
     acc_comp: Optional[float] = NA
-    is_correct: Optional[bool] = NA
+    # accuracy binaria PRIMARIA: 1 = risposta corretta, 0 = errata, None = N/A
+    # (nessuna GT confrontabile). Determinata PRIMA di acc_comp in ogni regime.
+    is_correct: Optional[int] = NA
     has_cause: Optional[bool] = NA            # solo diagnostico, NON usato in acc_comp
     has_effect: Optional[bool] = NA           # solo diagnostico, NON usato in acc_comp
     # --- triple causali (tracciabilita' F1) ---
@@ -363,7 +365,7 @@ def _keyword_fallback_result(text: str, is_tool: bool, res: EvaluationResult,
     res.lexical_similarity = NA
     res.explanation_quality = res.judge_score / 5.0
     res.causal_accuracy = res.acc_links
-    res.is_correct = res.acc_links == 1.0
+    res.is_correct = 1 if res.acc_links == 1.0 else 0
     res.n_correct_links = int(res.acc_links) if res.acc_links in (0.0, 1.0) else None
     res.acc_links_basis = "keyword_presence_only"
     res.eval_mode = "heuristic_keyword_fallback"
@@ -447,19 +449,19 @@ def evaluate_response(text: str, is_tool: bool = False,
             if extracted is not None:
                 # Confronta con tutte le alternative numeriche nella GT
                 alternatives = [alt.strip() for alt in gt_str.split("|") if alt.strip()]
-                is_correct = any(
+                correct = any(
                     compare_numbers(extracted, alt)
                     for alt in alternatives
                 )
-                res.is_correct = is_correct
-                res.acc_comp = 1.0 if is_correct else 0.0
+                res.is_correct = 1 if correct else 0
+                res.acc_comp = 1.0 if correct else 0.0
                 res.eval_method = f"number_extraction+comparison(tol=1e-6)"
                 res.notes.append(
                     f"answer_type=number: estratto '{extracted}' da risposta, "
-                    f"confronto con GT '{gt_str}' -> is_correct={is_correct}"
+                    f"confronto con GT '{gt_str}' -> is_correct={res.is_correct}"
                 )
             else:
-                res.is_correct = False
+                res.is_correct = 0
                 res.acc_comp = 0.0
                 res.eval_method = "number_extraction_failed"
                 res.notes.append("answer_type=number: nessun numero estratto dalla risposta")
@@ -477,14 +479,14 @@ def evaluate_response(text: str, is_tool: bool = False,
         
         elif answer_type == "short_text":
             # Normalizza e verifica contenimento
-            is_correct, matched_alt = check_short_text_containment(ans_str, gt_str)
-            res.is_correct = is_correct
+            correct, matched_alt = check_short_text_containment(ans_str, gt_str)
+            res.is_correct = 1 if correct else 0
             res.extracted_answer = matched_alt
-            res.acc_comp = 1.0 if is_correct else 0.0
+            res.acc_comp = 1.0 if correct else 0.0
             res.eval_method = "short_text_normalization+containment"
             res.notes.append(
                 f"answer_type=short_text: normalizzazione e contenimento -> "
-                f"is_correct={is_correct}" + (f", matched='{matched_alt}'" if matched_alt else "")
+                f"is_correct={res.is_correct}" + (f", matched='{matched_alt}'" if matched_alt else "")
             )
             # Per short_text: acc_comp = is_correct (0 o 1), niente altre componenti
             res.causal_accuracy = res.acc_comp
@@ -515,7 +517,7 @@ def evaluate_response(text: str, is_tool: bool = False,
                 )
             else:
                 res.eval_method = _sem.method_label()
-                res.is_correct = sem >= thr
+                res.is_correct = 1 if sem >= thr else 0
                 res.notes.append(
                     f"answer_type=free_text: semantic_similarity={sem:.3f}, "
                     f"threshold={thr}, is_correct={res.is_correct}"
@@ -581,7 +583,8 @@ def evaluate_response(text: str, is_tool: bool = False,
     # C3: n_correct_links NON sovrascritto qui: in regime B resta N/A (nessuna
     # GT -> nessun causal link "corretto" misurabile; triples_matched e' solo
     # conteggio di struttura estratta).
-    res.is_correct = (j_score >= 4.0) if j_score is not None else NA
+    # accuracy binaria primaria (1/0) determinata PRIMA di acc_comp composita
+    res.is_correct = (1 if j_score >= 4.0 else 0) if j_score is not None else NA
     res.causal_accuracy = NA          # in regime B non esiste causal accuracy GT-based
     res.acc_comp = compute_acc_comp(False, res.acc_links, j_score, None,
                                     weights=(w_nogt[0], w_nogt[1]))

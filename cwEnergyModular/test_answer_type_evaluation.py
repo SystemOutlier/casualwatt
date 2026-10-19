@@ -162,7 +162,7 @@ class TestEvaluateResponseIntegration:
             ground_truth="21",
             answer_type="auto",
         )
-        assert res.is_correct is True
+        assert res.is_correct == 1
         assert res.acc_comp == 1.0
         assert res.answer_type == "number"
         assert res.extracted_answer == "21"
@@ -174,7 +174,7 @@ class TestEvaluateResponseIntegration:
             ground_truth="21",
             answer_type="auto",
         )
-        assert res.is_correct is False
+        assert res.is_correct == 0
         assert res.acc_comp == 0.0
         assert res.answer_type == "number"
         assert res.extracted_answer == "25"
@@ -186,7 +186,7 @@ class TestEvaluateResponseIntegration:
             ground_truth="21",
             answer_type="auto",
         )
-        assert res.is_correct is True
+        assert res.is_correct == 1
         assert res.acc_comp == 1.0
         assert res.answer_type == "number"
         assert res.extracted_answer == "21.0"
@@ -198,7 +198,7 @@ class TestEvaluateResponseIntegration:
             ground_truth="Atene|Athens",
             answer_type="auto",
         )
-        assert res.is_correct is True
+        assert res.is_correct == 1
         assert res.acc_comp == 1.0
         assert res.answer_type == "short_text"
         assert res.extracted_answer == "Atene"
@@ -210,7 +210,7 @@ class TestEvaluateResponseIntegration:
             ground_truth="Atene|Athens",
             answer_type="auto",
         )
-        assert res.is_correct is True
+        assert res.is_correct == 1
         assert res.acc_comp == 1.0
         assert res.answer_type == "short_text"
         assert res.extracted_answer == "Athens"
@@ -222,7 +222,7 @@ class TestEvaluateResponseIntegration:
             ground_truth="Atene|Athens",
             answer_type="auto",
         )
-        assert res.is_correct is True
+        assert res.is_correct == 1
         assert res.acc_comp == 1.0
         assert res.answer_type == "short_text"
         assert res.extracted_answer == "Atene"
@@ -234,7 +234,7 @@ class TestEvaluateResponseIntegration:
             ground_truth="Atene|Athens",
             answer_type="auto",
         )
-        assert res.is_correct is False
+        assert res.is_correct == 0
         assert res.acc_comp == 0.0
         assert res.answer_type == "short_text"
     
@@ -245,7 +245,7 @@ class TestEvaluateResponseIntegration:
             ground_truth="42",
             answer_type="number",
         )
-        assert res.is_correct is True
+        assert res.is_correct == 1
         assert res.answer_type == "number"
     
     def test_explicit_answer_type_short_text(self):
@@ -255,7 +255,7 @@ class TestEvaluateResponseIntegration:
             ground_truth="Atene",
             answer_type="short_text",
         )
-        assert res.is_correct is True
+        assert res.is_correct == 1
         assert res.answer_type == "short_text"
 
 

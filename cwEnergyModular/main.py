@@ -34,20 +34,25 @@ def _selftest() -> int:
     r4 = evaluator.evaluate_response("cause + effect", is_tool=True, mode="causal")
     assert r4.judge_score == 4.5
 
-    # valutazione UNIVERSALE regime GT: metrica principale SEMANTICA
-    # (embedding multilingua se disponibile; fallback lessicale dichiarato).
+    # valutazione UNIVERSALE regime GT: answer_type "short_text" -> matching
+    # esatto/contenimento; is_correct e' l'accuracy binaria primaria (1/0)
+    # calcolata PRIMA di acc_comp.
     gt = evaluator.evaluate_response("Paris", ground_truth="Paris")
-    assert gt.eval_mode == "ground_truth" and gt.is_correct is True
-    # il coseno float32 di due testi identici non vale esattamente 1.0
-    # (0.999999): confronto con tolleranza, non uguaglianza esatta
-    assert abs(gt.causal_accuracy - 1.0) < 1e-3 and gt.lexical_similarity == 1.0
-    assert gt.eval_method in ("embedding:paraphrase-multilingual-MiniLM-L12-v2",
-                              "lexical_only(fallback)")
-    if gt.semantic_similarity is not None:
-        # GT: acc_comp = sim semantica (acc_comp e' arrotondata a 4 decimali)
-        assert abs(gt.acc_comp - gt.semantic_similarity) < 1e-3
+    assert gt.eval_mode == "ground_truth" and gt.is_correct == 1
+    assert gt.answer_type == "short_text" and gt.acc_comp == 1.0
     gt_bad = evaluator.evaluate_response("London", ground_truth="Paris")
-    assert gt_bad.is_correct is False
+    assert gt_bad.is_correct == 0 and gt_bad.acc_comp == 0.0
+    # via "free_text" (embedding semantico): solo se gli embeddings sono
+    # disponibili offline; altrimenti il campo resta N/A e il check e' saltato.
+    gt_free = evaluator.evaluate_response(
+        "Rain falls, so the ground becomes wet and the soil moisture rises.",
+        ground_truth="Because rain falls the ground gets wet and soil moisture "
+                     "increases over time.",
+    )
+    assert gt_free.answer_type == "free_text" and gt_free.is_correct in (0, 1, None)
+    if gt_free.semantic_similarity is not None:
+        thr = gt_free.semantic_threshold
+        assert gt_free.is_correct == (1 if gt_free.semantic_similarity >= thr else 0)
 
     # senza ground truth -> regime B (causal_agent_eval): NESSUN errore, campi
     # accuratezza N/A perche' il giudice e' dichiarato assente. Judge iniettato
