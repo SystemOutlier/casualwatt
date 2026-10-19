@@ -139,7 +139,7 @@ def main() -> int:
     if fails:
         print("\n[RESULT] FALLITI:", [f[0] for f in fails])
         return 1
-    print("\n[RESULT] TUTTI E TRE I CASI SUPERATI ✔")
+    print("\n[RESULT] TUTTI E TRE I CASI SUPERATI")
     return 0
 
 

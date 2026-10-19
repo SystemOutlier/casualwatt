@@ -38,17 +38,26 @@ def _selftest() -> int:
     # (embedding multilingua se disponibile; fallback lessicale dichiarato).
     gt = evaluator.evaluate_response("Paris", ground_truth="Paris")
     assert gt.eval_mode == "ground_truth" and gt.is_correct is True
-    assert gt.causal_accuracy == 1.0 and gt.lexical_similarity == 1.0
+    # il coseno float32 di due testi identici non vale esattamente 1.0
+    # (0.999999): confronto con tolleranza, non uguaglianza esatta
+    assert abs(gt.causal_accuracy - 1.0) < 1e-3 and gt.lexical_similarity == 1.0
     assert gt.eval_method in ("embedding:paraphrase-multilingual-MiniLM-L12-v2",
                               "lexical_only(fallback)")
     if gt.semantic_similarity is not None:
-        assert gt.acc_comp == gt.semantic_similarity  # GT: acc_comp = sim semantica
+        # GT: acc_comp = sim semantica (acc_comp e' arrotondata a 4 decimali)
+        assert abs(gt.acc_comp - gt.semantic_similarity) < 1e-3
     gt_bad = evaluator.evaluate_response("London", ground_truth="Paris")
     assert gt_bad.is_correct is False
 
-    # senza ground truth -> NESSUN errore, campi accuratezza N/A
-    sk = evaluator.evaluate_response("una risposta qualunque", ground_truth=None)
-    assert sk.eval_mode == "skipped" and sk.causal_accuracy is None and sk.is_correct is None
+    # senza ground truth -> regime B (causal_agent_eval): NESSUN errore, campi
+    # accuratezza N/A perche' il giudice e' dichiarato assente. Judge iniettato
+    # offline: il selftest non deve mai toccare la rete.
+    sk = evaluator.evaluate_response(
+        "una risposta qualunque", ground_truth=None,
+        judge_fn=lambda q, a, m: (None, {"reason": "selftest offline", "ok": False}),
+    )
+    assert sk.eval_mode == "causal_agent_eval"
+    assert sk.causal_accuracy is None and sk.is_correct is None
 
     # sorgente dei test: parsing CSV esterno (con e senza GT) + prompt manuali
     import tempfile
