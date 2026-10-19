@@ -383,16 +383,29 @@ def load_prompts() -> list:
             out = []
             for i, item in enumerate(data):
                 if isinstance(item, str):
-                    out.append({"id": f"custom-{i+1:03d}", "text": item})
+                    out.append({
+                        "id": f"custom-{i+1:03d}",
+                        "text": item,
+                        "answer_type": "auto",
+                    })
                 elif isinstance(item, dict) and "text" in item:
                     out.append(
-                        {"id": item.get("id", f"custom-{i+1:03d}"), "text": item["text"]}
+                        {
+                            "id": item.get("id", f"custom-{i+1:03d}"),
+                            "text": item["text"],
+                            "ground_truth": item.get("ground_truth"),
+                            "answer_type": item.get("answer_type", "auto"),
+                        }
                     )
             if out:
                 return out
         except Exception:
             pass
-    return list(DEFAULT_CAUSAL_PROMPTS)
+    # Default prompts senza ground_truth -> accuratezza N/A
+    return [
+        {**p, "answer_type": p.get("answer_type", "auto")}
+        for p in DEFAULT_CAUSAL_PROMPTS
+    ]
 
 
 # ---------------------------------------------------------------------------

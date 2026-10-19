@@ -725,6 +725,7 @@ def run_unified_benchmark(
                     mode=_resolve_eval_mode(pr, eval_mode_override),
                     question=pr["text"], evaluated_model=model,
                     judge_fn=_judge_via_energy_session,
+                    answer_type=pr.get("answer_type", "auto"),
                 )
                 jw = list(getattr(_lj, "LAST_WINDOWS", []) or [])
                 # 3) UNICO profiling: finestra [t0, t_end_effettivo] con la
@@ -811,6 +812,8 @@ def run_unified_benchmark(
                     cosine_similarity=_na_or(evalres.cosine_sim),
                     n_correct_links=_na_or(evalres.n_correct_links),
                     acc_comp=_na_or(evalres.acc_comp),
+                    answer_type=getattr(evalres, "answer_type", "auto"),
+                    extracted_answer=_na_or(getattr(evalres, "extracted_answer", None)),
                 )
                 # regola 12.1: rete e cloud ZERO; locale = solo Ollama attiva+GPU attribuita
                 local_j = local.ollama_active_energy_j + local.gpu_energy_attributed_j
@@ -873,6 +876,7 @@ def run_unified_benchmark(
                         ground_truth=pr.get("ground_truth"),
                         mode=_resolve_eval_mode(pr, eval_mode_override),
                         judge_fn=_judge_via_energy_session,
+                        answer_type=pr.get("answer_type", "auto"),
                     )
                     client_local = cloud_res["client_local"]
                     est = cloud_res["estimation"]

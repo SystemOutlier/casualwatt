@@ -41,6 +41,10 @@ PROMPT_COLUMN_CANDIDATES = ["prompt", "text", "question", "input", "query"]
 GT_COLUMN_CANDIDATES = [
     "ground_truth", "expected_result", "expected", "answer", "target", "label",
 ]
+# Candidati per la colonna del tipo di risposta (opzionale)
+ANSWER_TYPE_COLUMN_CANDIDATES = [
+    "answer_type", "type", "response_type",
+]
 
 
 def _norm(s: str) -> str:
@@ -56,20 +60,27 @@ def _pick_column(fieldnames: List[str], candidates: List[str]) -> Optional[str]:
     return None
 
 
-def make_prompt_items(texts_with_gt: List[Tuple[str, Optional[str]]],
+def make_prompt_items(texts_with_gt: List[Tuple[str, Optional[str], Optional[str]]],
                       source: str, id_prefix: str) -> List[Dict]:
-    """Normalizza (testo, ground_truth) in item standard del benchmark."""
+    """Normalizza (testo, ground_truth, answer_type) in item standard del benchmark.
+    
+    answer_type: "number" | "short_text" | "free_text" | "auto" (default "auto").
+    """
     items: List[Dict] = []
-    for i, (txt, gt) in enumerate(texts_with_gt, start=1):
+    for i, (txt, gt, ans_type) in enumerate(texts_with_gt, start=1):
         txt = (txt or "").strip()
         if not txt:
             continue
         gt_clean = (gt or "").strip() if isinstance(gt, str) else gt
+        ans_type_clean = (ans_type or "auto").strip().lower() if isinstance(ans_type, str) else "auto"
+        if ans_type_clean not in ("number", "short_text", "free_text", "auto"):
+            ans_type_clean = "auto"
         items.append(
             {
                 "id": f"{id_prefix}-{i:03d}",
                 "text": txt,
                 "ground_truth": gt_clean if gt_clean not in ("", None) else None,
+                "answer_type": ans_type_clean,
                 "source": source,
             }
         )
@@ -119,23 +130,25 @@ def load_prompts_from_csv(path) -> Tuple[List[Dict], str]:
         header = [_norm(c) for c in rows[0]]
         prompt_idx = _idx_of(header, PROMPT_COLUMN_CANDIDATES)
         gt_idx = _idx_of(header, GT_COLUMN_CANDIDATES)
+        ans_type_idx = _idx_of(header, ANSWER_TYPE_COLUMN_CANDIDATES)
 
         has_real_header = prompt_idx is not None
         if has_real_header:
             data_rows = rows[1:]
         elif len(header) == 1:
             # mono-colonna senza header riconosciuto: ogni riga è un prompt
-            prompt_idx, gt_idx = 0, None
+            prompt_idx, gt_idx, ans_type_idx = 0, None, None
             data_rows = rows
         else:
             # nessuna colonna nota: usa la prima colonna come prompt
-            prompt_idx, gt_idx = 0, None
+            prompt_idx, gt_idx, ans_type_idx = 0, None, None
             data_rows = rows[1:] if _looks_like_header(rows[0]) else rows
 
         for r in data_rows:
             txt = r[prompt_idx] if prompt_idx < len(r) else ""
             gt = r[gt_idx] if (gt_idx is not None and gt_idx < len(r)) else None
-            items.append((txt, gt))
+            ans_type = r[ans_type_idx] if (ans_type_idx is not None and ans_type_idx < len(r)) else None
+            items.append((txt, gt, ans_type))
 
         out = make_prompt_items(items, source="csv", id_prefix="csv")
         if not out:
@@ -172,32 +185,36 @@ def _looks_like_header(cells: List[str]) -> bool:
 _MANUAL_GT_SEP = " / "
 
 
-def _split_manual_line(line: str) -> Tuple[str, Optional[str]]:
-    """Separa 'prompt / ground_truth' una sola volta (il primo separatore).
-
-    Se il separatore non c'è, la riga intera è il prompt e la GT resta None
-    (accuratezza -> N/A). La parte dopo il separatore NON può essa stessa
-    contenere altri ' / ': viene presa tutta, spazi allowiti.
+def _split_manual_line(line: str) -> Tuple[str, Optional[str], Optional[str]]:
+    """Separa 'prompt / ground_truth / answer_type' (fino a 2 separatori).
+    
+    Se il separatore non c'è, la riga intera è il prompt e GT/answer_type restano None.
+    Supporta fino a 3 parti: prompt, ground_truth, answer_type.
     """
-    if _MANUAL_GT_SEP in line:
-        prompt, gt = line.split(_MANUAL_GT_SEP, 1)
-        return prompt.strip(), (gt.strip() or None)
-    return line.strip(), None
+    parts = line.split(_MANUAL_GT_SEP)
+    if len(parts) == 1:
+        return parts[0].strip(), None, None
+    elif len(parts) == 2:
+        return parts[0].strip(), (parts[1].strip() or None), None
+    else:  # len >= 3
+        prompt = parts[0].strip()
+        gt = (parts[1].strip() or None)
+        ans_type = (parts[2].strip() or None)
+        return prompt, gt, ans_type
 
 
 def parse_manual_prompts(text: str) -> List[Dict]:
     """Uno o più prompt separati da newline; righe vuote ignorate.
 
-    Ogni riga può avere la forma 'prompt / risposta_attesa': se presente il
-    separatore ' / ', la seconda metà viene usata come ground truth per il
-    calcolo dell'accuratezza; altrimenti l'accuratezza resterà N/A (solo
-    metriche energetiche/di latenza/token).
+    Ogni riga può avere la forma 'prompt / risposta_attesa / tipo_risposta':
+    se presente il separatore ' / ', la seconda metà viene usata come ground truth
+    e la terza come answer_type; altrimenti l'accuratezza resterà N/A.
     """
     if not text or not text.strip():
         return []
     lines = [ln.strip() for ln in text.replace("\r\n", "\n").replace("\r", "\n").split("\n")]
-    pairs = [_split_manual_line(ln) for ln in lines if ln]
-    return make_prompt_items(pairs, source="manual", id_prefix="man")
+    triples = [_split_manual_line(ln) for ln in lines if ln]
+    return make_prompt_items(triples, source="manual", id_prefix="man")
 
 
 # ---------------------------------------------------------------------------

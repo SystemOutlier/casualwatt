@@ -53,6 +53,127 @@ _DEFAULT_THRESHOLD = SEMANTIC_THRESHOLD
 NA = None  # rappresentazione N/A nei record (il writer CSV la rende "")
 
 
+def detect_answer_type(ground_truth: str) -> str:
+    """Rileva il tipo di risposta dalla ground truth.
+    
+    Regole:
+    - GT numerica (solo numeri, eventualmente con segno/decimali) -> "number"
+    - GT <= 6 parole -> "short_text"
+    - Altrimenti -> "free_text"
+    """
+    if not ground_truth:
+        return "free_text"
+    gt = ground_truth.strip()
+    # Controlla se è numerica (interi, decimali, con segno)
+    # Supporta anche alternative separate da "|"
+    alternatives = [alt.strip() for alt in gt.split("|")]
+    all_numeric = all(
+        re.fullmatch(r"[-+]?\d+(?:[.,]\d+)?", alt)
+        for alt in alternatives
+        if alt
+    )
+    if all_numeric and alternatives:
+        return "number"
+    # Conta parole (separatore: spazio)
+    word_count = len(gt.split())
+    if word_count <= 6:
+        return "short_text"
+    return "free_text"
+
+
+def extract_final_number(text: str) -> Optional[str]:
+    """Estrae il numero finale da un testo.
+    
+    Cerca pattern come "= 21", "risposta è 21", "answer: 21", "result 21".
+    Se non trova questi pattern, prende l'ultimo numero del testo.
+    Ritorna la stringa del numero (normalizzata con "." come decimale) o None.
+    """
+    if not text:
+        return None
+    
+    # Pattern per "dopo =/risposta/answer/result"
+    final_patterns = [
+        r"(?:=|risposta|answer|result)\s*[:=]?\s*([-+]?\d+(?:[.,]\d+)?)",
+    ]
+    for pattern in final_patterns:
+        matches = list(re.finditer(pattern, text, re.IGNORECASE))
+        if matches:
+            # Prendi l'ultimo match
+            num_str = matches[-1].group(1)
+            # Normalizza: sostituisci "," con "."
+            return num_str.replace(",", ".")
+    
+    # Fallback: trova tutti i numeri e prendi l'ultimo
+    all_numbers = re.findall(r"[-+]?\d+(?:[.,]\d+)?", text)
+    if all_numbers:
+        return all_numbers[-1].replace(",", ".")
+    
+    return None
+
+
+def compare_numbers(response_num: str, ground_truth_num: str, 
+                   tolerance: float = 1e-6) -> bool:
+    """Confronta due numeri entro tolleranza relativa.
+    
+    tolerance: tolleranza relativa (default 1e-6).
+    Ritorna True se i numeri sono uguali entro la tolleranza.
+    """
+    try:
+        resp_val = float(response_num)
+        gt_val = float(ground_truth_num)
+    except (ValueError, TypeError):
+        return False
+    
+    # Tolleranza relativa
+    if gt_val == 0:
+        return abs(resp_val) < tolerance
+    relative_diff = abs(resp_val - gt_val) / abs(gt_val)
+    return relative_diff < tolerance
+
+
+def normalize_text_for_comparison(text: str) -> str:
+    """Normalizza testo per confronto: minuscole, rimuovi accenti/punteggiatura/articoli.
+    
+    Usato per short_text: la GT normalizzata deve essere contenuta nella risposta normalizzata.
+    """
+    if not text:
+        return ""
+    # Minuscole
+    t = text.lower()
+    # Rimuovi accenti (normalizza Unicode)
+    import unicodedata
+    t = unicodedata.normalize('NFKD', t)
+    t = ''.join(c for c in t if not unicodedata.combining(c))
+    # Rimuovi punteggiatura (tieni solo lettere, numeri, spazi)
+    t = re.sub(r'[^\w\s]', ' ', t)
+    # Rimuovi articoli (italiano e inglese)
+    articles = r'\b(a|an|the|il|lo|la|i|gli|le|un|uno|una)\b'
+    t = re.sub(articles, ' ', t, flags=re.IGNORECASE)
+    # Normalizza spazi
+    t = re.sub(r'\s+', ' ', t).strip()
+    return t
+
+
+def check_short_text_containment(response: str, ground_truth: str) -> tuple[bool, Optional[str]]:
+    """Verifica se la GT normalizzata è contenuta nella risposta normalizzata.
+    
+    Supporta alternative separate da "|" nella GT: basta una corrispondenza.
+    Ritorna (is_correct, matched_alternative).
+    """
+    if not ground_truth or not response:
+        return False, None
+    
+    resp_norm = normalize_text_for_comparison(response)
+    alternatives = [alt.strip() for alt in ground_truth.split("|") if alt.strip()]
+    
+    for alt in alternatives:
+        alt_norm = normalize_text_for_comparison(alt)
+        if alt_norm and alt_norm in resp_norm:
+            return True, alt
+    
+    return False, None
+
+
 @dataclass
 class EvaluationResult:
     acc_links: Optional[float] = NA
@@ -84,6 +205,9 @@ class EvaluationResult:
     judge_equals_evaluated: Optional[bool] = NA
     judge_source: str = ""                    # ollama | unavailable | disabled
     notes: List[str] = field(default_factory=list)
+    # --- answer_type e extracted_answer (nuovi) ---
+    answer_type: str = "auto"                 # number | short_text | free_text | auto
+    extracted_answer: Optional[str] = NA      # numero estratto (per number) o alternativa trovata (per short_text)
 
 
 _CAUSE_RE = re.compile(r"\bcaus(?:e|es|ed|ing|al|ality)\b", re.IGNORECASE)
@@ -260,7 +384,8 @@ def evaluate_response(text: str, is_tool: bool = False,
                       ground_truth: Optional[str] = None,
                       mode: str = "auto", question: str = "",
                       evaluated_model: str = "",
-                      judge_fn=None) -> EvaluationResult:
+                      judge_fn=None,
+                      answer_type: str = "auto") -> EvaluationResult:
     """Valutazione UNIVERSALE.
 
     mode:
@@ -274,11 +399,14 @@ def evaluate_response(text: str, is_tool: bool = False,
         storici (main.py --selftest, test_validazione_valutazione.py).
     judge_fn: iniettabile per i test (firma: (question, answer, model?) ->
               (score|None, info dict)). Default: llm_judge.call_llm_judge.
+    answer_type: "number" | "short_text" | "free_text" | "auto" (default "auto").
+                 Determina la strategia di valutazione nel REGIME A.
     Non solleva MAI eccezioni.
     """
     mode = (mode or "auto").strip().lower()
     res = EvaluationResult(is_tool=bool(is_tool),
                            evaluated_model=evaluated_model or "")
+    res._answer_type_param = answer_type  # passa al REGIME A
     res.has_cause, res.has_effect = detect_causal_terms(text)  # solo diagnostico
 
     if mode == "skip":
@@ -301,54 +429,113 @@ def evaluate_response(text: str, is_tool: bool = False,
     # ------------------------- REGIME A: ground truth -----------------------
     if ground_truth not in (None, "", NA):
         res.eval_mode = "ground_truth"
-        res.lexical_similarity = lexical_similarity(text or "", str(ground_truth))
-        # Per risposte brevi (numeri, stringhe <=3 token) la similarita' semantica
-        # e' inaffidabile (es. "25" vs "20" hanno coseno alto). Usa confronto esatto.
         gt_str = str(ground_truth).strip()
         ans_str = (text or "").strip()
-        short_gt = _is_short_answer(gt_str)
-        short_ans = _is_short_answer(ans_str)
-        if short_gt and short_ans:
-            # Confronto esatto dopo normalizzazione: 1.0 se uguali, 0.0 altrimenti
-            gt_norm = _normalize_answer(gt_str)
-            ans_norm = _normalize_answer(ans_str)
-            sem = 1.0 if gt_norm == ans_norm else 0.0
+        
+        # Determina answer_type (da parametro o auto-detect)
+        # answer_type viene passato come parametro aggiuntivo (vedi sotto)
+        answer_type = getattr(res, '_answer_type_param', 'auto')
+        if answer_type == "auto":
+            answer_type = detect_answer_type(gt_str)
+        res.answer_type = answer_type
+        
+        # Valutazione basata su answer_type
+        if answer_type == "number":
+            # Estrai numero dalla risposta e confronta con GT
+            extracted = extract_final_number(ans_str)
+            res.extracted_answer = extracted
+            if extracted is not None:
+                # Confronta con tutte le alternative numeriche nella GT
+                alternatives = [alt.strip() for alt in gt_str.split("|") if alt.strip()]
+                is_correct = any(
+                    compare_numbers(extracted, alt)
+                    for alt in alternatives
+                )
+                res.is_correct = is_correct
+                res.acc_comp = 1.0 if is_correct else 0.0
+                res.eval_method = f"number_extraction+comparison(tol=1e-6)"
+                res.notes.append(
+                    f"answer_type=number: estratto '{extracted}' da risposta, "
+                    f"confronto con GT '{gt_str}' -> is_correct={is_correct}"
+                )
+            else:
+                res.is_correct = False
+                res.acc_comp = 0.0
+                res.eval_method = "number_extraction_failed"
+                res.notes.append("answer_type=number: nessun numero estratto dalla risposta")
+            # Per number: acc_comp = is_correct (0 o 1), niente altre componenti
+            res.causal_accuracy = res.acc_comp
+            res.acc_links = res.acc_comp
+            res.acc_links_basis = "exact_number_match"
+            res.n_correct_links = 1 if res.is_correct else 0
+            res.semantic_similarity = NA
+            res.cosine_sim = NA
+            res.lexical_similarity = NA
+            res.judge_score = NA
+            res.explanation_quality = NA
+            return res
+        
+        elif answer_type == "short_text":
+            # Normalizza e verifica contenimento
+            is_correct, matched_alt = check_short_text_containment(ans_str, gt_str)
+            res.is_correct = is_correct
+            res.extracted_answer = matched_alt
+            res.acc_comp = 1.0 if is_correct else 0.0
+            res.eval_method = "short_text_normalization+containment"
             res.notes.append(
-                f"risposta breve rilevata (GT='{gt_str}', ans='{ans_str}'): "
-                f"usato confronto esatto (semantic_similarity={sem}) invece di embeddings"
+                f"answer_type=short_text: normalizzazione e contenimento -> "
+                f"is_correct={is_correct}" + (f", matched='{matched_alt}'" if matched_alt else "")
             )
-        else:
+            # Per short_text: acc_comp = is_correct (0 o 1), niente altre componenti
+            res.causal_accuracy = res.acc_comp
+            res.acc_links = res.acc_comp
+            res.acc_links_basis = "exact_text_containment"
+            res.n_correct_links = 1 if res.is_correct else 0
+            res.semantic_similarity = NA
+            res.cosine_sim = NA
+            res.lexical_similarity = NA
+            res.judge_score = NA
+            res.explanation_quality = NA
+            return res
+        
+        else:  # answer_type == "free_text"
+            # Usa embeddings come prima
+            res.lexical_similarity = lexical_similarity(text or "", str(ground_truth))
             sem = _sem.semantic_similarity(text or "", str(ground_truth))
-        res.semantic_similarity = sem
-        res.cosine_sim = sem  # misura REALE (non più hardcoded)
-        thr = _DEFAULT_THRESHOLD
-        if sem is None:
-            res.eval_method = "lexical_only(fallback)"
+            res.semantic_similarity = sem
+            res.cosine_sim = sem
+            thr = _DEFAULT_THRESHOLD
+            if sem is None:
+                res.eval_method = "no_embeddings"
+                res.is_correct = NA
+                res.notes.append(
+                    f"answer_type=free_text: embeddings non disponibili "
+                    f"({_sem.init_error() or 'motivo non specificato'}): "
+                    f"is_correct=N/A, NON usare similarità lessicale come accuratezza"
+                )
+            else:
+                res.eval_method = _sem.method_label()
+                res.is_correct = sem >= thr
+                res.notes.append(
+                    f"answer_type=free_text: semantic_similarity={sem:.3f}, "
+                    f"threshold={thr}, is_correct={res.is_correct}"
+                )
+            res.causal_accuracy = sem
+            res.acc_links, res.acc_links_basis = _f1_acc_links(text, str(ground_truth), res)
+            res.n_correct_links = res.triples_matched if res.triples_matched is not None else \
+                (1 if res.is_correct else 0)
+            # judge opzionale ma tentato
+            j_score, j_info = _run_judge(question, text, res, judge_fn)
+            res.judge_score = j_score
+            res.explanation_quality = (j_score / 5.0) if j_score is not None else NA
+            res.acc_comp = compute_acc_comp(True, res.acc_links, j_score, sem,
+                                            weights=(w_gt[0], w_gt[1], w_gt[2]))
+            res.notes.append(GT_LABEL)
             res.notes.append(
-                f"embeddings non disponibili ({_sem.init_error() or 'motivo non specificato'}): "
-                f"metrica principale NON calcolabile, usare solo i campi lessicali dichiarati"
+                f"regime A (free_text): acc_comp={w_gt[0]}*acc_links+{w_gt[1]}*(judge/5)"
+                f"+{w_gt[2]}*cosine (pesi da config; componenti N/A rinormalizzati)"
             )
-        else:
-            res.eval_method = _sem.method_label()
-        res.is_correct = (sem >= thr) if sem is not None else \
-                         (res.lexical_similarity >= 0.85)
-        res.causal_accuracy = sem  # etichetta: proxy semantico, vedi GT_LABEL
-        res.acc_links, res.acc_links_basis = _f1_acc_links(text, str(ground_truth), res)
-        res.n_correct_links = res.triples_matched if res.triples_matched is not None else \
-            (1 if res.is_correct else 0)
-        # judge opzionale ma tentato (arricchisce il mix Regime A)
-        j_score, j_info = _run_judge(question, text, res, judge_fn)
-        res.judge_score = j_score
-        res.explanation_quality = (j_score / 5.0) if j_score is not None else NA
-        res.acc_comp = compute_acc_comp(True, res.acc_links, j_score, sem,
-                                        weights=(w_gt[0], w_gt[1], w_gt[2]))
-        res.notes.append(GT_LABEL)
-        res.notes.append(
-            f"regime A: acc_comp={w_gt[0]}*acc_links+{w_gt[1]}*(judge/5)"
-            f"+{w_gt[2]}*cosine (pesi da config; componenti N/A rinormalizzati "
-            f"e dichiarati); basis acc_links={res.acc_links_basis}"
-        )
-        return res
+            return res
 
     # ----------------- REGIME B: senza GT -> LLM-as-a-Judge -----------------
     res.eval_mode = "causal_agent_eval"
