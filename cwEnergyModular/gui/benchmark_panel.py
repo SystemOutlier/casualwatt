@@ -50,17 +50,17 @@ class BenchmarkPanel(ttk.Frame):
         # che CLAMP-A la posizione alle altezze minime: nessuna sezione puo'
         # sparire o schiacciare l'altra. Nessun comando ttk::panedwindow
         # "pane" invocato: layout identico su Tcl/Tk 8.6 e 8.7+.
-        MIN_TOP_H, MIN_LOG_H = 200, 60
+        MIN_TOP_H, MIN_LOG_H = 200, 72
 
         inner = tk.Frame(self)
         inner.pack(fill="both", expand=True)
         inner.columnconfigure(0, weight=1)
         # Il Log ha peso 0 + minsize: la griglia gli riserva SEMPRE un'altezza
-        # fissa (>= 90px) qualunque sia lo spazio disponibile; i controlli in
+        # fissa (>= 108px) qualunque sia lo spazio disponibile; i controlli in
         # alto si comprimono per primi. Il drag regola solo la parte alta.
         inner.rowconfigure(0, weight=1, minsize=150)
         inner.rowconfigure(1, weight=0)
-        inner.rowconfigure(2, weight=0, minsize=90)
+        inner.rowconfigure(2, weight=0, minsize=108)
 
         # FIX: top e log_frame devono essere figli di inner, NON di self.
         # Usare grid(..., in_=inner) su widget creati con parent self fa
@@ -240,7 +240,7 @@ class BenchmarkPanel(ttk.Frame):
         self.progress = ttk.Progressbar(log_frame, mode="determinate", maximum=100)
         self.progress.pack(fill="x", padx=6, pady=(4, 2))
 
-        self.log_text = tk.Text(log_frame, height=5, wrap="word", state="disabled",
+        self.log_text = tk.Text(log_frame, height=6, wrap="word", state="disabled",
                                 font=("Consolas", 9))
         self.log_text.pack(fill="both", expand=True, padx=6, pady=(2, 6))
 
