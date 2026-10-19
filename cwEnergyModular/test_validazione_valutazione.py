@@ -75,7 +75,7 @@ def main() -> int:
                         verdict = "FAIL"
                         reasons.append(f"atteso sim>={thr} e is_correct=True")
             else:  # wrong
-                if not (ok_sem < thr and res.is_correct is False):
+                if not (ok_sem < thr and res.is_correct == 0):
                     verdict = "FAIL"
                     reasons.append(f"atteso sim<{thr} e is_correct=False")
         elif not available:
