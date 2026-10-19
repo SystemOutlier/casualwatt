@@ -317,7 +317,7 @@ def query_cloud(provider_cfg: Dict, model: str, prompt: str, temperature: float,
         duration_s=resp_data["duration_s"],
     )
 
-    resp_data["cloud_energy_j"] = cloud_est.energy_j if cloud_est.energy_j else 0.0
+    resp_data["cloud_energy_j"] = cloud_est.energy_j if (cloud_est and cloud_est.energy_j is not None) else None
     resp_data["network_energy_j"] = network_result.energy_j
     resp_data["network_upload_bytes"] = network_result.upload_bytes
     resp_data["network_download_bytes"] = network_result.download_bytes
