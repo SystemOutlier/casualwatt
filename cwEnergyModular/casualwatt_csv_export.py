@@ -118,12 +118,18 @@ def ensure_header(path: Path) -> None:
         csv.writer(fh).writerow(CSV_COLUMNS)
 
 
-def export_results_csv(records: List[Dict], path: Path) -> int:
-    """Accoda i record al CSV. Ritorna il numero di righe scritte."""
+def export_results_csv(records: List[Dict], path: Path, mode: str = "a") -> int:
+    """Accoda (mode='a') o sovrascrive (mode='w') i record nel CSV.
+    Ritorna il numero di righe scritte."""
     path = Path(path)
     ensure_header(path)
     written = 0
-    with open(path, "a", newline="", encoding="utf-8-sig") as fh:
+    open_mode = "a" if mode == "a" else "w"
+    with open(path, open_mode, newline="", encoding="utf-8-sig") as fh:
+        if open_mode == "w":
+            # riscrive header + record (sovrascrittura completa)
+            import csv as _csv
+            _csv.writer(fh).writerow(CSV_COLUMNS)
         writer = csv.DictWriter(fh, fieldnames=CSV_COLUMNS, extrasaction="ignore")
         for rec in records:
             row = {k: rec.get(k, "") for k in CSV_COLUMNS}

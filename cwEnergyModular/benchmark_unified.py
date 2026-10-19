@@ -967,7 +967,7 @@ def run_unified_benchmark(
     finished_wall = datetime.now(timezone.utc)
     written = 0
     try:
-        written = export_results_csv(records, config.CSV_RESULTS_PATH)
+        written = export_results_csv(records, config.CSV_RESULTS_PATH, mode="w")
         log(f"CSV aggiornato: {config.CSV_RESULTS_PATH} ({written} righe cumulative)")
     except Exception as exc:
         log(f"ERRORE export CSV: {exc}")
@@ -1035,7 +1035,7 @@ def _flush_incremental(records: List[Dict], log) -> None:
     n = len(records)
     if n and n % 5 == 0:
         try:
-            export_results_csv(records[-5:], config.CSV_RESULTS_PATH)
+            export_results_csv(records, config.CSV_RESULTS_PATH, mode="w")
         except Exception as exc:
             log(f"checkpoint CSV fallito: {exc}")
 
