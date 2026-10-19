@@ -44,6 +44,17 @@ from evaluator import evaluate_response
 APP_VERSION = "1.0.0"
 
 
+def _judge_via_energy_session(question: str, answer: str, model: Optional[str]):
+    """Wrapper del LLM judge che traccia le finestre temporali per lo scorporo energetico.
+
+    Delega a ``llm_judge.call_llm_judge``; le finestre temporali del giudice
+    vengono registrate in ``_lj.LAST_WINDOWS`` dal modulo llm_judge stesso,
+    permettendo al profiler di scorporare l'energia del giudice dal modello
+    valutato (B2: integrazione sulla sottofinestra giudice, niente floor).
+    """
+    return _lj.call_llm_judge(question, answer, model)
+
+
 # ---------------------------------------------------------------------------
 # Lettura modelli Ollama (sezione 5)
 # ---------------------------------------------------------------------------
