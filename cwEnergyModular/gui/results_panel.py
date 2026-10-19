@@ -152,6 +152,11 @@ class ResultsPanel(ttk.LabelFrame):
         table_wrap.rowconfigure(0, weight=1)
         table_wrap.columnconfigure(0, weight=1)
 
+        # Colori alternati per gruppo modello (evidenziazione visiva)
+        self._model_colors = ("#ffffff", "#f0f4f8")  # bianco, azzurro chiaro
+        for i, color in enumerate(self._model_colors):
+            self.tree.tag_configure(f"model_group_{i}", background=color)
+
         # tooltip + doppio click: mostra la risposta INTERA del modello
         self._tip = None
         self.tree.bind("<Motion>", self._on_tree_motion)
@@ -245,9 +250,17 @@ class ResultsPanel(ttk.LabelFrame):
         rows = _read_rows()
         self._rows_cache = rows[-500:][::-1]  # allineato agli item del Treeview
         self.tree.delete(*self.tree.get_children())
+        # Assegna colori alternati per gruppo modello
+        color_idx = 0
+        prev_model = None
         for r in self._rows_cache:  # piu' recenti in alto
             vals = [_fmt_cell(cid, r.get(cid, "")) for cid, _, _ in CSV_VIEW_COLUMNS]
-            self.tree.insert("", "end", values=vals)
+            model = r.get("model_label", "")
+            if prev_model is not None and model != prev_model:
+                color_idx = (color_idx + 1) % len(self._model_colors)
+            tag = f"model_group_{color_idx}"
+            self.tree.insert("", "end", values=vals, tags=(tag,))
+            prev_model = model
         self.status.config(text=f"{len(rows)} righe nel CSV")
         self._draw_scatter(self.canvas_acc, rows, x="end_to_end_energy_j", y="causal_accuracy",
                            title="Energia E2E [J] vs Accuratezza causale")
