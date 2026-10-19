@@ -33,6 +33,8 @@ CSV_VIEW_COLUMNS = [
     ("lexical_similarity", "Sim less", 68),
     ("eval_mode", "Regime", 92),
     ("causal_accuracy", "Acc(comp)", 70),
+    ("answer_type", "Tipo", 70),
+    ("extracted_answer", "Estratto", 90),
     ("ece_per_joule", "ECE/J", 80),
     ("epcl_j_per_link", "EPCL", 75),
     # risposta esatta del modello: troncata a video, intera nel CSV e nel

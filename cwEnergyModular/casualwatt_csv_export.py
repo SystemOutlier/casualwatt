@@ -77,6 +77,8 @@ CSV_COLUMNS: List[str] = [
     "gpu_idle_provenance",
     # Diagnostica cpu-time-share (per riga: perche' share=0?)
     "ollama_pids_used", "d_ollama_cpu_s", "d_busy_s", "n_samples_in_window",
+    # answer_type e extracted_answer (valutazione accuratezza)
+    "answer_type", "extracted_answer",
 ]
 
 
