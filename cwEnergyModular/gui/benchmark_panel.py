@@ -133,6 +133,12 @@ class BenchmarkPanel(ttk.Frame):
         self.btn_stop = ttk.Button(btns, text="Ferma benchmark", command=self.stop, state="disabled")
         self.btn_stop.pack(side="left", padx=2)
         ttk.Button(btns, text="Calibra idle", command=self.calibrate_idle).pack(side="left", padx=8)
+        # Pulsante di test rapido: salta la calibrazione empirica (~92 s) e
+        # imposta un valore fisso dichiarato. Utile durante lo sviluppo per
+        # iterare velocemente senza dover attendere le 3 finestre da 30 s.
+        ttk.Button(
+            btns, text="Calibra idle a 65 W", command=self._force_idle_65w,
+        ).pack(side="left", padx=2)
 
         # ----------------------- stato privilegi UAC ------------------------
         # LibreHardwareMonitor legge i sensori Energy-CPU solo con token
@@ -532,6 +538,26 @@ class BenchmarkPanel(ttk.Frame):
         self.log("Interrupt richiesto: atteso completamento della richiesta corrente…")
 
     # ------------------------------------------------------------ calibrazione
+    def _force_idle_65w(self):
+        """Imposta P_idle a 65 W con provenienza 'manual_override' (test rapido).
+
+        Salta la calibrazione empirica (~92 s) e inietta un valore fisso
+        dichiarato. Utile durante lo sviluppo per iterare velocemente; il
+        valore e' marcato come non calibrato nelle note della riga CSV
+        (idle_provenance='manual_override'), quindi distinguibile da una
+        calibrazione reale.
+        """
+        from energy.energy_session import SESSION
+
+        SESSION.idle_power_w = 65.0
+        SESSION.idle_provenance = "manual_override"
+        self.var_idle.set("65.00 W")
+        self.log(
+            "P_idle impostata a 65.00 W (manual_override, test rapido): "
+            "la riga CSV sara' marcata idle_provenance='manual_override' "
+            "e distinguibile da una calibrazione empirica"
+        )
+
     def calibrate_idle(self):
         from energy.energy_session import SESSION
 
