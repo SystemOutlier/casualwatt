@@ -1225,6 +1225,25 @@ class SystemSample:
     nic_bytes: int = 0             # sent+received cumulati
     gpu_power_w: Optional[float] = None
     gpu_util_pct: Optional[float] = None
+    # A3: potenza del sensore grafico integrato ('CPU Graphics'), informativo
+    igpu_power_w: Optional[float] = None
+
+
+def _free_subintervals(seg: tuple, excl: List[tuple]) -> List[tuple]:
+    """Sottrae le sottofinestre escluse da ``seg`` -> lista di intervalli tenuti."""
+    free = [seg]
+    for (xa, xb) in excl:
+        nxt: List[tuple] = []
+        for (fa, fb) in free:
+            if xb <= fa or xa >= fb:
+                nxt.append((fa, fb))
+                continue
+            if xa > fa:
+                nxt.append((fa, min(xa, fb)))
+            if xb < fb:
+                nxt.append((max(xb, fa), fb))
+        free = nxt
+    return [(a, b) for a, b in free if b - a > 1e-9]
 
 
 @dataclass
@@ -1365,6 +1384,15 @@ class EnergySession:
         }
         pkg = self._source.read_package_j(busy - self._cpu_t0)
         gpu_w, gpu_u = self._gpu.read()
+        # A3: potenza iGPU campionata SOLO con backend LHM attivo (il sensore
+        # 'CPU Graphics' non esiste altrove); mai un crash del sampler.
+        igpu_w: Optional[float] = None
+        if (self._source.method == "power-integration"
+                and getattr(self._source, "_lhm_opened", False)):
+            try:
+                igpu_w = self._source.read_igpu_power_w()
+            except Exception:  # noqa: BLE001 - CLR/pythonnet instabile
+                igpu_w = None
         try:
             cpu_pct = psutil.cpu_percent(interval=None)
         except Exception:
@@ -1381,6 +1409,7 @@ class EnergySession:
             nic_bytes=self._nic_bytes(),
             gpu_power_w=gpu_w,
             gpu_util_pct=gpu_u,
+            igpu_power_w=igpu_w,
         )
         with self._lock:
             self._samples.append(sample)
@@ -1544,23 +1573,45 @@ class EnergySession:
         return None
 
     # ---- A3: energia iGPU informativa dal sensore grafico LHM ------------
-    def read_igpu_energy_j(self, t_start: float, t_end: float) -> Optional[float]:
-        """Energia stimata dal sensore 'CPU Graphics' [W] sulla finestra.
+    def read_igpu_energy_j(self, t_start: float, t_end: float,
+                           exclude_windows: Optional[List[tuple]] = None
+                           ) -> Optional[float]:
+        """Energia del sensore 'CPU Graphics' [W] integrata sulla finestra.
+
+        Integrale TRAPEZOIDALE dei campioni ``igpu_power_w`` dentro
+        [t_start, t_end] (bordi interpolati da ``samples_between``), con le
+        sottofinestre ``exclude_windows`` (es. chiamata LLM Judge) rimosse:
+        i segmenti che le intersecano vengono troncati ai bordi dell'esclusione
+        e la potenza interpolata linearmente, quindi si integra solo la parte
+        tenuta (nessuno scaling per frazione temporale).
 
         CAMPO INFORMATIVO: su Intel/AMD il package include gia' la grafica,
         quindi il valore NON viene mai sommato a local_energy_j. Ritorna None
-        se il sensore non esiste o non e' leggibile (N/A dichiarato).
+        (N/A dichiarato) se il sensore non esiste/non e' leggibile o se la
+        finestra contiene meno di 2 campioni con potenza iGPU valida.
         """
         if self._source.method != "power-integration" or not self._source._lhm_opened:
             return None
-        w0 = self._source.read_igpu_power_w()
-        if w0 is None:
+        pts = [(s.t, s.igpu_power_w)
+               for s in self.samples_between(t_start, t_end)
+               if s.igpu_power_w is not None]
+        if len(pts) < 2:
             return None
-        dt = max(t_end - t_start, 0.0)
-        if dt <= 0:
-            return 0.0
-        # lettura singola istantanea: stima dichiarata P_media~P_now * dt
-        return round(w0 * dt, 6)
+        excl = sorted(
+            [(max(a, t_start), min(b, t_end)) for a, b in (exclude_windows or [])
+             if b > t_start and a < t_end],
+            key=lambda w: w[0],
+        )
+        e = 0.0
+        for (t0, w0), (t1, w1) in zip(pts, pts[1:]):
+            span = t1 - t0
+            if span <= 0:
+                continue
+            for (fa, fb) in _free_subintervals((t0, t1), excl):
+                wa = w0 + (w1 - w0) * (fa - t0) / span
+                wb = w0 + (w1 - w0) * (fb - t0) / span
+                e += ((wa + wb) / 2.0) * (fb - fa)
+        return round(max(e, 0.0), 6)
 
     @property
     def source_notes(self) -> List[str]:
@@ -1608,6 +1659,7 @@ class EnergySession:
             nic_bytes=int(num(float(a.nic_bytes), float(b.nic_bytes)) or 0),
             gpu_power_w=num(a.gpu_power_w, b.gpu_power_w),
             gpu_util_pct=num(a.gpu_util_pct, b.gpu_util_pct),
+            igpu_power_w=num(a.igpu_power_w, b.igpu_power_w),
         )
 
     # ------------------------------------------------------------ calibrazione

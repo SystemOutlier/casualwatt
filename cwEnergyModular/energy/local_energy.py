@@ -341,17 +341,19 @@ class CasualWattLocalEnergyProfiler:
             igpu_fn = getattr(self.session, "read_igpu_energy_j", None)
             if callable(igpu_fn):
                 try:
-                    res.igpu_energy_j = igpu_fn(t_start, t_end)
+                    res.igpu_energy_j = igpu_fn(t_start, t_end, excl)
                 except Exception:
                     res.igpu_energy_j = None
             if res.igpu_energy_j is not None:
                 notes.append(
-                    "iGPU: sensore 'CPU Graphics' letto come campo INFORMATIVO "
-                    "igpu_energy_j (gia' incluso nel package, NON sommato)"
+                    "iGPU: sensore 'CPU Graphics' integrato trapezoidalmente sui "
+                    "campioni della finestra come campo INFORMATIVO igpu_energy_j "
+                    "(gia' incluso nel package, NON sommato)"
                 )
             else:
                 notes.append(
-                    "iGPU: nessun contatore grafico dedicato esposto da LHM; "
+                    "iGPU: nessun contatore grafico dedicato esposto da LHM (o "
+                    "meno di 2 campioni con potenza iGPU nella finestra); "
                     "energia iGPU inclusa nel package (dichiarato, nessuna quota inventata)"
                 )
         else:
