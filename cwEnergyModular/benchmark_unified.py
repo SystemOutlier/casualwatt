@@ -502,18 +502,23 @@ def _finalize_energy_fields(rec: Dict, local_j: float, network_j: float, cloud_j
         rec["epcl_j_per_link"] = "N/A"
     elif basis != "f1_triples":
         rec["epcl_j_per_link"] = "N/A"
-        rec.setdefault("notes", []).append(
+        # FIX: notes e' una stringa (non lista), quindi concatena invece di append
+        new_note = (
             f"epcl_j_per_link=N/A: n_correct_links basato su '{basis}' "
             "(proxy/auto-consistenza), non su triple causali verificate contro GT"
         )
+        existing = rec.get("notes", "")
+        rec["notes"] = f"{existing}; {new_note}" if existing else new_note
     else:
         rec["epcl_j_per_link"] = round(e2e / n_correct, 9) if n_correct > 0 else ""
     # C1: nota che dichiara quale delle due metriche derivate e' valida
-    rec.setdefault("notes", []).append(
+    new_note = (
         "metriche derivate: energy_per_correct_answer_j=e2e se is_correct "
         "altrimenti N/A; epcl_j_per_link=e2e/n_correct_links solo con triple "
         "causali F1 vs GT valide"
     )
+    existing = rec.get("notes", "")
+    rec["notes"] = f"{existing}; {new_note}" if existing else new_note
 
     # --- C2: componenti di acc_comp sempre separate e dichiarate -----------
     comps = []
