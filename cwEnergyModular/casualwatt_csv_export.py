@@ -73,6 +73,8 @@ CSV_COLUMNS: List[str] = [
     "cloud_energy_min_j", "cloud_energy_max_j",
     # C1/C2: metriche derivate separate e tracciabilita' pesi acc_comp
     "acc_comp_components", "acc_comp_weights",
+    # Punto 2: provenienza dell'idle GPU usato nello scorporo (calibrated|missing)
+    "gpu_idle_provenance",
 ]
 
 

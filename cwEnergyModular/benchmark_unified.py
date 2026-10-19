@@ -767,6 +767,8 @@ def run_unified_benchmark(
                     # A2/A3: campi diagnostici GPU/iGPU (mai sommati a local_energy_j)
                     gpu_process_energy_j=_na_or(getattr(local, "gpu_process_energy_j", None)),
                     igpu_energy_j=_na_or(getattr(local, "igpu_energy_j", None)),
+                    # Punto 2: provenienza idle GPU (calibrated|missing)
+                    gpu_idle_provenance=getattr(local, "gpu_idle_provenance", "") or "",
                 )
                 # riscrive qualita' con valutazione reale (N/A se saltata)
                 rec.update(
@@ -861,6 +863,10 @@ def run_unified_benchmark(
                         gpu_board_energy_j=client_local.gpu_board_energy_j,
                         gpu_energy_attributed_j=client_local.gpu_energy_attributed_j,
                         gpu_utilization_share=client_local.gpu_utilization_share,
+                        # Punto 2: provenienza idle GPU (calibrated|missing)
+                        gpu_idle_provenance=(
+                            getattr(client_local, "gpu_idle_provenance", "") or ""
+                        ),
                         cpu_attribution_method=client_local.cpu_attribution_method,
                         gpu_attribution_method=client_local.gpu_attribution_method,
                         measurement_boundary=(
