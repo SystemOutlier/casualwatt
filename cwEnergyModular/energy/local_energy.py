@@ -88,6 +88,11 @@ class LocalEnergyResult:
     cpu_attribution_method: str = ""
     gpu_attribution_method: str = ""
     notes: List[str] = field(default_factory=list)
+    # Diagnostica cpu-time-share (per riga)
+    ollama_pids_used: str = ""          # lista PID usati, separati da virgola
+    d_ollama_cpu_s: float = 0.0         # delta CPU-time Ollama nella finestra
+    d_busy_s: float = 0.0               # delta CPU busy nella finestra
+    n_samples_in_window: int = 0        # campioni nella finestra [t_start, t_end]
 
 
 class CasualWattLocalEnergyProfiler:
@@ -140,6 +145,9 @@ class CasualWattLocalEnergyProfiler:
         notes: List[str] = []
         if notes_excl:
             notes.append(notes_excl)
+        
+        # Diagnostica: numero campioni nella finestra
+        res.n_samples_in_window = len(samples)
 
         # ---------------------------------------------------------- CPU part
         busy_first = samples[0].cpu_busy_seconds if samples else 0.0
@@ -248,8 +256,12 @@ class CasualWattLocalEnergyProfiler:
         else:
             dt_cpu_busy = max(busy_last - busy_first, 0.0)
 
-        # delta CPU-time albero Ollama: preferisce istogrammi campione-campione
-        if excl:
+        # delta CPU-time albero Ollama: preferisce letture esatte agli estremi
+        # [t_start, t_end] (direct_cpu_delta), fallback ai campioni se assente
+        if direct_cpu_delta is not None and direct_cpu_delta >= 0:
+            d_ollama = direct_cpu_delta
+            notes.append("cpu-time Ollama da lettura esatta agli estremi [t_start, t_end]")
+        elif excl:
             # scorporo judge: somma i delta di ollama_cpu_seconds SOLO sugli
             # intervalli non esclusi (p = campione piu' recente, q = precedente)
             d_ollama = 0.0
@@ -258,9 +270,6 @@ class CasualWattLocalEnergyProfiler:
                     d_ollama += max(p.ollama_cpu_seconds - q.ollama_cpu_seconds, 0.0)
         else:
             d_ollama = self._ollama_cpu_delta(samples)
-        if d_ollama is None and direct_cpu_delta is not None:
-            d_ollama = max(direct_cpu_delta, 0.0)
-            notes.append("cpu-time Ollama da contatore diretto della request (fallback)")
         if d_ollama is None:
             d_ollama = 0.0
             notes.append("cpu-time Ollama non osservabile: share = 0 (conservativo)")
@@ -269,6 +278,27 @@ class CasualWattLocalEnergyProfiler:
             share = min(max(d_ollama / dt_cpu_busy, 0.0), 1.0)
         res.cpu_time_share = round(share, 6)
         res.ollama_active_energy_j = round(active * share, 6)
+        
+        # Diagnostica: valori usati per il calcolo dello share
+        res.d_ollama_cpu_s = round(d_ollama, 6)
+        res.d_busy_s = round(dt_cpu_busy, 6)
+        # PID usati: preferisci quelli passati come parametro, altrimenti dai campioni
+        if ollama_pids:
+            res.ollama_pids_used = ",".join(str(p) for p in ollama_pids)
+        else:
+            pids_used = []
+            for s in reversed(samples):
+                if s.ollama_pids:
+                    pids_used = list(s.ollama_pids)
+                    break
+            res.ollama_pids_used = ",".join(str(p) for p in pids_used) if pids_used else ""
+        
+        # Nota esplicita se share=0
+        if share == 0.0 and res.n_samples_in_window > 0:
+            notes.append(
+                f"cpu_time_share=0: d_ollama_cpu_s={d_ollama:.6f}, "
+                f"d_busy_s={dt_cpu_busy:.6f}, n_samples={len(samples)}"
+            )
 
         # ---------------------------------------------------------- GPU part
         gpu_mon = self.session._gpu
@@ -419,6 +449,36 @@ class CasualWattLocalEnergyProfiler:
                 prev_val = s.ollama_cpu_seconds
             d = run_max
         return max(d, 0.0)
+
+    @staticmethod
+    def _read_ollama_cpu_times(pids: List[int]) -> float:
+        """Legge cpu_times (user+system) di tutti i PID Ollama al momento corrente.
+        
+        Usato per letture esatte agli estremi [t_start, t_end] della finestra,
+        non dai campioni a 0.25-0.5 s. Ritorna la somma di user+system per
+        tutti i PID nell'albero (ricorsivo).
+        """
+        if not pids:
+            return 0.0
+        total = 0.0
+        seen = set()
+        stack = list(pids)
+        while stack:
+            pid = stack.pop()
+            if pid in seen:
+                continue
+            seen.add(pid)
+            try:
+                pr = psutil.Process(pid)
+                ct = pr.cpu_times()
+                total += float(ct.user + ct.system)
+                # Includi figli ricorsivi (runner del modello, worker)
+                stack += [c.pid for c in pr.children(recursive=False)]
+            except (psutil.NoSuchProcess, psutil.ZombieProcess, psutil.AccessDenied):
+                continue
+            except Exception:
+                continue
+        return total
 
     # ------------------------------------------------------------ convenience
     def measure_request(

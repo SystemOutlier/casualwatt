@@ -233,8 +233,12 @@ def test_P2_senza_gpu_dedicata_provenance_vuota():
 def test_P2_colonna_csv_accodata_senza_cambiare_ordine():
     from casualwatt_csv_export import CSV_COLUMNS
     assert CSV_COLUMNS.count("gpu_idle_provenance") == 1
-    assert CSV_COLUMNS[-1] == "gpu_idle_provenance"
-    assert CSV_COLUMNS[-2] == "acc_comp_weights"
+    # Colonne diagnostiche accodate in coda (senza cambiare ordine delle precedenti)
+    assert CSV_COLUMNS[-1] == "n_samples_in_window"
+    assert CSV_COLUMNS[-2] == "d_busy_s"
+    assert CSV_COLUMNS[-3] == "d_ollama_cpu_s"
+    assert CSV_COLUMNS[-4] == "ollama_pids_used"
+    assert CSV_COLUMNS[-5] == "gpu_idle_provenance"
     assert CSV_COLUMNS[:6] == [
         "run_id", "session_id", "timestamp_start", "timestamp_end",
         "model_name", "model_label",
