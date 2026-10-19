@@ -107,6 +107,21 @@ def _normalize_answer(s: str) -> str:
     return re.sub(r"\s+", " ", s).strip()
 
 
+def _is_short_answer(text: str) -> bool:
+    """True se il testo e' una risposta breve (numero o stringa <=3 token).
+
+    Per risposte brevi la similarita' semantica con embeddings e' inaffidabile
+    (es. '25' e '20' hanno coseno alto perche' entrambi numeri). Il confronto
+    esatto/lessicale e' preferibile.
+    """
+    t = (text or "").strip()
+    if not t:
+        return False
+    if re.fullmatch(r"[-+]?\d+(?:[.,]\d+)?", t):
+        return True
+    return len(t.split()) <= 3
+
+
 def lexical_similarity(response_text: str, ground_truth: str) -> float:
     """Metrica SECONDARIA: similarità lessicale [0..1] (SequenceMatcher)."""
     gt_n = _normalize_answer(ground_truth)
@@ -287,7 +302,23 @@ def evaluate_response(text: str, is_tool: bool = False,
     if ground_truth not in (None, "", NA):
         res.eval_mode = "ground_truth"
         res.lexical_similarity = lexical_similarity(text or "", str(ground_truth))
-        sem = _sem.semantic_similarity(text or "", str(ground_truth))
+        # Per risposte brevi (numeri, stringhe <=3 token) la similarita' semantica
+        # e' inaffidabile (es. "25" vs "20" hanno coseno alto). Usa confronto esatto.
+        gt_str = str(ground_truth).strip()
+        ans_str = (text or "").strip()
+        short_gt = _is_short_answer(gt_str)
+        short_ans = _is_short_answer(ans_str)
+        if short_gt and short_ans:
+            # Confronto esatto dopo normalizzazione: 1.0 se uguali, 0.0 altrimenti
+            gt_norm = _normalize_answer(gt_str)
+            ans_norm = _normalize_answer(ans_str)
+            sem = 1.0 if gt_norm == ans_norm else 0.0
+            res.notes.append(
+                f"risposta breve rilevata (GT='{gt_str}', ans='{ans_str}'): "
+                f"usato confronto esatto (semantic_similarity={sem}) invece di embeddings"
+            )
+        else:
+            sem = _sem.semantic_similarity(text or "", str(ground_truth))
         res.semantic_similarity = sem
         res.cosine_sim = sem  # misura REALE (non più hardcoded)
         thr = _DEFAULT_THRESHOLD
