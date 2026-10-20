@@ -59,7 +59,7 @@ def main() -> int:
 
     results = []
     for label, answer, expect in cases:
-        res = evaluator.evaluate_response(answer, ground_truth=GT, mode="auto")
+        res = evaluator.evaluate_response(answer, ground_truth=GT, mode="auto", use_semantic=True)
         ok_sem = res.semantic_similarity
         ok_lex = res.lexical_similarity
         verdict = "PASS"
