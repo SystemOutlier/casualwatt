@@ -29,6 +29,49 @@ def _human_size(nbytes: int) -> str:
     return ""
 
 
+class _Tooltip:
+    """Tooltip leggero per widget Tkinter (mostra testo al passaggio del mouse)."""
+
+    def __init__(self, widget, text: str, delay_ms: int = 500):
+        self.widget = widget
+        self.text = text
+        self.delay_ms = delay_ms
+        self._tipwindow: tk.Toplevel | None = None
+        self._after_id: str | None = None
+        widget.bind("<Enter>", self._schedule)
+        widget.bind("<Leave>", self._hide)
+        widget.bind("<ButtonPress>", self._hide)
+
+    def _schedule(self, _event=None):
+        self._after_id = self.widget.after(self.delay_ms, self._show)
+
+    def _show(self):
+        if self._tipwindow or not self.text:
+            return
+        x = self.widget.winfo_rootx() + 20
+        y = self.widget.winfo_rooty() + self.widget.winfo_height() + 4
+        self._tipwindow = tw = tk.Toplevel(self.widget)
+        tw.wm_overrideredirect(True)
+        tw.wm_geometry(f"+{x}+{y}")
+        label = tk.Label(
+            tw, text=self.text, justify="left", background="#ffffe0",
+            relief="solid", borderwidth=1, font=("tahoma", "8", "normal"),
+            wraplength=320,
+        )
+        label.pack(ipadx=4, ipady=2)
+
+    def _hide(self, _event=None):
+        if self._after_id:
+            self.widget.after_cancel(self._after_id)
+            self._after_id = None
+        if self._tipwindow:
+            self._tipwindow.destroy()
+            self._tipwindow = None
+
+    def update_text(self, text: str):
+        self.text = text
+
+
 class ModelSelectionPanel(ttk.Frame):
     def __init__(self, master, log=None, **kw):
         super().__init__(master, **kw)
@@ -194,6 +237,25 @@ class ModelSelectionPanel(ttk.Frame):
         ttk.Button(cbtns, text="Deseleziona tutti", command=lambda: self._deselect_all(self.cloud_tree)).pack(side="left", padx=2)
         self.cloud_status = ttk.Label(right, text="— non caricato —", foreground="gray")
         self.cloud_status.pack(fill="x", padx=4, pady=(0, 3))
+
+        # Checkbox filtro EcoLogits (solo modelli con stima energetica nativa)
+        filter_frame = ttk.Frame(right)
+        filter_frame.pack(fill="x", padx=4, pady=(2, 0))
+        self._cloud_ecologits_only = tk.BooleanVar(value=False)
+        self.chk_ecologits_only = ttk.Checkbutton(
+            filter_frame,
+            text="Mostra solo modelli con stima energetica nativa",
+            variable=self._cloud_ecologits_only,
+            command=self._toggle_ecologits_filter,
+        )
+        self.chk_ecologits_only.pack(side="left", padx=2)
+        _Tooltip(
+            self.chk_ecologits_only,
+            "CasualWatt utilizza EcoLogits per calcolare l'impronta energetica "
+            "reale basata sull'architettura hardware del modello. Se la spunta "
+            "è disattivata, per i modelli non supportati verrà usata una stima "
+            "analitica di fallback basata sul conteggio dei token di input e output.",
+        )
 
     # ------------------------------------------------------- righe dinamiche
     def _add_key_row(self):
@@ -415,8 +477,11 @@ class ModelSelectionPanel(ttk.Frame):
             )
 
     def _cloud_sorted(self) -> List[Dict]:
-        """Lista cloud nell'ordine corrente (free-first se toggle attivo)."""
+        """Lista cloud nell'ordine corrente (free-first se toggle attivo, filtro EcoLogits se attivo)."""
         models = list(self._cloud_models_cache)
+        # filtro EcoLogits: solo modelli con stima energetica nativa
+        if self._cloud_ecologits_only.get():
+            models = [m for m in models if m.get("has_ecologits")]
         if self._cloud_free_first:
             # gratuiti prima, poi il resto; stabile entro i due gruppi
             models.sort(key=lambda m: 0 if m.get("free") else 1)
@@ -434,6 +499,11 @@ class ModelSelectionPanel(ttk.Frame):
             name = str(m.get("model", ""))
             if m.get("free") and "[Gratuito]" not in name:
                 name += " [Gratuito]"
+            # badge EcoLogits: stima nativa vs analitica
+            if m.get("has_ecologits"):
+                name += " [EcoLogits ✅]"
+            else:
+                name += " [Stima Analitica ⚠️]"
             iid = self.cloud_tree.insert(
                 "", "end", values=(m.get("provider", ""), name))
             if (m.get("provider", ""), name) in sel_before:
@@ -457,12 +527,16 @@ class ModelSelectionPanel(ttk.Frame):
             pass
         self._render_cloud_tree(self._cloud_sorted())
 
+    def _toggle_ecologits_filter(self):
+        """Checkbox 'Mostra solo modelli con stima energetica nativa': filtra la lista."""
+        self._render_cloud_tree(self._cloud_sorted())
+
     # ------------------------------------------------------------- selections
     def get_selected_local(self) -> List[str]:
         return [self.local_tree.item(iid)["values"][0] for iid in self.local_tree.selection()]
 
     def get_selected_cloud(self) -> List[Dict]:
-        """Ritorna i modelli selezionati con ID pulito (senza tag '[Gratuito]').
+        """Ritorna i modelli selezionati con ID pulito (senza tag visivi).
 
         Il tag e' solo visivo nella colonna label; l'ID inviato al provider
         deve essere quello nudo restituito dal fetch (altrimenti 404).
@@ -471,6 +545,9 @@ class ModelSelectionPanel(ttk.Frame):
         for iid in self.cloud_tree.selection():
             v = self.cloud_tree.item(iid)["values"]
             model = str(v[1])
-            model = model.replace("[Gratuito]", "").strip()
+            # rimuovi tutti i tag visivi
+            for tag in ("[Gratuito]", "[EcoLogits ✅]", "[Stima Analitica ⚠️]"):
+                model = model.replace(tag, "")
+            model = model.strip()
             out.append({"provider": str(v[0]), "model": model})
         return out

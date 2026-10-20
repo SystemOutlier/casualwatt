@@ -23,6 +23,33 @@ except Exception:  # pragma: no cover
 # qui: questo modulo sta nella root, quindi import assoluto del subpackage)
 from energy.cloud_energy import CloudEnergyResult, estimate_cloud_energy
 
+# Mappatura provider CasualWatt -> provider EcoLogits (per verifica registrazione)
+_ECLOGITS_PROVIDER_MAP = {
+    "google": "google_genai",
+    "openai": "openai",
+    "anthropic": "anthropic",
+    "huggingface": "huggingface_hub",
+    # groq e openrouter non hanno modelli registrati in EcoLogits 0.11.x
+}
+
+
+def _check_ecologits_registration(provider_id: str, model_name: str) -> bool:
+    """Verifica se (provider, model) e' nel registro EcoLogits.
+
+    Ritorna True se il modello e' registrato e puo' essere stimato nativamente;
+    False altrimenti (stima analitica di fallback o energia=None).
+    """
+    eco_provider = _ECLOGITS_PROVIDER_MAP.get(provider_id)
+    if not eco_provider:
+        return False
+    try:
+        from ecologits.tracers.utils import models
+
+        return models.find_model(eco_provider, model_name) is not None
+    except Exception:
+        return False
+
+
 __all__ = [
     "CloudEnergyResult",
     "CloudEnergyEstimator",
@@ -138,8 +165,8 @@ def _fetch_provider_models(prov_id: str, cfg: Dict, api_key: str,
 def get_cloud_models(timeout_s: float = 15.0) -> List[Dict]:
     """Elenca i modelli disponibili dai provider configurati (fetch live).
 
-    Ritorna [{provider, model, label, free}] ordinati. Provider senza API
-    key o irraggiungibili vengono saltati (nota nel campo 'errors').
+    Ritorna [{provider, model, label, free, has_ecologits}] ordinati. Provider
+    senza API key o irraggiungibili vengono saltati (nota nel campo 'errors').
     Mai liste statiche: gli ID obsoleti spariscono quando il provider li
     ritira, evitando errori 400/404 a runtime.
     """
@@ -156,6 +183,8 @@ def get_cloud_models(timeout_s: float = 15.0) -> List[Dict]:
     for d in out:
         if d.get("free") and "[Gratuito]" not in d["label"]:
             d["label"] += " [Gratuito]"
+        # verifica registrazione EcoLogits (per badge visivo in GUI)
+        d["has_ecologits"] = _check_ecologits_registration(d["provider"], d["model"])
     out.sort(key=lambda d: (d["provider"], d["model"]))
     return out
 
