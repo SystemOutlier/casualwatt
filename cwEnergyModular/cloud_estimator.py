@@ -112,7 +112,8 @@ def _fetch_provider_models(prov_id: str, cfg: Dict, api_key: str,
                         "free": False, "label": label})
         return out
 
-    # percorso OpenAI-compatible (groq, openrouter, openai, eventuali aggiunti)
+    # percorso OpenAI-compatible (groq, openrouter, openai, huggingface,
+    # eventuali aggiunti)
     r = requests.get(cfg["models_endpoint"], headers=headers, timeout=timeout_s)
     if r.status_code != 200:
         raise RuntimeError(f"HTTP {r.status_code}")

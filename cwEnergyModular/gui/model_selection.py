@@ -73,7 +73,8 @@ class ModelSelectionPanel(ttk.Frame):
 
         # ---- Provider disponibili nei menu a tendina ------------------------
         # Elenco selezionabile del Combobox (specifica richiesta):
-        #   Groq, OpenRouter, Google, OpenAI, Anthropic, Electricity Maps.
+        #   Groq, OpenRouter, Google, OpenAI, Anthropic, Hugging Face,
+        #   Electricity Maps.
         # All'avvio le 4 righe preimpostate mostrano Groq, OpenRouter, Google,
         # Electricity Maps (retrocompat con .casualwatt_keys.json); aprendo una
         # tendina l'utente vede l'elenco COMPLETO e puo' cambiare provider.
@@ -83,11 +84,12 @@ class ModelSelectionPanel(ttk.Frame):
             "Google": "GOOGLE_API_KEY",
             "OpenAI": "OPENAI_API_KEY",
             "Anthropic": "ANTHROPIC_API_KEY",
+            "Hugging Face": "HF_TOKEN",
             "Electricity Maps": "ELECTRICITY_MAPS_API_TOKEN",
         }
-        # ordine ESATTO dell'elenco della tendina come da specifica
         self._provider_names: List[str] = [
             "Groq", "OpenRouter", "Google", "OpenAI", "Anthropic",
+            "Hugging Face",
             "Electricity Maps",
         ]
         self._provider_by_label: Dict[str, str] = dict(_env_by_label)
