@@ -165,6 +165,7 @@ API_KEY_ENV_VARS = (
     "GOOGLE_API_KEY",
     "OPENAI_API_KEY",
     "ANTHROPIC_API_KEY",
+    "HF_TOKEN",
     "ELECTRICITY_MAPS_API_TOKEN",
 )
 
@@ -174,6 +175,7 @@ GOOGLE_API_KEY = os.getenv("GOOGLE_API_KEY", "")
 ELECTRICITY_MAPS_API_TOKEN = os.getenv("ELECTRICITY_MAPS_API_TOKEN", "")
 OPENAI_API_KEY = os.getenv("OPENAI_API_KEY", "")
 ANTHROPIC_API_KEY = os.getenv("ANTHROPIC_API_KEY", "")
+HF_TOKEN = os.getenv("HF_TOKEN", "")
 
 
 def _provider_base_url(cfg: dict) -> str:
@@ -193,12 +195,14 @@ def refresh_provider_keys() -> None:
     """
     global GROQ_API_KEY, OPENROUTER_API_KEY, GOOGLE_API_KEY
     global ELECTRICITY_MAPS_API_TOKEN, OPENAI_API_KEY, ANTHROPIC_API_KEY
+    global HF_TOKEN
     GROQ_API_KEY = os.getenv("GROQ_API_KEY", "")
     OPENROUTER_API_KEY = os.getenv("OPENROUTER_API_KEY", "")
     GOOGLE_API_KEY = os.getenv("GOOGLE_API_KEY", "")
     ELECTRICITY_MAPS_API_TOKEN = os.getenv("ELECTRICITY_MAPS_API_TOKEN", "")
     OPENAI_API_KEY = os.getenv("OPENAI_API_KEY", "")
     ANTHROPIC_API_KEY = os.getenv("ANTHROPIC_API_KEY", "")
+    HF_TOKEN = os.getenv("HF_TOKEN", "")
     live = {
         "GROQ_API_KEY": GROQ_API_KEY,
         "OPENROUTER_API_KEY": OPENROUTER_API_KEY,
@@ -207,6 +211,7 @@ def refresh_provider_keys() -> None:
         # Anthropic usa il suo endpoint nativo (x-api-key), non OpenAI-style:
         # la chiave viene letta direttamente da os.environ in cloud_estimator.
         "ANTHROPIC_API_KEY": ANTHROPIC_API_KEY,
+        "HF_TOKEN": HF_TOKEN,
     }
     for name, cfg in CLOUD_PROVIDERS.items():
         key = live.get(cfg.get("api_key_env", ""), "") or \
@@ -279,6 +284,16 @@ CLOUD_PROVIDERS: dict = {
         "api_key_env": "ANTHROPIC_API_KEY",
         "api_key": ANTHROPIC_API_KEY,
         "enabled": bool(ANTHROPIC_API_KEY),
+    },
+    "huggingface": {
+        "label": "Hugging Face",
+        # Hugging Face Router: API OpenAI-compatible (Bearer HF token)
+        "base_url": "https://router.huggingface.co/v1",
+        "models_endpoint": "https://router.huggingface.co/v1/models",
+        "chat_endpoint": "https://router.huggingface.co/v1/chat/completions",
+        "api_key_env": "HF_TOKEN",
+        "api_key": HF_TOKEN,
+        "enabled": bool(HF_TOKEN),
     },
 }
 
