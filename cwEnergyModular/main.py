@@ -48,6 +48,7 @@ def _selftest() -> int:
         "Rain falls, so the ground becomes wet and the soil moisture rises.",
         ground_truth="Because rain falls the ground gets wet and soil moisture "
                      "increases over time.",
+        use_semantic=True,
     )
     assert gt_free.answer_type == "free_text" and gt_free.is_correct in (0, 1, None)
     if gt_free.semantic_similarity is not None:

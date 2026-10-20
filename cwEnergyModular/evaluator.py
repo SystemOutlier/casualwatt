@@ -387,7 +387,8 @@ def evaluate_response(text: str, is_tool: bool = False,
                       mode: str = "auto", question: str = "",
                       evaluated_model: str = "",
                       judge_fn=None,
-                      answer_type: str = "auto") -> EvaluationResult:
+                      answer_type: str = "auto",
+                      use_semantic: bool = False) -> EvaluationResult:
     """Valutazione UNIVERSALE.
 
     mode:
@@ -403,8 +404,25 @@ def evaluate_response(text: str, is_tool: bool = False,
               (score|None, info dict)). Default: llm_judge.call_llm_judge.
     answer_type: "number" | "short_text" | "free_text" | "auto" (default "auto").
                  Determina la strategia di valutazione nel REGIME A.
+    use_semantic: se False (default), NON carica sentence-transformers durante
+                  il benchmark (risparmio energetico). La valutazione semantica
+                  va fatta POST-HOC con semantic_judge.py. Se True, abilita il
+                  giudizio semantico con embedding (solo per uso post-hoc).
     Non solleva MAI eccezioni.
     """
+    # Robustezza: normalizza input None/NaN/empty
+    if text is None:
+        text = ""
+    if ground_truth is None or ground_truth == "":
+        ground_truth = NA
+    # NaN check (se ground_truth e' un float NaN)
+    try:
+        import math
+        if isinstance(ground_truth, float) and math.isnan(ground_truth):
+            ground_truth = NA
+    except Exception:
+        pass
+
     mode = (mode or "auto").strip().lower()
     res = EvaluationResult(is_tool=bool(is_tool),
                            evaluated_model=evaluated_model or "")
@@ -501,20 +519,44 @@ def evaluate_response(text: str, is_tool: bool = False,
             return res
         
         else:  # answer_type == "free_text"
-            # Usa embeddings come prima
+            # Calcola sempre la similarita' lessicale (leggera, nessun modello)
             res.lexical_similarity = lexical_similarity(text or "", str(ground_truth))
-            sem = _sem.semantic_similarity(text or "", str(ground_truth))
-            res.semantic_similarity = sem
-            res.cosine_sim = sem
+            
+            # Valutazione semantica: SOLO se use_semantic=True (post-hoc)
+            # Di default (False), non carica sentence-transformers per risparmiare energia
+            if use_semantic:
+                sem = _sem.semantic_similarity(text or "", str(ground_truth))
+                res.semantic_similarity = sem
+                res.cosine_sim = sem
+            else:
+                sem = NA
+                res.semantic_similarity = NA
+                res.cosine_sim = NA
+                res.notes.append(
+                    "answer_type=free_text: use_semantic=False (default), "
+                    "valutazione semantica saltata per risparmiare energia durante "
+                    "il benchmark. Usa semantic_judge.py per valutazione POST-HOC."
+                )
+            
             thr = _DEFAULT_THRESHOLD
             if sem is None:
-                res.eval_method = "no_embeddings"
-                res.is_correct = NA
-                res.notes.append(
-                    f"answer_type=free_text: embeddings non disponibili "
-                    f"({_sem.init_error() or 'motivo non specificato'}): "
-                    f"is_correct=N/A, NON usare similarità lessicale come accuratezza"
-                )
+                if use_semantic:
+                    res.eval_method = "no_embeddings"
+                    res.is_correct = NA
+                    res.notes.append(
+                        f"answer_type=free_text: embeddings non disponibili "
+                        f"({_sem.init_error() or 'motivo non specificato'}): "
+                        f"is_correct=N/A, NON usare similarità lessicale come accuratezza"
+                    )
+                else:
+                    # use_semantic=False: fallback a lessicale per is_correct
+                    res.eval_method = "lexical_only(use_semantic=False)"
+                    res.is_correct = 1 if res.lexical_similarity >= 0.85 else 0
+                    res.notes.append(
+                        f"answer_type=free_text: use_semantic=False, "
+                        f"fallback lessicale per is_correct (lexical_similarity="
+                        f"{res.lexical_similarity:.3f}, threshold=0.85)"
+                    )
             else:
                 res.eval_method = _sem.method_label()
                 res.is_correct = 1 if sem >= thr else 0
