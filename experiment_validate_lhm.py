@@ -271,11 +271,15 @@ def run_experiment(config: ExperimentConfig) -> List[RunRecord]:
           f"intervallo misurato={pi0['measured_interval_s']} s "
           f"campioni={pi0['n_samples']}")
 
-    if read_method() not in ("power-integration", "librehardwaremonitor-energy"):
+    if read_method() not in ("power-integration", "librehardwaremonitor-energy",
+                             "rapl"):
         raise SystemExit(
             f"[ERRORE] nessun backend energetico reale (metodo="
-            f"'{read_method()}'). Riesegui da terminale ELEVATO: i sensori "
-            "Power/Energy LHM sono invisibili senza UAC Admin."
+            f"'{read_method()}'). Windows: riesegui da terminale ELEVATO (i "
+            "sensori Power/Energy LHM sono invisibili senza UAC Admin). "
+            "Linux: /sys/class/powercap/intel-rapl/ deve essere leggibile "
+            "(sudo, oppure udev rule gruppo 'power'); NOTA: una VM NON "
+            "espone contatori RAPL fisici -> ambiente non valido."
         )
 
     calibrate_idle_if_needed()
@@ -601,7 +605,10 @@ def main():
     finally:
         if records:
             ts = datetime.now().strftime("%Y%m%d_%H%M%S")
-            base = config.output_dir / f"lhm_validation_v3_{ts}"
+            # backend nel nome file: lhm_validation_* (Windows) o
+            # rapl_validation_* (Linux) — protocollo e colonne identici.
+            tag = "rapl" if (stats and stats.method == "rapl") else "lhm"
+            base = config.output_dir / f"{tag}_validation_v3_{ts}"
             save_csv(records, base.with_suffix(".csv"))
             save_json(stats, base.with_suffix(".json"))
             generate_report(config, records, stats, base.with_suffix(".md"))
