@@ -104,15 +104,34 @@ def run_diagnostics(log_callback: Optional[Callable[[str], None]] = None) -> dic
 
     # ------------------------------------------------------- 2. file DLL presenti
     if not _is_windows():
-        _emit(lines, log_callback, _INFO,
-              "LHM applicabile solo su Windows 11: su Linux la misurazione "
-              "locale CPU e' DISABILITATA (GUI/Ollama/cloud/CSV restano "
-              "utilizzabili). Eventuale simulatore di test solo via "
-              "CW_ENERGY_FILE.")
-        summary["method_expected"] = (
-            "energy-file(dev/test)" if os.environ.get("CW_ENERGY_FILE")
-            else "unavailable-non-windows"
-        )
+        # Su Linux: verifica disponibilità RAPL
+        if platform.system() == "Linux":
+            rapl_path = Path("/sys/class/powercap/intel-rapl/intel-rapl:0/energy_uj")
+            if rapl_path.exists() and os.access(rapl_path, os.R_OK):
+                _emit(lines, log_callback, _OK,
+                      f"RAPL disponibile: {rapl_path} leggibile. "
+                      "Backend Linux attivo per misurazione energia CPU.")
+                summary["method_expected"] = "rapl"
+            else:
+                _emit(lines, log_callback, _WARN,
+                      f"RAPL non accessibile: {rapl_path} non esiste o permessi "
+                      "insufficienti. Richiede root o gruppo 'power'. "
+                      "Misurazione locale CPU disabilitata.")
+                summary["method_expected"] = (
+                    "energy-file(dev/test)" if os.environ.get("CW_ENERGY_FILE")
+                    else "unavailable-rapl-not-accessible"
+                )
+        else:
+            # macOS o altre piattaforme: non supportato (future work)
+            _emit(lines, log_callback, _INFO,
+                  f"Piattaforma {platform.system()}: misurazione locale CPU non "
+                  "supportata (future work). GUI/Ollama/cloud/CSV restano "
+                  "utilizzabili. Eventuale simulatore di test solo via "
+                  "CW_ENERGY_FILE.")
+            summary["method_expected"] = (
+                "energy-file(dev/test)" if os.environ.get("CW_ENERGY_FILE")
+                else "unavailable-non-windows"
+            )
         return summary
 
     missing = [d for d in REQUIRED_DLLS if not (LHM_DIR / d).exists()]
