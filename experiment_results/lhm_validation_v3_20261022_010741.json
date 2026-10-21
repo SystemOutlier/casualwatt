@@ -1,0 +1,27 @@
+{
+  "method": "power-integration",
+  "n_runs": 8,
+  "p_base_mean_w": 73.3733,
+  "p_base_cv_pct": 1.19,
+  "p_idle_calibrated_w": 71.519,
+  "p_load_mean_w": 79.5325,
+  "p_load_cv_pct": 0.82,
+  "e_inc_mean_j": 731.3861,
+  "e_inc_cv_pct": 13.72,
+  "e_inc_ci95_j": [
+    651.159,
+    811.6132
+  ],
+  "j_token_mean": 0.524505,
+  "j_token_cv_pct": 13.73,
+  "j_token_ci95": [
+    0.466922,
+    0.582087
+  ],
+  "tok_out_mean": 1394.9,
+  "window_sources": {
+    "counter-delta-fallback": 24
+  },
+  "pi_interval_measured_s": 0.3224,
+  "pi_interval_declared_s": 0.05
+}

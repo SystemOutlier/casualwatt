@@ -1,0 +1,15 @@
+[
+  {
+    "method": "power-integration",
+    "n_load": 5,
+    "n_base": 5,
+    "e_load_mean": 2932.079204,
+    "e_load_cv_pct": 22.17,
+    "e_base_mean": 2801.14874,
+    "e_base_cv_pct": 21.61,
+    "e_inc_mean": 130.930464,
+    "e_inc_cv_pct": 37.94,
+    "e_inc_ci95_low": 87.385581,
+    "e_inc_ci95_high": 174.475346
+  }
+]
