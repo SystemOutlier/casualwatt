@@ -589,6 +589,25 @@ def run_unified_benchmark(
     session_id = session_id or uuid.uuid4().hex[:12]
     started_wall = datetime.now(timezone.utc)
 
+    # ---- AVVISO IMPORTANTE: isolamento sistema ------------------------------
+    log("=" * 70)
+    log("AVVISO: BENCHMARK ENERGETICO IN CORSO")
+    log("=" * 70)
+    log(
+        "Per garantire misure accurate, NON utilizzare il PC durante il benchmark.\n"
+        "Evitare di:\n"
+        "  • Aprire applicazioni (browser, editor, file explorer)\n"
+        "  • Spostare finestre o ridimensionare finestre\n"
+        "  • Copiare file o scaricare contenuti\n"
+        "  • Eseguire altri programmi in background\n"
+        "  • Modificare impostazioni di sistema\n"
+        "\n"
+        "Il benchmark misura il consumo energetico reale del package CPU.\n"
+        "Qualsiasi attività aggiuntiva altera le misure e invalida i risultati.\n"
+        "Durata stimata: ~" + str(int(total_tasks * 15 + 120)) + " s (calibrazione + " + str(total_tasks) + " query)"
+    )
+    log("=" * 70)
+
     summary = {
         "run_id": run_id,
         "session_id": session_id,
