@@ -497,6 +497,19 @@ class BenchmarkPanel(ttk.Frame):
         self.progress["value"] = 0
         self._set_running(True)
         self._ensure_poller()
+
+        # AVVISO IMPORTANTE: isolamento sistema
+        self.log("=" * 70)
+        self.log("⚠ ATTENZIONE: BENCHMARK ENERGETICO IN CORSO")
+        self.log("=" * 70)
+        self.log(
+            "Per garantire misure accurate, NON utilizzare il PC durante il benchmark.\n"
+            "Evitare di aprire applicazioni, spostare finestre, copiare file o eseguire\n"
+            "altri programmi. Qualsiasi attività aggiuntiva altera le misure energetiche.\n"
+            "Il benchmark durerà alcuni minuti (calibrazione + query)."
+        )
+        self.log("=" * 70)
+
         self.log(
             f"Avvio benchmark — locali: {local_models or '-'} | "
             f"cloud: {[c['model'] for c in cloud_sel] or '-'} | "
