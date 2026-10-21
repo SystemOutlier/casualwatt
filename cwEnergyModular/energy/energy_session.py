@@ -54,6 +54,7 @@ class _CPUJouleSource:
     def __init__(self) -> None:
         self.method = "unavailable"
         self._lhm = None
+        self._rapl = None  # backend Linux RAPL (rapl_backend.RAPLBackend)
         # True solo DOPO Computer().Open() riuscito (spec §6: apertura unica).
         # I lettori di sensori controllano questo flag: un'apertura fallita o
         # non ancora eseguita non deve mai generare NullReferenceException.
@@ -77,8 +78,8 @@ class _CPUJouleSource:
         self._pi_sensor_name: Optional[str] = None
         self._pi_sensors_seen: List[str] = []   # nomi Power visti (diagnostica)
         self._local_disabled_msg = (
-            "Local CPU energy measurement is available only on Windows with "
-            "LibreHardwareMonitor."
+            "Local CPU energy measurement is available on Windows (LibreHardwareMonitor) "
+            "and Linux (RAPL via /sys/class/powercap/)."
         )
         #: Callback opzionale di avanzamento (impostato da SESSION prima di
         #: start()/calibrate_idle): mostra i progressivi dell'apertura LHM,
@@ -119,10 +120,13 @@ class _CPUJouleSource:
             )
         elif platform_system() == "Windows":
             self._activate_backend()
+        elif platform_system() == "Linux":
+            # Backend Linux: contatori RAPL via /sys/class/powercap/
+            self._activate_rapl_backend()
         else:
-            # Piattaforma non-Windows: misurazione locale NON supportata.
-            # Niente clr/LHM (spec §2); eventuale simulatore di test gia'
-            # gestito sopra da CW_ENERGY_FILE.
+            # Piattaforma non-Windows/non-Linux (es. macOS): misurazione
+            # locale NON supportata (future work). Niente clr/LHM (spec §2);
+            # eventuale simulatore di test gia' gestito sopra da CW_ENERGY_FILE.
             self.method = "unavailable"
             self._notes.append(self._local_disabled_msg)
 
@@ -168,6 +172,37 @@ class _CPUJouleSource:
             self.method = "unavailable"
             self._notes.append(self._local_disabled_msg)
         return self.method not in ("unavailable",)
+
+    # -- backend RAPL (Linux) -------------------------------------------------
+    def _activate_rapl_backend(self) -> bool:
+        """Inizializza il backend RAPL per Linux.
+
+        Tenta di creare un'istanza di RAPLBackend. Se disponibile, imposta
+        self.method = "rapl" e ritorna True. Altrimenti degrada a "unavailable"
+        con nota diagnostica.
+
+        Returns:
+            True se il backend RAPL e' attivo, False altrimenti.
+        """
+        try:
+            from energy.rapl_backend import RAPLBackend
+            self._rapl = RAPLBackend()
+            if self._rapl.available:
+                self.method = "rapl"
+                self._notes.extend(self._rapl.notes)
+                return True
+            else:
+                self.method = "unavailable"
+                self._notes.extend(self._rapl.notes)
+                return False
+        except ImportError as exc:
+            self.method = "unavailable"
+            self._notes.append(f"RAPL backend non importabile: {exc}")
+            return False
+        except Exception as exc:
+            self.method = "unavailable"
+            self._notes.append(f"RAPL inizializzazione fallita: {exc}")
+            return False
 
     # -- backend LHM -------------------------------------------------------
     def _try_lhm(self) -> bool:
@@ -1056,6 +1091,8 @@ class _CPUJouleSource:
           * "power-integration"           -> integrazione trapezoidale del
             sensore CPU Package [W] a 0.05 s (metodo ufficiale su i9-13900HK);
           * "librehardwaremonitor-energy" -> contatore Energy LHM [J];
+          * "rapl"                        -> contatore RAPL Linux [J]
+            (via /sys/class/powercap/intel-rapl/);
           * "energy-file"                 -> contatore dev/test non-Windows.
         ``busy_seconds_total`` e' ignorato (retro-compatibilita' di firma).
         """
@@ -1064,6 +1101,10 @@ class _CPUJouleSource:
                 return self._pi_energy_j
         if self.method in ("librehardwaremonitor-energy", "librehardwaremonitor"):
             return self._lhm_value()
+        if self.method == "rapl":
+            if self._rapl is not None:
+                return self._rapl.read_cumulative_energy_j()
+            return None
         if self.method == "energy-file":
             fv = self._file_value()
             if fv is None:
@@ -1079,7 +1120,8 @@ class _CPUJouleSource:
         Stessa funzione usata dal benchmark (principio di specifica: la
         calibrazione empirica campiona con il medesimo percorso):
           * power-integration -> energia gia' integrata a 0.05 s;
-          * energy-counter LHM / file dev-test -> contatore cumulato.
+          * energy-counter LHM / file dev-test -> contatore cumulato;
+          * rapl -> contatore RAPL Linux cumulato.
         Ritorna None se nessun backend reale e' disponibile: il chiamante
         deve dichiararlo (mai fallback TDP silenzioso).
         """
@@ -1122,6 +1164,10 @@ class _CPUJouleSource:
                         "diagnostica lettura LHM: " + detail
                     ) if detail not in " ".join(self._notes) else None
                 return v
+            if self.method == "rapl":
+                if self._rapl is not None:
+                    return self._rapl.read_cumulative_energy_j()
+                return None
             if self.method == "energy-file":
                 fv = self._file_value()
                 if fv is None:
@@ -1142,9 +1188,11 @@ class _CPUJouleSource:
             sensore CPU Package campionate OGNI 0.05 s durante la finestra
             (integrazione trapezoidale completa, spec §4) — metodo ufficiale
             su Windows quando LHM non espone contatori Energy;
+          * mode="rapl-counter": delta del contatore RAPL Linux (via
+            /sys/class/powercap/intel-rapl/);
           * mode="energy-counter": delta del contatore Joule cumulato (LHM
             Energy o file dev/test).
-        Nessuna modalita' usa stime TDP: entrambe sono misure reali.
+        Nessuna modalita' usa stime TDP: tutte sono misure reali.
         """
         duration_s = max(float(duration_s), 0.5)
         # 1) POWER-INTEGRATION: delta dell'energia INTEGRATA DAL THREAD
@@ -1182,7 +1230,10 @@ class _CPUJouleSource:
                 "amministratore ed eseguire 'py diagnostics.py'"
             )
             return None
-        # 2) contatore Joule reale (LHM Energy / file dev-test)
+        # 2) RAPL (Linux): delega al backend RAPL
+        if self.method == "rapl" and self._rapl is not None:
+            return self._rapl.read_idle_window_j(duration_s)
+        # 3) contatore Joule reale (LHM Energy / file dev-test)
         e_start = self.read_power_j()
         err_after_counter = getattr(self, "_last_read_error", None)
         t0 = time.monotonic()
@@ -1192,7 +1243,7 @@ class _CPUJouleSource:
             dt = max(time.monotonic() - t0, 1e-6)
             if e_end is not None and e_end >= e_start:
                 return (e_end - e_start, dt, "energy-counter")
-        # 3) nessun backend: propagazione diagnostica al chiamante
+        # 4) nessun backend: propagazione diagnostica al chiamante
         if err_after_counter:
             self._last_read_error = err_after_counter
         return None
@@ -1551,7 +1602,7 @@ class EnergySession:
         m = self._source.method
         if m == "power-integration":
             return self._source.pi_window_energy_j(t_start, t_end, exclude_windows)
-        if m in ("librehardwaremonitor-energy", "energy-file"):
+        if m in ("librehardwaremonitor-energy", "energy-file", "rapl"):
             # finestra trascorsa: fonte affidabile sono i campioni del
             # contatore cumulato ai bordi REALI della finestra (nessuna
             # interpolazione), con sottrazione delle regioni escluse.
@@ -1664,22 +1715,21 @@ class EnergySession:
 
     # ------------------------------------------------------------ calibrazione
     def calibrate_idle(self, seconds: Optional[float] = None) -> float:
-        """Calibrazione idle empirica SU WINDOWS via LibreHardwareMonitor (spec §5).
+        """Calibrazione idle empirica via backend energetico (spec §5).
 
         Procedura esatta richiesta:
           1. durata >= 30 s (default; sovrascrivibile solo verso l'alto);
           2. 3 ripetizioni della finestra a riposo (nessun carico generato);
           3. per ogni ripetizione: potenza media = delta energia / dt reale
-             (power-integration a 0.05 s sul sensore 'CPU Package', oppure
-             contatore Energy cumulato dove esiste);
+             (power-integration a 0.05 s sul sensore 'CPU Package', contatore
+             Energy cumulato, o contatore RAPL Linux);
           4. P_idle = MEDIANA delle potenze medie delle 3 ripetizioni [W].
 
         L'idle calibrato riflette esattamente il consumo a riposo della
         macchina corrente. La baseline ``idle_power_w`` viene sottratta dal
-        profiler e NON e' mai attribuita al modello. Su piattaforme non-
-        Windows la funzione solleva RuntimeError con messaggio esplicito
-        (la validazione energetica locale e' solo Windows+LHM). Se nessun
-        backend reale e' disponibile, RuntimeError dichiarato: niente TDP.
+        profiler e NON e' mai attribuita al modello. Supportato su Windows
+        (LHM) e Linux (RAPL). Se nessun backend reale e' disponibile,
+        RuntimeError dichiarato: niente TDP.
         """
         import config as _cfg
 
@@ -1694,13 +1744,6 @@ class EnergySession:
             window_floor = 30.0
         duration_s = max(duration_s, window_floor)
 
-        if platform_system() != "Windows":
-            raise RuntimeError(
-                self._source._local_disabled_msg
-                + " Calibrazione idle non eseguibile su questa piattaforma "
-                "(ambiente di sviluppo secondario)."
-            )
-
         # Propaga il callback di avanzamento alla sorgente: i progressivi
         # dell'apertura LHM (probe pigro/watchdog) finiscono nel log GUI.
         self._source._progress_cb = self.on_progress
@@ -1710,7 +1753,8 @@ class EnergySession:
         # guardia esplicita (anti crash .NET non intercettabili): se il
         # backend LHM NON e' attivo con un metodo reale, la calibrazione si
         # ferma PRIMA di toccare qualsiasi oggetto pythonnet.
-        if (self._source.method not in ("power-integration", "librehardwaremonitor-energy")
+        # Nota: su Linux con RAPL, il metodo e' gia' "rapl" e non serve recovery LHM.
+        if (self._source.method not in ("power-integration", "librehardwaremonitor-energy", "rapl")
                 and self._source._lhm is not None
                 and platform_system() == "Windows"):
             # LHM era gia' stata AGGANCIATA in questo processo (Computer()
@@ -1743,7 +1787,7 @@ class EnergySession:
                 self._source.notes.append(
                     f"retry LHM aggiuntivo fallito ({type(exc).__name__})"
                 )
-        if self._source.method not in ("power-integration", "librehardwaremonitor-energy"):
+        if self._source.method not in ("power-integration", "librehardwaremonitor-energy", "rapl"):
             # Recupero mirato: diagnostics.py ha GIA' dimostrato che, nel
             # processo principale elevato, Computer().Open() e la scansione
             # sensori funzionano senza crash pythonnet. Un eventuale falli-
@@ -1784,13 +1828,14 @@ class EnergySession:
                             f"Recupero RIUSCITO: metodo attivo "
                             f"'{self._source.method}'"
                         )
-        if self._source.method not in ("power-integration", "librehardwaremonitor-energy"):
+        if self._source.method not in ("power-integration", "librehardwaremonitor-energy", "rapl"):
             cause = "; ".join(self._source.notes[-3:]) or f"metodo='{self._source.method}'"
             raise RuntimeError(
                 "calibrazione idle fallita: nessun contatore di energia/potenza "
-                "package disponibile (LHM). Causa: " + cause +
-                ". Esegui 'py diagnostics.py' per il report completo "
-                "(clr/pythonnet/DLL/UAC/sensori Power)."
+                "package disponibile. Causa: " + cause +
+                ". Su Windows: esegui 'py diagnostics.py' (clr/pythonnet/DLL/UAC/sensori Power). "
+                "Su Linux: verifica che /sys/class/powercap/intel-rapl/ esista e sia leggibile "
+                "(richiede root o gruppo 'power')."
             )
         try:
             # breve stabilizzazione prima della misura
