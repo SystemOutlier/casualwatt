@@ -103,6 +103,12 @@ stabilito sperimentalmente e che quindi non sono nostre idiosincrasie:
   complementare alla nostra attribuzione per cpu-time-share. Un context manager
   opzionale nel profiler (misura questa regione) sarebbe un'estensione naturale
   del capitolo "estendibilita' del metodo", senza toccare il backend.
+  **Chiarimento (23/10, da `ricerca_metodo.DOCX`)**: il pattern non va usato per la
+  metrica J/token, che resta per **richiesta e fase**. La granularita' per funzione
+  e' incompatibile con la nostra risoluzione (intervallo PI misurato 0,31-0,34 s in
+  fase load contro richieste da 3,60 s, di cui il prefill e' una frazione di
+  secondo): li' il numero sarebbe costruito, non misurato. Il context manager resta
+  un'ipotesi di estendibilita' per codice non-LLM, da citare come tale.
 
 ## 5. AI-Wattch: il polo opposto del nostro posizionamento
 
@@ -124,20 +130,31 @@ token cade a 5-10 W, il nostro 1,29 J/token misurato diventa un termine di
 
 ## 6. mlco2/impact: il layer emissioni e il formato di reporting
 
-Calcolatore di emissioni per training/inferenza (MIT, 272 *, attivo): accetta
-**potenza misurata o stimata**, applica PUE e intensita' di carbonio per
-tempo/luogo, e produce CLI, foglio di calcolo e **template LaTeX che include
-automaticamente l'output del calcolatore**. "This repository is passively
-maintained".
+**Emendato il 23/10 ~17:50**, dopo verifica su `html/_compute.html` del repo (il README sono
+42 righe e non contiene alcuna tassonomia measured/estimated: la frase qui sotto nella prima
+versione era un'over-reading, vedi `ricerca_metodo_docx_valutazione_20261023.md` §4).
 
-Tre cose da prendere, tutte a costo basso: (1) la **tassonomia
-measured/estimated** che loro usano per i dati di potenza — e' il linguaggio
-giusto per la nostra related work; (2) il **template LaTeX di reporting**:
-il nostro verbale esperimento e' oggi markdown generato a mano, un template che
-inietta i numeri dal JSON sarebbe un salto di qualita' per il capitolo 7;
-(3) se vogliamo passare da J/token a **gCO2e/token**, i loro fattori di rete e
-PUE (MIT) sono una fonte pronta e legalmente riutilizzabile — da dichiarare
-come stima, non come misura.
+Calcolatore di emissioni ML (MIT, 272 *, attivo, "passively maintained"): i campi esposti sono
+**Hardware type** (select di GPU), **Hours Used**, **Provider**, **Region of Compute** piu' due
+campi custom `Carbon Efficiency (kg/kWh)`; la formula dichiarata dalla pagina e' "**Power
+consumption x Time x Carbon Produced Based on the Local Power Grid**" (`_compute.html:204-205`).
+
+Due claim della prima versione di questa sezione **vanno ritrattati**:
+(a) "**accetta potenza misurata o stimata**" — non esiste un campo di potenza misurata; quindi
+`impact` **non e' corroboro per la tassonomia measured/estimated**, che resta nostra (e che
+AI-Wattch, al contrario, dichiara esplicitamente nel proprio README).
+(b) "**applica PUE**" — la pagina lo **esclude**: `:20-22` "the estimate provided below **does
+not** take datacenter PUE (Power Usage Effectiveness) into account. To do so, you need to find
+your datacenter's PUE … and multiply the quantity of carbon emitted provided below by that
+number". Per noi cambia poco (mini PC alimentato a muro, PUE ~ 1), ma cambia il modo di citare:
+il PUE e' un **fattore nostro dichiarato**, non un servizio del tool.
+
+Resta valido e da prendere, a costo basso: (1) il **template LaTeX di reporting** (`README:13`,
+"generated latex template which automatically includes the Calculator's output") — il nostro
+verbale e' oggi markdown scritto a mano, un template che inietta i numeri dal JSON sarebbe un
+salto di qualita' per il capitolo 7; (2) i **fattori di griglia per regione/tempo** (MIT,
+riutilizzabili legalmente) per un passaggio J/token → gCO2e/token **da dichiarare come stima**;
+(3) il lessico *raw vs offset emissions* della pagina (`:15-19`).
 
 ## 7. Le osservazioni dal report LHM
 
