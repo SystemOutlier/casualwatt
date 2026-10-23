@@ -15,8 +15,12 @@ Su questa macchina i campi energia SONO popolati (31726/31726 righe non zero),
 nonostante il PC non abbia batteria — fatto non ovvio e verificato, non assunto.
 
 WARNING di metodologia:
-* la granularita' dei bucket e' ~1 minuto (TimeStamp = fine bucket); una finestra
-  di misura sotto i 2-3 minuti non e' risolvibile;
+* **colonna `TimeStamp` = UTC naive, non orario locale.** Misurato 23/10/2026:
+  dump preso alle 12:14 locali contieneva come bucket piu' recente le 10:13 ->
+  121 min di "lag" se interpretato locale, **1,4 min se interpretato UTC**
+  (offset della macchina 2:00:00). Non e' un archivio in ritardo: e' vivo a
+  granularita' ~1 minuto. Chi confronta finestre deve usare
+  :func:`utc_now_naive`, altrimenti la finestra e' vuota per 2 ore.
 * i valori sono nella scala interna di Windows (millijoule, da confermare contro
   EMI sulla stessa finestra: e' esattamente lo scopo di srum_emi_cross.py);
 * `powercfg /srumutil` FORNISCE un flush e costa CPU: va chiamato solo ai confini
@@ -39,6 +43,12 @@ ENERGY_FIELDS = (
     "TotalEnergyConsumption",
     "TimeInMSec",
 )
+
+
+def utc_now_naive() -> datetime.datetime:
+    """Ora in formato UTC naive: stessa base della colonna TimeStamp dei dump."""
+    return datetime.datetime.now(datetime.timezone.utc).replace(tzinfo=None)
+
 
 def flush(out_csv: Path, timeout_s: float = 120.0) -> Optional[Path]:
     """Esegue `powercfg /srumutil /output out_csv` e ritorna il path se scritto.
