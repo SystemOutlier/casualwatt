@@ -1,0 +1,458 @@
+{
+  "timestamp": "20261023_130553",
+  "finestra": {
+    "start": "2026-10-23T11:05:57",
+    "end": "2026-10-23T11:22:35",
+    "load": [
+      "2026-10-23T11:09:15",
+      "2026-10-23T11:19:17"
+    ]
+  },
+  "fasi": [
+    [
+      "idle",
+      120.0
+    ],
+    [
+      "load",
+      600.0
+    ],
+    [
+      "idle2",
+      120.0
+    ]
+  ],
+  "settle_s": 75.0,
+  "tokens_load": 7456,
+  "baseline_bucket_gia_visti": 13844,
+  "granularita": {
+    "idle": {
+      "bucket_nuovi": 493,
+      "minuti_distinti": 4,
+      "bucket_da": "2026-10-23T11:06:00",
+      "bucket_a": "2026-10-23T11:09:00"
+    },
+    "load": {
+      "bucket_nuovi": 1257,
+      "minuti_distinti": 11,
+      "bucket_da": "2026-10-23T11:10:00",
+      "bucket_a": "2026-10-23T11:20:00"
+    },
+    "idle2": {
+      "bucket_nuovi": 354,
+      "minuti_distinti": 3,
+      "bucket_da": "2026-10-23T11:21:00",
+      "bucket_a": "2026-10-23T11:23:00"
+    }
+  },
+  "emi_per_fase": {
+    "idle": {
+      "emi_J": {
+        "package": 2790.09,
+        "dram": 0.0,
+        "pp0": 2051.39,
+        "pp1": 45.34
+      },
+      "emi_meter_s": {
+        "package": 120.0,
+        "dram": 120.0,
+        "pp0": 120.0,
+        "pp1": 120.0
+      },
+      "emi_W": {
+        "package": 23.25,
+        "dram": 0.0,
+        "pp0": 17.09,
+        "pp1": 0.38
+      },
+      "cpu_ollama_s": 0.58,
+      "cpu_system_s": 2366.36,
+      "utc_start": "2026-10-23T11:05:57",
+      "utc_end": "2026-10-23T11:07:57"
+    },
+    "load": {
+      "emi_J": {
+        "package": 16992.47,
+        "dram": 0.0,
+        "pp0": 12490.66,
+        "pp1": 105.1
+      },
+      "emi_meter_s": {
+        "package": 601.17,
+        "dram": 601.17,
+        "pp0": 601.17,
+        "pp1": 601.17
+      },
+      "emi_W": {
+        "package": 28.27,
+        "dram": 0.0,
+        "pp0": 20.78,
+        "pp1": 0.17
+      },
+      "cpu_ollama_s": 12.05,
+      "cpu_system_s": 11794.27,
+      "utc_start": "2026-10-23T11:09:15",
+      "utc_end": "2026-10-23T11:19:17"
+    },
+    "idle2": {
+      "emi_J": {
+        "package": 1373.95,
+        "dram": 0.0,
+        "pp0": 716.59,
+        "pp1": 13.47
+      },
+      "emi_meter_s": {
+        "package": 120.0,
+        "dram": 120.0,
+        "pp0": 120.0,
+        "pp1": 120.0
+      },
+      "emi_W": {
+        "package": 11.45,
+        "dram": 0.0,
+        "pp0": 5.97,
+        "pp1": 0.11
+      },
+      "cpu_ollama_s": 0.95,
+      "cpu_system_s": 2364.95,
+      "utc_start": "2026-10-23T11:20:35",
+      "utc_end": "2026-10-23T11:22:35"
+    }
+  },
+  "srum_per_fase": {
+    "idle": {
+      "bucket_nuovi": 493,
+      "minuti_distinti": 4,
+      "bucket_da": "2026-10-23T11:06:00",
+      "bucket_a": "2026-10-23T11:09:00",
+      "SRUM_E_J_per_dominio": {
+        "EMI_RAPL_Package0_PKG": 4527.32,
+        "EMI_RAPL_Package0_PP0": 3063.41,
+        "EMI_RAPL_Package0_PP1": 83.48
+      },
+      "SRUM_W_per_dominio_EMI": {
+        "EMI_RAPL_Package0_PKG": 18.865,
+        "EMI_RAPL_Package0_PP0": 12.765,
+        "EMI_RAPL_Package0_PP1": 0.348
+      },
+      "copertura_bucket_s": {
+        "EMI_RAPL_Package0_PKG": 240.0,
+        "EMI_RAPL_Package0_PP0": 240.0,
+        "EMI_RAPL_Package0_PP1": 240.0
+      },
+      "qualita_bucket_minuto": {
+        "EMI_RAPL_Package0_PKG": {
+          "minuti_totali": 4,
+          "minuti_completi": 4
+        },
+        "EMI_RAPL_Package0_PP0": {
+          "minuti_totali": 4,
+          "minuti_completi": 4
+        },
+        "EMI_RAPL_Package0_PP1": {
+          "minuti_totali": 4,
+          "minuti_completi": 4
+        }
+      },
+      "SRUM_cpu_totale_J": 3065.1,
+      "SRUM_ollama_cpu_J": 117.01,
+      "SRUM_ollama_share_of_cpu": 0.0382,
+      "ollama_appId": [
+        "\\Device\\HarddiskVolume3\\Users\\Massimo\\AppData\\Local\\Programs\\Ollama\\lib\\ollama\\llama-server.exe",
+        "\\Device\\HarddiskVolume3\\Users\\Massimo\\AppData\\Local\\Programs\\Ollama\\ollama app.exe",
+        "\\Device\\HarddiskVolume3\\Users\\Massimo\\AppData\\Local\\Programs\\Ollama\\ollama.exe"
+      ],
+      "appId_conrighe": 120,
+      "top_cpu_mJ": [
+        [
+          "\\Device\\HarddiskVolume3\\Program Files\\BraveSoftware\\Brave-Browser\\Application\\brave.exe",
+          1084.3
+        ],
+        [
+          "\\Device\\HarddiskVolume3\\Users\\Massimo\\AppData\\Local\\Python\\bin\\python.exe",
+          597.74
+        ],
+        [
+          "\\Device\\HarddiskVolume3\\Users\\Massimo\\AppData\\Local\\Programs\\Qoder\\Qoder.exe",
+          584.65
+        ],
+        [
+          "\\Device\\HarddiskVolume3\\ProgramData\\Microsoft\\Windows Defender\\Platform\\4.18.26090.9-0\\MsMpEng.exe",
+          167.46
+        ],
+        [
+          "\\Device\\HarddiskVolume3\\Windows\\System32\\dwm.exe",
+          153.55
+        ],
+        [
+          "System Interrupts",
+          115.81
+        ],
+        [
+          "System",
+          105.81
+        ],
+        [
+          "\\Device\\HarddiskVolume3\\Users\\Massimo\\AppData\\Local\\Programs\\Ollama\\lib\\ollama\\llama-server.exe",
+          76.64
+        ]
+      ]
+    },
+    "load": {
+      "bucket_nuovi": 1257,
+      "minuti_distinti": 11,
+      "bucket_da": "2026-10-23T11:10:00",
+      "bucket_a": "2026-10-23T11:20:00",
+      "SRUM_E_J_per_dominio": {
+        "EMI_RAPL_Package0_PKG": 17683.77,
+        "EMI_RAPL_Package0_PP0": 12851.65,
+        "EMI_RAPL_Package0_PP1": 115.42
+      },
+      "SRUM_W_per_dominio_EMI": {
+        "EMI_RAPL_Package0_PKG": 26.794,
+        "EMI_RAPL_Package0_PP0": 19.472,
+        "EMI_RAPL_Package0_PP1": 0.175
+      },
+      "copertura_bucket_s": {
+        "EMI_RAPL_Package0_PKG": 660.0,
+        "EMI_RAPL_Package0_PP0": 660.0,
+        "EMI_RAPL_Package0_PP1": 660.0
+      },
+      "qualita_bucket_minuto": {
+        "EMI_RAPL_Package0_PKG": {
+          "minuti_totali": 11,
+          "minuti_completi": 11
+        },
+        "EMI_RAPL_Package0_PP0": {
+          "minuti_totali": 11,
+          "minuti_completi": 11
+        },
+        "EMI_RAPL_Package0_PP1": {
+          "minuti_totali": 11,
+          "minuti_completi": 11
+        }
+      },
+      "SRUM_cpu_totale_J": 12858.58,
+      "SRUM_ollama_cpu_J": 9465.73,
+      "SRUM_ollama_share_of_cpu": 0.7361,
+      "ollama_appId": [
+        "\\Device\\HarddiskVolume3\\Users\\Massimo\\AppData\\Local\\Programs\\Ollama\\lib\\ollama\\llama-server.exe",
+        "\\Device\\HarddiskVolume3\\Users\\Massimo\\AppData\\Local\\Programs\\Ollama\\ollama app.exe",
+        "\\Device\\HarddiskVolume3\\Users\\Massimo\\AppData\\Local\\Programs\\Ollama\\ollama.exe"
+      ],
+      "appId_conrighe": 155,
+      "top_cpu_mJ": [
+        [
+          "\\Device\\HarddiskVolume3\\Users\\Massimo\\AppData\\Local\\Programs\\Ollama\\lib\\ollama\\llama-server.exe",
+          9386.89
+        ],
+        [
+          "\\Device\\HarddiskVolume3\\Program Files\\BraveSoftware\\Brave-Browser\\Application\\brave.exe",
+          2071.94
+        ],
+        [
+          "\\Device\\HarddiskVolume3\\Windows\\System32\\dwm.exe",
+          236.66
+        ],
+        [
+          "System Interrupts",
+          185.95
+        ],
+        [
+          "\\Device\\HarddiskVolume3\\Users\\Massimo\\AppData\\Local\\Programs\\Qoder\\Qoder.exe",
+          182.07
+        ],
+        [
+          "\\Device\\HarddiskVolume3\\ProgramData\\Microsoft\\Windows Defender\\Platform\\4.18.26090.9-0\\MsMpEng.exe",
+          175.52
+        ],
+        [
+          "System",
+          153.26
+        ],
+        [
+          "\\Device\\HarddiskVolume3\\ProgramData\\Microsoft\\Windows Defender\\Platform\\4.18.26090.9-0\\NisSrv.exe",
+          91.92
+        ]
+      ]
+    },
+    "idle2": {
+      "bucket_nuovi": 354,
+      "minuti_distinti": 3,
+      "bucket_da": "2026-10-23T11:21:00",
+      "bucket_a": "2026-10-23T11:23:00",
+      "SRUM_E_J_per_dominio": {
+        "EMI_RAPL_Package0_PKG": 2020.56,
+        "EMI_RAPL_Package0_PP0": 1041.09,
+        "EMI_RAPL_Package0_PP1": 19.4
+      },
+      "SRUM_W_per_dominio_EMI": {
+        "EMI_RAPL_Package0_PKG": 11.225,
+        "EMI_RAPL_Package0_PP0": 5.784,
+        "EMI_RAPL_Package0_PP1": 0.108
+      },
+      "copertura_bucket_s": {
+        "EMI_RAPL_Package0_PKG": 180.0,
+        "EMI_RAPL_Package0_PP0": 180.0,
+        "EMI_RAPL_Package0_PP1": 180.0
+      },
+      "qualita_bucket_minuto": {
+        "EMI_RAPL_Package0_PKG": {
+          "minuti_totali": 3,
+          "minuti_completi": 3
+        },
+        "EMI_RAPL_Package0_PP0": {
+          "minuti_totali": 3,
+          "minuti_completi": 3
+        },
+        "EMI_RAPL_Package0_PP1": {
+          "minuti_totali": 3,
+          "minuti_completi": 3
+        }
+      },
+      "SRUM_cpu_totale_J": 1041.43,
+      "SRUM_ollama_cpu_J": 19.97,
+      "SRUM_ollama_share_of_cpu": 0.0192,
+      "ollama_appId": [
+        "\\Device\\HarddiskVolume3\\Users\\Massimo\\AppData\\Local\\Programs\\Ollama\\lib\\ollama\\llama-server.exe",
+        "\\Device\\HarddiskVolume3\\Users\\Massimo\\AppData\\Local\\Programs\\Ollama\\ollama app.exe",
+        "\\Device\\HarddiskVolume3\\Users\\Massimo\\AppData\\Local\\Programs\\Ollama\\ollama.exe"
+      ],
+      "appId_conrighe": 115,
+      "top_cpu_mJ": [
+        [
+          "\\Device\\HarddiskVolume3\\Program Files\\BraveSoftware\\Brave-Browser\\Application\\brave.exe",
+          588.09
+        ],
+        [
+          "\\Device\\HarddiskVolume3\\Users\\Massimo\\AppData\\Local\\Python\\bin\\python.exe",
+          159.85
+        ],
+        [
+          "\\Device\\HarddiskVolume3\\Windows\\System32\\dwm.exe",
+          59.35
+        ],
+        [
+          "System",
+          48.82
+        ],
+        [
+          "System Interrupts",
+          46.81
+        ],
+        [
+          "\\Device\\HarddiskVolume3\\ProgramData\\Microsoft\\Windows Defender\\Platform\\4.18.26090.9-0\\MsMpEng.exe",
+          21.42
+        ],
+        [
+          "\\Device\\HarddiskVolume3\\Program Files\\HWiNFO64\\HWiNFO64.EXE",
+          20.66
+        ],
+        [
+          "\\Device\\HarddiskVolume3\\Users\\Massimo\\AppData\\Local\\Programs\\Ollama\\ollama.exe",
+          16.89
+        ]
+      ]
+    }
+  },
+  "rapporti_SRUM_vs_EMI": {
+    "idle": {
+      "EMI_RAPL_Package0_PKG": {
+        "SRUM_W": 18.865,
+        "EMI_W": 23.25,
+        "rapporto_SRUM_div_EMI": 0.8114,
+        "SRUM_J_da_bucket": 4527.32,
+        "EMI_J_finestra": 2790.09,
+        "copertura_s": 240.0
+      },
+      "EMI_RAPL_Package0_PP0": {
+        "SRUM_W": 12.765,
+        "EMI_W": 17.09,
+        "rapporto_SRUM_div_EMI": 0.7469,
+        "SRUM_J_da_bucket": 3063.41,
+        "EMI_J_finestra": 2051.39,
+        "copertura_s": 240.0
+      },
+      "EMI_RAPL_Package0_PP1": {
+        "SRUM_W": 0.348,
+        "EMI_W": 0.38,
+        "rapporto_SRUM_div_EMI": 0.9158,
+        "SRUM_J_da_bucket": 83.48,
+        "EMI_J_finestra": 45.34,
+        "copertura_s": 240.0
+      }
+    },
+    "load": {
+      "EMI_RAPL_Package0_PKG": {
+        "SRUM_W": 26.794,
+        "EMI_W": 28.27,
+        "rapporto_SRUM_div_EMI": 0.9478,
+        "SRUM_J_da_bucket": 17683.77,
+        "EMI_J_finestra": 16992.47,
+        "copertura_s": 660.0
+      },
+      "EMI_RAPL_Package0_PP0": {
+        "SRUM_W": 19.472,
+        "EMI_W": 20.78,
+        "rapporto_SRUM_div_EMI": 0.9371,
+        "SRUM_J_da_bucket": 12851.65,
+        "EMI_J_finestra": 12490.66,
+        "copertura_s": 660.0
+      },
+      "EMI_RAPL_Package0_PP1": {
+        "SRUM_W": 0.175,
+        "EMI_W": 0.17,
+        "rapporto_SRUM_div_EMI": 1.0294,
+        "SRUM_J_da_bucket": 115.42,
+        "EMI_J_finestra": 105.1,
+        "copertura_s": 660.0
+      }
+    },
+    "idle2": {
+      "EMI_RAPL_Package0_PKG": {
+        "SRUM_W": 11.225,
+        "EMI_W": 11.45,
+        "rapporto_SRUM_div_EMI": 0.9803,
+        "SRUM_J_da_bucket": 2020.56,
+        "EMI_J_finestra": 1373.95,
+        "copertura_s": 180.0
+      },
+      "EMI_RAPL_Package0_PP0": {
+        "SRUM_W": 5.784,
+        "EMI_W": 5.97,
+        "rapporto_SRUM_div_EMI": 0.9688,
+        "SRUM_J_da_bucket": 1041.09,
+        "EMI_J_finestra": 716.59,
+        "copertura_s": 180.0
+      },
+      "EMI_RAPL_Package0_PP1": {
+        "SRUM_W": 0.108,
+        "EMI_W": 0.11,
+        "rapporto_SRUM_div_EMI": 0.9818,
+        "SRUM_J_da_bucket": 19.4,
+        "EMI_J_finestra": 13.47,
+        "copertura_s": 180.0
+      }
+    }
+  },
+  "confronto": {
+    "EMI_pkg_load_J": 16992.47,
+    "EMI_pp0_load_J": 12490.66,
+    "EMI_incrementale_J": 6562.09,
+    "EMI_base_idle_W": 17.35,
+    "EMI_J_per_token": 0.8801,
+    "SRUM_pkg_load_W": 26.794,
+    "rapporto_medio_pkg": [
+      0.8114,
+      0.9478,
+      0.9803
+    ],
+    "SRUM_ollama_cpu_J_load": 9465.73,
+    "SRUM_cpu_totale_J_load": 12858.58,
+    "SRUM_ollama_share_of_cpu_load": 0.7361,
+    "cpu_time_share_ollama_misurata": 0.001,
+    "EMI_pkg_x_cpu_share_J": 6.7,
+    "ipotesi_unita": "mJ -> rapporto SRUM/EMI in W atteso ~1; J -> ~1e-3; uJ -> ~1e6; il valore MISURATO decide, non la doc"
+  },
+  "caveat": "SRUM scrive a bucket da minuto e li compatta in record orari a ogni boundary di epoch (misurato :32): per questo si dumpa a ogni confine di fase e si contano solo le righe mai viste. La potenza SRUM e' calcolata sul TimeInMSec del bucket, NON sulla durata della fase, quindi il bucket di confine sposta la rata di poco ma la finestra reale e' dichiarata in `granularita`. Il campo per-processo e' prodotto dal modello EPI di Windows: questo esperimento confronta DUE attribuzioni (la sua e la nostra frazione di CPU-time), non ne valida una contro la verita' hardware. L'arbitro resta il delta EMI/PP0, cumulativo e senza modello."
+}

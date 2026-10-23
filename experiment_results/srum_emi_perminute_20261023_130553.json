@@ -1,0 +1,372 @@
+{
+  "run": "20261023_130553",
+  "metodo": "delta contatore EMI (interpolato ai confini) sulla stessa finestra del bucket SRUM da minuto; potenze = J / secondi propri",
+  "unita": {
+    "srum": "mJ -> J (/1000)",
+    "emi": "pWh -> J (x3.6e-9)"
+  },
+  "dominio_accoppiato": "package",
+  "skip": [
+    "EMI_RAPL_Package0_PP0",
+    "EMI_RAPL_Package0_PP1"
+  ],
+  "fasi": {
+    "idle": {
+      "asse_emi_campioni": 23,
+      "asse_emi_da": "2026-10-23T11:06:02",
+      "asse_emi_a": "2026-10-23T11:07:52",
+      "minuti_in_fase": [
+        "2026-10-23T11:06:00",
+        "2026-10-23T11:07:00",
+        "2026-10-23T11:08:00"
+      ],
+      "righe": [
+        {
+          "fase": "idle",
+          "dominio_srum": "EMI_RAPL_Package0_PKG",
+          "emi_dom": "package",
+          "minuto_utc": "2026-10-23T11:06:00",
+          "srum_J": 950.138,
+          "srum_ms": 59989.0,
+          "srum_W": 15.8385,
+          "emi_J": null,
+          "emi_s": null,
+          "emi_W": null,
+          "rapporto": null
+        },
+        {
+          "fase": "idle",
+          "dominio_srum": "EMI_RAPL_Package0_PKG",
+          "emi_dom": "package",
+          "minuto_utc": "2026-10-23T11:07:00",
+          "srum_J": 1399.635,
+          "srum_ms": 60009.0,
+          "srum_W": 23.3238,
+          "emi_J": null,
+          "emi_s": null,
+          "emi_W": null,
+          "rapporto": null
+        },
+        {
+          "fase": "idle",
+          "dominio_srum": "EMI_RAPL_Package0_PKG",
+          "emi_dom": "package",
+          "minuto_utc": "2026-10-23T11:08:00",
+          "srum_J": 1366.337,
+          "srum_ms": 59993.0,
+          "srum_W": 22.7749,
+          "emi_J": null,
+          "emi_s": null,
+          "emi_W": null,
+          "rapporto": null
+        }
+      ],
+      "coppie_complete": 0,
+      "statistiche": {},
+      "minuti_di_confine": []
+    },
+    "load": {
+      "asse_emi_campioni": 95,
+      "asse_emi_da": "2026-10-23T11:09:21.700000",
+      "asse_emi_a": "2026-10-23T11:19:11.400000",
+      "minuti_in_fase": [
+        "2026-10-23T11:10:00",
+        "2026-10-23T11:11:00",
+        "2026-10-23T11:12:00",
+        "2026-10-23T11:13:00",
+        "2026-10-23T11:14:00",
+        "2026-10-23T11:15:00",
+        "2026-10-23T11:16:00",
+        "2026-10-23T11:17:00",
+        "2026-10-23T11:18:00",
+        "2026-10-23T11:19:00",
+        "2026-10-23T11:20:00"
+      ],
+      "righe": [
+        {
+          "fase": "load",
+          "dominio_srum": "EMI_RAPL_Package0_PKG",
+          "emi_dom": "package",
+          "minuto_utc": "2026-10-23T11:10:00",
+          "srum_J": 1354.386,
+          "srum_ms": 60010.0,
+          "srum_W": 22.5693,
+          "emi_J": 1650.1877,
+          "emi_s": 60.0,
+          "emi_W": 27.5031,
+          "rapporto": 0.8206
+        },
+        {
+          "fase": "load",
+          "dominio_srum": "EMI_RAPL_Package0_PKG",
+          "emi_dom": "package",
+          "minuto_utc": "2026-10-23T11:11:00",
+          "srum_J": 1648.887,
+          "srum_ms": 59992.0,
+          "srum_W": 27.4851,
+          "emi_J": 1713.6284,
+          "emi_s": 60.0,
+          "emi_W": 28.5605,
+          "rapporto": 0.9623
+        },
+        {
+          "fase": "load",
+          "dominio_srum": "EMI_RAPL_Package0_PKG",
+          "emi_dom": "package",
+          "minuto_utc": "2026-10-23T11:12:00",
+          "srum_J": 1713.227,
+          "srum_ms": 60001.0,
+          "srum_W": 28.5533,
+          "emi_J": 1743.4213,
+          "emi_s": 60.0,
+          "emi_W": 29.057,
+          "rapporto": 0.9827
+        },
+        {
+          "fase": "load",
+          "dominio_srum": "EMI_RAPL_Package0_PKG",
+          "emi_dom": "package",
+          "minuto_utc": "2026-10-23T11:13:00",
+          "srum_J": 1742.448,
+          "srum_ms": 59993.0,
+          "srum_W": 29.0442,
+          "emi_J": 1708.6368,
+          "emi_s": 60.0,
+          "emi_W": 28.4773,
+          "rapporto": 1.0199
+        },
+        {
+          "fase": "load",
+          "dominio_srum": "EMI_RAPL_Package0_PKG",
+          "emi_dom": "package",
+          "minuto_utc": "2026-10-23T11:14:00",
+          "srum_J": 1708.602,
+          "srum_ms": 60011.0,
+          "srum_W": 28.4715,
+          "emi_J": 1714.0555,
+          "emi_s": 60.0,
+          "emi_W": 28.5676,
+          "rapporto": 0.9966
+        },
+        {
+          "fase": "load",
+          "dominio_srum": "EMI_RAPL_Package0_PKG",
+          "emi_dom": "package",
+          "minuto_utc": "2026-10-23T11:15:00",
+          "srum_J": 1711.697,
+          "srum_ms": 59989.0,
+          "srum_W": 28.5335,
+          "emi_J": 1718.5738,
+          "emi_s": 60.0,
+          "emi_W": 28.6429,
+          "rapporto": 0.9962
+        },
+        {
+          "fase": "load",
+          "dominio_srum": "EMI_RAPL_Package0_PKG",
+          "emi_dom": "package",
+          "minuto_utc": "2026-10-23T11:16:00",
+          "srum_J": 1721.711,
+          "srum_ms": 60003.0,
+          "srum_W": 28.6937,
+          "emi_J": 1709.0476,
+          "emi_s": 60.0,
+          "emi_W": 28.4841,
+          "rapporto": 1.0074
+        },
+        {
+          "fase": "load",
+          "dominio_srum": "EMI_RAPL_Package0_PKG",
+          "emi_dom": "package",
+          "minuto_utc": "2026-10-23T11:17:00",
+          "srum_J": 1706.089,
+          "srum_ms": 59997.0,
+          "srum_W": 28.4362,
+          "emi_J": 1710.8963,
+          "emi_s": 60.0,
+          "emi_W": 28.5149,
+          "rapporto": 0.9972
+        },
+        {
+          "fase": "load",
+          "dominio_srum": "EMI_RAPL_Package0_PKG",
+          "emi_dom": "package",
+          "minuto_utc": "2026-10-23T11:18:00",
+          "srum_J": 1712.992,
+          "srum_ms": 60000.0,
+          "srum_W": 28.5499,
+          "emi_J": 1722.0839,
+          "emi_s": 60.0,
+          "emi_W": 28.7014,
+          "rapporto": 0.9947
+        },
+        {
+          "fase": "load",
+          "dominio_srum": "EMI_RAPL_Package0_PKG",
+          "emi_dom": "package",
+          "minuto_utc": "2026-10-23T11:19:00",
+          "srum_J": 1722.815,
+          "srum_ms": 60002.0,
+          "srum_W": 28.7126,
+          "emi_J": null,
+          "emi_s": null,
+          "emi_W": null,
+          "rapporto": null
+        },
+        {
+          "fase": "load",
+          "dominio_srum": "EMI_RAPL_Package0_PKG",
+          "emi_dom": "package",
+          "minuto_utc": "2026-10-23T11:20:00",
+          "srum_J": 940.915,
+          "srum_ms": 59995.0,
+          "srum_W": 15.6832,
+          "emi_J": null,
+          "emi_s": null,
+          "emi_W": null,
+          "rapporto": null
+        }
+      ],
+      "coppie_complete": 9,
+      "statistiche": {
+        "n": 9,
+        "media": 0.9753,
+        "sd": 0.0601,
+        "min": 0.8206,
+        "max": 1.0199,
+        "deviazione_massima_da_1": 0.1794
+      },
+      "minuti_di_confine": [
+        "2026-10-23T11:10:00",
+        "2026-10-23T11:18:00"
+      ]
+    },
+    "idle2": {
+      "asse_emi_campioni": 23,
+      "asse_emi_da": "2026-10-23T11:20:40",
+      "asse_emi_a": "2026-10-23T11:22:30",
+      "minuti_in_fase": [
+        "2026-10-23T11:21:00",
+        "2026-10-23T11:22:00",
+        "2026-10-23T11:23:00"
+      ],
+      "righe": [
+        {
+          "fase": "idle2",
+          "dominio_srum": "EMI_RAPL_Package0_PKG",
+          "emi_dom": "package",
+          "minuto_utc": "2026-10-23T11:21:00",
+          "srum_J": 691.927,
+          "srum_ms": 60003.0,
+          "srum_W": 11.5315,
+          "emi_J": 718.6712,
+          "emi_s": 60.0,
+          "emi_W": 11.9779,
+          "rapporto": 0.9627
+        },
+        {
+          "fase": "idle2",
+          "dominio_srum": "EMI_RAPL_Package0_PKG",
+          "emi_dom": "package",
+          "minuto_utc": "2026-10-23T11:22:00",
+          "srum_J": 720.45,
+          "srum_ms": 59991.0,
+          "srum_W": 12.0093,
+          "emi_J": null,
+          "emi_s": null,
+          "emi_W": null,
+          "rapporto": null
+        },
+        {
+          "fase": "idle2",
+          "dominio_srum": "EMI_RAPL_Package0_PKG",
+          "emi_dom": "package",
+          "minuto_utc": "2026-10-23T11:23:00",
+          "srum_J": 608.178,
+          "srum_ms": 60004.0,
+          "srum_W": 10.1356,
+          "emi_J": null,
+          "emi_s": null,
+          "emi_W": null,
+          "rapporto": null
+        }
+      ],
+      "coppie_complete": 1,
+      "statistiche": {
+        "n": 1,
+        "media": 0.9627,
+        "sd": 0.0,
+        "min": 0.9627,
+        "max": 0.9627,
+        "deviazione_massima_da_1": 0.0373
+      },
+      "minuti_di_confine": [
+        "2026-10-23T11:21:00",
+        "2026-10-23T11:21:00"
+      ]
+    }
+  },
+  "riepilogo": {
+    "coppie_totali": 10,
+    "rapporto_medio_load": 0.9753,
+    "n_load": 9,
+    "rapporto_medio_minuti_interni": 0.9946,
+    "n_minuti_interni": 7,
+    "deviazione_massima_minuti_interni": 0.0377,
+    "deviazione_massima_load": 0.1794,
+    "rapporti_minuti_interni": [
+      0.9623,
+      0.9827,
+      0.9962,
+      0.9966,
+      0.9972,
+      1.0074,
+      1.0199
+    ],
+    "esclusi_come_confine": {
+      "idle": [],
+      "load": [
+        "2026-10-23T11:10:00",
+        "2026-10-23T11:18:00"
+      ],
+      "idle2": [
+        "2026-10-23T11:21:00",
+        "2026-10-23T11:21:00"
+      ]
+    }
+  },
+  "differenziale_due_sorgenti": {
+    "meter_s": 601.17,
+    "token": 7456,
+    "base_media_A_B": {
+      "EMI": {
+        "base_W": 17.35,
+        "dP_W": 10.92,
+        "incrementale_J": 6564.8,
+        "J_per_token": 0.8805
+      },
+      "SRUM": {
+        "base_W": 15.045,
+        "dP_W": 11.749,
+        "incrementale_J": 7063.1,
+        "J_per_token": 0.9473
+      },
+      "rapporto_SRUM_div_EMI_J_token": 1.0759
+    },
+    "base_solo_B": {
+      "EMI": {
+        "base_W": 11.45,
+        "dP_W": 16.82,
+        "incrementale_J": 10111.7,
+        "J_per_token": 1.3562
+      },
+      "SRUM": {
+        "base_W": 11.225,
+        "dP_W": 15.569,
+        "incrementale_J": 9359.6,
+        "J_per_token": 1.2553
+      },
+      "rapporto_SRUM_div_EMI_J_token": 0.9256
+    }
+  }
+}
