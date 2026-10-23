@@ -1,0 +1,89 @@
+{
+  "timestamp": "20261023_020051",
+  "wall_zero": "2026-10-23T01:57:46.666",
+  "fasi": [
+    [
+      "idle",
+      45.0
+    ],
+    [
+      "load",
+      90.0
+    ],
+    [
+      "idle2",
+      45.0
+    ]
+  ],
+  "tokens_load": 768,
+  "per_fase": {
+    "idle": {
+      "n": 45,
+      "emi_J": 769.87,
+      "emi_meter_s": 44.12,
+      "emi_W": 17.45,
+      "lhm_mean_W": 71.07,
+      "lhm_sd_W": 1.95
+    },
+    "load": {
+      "n": 23,
+      "emi_J": 2213.83,
+      "emi_meter_s": 85.66,
+      "emi_W": 25.84,
+      "lhm_mean_W": 75.78,
+      "lhm_sd_W": 1.83
+    },
+    "idle2": {
+      "n": 45,
+      "emi_J": 721.94,
+      "emi_meter_s": 44.1,
+      "emi_W": 16.37,
+      "lhm_mean_W": 71.82,
+      "lhm_sd_W": 1.56
+    }
+  },
+  "codecarbon_per_fase": [
+    {
+      "fase": "idle",
+      "cum_duration_s": 59.739,
+      "delta_duration_s": 59.739,
+      "delta_cpu_energy_J": 538.85,
+      "cpu_power_W_fase": 9.02
+    },
+    {
+      "fase": "load",
+      "cum_duration_s": 152.541,
+      "delta_duration_s": 92.802,
+      "delta_cpu_energy_J": 2901.4,
+      "cpu_power_W_fase": 31.26
+    },
+    {
+      "fase": "idle2",
+      "cum_duration_s": 197.654,
+      "delta_duration_s": 45.112,
+      "delta_cpu_energy_J": 425.54,
+      "cpu_power_W_fase": 9.43
+    }
+  ],
+  "codecarbon_backend": [
+    "RAM()",
+    "CPU(Cpu Load)"
+  ],
+  "codecarbon_notes": [],
+  "confronto": {
+    "EMI_W_base": 16.91,
+    "EMI_W_load": 25.84,
+    "EMI_incrementale_J": 765.3,
+    "EMI_J_per_token": 0.9965,
+    "LHM_W_base": 71.44,
+    "LHM_W_load": 75.78,
+    "LHM_incrementale_W": 4.34,
+    "LHM_incrementale_J": 390.6,
+    "CodeCarbon_W_base": 9.22,
+    "CodeCarbon_W_load": 31.26,
+    "CodeCarbon_incrementale_W": 22.04,
+    "offset_LHM_meno_EMI_W": 54.53
+  },
+  "confronto_note": "EMI = contatore hardware cumulativo PKG (riferimento di scala). LHM = power-integration del package: gli ASSOLUTI sono invalidati (23/10: HWiNFO 15-19 W a idle + PL1 35 / PL2 55 W), i differenziali A-B-A restano validi perche' l'offset si cancella. CodeCarbon su questa macchina = modello cpu_load (80 W * (0.1 + 0.9*load^3)), NON una misura: termine di confronto metodologico, non arbitro. HWiNFO = CSV logging manuale dell'utente, da allineare per wall-clock a partire da wall_zero.",
+  "hwinfo": "CSV logging manuale dell'utente; allineare per wall-clock"
+}
