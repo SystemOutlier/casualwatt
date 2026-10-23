@@ -1,0 +1,144 @@
+{
+  "timestamp": "20261023_142253",
+  "wall_zero": "2026-10-23T14:19:51.899",
+  "fasi": [
+    [
+      "idle",
+      45.0
+    ],
+    [
+      "load",
+      90.0
+    ],
+    [
+      "idle2",
+      45.0
+    ]
+  ],
+  "tokens_load": 768,
+  "per_fase": {
+    "idle": {
+      "n": 45,
+      "emi_J": 518.08,
+      "emi_meter_s": 44.11,
+      "emi_W": 11.74,
+      "lhm_mean_W": 12.29,
+      "lhm_sd_W": 3.3,
+      "cw_J_fase": null,
+      "cw_s_fase": null,
+      "cw_W_finestra_uguale": null,
+      "n_coppie_finestra": 0,
+      "cw_dt_mediano_s": null,
+      "rapporto_cw_div_EMI": null,
+      "rapporto_cw_div_EMI_aggregato": null,
+      "cw_J_coppie": null,
+      "emi_J_coppie": null,
+      "rapporto_cw_div_EMI_min": null,
+      "rapporto_cw_div_EMI_max": null,
+      "hw_n": 0,
+      "hw_mean_W": null,
+      "hw_sd_W": null
+    },
+    "load": {
+      "n": 24,
+      "emi_J": 1956.92,
+      "emi_meter_s": 86.32,
+      "emi_W": 22.67,
+      "lhm_mean_W": 26.02,
+      "lhm_sd_W": 2.92,
+      "cw_J_fase": null,
+      "cw_s_fase": null,
+      "cw_W_finestra_uguale": null,
+      "n_coppie_finestra": 0,
+      "cw_dt_mediano_s": null,
+      "rapporto_cw_div_EMI": null,
+      "rapporto_cw_div_EMI_aggregato": null,
+      "cw_J_coppie": null,
+      "emi_J_coppie": null,
+      "rapporto_cw_div_EMI_min": null,
+      "rapporto_cw_div_EMI_max": null,
+      "hw_n": 0,
+      "hw_mean_W": null,
+      "hw_sd_W": null
+    },
+    "idle2": {
+      "n": 45,
+      "emi_J": 533.29,
+      "emi_meter_s": 44.04,
+      "emi_W": 12.11,
+      "lhm_mean_W": 12.32,
+      "lhm_sd_W": 2.03,
+      "cw_J_fase": null,
+      "cw_s_fase": null,
+      "cw_W_finestra_uguale": null,
+      "n_coppie_finestra": 0,
+      "cw_dt_mediano_s": null,
+      "rapporto_cw_div_EMI": null,
+      "rapporto_cw_div_EMI_aggregato": null,
+      "cw_J_coppie": null,
+      "emi_J_coppie": null,
+      "rapporto_cw_div_EMI_min": null,
+      "rapporto_cw_div_EMI_max": null,
+      "hw_n": 0,
+      "hw_mean_W": null,
+      "hw_sd_W": null
+    }
+  },
+  "codecarbon_per_fase": [
+    {
+      "fase": "idle",
+      "cum_duration_s": 52.538,
+      "delta_duration_s": 52.538,
+      "delta_cpu_energy_J": 569.65,
+      "cpu_power_W_fase": 10.84
+    },
+    {
+      "fase": "load",
+      "cum_duration_s": 142.889,
+      "delta_duration_s": 90.351,
+      "delta_cpu_energy_J": 2133.96,
+      "cpu_power_W_fase": 23.62
+    },
+    {
+      "fase": "idle2",
+      "cum_duration_s": 187.948,
+      "delta_duration_s": 45.058,
+      "delta_cpu_energy_J": 381.68,
+      "cpu_power_W_fase": 8.47
+    }
+  ],
+  "codecarbon_backend": [
+    "RAM()",
+    "CPU(Cpu Load)"
+  ],
+  "codecarbon_notes": [],
+  "confronto": {
+    "EMI_W_base": 11.93,
+    "EMI_W_load": 22.67,
+    "EMI_incrementale_J": 927.6,
+    "EMI_J_per_token": 1.2078,
+    "LHM_W_base": 12.3,
+    "LHM_W_load": 26.02,
+    "LHM_incrementale_W": 13.71,
+    "LHM_incrementale_J": 1233.9,
+    "LHM_finestra_uguale_W_base": null,
+    "LHM_finestra_uguale_W_load": null,
+    "LHM_finestra_uguale_incrementale_J": null,
+    "J_per_token_LHM_finestra_uguale": null,
+    "rapporto_LHM_div_EMI_J_per_token_finestra_uguale": null,
+    "CodeCarbon_W_base": 9.66,
+    "CodeCarbon_W_load": 23.62,
+    "CodeCarbon_incrementale_W": 13.96,
+    "HWiNFO_W_base": null,
+    "HWiNFO_W_load": null,
+    "HWiNFO_incrementale_W": null,
+    "HWiNFO_incrementale_J": null,
+    "J_per_token_LHM": 1.6066,
+    "J_per_token_HWiNFO": null,
+    "offset_LHM_meno_EMI_W": 0.38,
+    "offset_HWiNFO_meno_EMI_W": null
+  },
+  "confronto_note": "EMI = contatore hardware cumulativo PKG (riferimento di scala). LHM = power-integration del package: gli ASSOLUTI sono invalidati (23/10: HWiNFO 15-19 W a idle + PL1 35 / PL2 55 W), i differenziali A-B-A restano validi perche' l'offset si cancella. CodeCarbon su questa macchina = modello cpu_load (80 W * (0.1 + 0.9*load^3)), NON una misura: termine di confronto metodologico, non arbitro. HWiNFO = package letto dalla Shared Memory (calibrato a caldo vs EMI), testimone NON passivo perche' il suo polling e' carico CPU. I J/token di LHM e HWiNFO usano (W_load - W_base) * durata_fase / token: sono approssimazioni a duty-cycle 1, mentre EMI usa il delta del contatore sulla finestra reale del meter.",
+  "hwinfo": "ASSENTE",
+  "hwinfo_note": "OSError: OpenFileMapping fallita (err=2): la Shared Memory di HWiNFO non e' esposta. Abilita 'Shared Memory Support' in Impostazioni -> Generale/Interfaccia utente (manuale p.14) e tieni attiva la finestra sensori."
+}
