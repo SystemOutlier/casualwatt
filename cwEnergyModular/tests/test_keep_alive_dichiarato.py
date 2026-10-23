@@ -1,6 +1,9 @@
 # -*- coding: utf-8 -*-
 """D1 -- lo stato del motore locale e' un parametro dichiarato, non un incidente.
 
+Le 6 docstring dei test di questo file sono state aggiunte il 23/10/2026
+leggendo i corpi, non dall'autore originale delle funzioni.
+
 Il framework non ha mai inviato `keep_alive` a Ollama: decideva il default del
 servitore se i pesi restassero caricati fra una richiesta e la successiva.
 Quello stato non e' neutro -- e' la causa piu' plausibile dei residui di
@@ -59,11 +62,13 @@ class _Post:
 
 
 def test_senza_configurazione_il_payload_e_quello_storico(monkeypatch):
+    """Senza OLLAMA_KEEP_ALIVE il payload e' byte a byte quello delle 9 righe pubblicate."""
     monkeypatch.setattr(config, "OLLAMA_KEEP_ALIVE", "", raising=False)
     assert bu._ollama_payload("m", "p", 0.2, 160) == STORICO
 
 
 def test_con_configurazione_la_chiave_e_nel_payload(monkeypatch):
+    """Con OLLAMA_KEEP_ALIVE=5m la chiave entra nel payload e il resto non cambia."""
     monkeypatch.setattr(config, "OLLAMA_KEEP_ALIVE", "5m", raising=False)
     payload = bu._ollama_payload("m", "p", 0.2, 160)
     assert payload["keep_alive"] == "5m"
@@ -71,6 +76,7 @@ def test_con_configurazione_la_chiave_e_nel_payload(monkeypatch):
 
 
 def test_default_non_inviato_dichiarato_in_risposta(monkeypatch):
+    """Non inviare la chiave resta uno stato dichiarato nella risposta, non un buco."""
     monkeypatch.setattr(config, "OLLAMA_KEEP_ALIVE", "", raising=False)
     post = _Post()
     monkeypatch.setattr(bu.requests, "post", post)
@@ -80,6 +86,7 @@ def test_default_non_inviato_dichiarato_in_risposta(monkeypatch):
 
 
 def test_valore_inviato_compare_nella_risposta(monkeypatch):
+    """Il valore spedito (anche '0') e' lo stesso che finisce in keep_alive_sent."""
     monkeypatch.setattr(config, "OLLAMA_KEEP_ALIVE", "0", raising=False)
     post = _Post()
     monkeypatch.setattr(bu.requests, "post", post)
@@ -99,6 +106,7 @@ def test_query_ollama_usa_lo_stesso_payload(monkeypatch):
 
 
 def test_schema_esporta_cio_che_e_stato_inviato():
+    """keep_alive_sent nella riga, ollama_keep_alive in coda ai metadati, nessuna colonna duplicata."""
     assert "keep_alive_sent" in CSV_COLUMNS
     assert len(CSV_COLUMNS) == len(set(CSV_COLUMNS)), "colonne duplicate"
     assert "ollama_keep_alive" in RUN_METADATA_COLUMNS
@@ -125,6 +133,7 @@ def _record_locale(monkeypatch):
 
 
 def test_record_locale_non_dichiara_un_metodo_cloud(monkeypatch):
+    """Record locale: nessun metodo cloud dichiarato, perche' non c'e' misura dietro l'etichetta."""
     rec = _record_locale(monkeypatch)
     assert rec["cloud_emissions_method"] == ""
     assert rec["cloud_energy_j"] == 0.0
