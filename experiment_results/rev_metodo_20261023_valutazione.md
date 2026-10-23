@@ -20,15 +20,16 @@ integrazione, nessun token elevato), con LHM declassato a fallback
   (intervallo PI osservato 0,280–0,340 s; 1 Hz nella lettura pulita del
   23/10), ed è il motivo metrologico per cui siamo usciti dall'integrazione.
   Riesaminando con `tools/emi_cadenza_analysis.py` i 4 CSV del probe committati
-  oggi (800+2000+800+2000 letture a 50 ms e 10 ms): il registro EMI cambia
-  valore E timestamp a ogni lettura — 0 timestamp duplicati su ~11.200
-  transizioni consecutive, solo 2 `v0` identici; la cadenza arriva a 100 Hz
-  senza che il polling sia il collo di bottiglia. **Il limite di cadenza non
+  oggi (11.200 letture: 3.200 dichiarate a 50 ms e 8.000 a 10 ms): i timestamp
+  di registro non sono mai duplicati su 11.192 transizioni consecutive e il
+  valore `v0` cambia in 11.188 casi (4 soli identici, tutti nei file a 10 ms);
+  il registro quindi non e' quantizzato ad intervalli >= 10 ms e il polling non
+  e' il collo di bottiglia. **Il limite di cadenza non
   si applica al principale.** Il costo vero osservato e' un altro: nel probe
   live a 20 Hz la cadenza del sampler passa da 0,0506 s mediana (idle) a
-  0,0770 s (spin 1 thread, +27 ms/lettura) — il thread del sampler, sotto
-  carico, e' esso stesso carico di osservazione. Distribuzione completa in
-  `emi_cadenza_distribuzione_20261023.md`.
+  0,0770 s (spin 1 thread, +26 ms/lettura, 14,1 Hz effettivi) — il thread del
+  sampler, sotto carico, e' esso stesso carico di osservazione. Distribuzione
+  completa in `emi_cadenza_distribuzione_20261023.md`.
 - **"Non sostituirei ora LHM con un driver personalizzato" (Verdetto finale)**
   — superata dai fatti e dalla direzione già decisa: EMI non è un driver
   custom, è il canale ACPI documentato da Intel (Beyer & Wendler, LNCS 12079),
@@ -114,12 +115,12 @@ in un thread dedicato *sempre attivo*, e il costo dell'osservatore che abbiamo
 arbitrato (0,2–0,9 W, commit d06eea0) era quello della GUI LHM, non del thread
 EMI. Prima della v4 serve lo stesso A-B-A col reader EMI attivo/inattivo, e
 una prima risposta e' arrivata dalla cadenza: riesaminando i 4 CSV del probe
-a 50/10 ms committati oggi, il registro EMI cambia valore e timestamp a OGNI
-lettura (0 timestamp duplicati su ~11.200 transizioni, 2 soli `v0` identici),
-quindi il refresh non e' il limite — il "3 Hz" del §2 riguardava LHM. Ma nel
-probe live a 20 Hz la fase spin 1 thread allunga la cadenza del sampler da
-0,0506 a 0,0770 s mediana (+27 ms/lettura): il thread del sampler SOTTO
-CARICO e' esso stesso un carico di osservazione. Distribuzione completa e
+a 50/10 ms committati oggi (11.200 letture = 11.192 transizioni), i timestamp
+di registro non sono mai duplicati e il `v0` cambia in 11.188 transizioni su
+11.192, quindi il refresh non e' il limite — il "3 Hz" del §2 riguardava LHM.
+Ma nel probe live a 20 Hz la fase spin 1 thread allunga la cadenza del sampler
+da 0,0506 a 0,0770 s mediana (+26 ms/lettura, 14,1 Hz effettivi): il thread
+del sampler SOTTO CARICO e' esso stesso un carico di osservazione. Distribuzione completa e
 azione proposta in `emi_cadenza_distribuzione_20261023.md` (harness
 `cwEnergyModular/tools/emi_cadenza_analysis.py`).
 
