@@ -17,10 +17,25 @@ Stessa scalinata A-B-A del protocollo v2, con QUATTRO sorgenti attive insieme:
      P = 80*(0.1 + 0.9*load^3); il backend realmente scelto viene stampato
      nel log e salvato nel JSON). NB: non legge gli MSR, quindi NON entra in
      conflitto con LHM (vincolo "un solo consumer MSR").
-  4. HWiNFO: NON letto qui -- l'utente attiva File>Logging (1 s) PRIMA del
-     run e lo ferma dopo; il CSV si allinea dopo per timestamp di wall-clock
-     (colonna "Date"/"Time", sensore "Potenza totale CPU [W]", col. 221 del
-     log idle del 23/10).
+  4. HWiNFO 8.54 (freeware) via Shared Memory, SE esposta: il sensore "CPU
+     Package" viene letto con hwinfo_shm.CalibratedSensor, che NON usa offset
+     copiati da fonti di terza mano (il manuale locale, cap. 11 p. 59, rimanda
+     per il layout a una sezione del forum HWiNFO con account) ma calibra
+     empiricamente il candidato che segue il contatore EMI (r >= 0,85 e
+     |scarto| <= 3 W su ~12 s). Se la Shared Memory non c'e' o nessun
+     candidato correla, lo script CONTINUA senza HWiNFO e lo registra nel
+     JSON: in alternativa l'utente puo' usare File>Logging (1 s) e allineare
+     il CSV per wall-clock (colonna "Potenza totale CPU [W]", 221 del log
+     idle del 23/10).
+     Dove si attiva (verificato sul manuale locale, NON a memoria):
+     Impostazioni (Main Settings) -> tab "Generale / Interfaccia utente" ->
+     "Shared Memory Support" (screenshot p. 14), NON "Remote Sensor Display".
+     Cap. 11 p. 59: nella versione freeware l'opzione si disattiva da sola
+     dopo 12 ore di run e va riabilitata a mano.
+     Attenzione metodologica (manuale p. 6, "Other Software": sconsigliato
+     far girare altro software di monitoraggio insieme): il polling di
+     HWiNFO e' ESSO UN CARICO, quindi la quarta sorgente non e' un testimone
+     passivo ma perturba la misura che confronta.
 
 Vincolo di metodologia (misurato 23/10, non ipotesi): CodeCarbon 3.2.9 scrive
 UNA riga cumulativa per coppia start()/stop() -- `api_call_interval` di default
@@ -100,6 +115,34 @@ def emi_pkg(h):
         raise OSError(f"IOCTL EMI fallita (err={ctypes.GetLastError()})")
     v = struct.unpack("<8Q", out.raw[:64])
     return v[0], v[1]
+
+
+class EMIW:
+    """Potenza EMI [W] su finestra mobile: il contatore e' cumulativo e ha
+    granularita' finita (delta su segmenti ~0 danno valori assurdi, misurato
+    22/10: 151 W), quindi si usa sempre una finestra >= MIN_WIN."""
+
+    MIN_WIN = 1.5
+
+    def __init__(self, h):
+        self.h = h
+        self.hist = []          # [(ts100ns, pwh)]
+
+    def power_W(self):
+        pj, pt = emi_pkg(self.h)
+        self.hist.append((pt, pj))
+        if len(self.hist) > 400:
+            del self.hist[:-200]
+        old = None
+        for (pt0, pj0) in self.hist:
+            if (pt - pt0) * 1e-7 >= self.MIN_WIN:
+                old = (pt0, pj0)
+            else:
+                break
+        if old is None:
+            return None
+        dt = (pt - old[0]) * 1e-7
+        return None if dt <= 0 else (pj - old[1]) * PWH_TO_J / dt
 
 
 def ollama_generate():
@@ -206,6 +249,20 @@ def main():
     h = open_emi()
     print("[OK] EMI + CasualWatt(LHM) attivi.")
 
+    # ---- quarta sorgente: HWiNFO via Shared Memory (opzionale) ------------
+    emi_w = EMIW(h)
+    hw = None
+    hw_note = ""
+    try:
+        sys.path.insert(0, str(ROOT))
+        from hwinfo_shm import CalibratedSensor      # noqa: E402
+        print("Calibrazione sensore HWiNFO 'CPU Package' vs EMI (~12 s)...")
+        hw = CalibratedSensor(emi_w.power_W, verbose=True)
+        print("[OK] HWiNFO Shared Memory attiva e calibrata.")
+    except Exception as exc:
+        hw_note = f"{type(exc).__name__}: {exc}"
+        print(f"[WARN] HWiNFO non disponibile -> 3 sorgenti. {hw_note}")
+
     cc_dir = ROOT / "experiment_results" / "codecarbon_four_way"
     cc_dir.mkdir(parents=True, exist_ok=True)
     cc = CCScope(cc_dir)
@@ -223,7 +280,7 @@ def main():
     wall_zero = None
 
     def tick(fase, t_rel):
-        """Un campione LHM (buffer power-integration) + EMI (contatore)."""
+        """Un campione LHM (buffer power-integration) + EMI (contatore) + HWiNFO."""
         try:
             with src._pi_lock:
                 buf = list(src._pi_samples)
@@ -231,9 +288,14 @@ def main():
         except Exception:
             lhm_w = None
         pj, pt = emi_pkg(h)
+        try:
+            hw_w = None if hw is None else round(hw.read(), 3)
+        except Exception:
+            hw_w = None
         ticks.append({"fase": fase, "t_s": round(t_rel, 3),
                       "wall": datetime.now().isoformat(timespec="milliseconds"),
                       "lhm_w": None if lhm_w is None else round(lhm_w, 3),
+                      "hw_w": hw_w,
                       "emi_pkg_pwh": pj, "emi_pkg_ts100ns": pt})
 
     for fase, dur in FASI:
@@ -262,10 +324,11 @@ def main():
     ts = datetime.now().strftime("%Y%m%d_%H%M%S")
     out_csv = ROOT / "experiment_results" / f"four_way_{ts}.csv"
     with open(out_csv, "w", encoding="utf-8") as f:
-        f.write("t_s;wall;fase;lhm_w;emi_pkg_pwh;emi_pkg_ts100ns\n")
+        f.write("t_s;wall;fase;lhm_w;hw_w;emi_pkg_pwh;emi_pkg_ts100ns\n")
         for r in ticks:
             lw = "" if r["lhm_w"] is None else r["lhm_w"]
-            f.write(f"{r['t_s']};{r['wall']};{r['fase']};{lw};"
+            hwv = "" if r["hw_w"] is None else r["hw_w"]
+            f.write(f"{r['t_s']};{r['wall']};{r['fase']};{lw};{hwv};"
                     f"{r['emi_pkg_pwh']};{r['emi_pkg_ts100ns']}\n")
 
     # ---- analisi per fase -------------------------------------------------
@@ -276,12 +339,16 @@ def main():
         dj = (fr[-1]["emi_pkg_pwh"] - fr[0]["emi_pkg_pwh"]) * PWH_TO_J
         dt = (fr[-1]["emi_pkg_ts100ns"] - fr[0]["emi_pkg_ts100ns"]) * 1e-7
         lhms = [r["lhm_w"] for r in fr if r["lhm_w"] is not None]
+        hws = [r["hw_w"] for r in fr if r["hw_w"] is not None]
         return {"n": len(fr),
                 "emi_J": round(dj, 2),
                 "emi_meter_s": round(dt, 2),
                 "emi_W": round(dj / dt, 2) if dt > 0 else None,
                 "lhm_mean_W": round(statistics.mean(lhms), 2) if lhms else None,
-                "lhm_sd_W": round(statistics.stdev(lhms), 2) if len(lhms) > 1 else None}
+                "lhm_sd_W": round(statistics.stdev(lhms), 2) if len(lhms) > 1 else None,
+                "hw_n": len(hws),
+                "hw_mean_W": round(statistics.mean(hws), 2) if hws else None,
+                "hw_sd_W": round(statistics.stdev(hws), 2) if len(hws) > 1 else None}
 
     stats = {f: phase_stats(f) for f, _ in FASI}
     cc_by_phase = {r["fase"]: r for r in cc.rows}
@@ -300,6 +367,12 @@ def main():
                if f in cc_by_phase and cc_by_phase[f]["cpu_power_W_fase"] is not None]
     cc_load = (cc_by_phase.get("load") or {}).get("cpu_power_W_fase")
     dur_load = dict(FASI)["load"]
+
+    hw_base_vals = [s["hw_mean_W"] for s in base if s.get("hw_mean_W") is not None]
+    hw_base_w = statistics.mean(hw_base_vals) if hw_base_vals else None
+    hw_load_w = load.get("hw_mean_W")
+    hw_inc_w = (None if hw_base_w is None or hw_load_w is None
+                else round(hw_load_w - hw_base_w, 2))
 
     summary = {
         "timestamp": ts,
@@ -323,8 +396,18 @@ def main():
             "CodeCarbon_W_load": cc_load,
             "CodeCarbon_incrementale_W": None if (cc_load is None or not cc_base)
                                          else round(cc_load - statistics.mean(cc_base), 2),
+            "HWiNFO_W_base": None if hw_base_w is None else round(hw_base_w, 2),
+            "HWiNFO_W_load": hw_load_w,
+            "HWiNFO_incrementale_W": hw_inc_w,
+            "HWiNFO_incrementale_J": None if hw_inc_w is None else round(hw_inc_w * dur_load, 1),
+            "J_per_token_LHM": None if (lhm_inc_w is None or not tok)
+                               else round(lhm_inc_w * dur_load / tok, 4),
+            "J_per_token_HWiNFO": None if (hw_inc_w is None or not tok)
+                                  else round(hw_inc_w * dur_load / tok, 4),
             "offset_LHM_meno_EMI_W": None if (lhm_base_w is None or p_base is None)
                                         else round(lhm_base_w - p_base, 2),
+            "offset_HWiNFO_meno_EMI_W": None if (hw_base_w is None or p_base is None)
+                                         else round(hw_base_w - p_base, 2),
         },
         "confronto_note": (
             "EMI = contatore hardware cumulativo PKG (riferimento di scala). "
@@ -334,9 +417,13 @@ def main():
             "CodeCarbon su questa macchina = modello cpu_load "
             "(80 W * (0.1 + 0.9*load^3)), NON una misura: termine di confronto "
             "metodologico, non arbitro. "
-            "HWiNFO = CSV logging manuale dell'utente, da allineare per "
-            "wall-clock a partire da wall_zero."),
-        "hwinfo": "CSV logging manuale dell'utente; allineare per wall-clock",
+            "HWiNFO = package letto dalla Shared Memory (calibrato a caldo vs "
+            "EMI), testimone NON passivo perche' il suo polling e' carico CPU. "
+            "I J/token di LHM e HWiNFO usano (W_load - W_base) * durata_fase / "
+            "token: sono approssimazioni a duty-cycle 1, mentre EMI usa il "
+            "delta del contatore sulla finestra reale del meter."),
+        "hwinfo": ("shared-memory" if hw is not None else "ASSENTE"),
+        "hwinfo_note": hw_note,
     }
     out_json = ROOT / "experiment_results" / f"four_way_{ts}.json"
     out_json.write_text(json.dumps(summary, indent=2, ensure_ascii=False),
