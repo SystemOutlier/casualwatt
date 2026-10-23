@@ -9,6 +9,7 @@ File di evidenza:
 |---|---|
 | `lhm_sensor_dump.py` / `lhm_sensor_dump_20261023_124448.{json,csv}` / `lhm_sensor_dump_console.txt` | ogni sensore Power esposto da LHM, confrontato fase per fase con i 4 domini EMI |
 | `lhm_pi_path_test.py` / `lhm_pi_path_20261023_124936.{json,csv}` / `lhm_pi_path_console.txt` | lo STESSO sensore letto (a) pulito a 1 Hz con un solo `hw.Update()` e (b) dal percorso di produzione `SESSION` |
+| `lhm_pi_readpath_probe.py` / `lhm_readpath_probe_20261023_132621.{json,csv}` / `lhm_readpath_probe_console.txt` | **prova diretta del meccanismo**: `_read_power_w_direct()` contro `_pi_selected.Value` nello stesso istante, con elenco dei sensori omonimi e loro `SensorType` |
 | `LibreHardwareMonitor-0.9.6/.../Cpu/IntelCpu.cs` | origine reale del valore |
 | `cwEnergyModular/energy/energy_session.py:731-863` | percorso di lettura in produzione (SOLO letto, non modificato) |
 
@@ -84,7 +85,7 @@ Prova chiave (dai dati gia' scritti nel CSV del test, rielaborati): nella fase
 vale 71,12 W e il `raw_value` del sensore Power 13,29 W. Un sensore di potenza
 non puo' comportarsi cosi'; **una temperatura si'.**
 
-## 4. Meccanismo individuato nel codice (riga per riga)
+## 4. Meccanismo individuato nel codice e CONFERMATO per misura diretta
 
 * `IntelCpu.cs:401` crea un sensore **`SensorType.Temperature` chiamato esattamente
   "CPU Package"** (package DTS), e `:480` crea i sensori Power la cui prima
@@ -101,18 +102,42 @@ non puo' comportarsi cosi'; **una temperatura si'.**
   e `:852  self._pi_energy_j += ((pw + w) / 2.0) * dt` integra °C·s come se
   fossero joule.
 
+### 4.1 Conferma diretta (`lhm_pi_readpath_probe.py`, run 20261023_132621)
+
+Nella stessa macchina, stesso processo, stessa `SESSION` di produzione, lo stesso
+istante. L'elenco dei sensori della CPU con il nome scelto e':
+
+| posizione in `hw.Sensors` | `SensorType` | `Value` |
+|---|---|---|
+| **38** | **Temperature** | 65,0 |
+| 67 | Power | 8,691 |
+
+(il sensore correttamente selezionato dal selettore e' quello in posizione 67;
+la lettura di produzione si ferma al primo match per nome, posizione 38).
+
+| Fase | EMI PKG [W] | `pi_selected.Value` [W] | `_read_power_w_direct()` | `produzione_W` |
+|---|---|---|---|---|
+| idle | 10,38 | 9,37 | **64,0** | 64,38 |
+| burn8 | 20,52 | 18,78 | **68,0** | 68,57 |
+| cool | 11,12 | 11,37 | **67,0** | 67,15 |
+
+`_read_power_w_direct()` vale 64/68/67 **gradi**: non segue il carico (delta
+termico 4 unita' contro delta elettrico 10 W), resta alto nella fase `cool` con
+la firma dell'inerzia termica, e `produzione_W` coincide con esso alla cifra
+(perche' e' esattamente quel numero che il thread integra). Il `Value` del
+sensore Power in mano nostra (67 in lista) segue invece EMI punto a punto.
+
+**Verdetto: il percorso di lettura di produzione integra la temperatura di
+package, non la potenza.** Non e' piu' un'inferenza dal codice: e' misurato.
+NB: l'exit code del probe e' 127 per l'eccezione pythonnet nel teardown
+dell'assembly (`TypeManager.AllocateTypeObject`), difetto gia' registrato nei
+due four-way; i file JSON/CSV sono scritti prima e integri.
+
 Questo spiega in un colpo solo tutti e tre i sintomi storici: l'offset quasi
 costante tra i run (+54,5 W il 22/10 alle 02:00, +55,9 W alle 12:08 — cioe' il
 livello di temperatura, che a riposo e' stabile), il rapporto ~2,5 sul gradino
 (la temperatura sale molto meno della potenza), e l'inerzia della fase `cool`.
 Il tutto mentre il canale EMI — che non passa da li' — resta corretto.
-
-**Stato della prova:** il percorso e' dimostrato per lettura del codice (righe
-sopra) e confermato indirettamente dai dati (inerzia termica in `cool`). Manca
-la conferma diretta e banale: stampare nello stesso istante
-`_read_power_w_direct()` contro `_pi_selected.Value` e l'elenco dei sensori
-della CPU con nome "CPU Package" e loro `SensorType`. Probe preparato
-(`lhm_pi_readpath_probe.py`), da eseguire senza altro carico sulla macchina.
 
 ## 5. Cosa invalida e cosa resta in piedi
 
@@ -122,6 +147,11 @@ Invalidati (ASSOLUTI Windows lato LHM/CasualWatt):
   riportati dal percorso `power-integration` su Windows nei run gia' committati
   (validazione LHM v1/v2/v3, colonne LHM dei due four-way, trace LHM+EMI 634
   campioni);
+* **anche `pi_window_energy_j`** (`energy_session.py:884+`): integra lo STESSO
+  buffer `_pi_samples` riempito da `_read_power_w_direct`, quindi la stessa
+  correzione si applica a entrambi i percorsi (cumulativo e finestra esatta) e il
+  `counter-delta-fallback` che li sostituiva quando la finestra non era coperta
+  non era un downgrade, era l'unica parte onesta;
 * il claim di tesi currently registrato come *"la pendenza LHM diverge da EMI,
   quindi il J/token LHM non e' valido come proprieta' del sensore"*: va
   **ri-attribuito** al nostro percorso di lettura, perche' la Misura A mostra il
@@ -136,8 +166,12 @@ Restano validi:
 * la scelta del *metodo* (integrazione trapezoidale del sensore di package), che
   con questa correzione diventa equivalente a EMI con un errore del 4%.
 
-Da decidere appena confermata la prova: la correzione minima in
-`energy_session.py:819` (eliminare il confronto per nome, o pretendere anche
-`SensorType == "power"`). **Non la applico senza autorizzazione esplicita**: e'
-il backend in produzione e la regola del progetto e' tenere l'attuale finche'
-non provato — la prova diretta sta nel probe.
+Da decidere ora che la prova e' acquisita: la correzione minima in
+`energy_session.py:819` — usare SOLO l'oggetto cached (`sensor is sel`), oppure
+aggiungere il vincolo `SensorType == "power"` anche nella lettura. **Non la
+applico senza autorizzazione esplicita**: e' il backend in produzione.
+
+Impatto pratico se applicata (da rimisurare, non da assumere): il percorso
+`power-integration` diverrebbe equivalente al canale EMI con l'errore visto nella
+Misura A (~4% sulla pendenza), quindi i protocolli v1/v2/v3 andrebbero **eseguiti
+di nuovo**, non ricorrettati a posteriori con un fattore.
