@@ -5,12 +5,20 @@ lhm_trace_3min.py — traccia SIMULTANEE LHM 'CPU Package' [W] e IOCTL EMI
 (Microsoft PPM) nello stesso processo, per identificare quale campo EMI e'
 il contatore PKG e in quale unita'.
 
+Rilancio 23/10 dopo il fix 1422d1b: la domanda "quale campo e' il PKG" e' gia'
+risolta (PKG @ offset 0, pWh), quindi questa trace serve ad altro — e' l'unica
+serie che mette LHM ed EMI sullo STESSO orologio monotono con tick 0,25 s e
+SENZA Ollama (carico noto: 8 worker busy-loop). Lasciando la finestra di fase
+identica sulle due serie (metodo di
+`experiment_results/four_way_finestra_uguale_20261023_analisi.md`) si prova il
+rapporto su uno stimolo diverso dall'inferenza.
+
 Perche' un processo solo: le due serie escono con lo stesso
 time.monotonic() per riga -> allineamento perfetto, niente cross-correlazione
 tra finestre di orologi diversi.
 
 Fasi automatiche (durata totale ~160 s, modificabile in FASI):
-  IDLE 40 s  ->一切 fermo, niente mouse/tastiere
+  IDLE 40 s  -> tutto fermo, niente mouse/tastiere
   LOAD 40 s  -> 8 worker busy-loop (carico noto, forte)
   COOLD 40 s -> di nuovo idle
   IDLE2 40 s -> conferma
@@ -163,8 +171,6 @@ def main():
         if p.is_alive():
             p.terminate()
 
-    SESSION.stop()
-
     ts = datetime.now().strftime("%Y%m%d_%H%M%S")
     out = ROOT / "experiment_results" / f"lhm_emi_trace_{ts}.csv"
     out.parent.mkdir(parents=True, exist_ok=True)
@@ -175,6 +181,16 @@ def main():
                     "emi_v32", "emi_ts40", "emi_v48", "emi_ts56"])
         w.writerows(rows)
     print(f"[OK] trace salvata: {out}  ({len(rows)} righe)")
+
+    # Il teardown di pythonnet su MINI_IT13 lancia un'eccezione CLR non
+    # gestita (gia' osservata 23/10: exit 127). Una volta il CSV veniva
+    # scritto DOPO SESSION.stop() e il lancio poteva costare l'intera
+    # traccia: adesso il salvataggio precede sempre la chiusura, e la
+    # chiusura non puo' piu' far perdere nulla.
+    try:
+        SESSION.stop()
+    except BaseException as e:                     # noqa: BLE001
+        print(f"[teardown, non conta] {type(e).__name__}")
 
     # ---------------- analisi rapida: quale campo EMI traccia LHM? ----------
     def by_fase(fase):
