@@ -1,8 +1,8 @@
 # CasualWatt Energy Benchmark
 
-Framework di benchmark energetico per LLM locali (Ollama) e cloud, con interfaccia grafica Tkinter. Misura l'energia del package CPU tramite LibreHardwareMonitor (metodo power-integration), la GPU NVIDIA via NVML, stima l'energia incrementale attribuibile al processo Ollama (baseline idle calibrata + ripartizione del tempo CPU busy), l'energia di rete dal traffico NIC e l'energia dell'inferenza cloud tramite EcoLogits. Le componenti sono riportate separatamente (local / network / cloud), con metodo e confine di misura espliciti in ogni riga CSV.
+Framework di benchmark energetico per LLM locali (Ollama) e cloud, con interfaccia grafica Tkinter. Misura l'energia del package CPU dal contatore cumulativo EMI del processore Intel (metodo principale su Windows, `emi-counter`: ioctl via ctypes, nessuna integrazione, nessuna elevazione), con LibreHardwareMonitor come fallback (`power-integration`) e RAPL su Linux; misura la GPU NVIDIA via NVML, stima l'energia incrementale attribuibile al processo Ollama (baseline idle calibrata + ripartizione del tempo CPU busy), l'energia di rete dal traffico NIC e l'energia dell'inferenza cloud tramite EcoLogits. Le componenti sono riportate separatamente (local / network / cloud), con metodo e confine di misura espliciti in ogni riga CSV.
 
-Target principale: **Windows 11**, Python 3.14 x64, esecuzione come amministratore (necessaria a LibreHardwareMonitor per leggere i sensori MSR).
+Target principale: **Windows 11**, Python 3.14 x64. Con il canale EMI attivo l'app gira **senza privilegi amministrativi**; l'elevazione (UAC) serve solo al fallback LibreHardwareMonitor e ad alcuni sensori.
 
 ## Caratteristiche
 
@@ -20,15 +20,15 @@ Target principale: **Windows 11**, Python 3.14 x64, esecuzione come amministrato
 py -m pip install requests pandas psutil codecarbon ecologits nvidia-ml-py pythonnet sentence-transformers
 ```
 
-Le DLL di LibreHardwareMonitor (`LibreHardwareMonitorLib.dll`, `HidSharp.dll`, `Microsoft.Win32.TaskScheduler.dll`) sono incluse in `cwEnergyModular/LibreHardwareMonitorLib/LibreHardwareMonitor/`.
+Le DLL di fallback LibreHardwareMonitor (`LibreHardwareMonitorLib.dll`, `HidSharp.dll`, `Microsoft.Win32.TaskScheduler.dll`) sono incluse in `cwEnergyModular/LibreHardwareMonitorLib/LibreHardwareMonitor/`. `LibreHardwareMonitorLib.dll` è distribuita senza modifiche sotto **MPL-2.0** (testo: https://github.com/LibreHardwareMonitor/LibreHardwareMonitor/blob/master/LICENSE, verificato il 23/10); per `HidSharp.dll` e `Microsoft.Win32.TaskScheduler.dll` la licenza va ri-verificata presso i rispettivi upstream prima di qualsiasi ridistribuzione.
 
 ## Avvio
 
-Con doppio clic su `cwEnergyModular/avvia_casualwatt.bat` (richiede automaticamente i privilegi UAC), oppure manualmente:
+Con doppio clic su `cwEnergyModular/avvia_casualwatt.bat` (richiede i privilegi UAC: necessario solo per il fallback LibreHardwareMonitor; con il canale EMI l'app parte anche senza elevazione), oppure manualmente:
 
 ```powershell
 cd cwEnergyModular
-py main.py            # GUI (da PowerShell avviato "Come amministratore")
+py main.py            # GUI (con canale EMI attivo, senza amministratore)
 py diagnostics.py     # report sensori/clr/UAC
 py test_calibrazione.py  # verifica rapida calibrazione idle
 py main.py --selftest    # test logici senza hardware
@@ -44,6 +44,7 @@ py main.py --selftest    # test logici senza hardware
 | `CW_SEMANTIC_THRESHOLD` | soglia is_correct (default 0.75) |
 | `CW_EMBED_MODEL_DIR` | cache offline modello embeddings |
 | `CW_IDLE_WINDOW_S` | finestra calibrazione idle |
+| `CW_PRIMARY_CHANNEL` | `emi` (default, contatore cumulativo) o `lhm` ( catena LibreHardwareMonitor) |
 | `CW_JUDGE_MODEL` | modello Ollama per LLM Judge |
 
 ## Struttura
@@ -56,13 +57,13 @@ cwEnergyModular/
 ├── cloud_estimator.py      # fetch modelli + stima EcoLogits
 ├── casualwatt_csv_export.py# export CSV
 ├── gui/                    # pannelli Tkinter
-└── energy/                 # sessioni energetiche (LHM/NVML/rete/carbonio)
+└── energy/                 # sessioni energetiche (EMI/LHM/RAPL/NVML/rete/carbonio)
 ```
 
 ## Metodologia energetica
 
 ```
-E_attiva = max(0, E_package − P_idle·Δt)          [power-integration trapezoidale @0.05s]
+E_attiva = max(0, E_package − P_idle·Δt)          [Δ contatore cumulativo EMI, bordi dal buffer @0,05s; fallback LHM: integrazione trapezoidale]
 E_Ollama = E_attiva · Δt_cpu_Ollama / Δt_cpu_busy [cpu-time-share attribution]
 end_to_end = local + network + cloud              [baseline idle ESCLUSA]
 ```
@@ -71,5 +72,5 @@ La `baseline_energy_j` è salvata separatamente e non viene mai attribuita al mo
 
 ## Note
 
-- Su Linux/macOS la misurazione energetica locale CPU è disabilitata con messaggio esplicito; GUI, Ollama, cloud, valutazioni e CSV restano utilizzabili.
+- Su Linux la misurazione locale usa il contatore RAPL (`/sys/class/powercap`, backend implementato; validazione di scala ancora aperta); su macOS è disabilitata con messaggio esplicito (future work). GUI, Ollama, cloud, valutazioni e CSV restano utilizzabili ovunque.
 - Progetto di ricerca (tesi): metriche e confini di misura sono dichiarati riga per riga nel CSV.
