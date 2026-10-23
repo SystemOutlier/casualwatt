@@ -116,6 +116,36 @@ def _estimate_tokens(prompt_text: str, response_text: str):
         )
 
 
+def _ollama_payload(model: str, prompt: str, temperature: float,
+                    num_predict: int) -> Dict:
+    """Payload /api/generate con lo stato del motore reso esplicito.
+
+    `keep_alive` e' l'unica chiave che decide se i pesi restano caricati fra
+    una richiesta e la successiva. Viene aggiunta SOLAMENTE se
+    config.OLLAMA_KEEP_ALIVE e' valorizzato: con la variabile d'ambiente assente
+    il payload e' identico a quello storico, quindi i run passati restano
+    riproducibili e il confronto fra percorsi non cambia natura (regola
+    'attuale finche' provato'). Se e' valorizzato, il valore finisce anche nella
+    risposta (`keep_alive_sent`) e nel CSV di run, perche' due run con
+    keep_alive diverso non misurano la stessa cosa.
+    """
+    payload = {
+        "model": model,
+        "prompt": prompt,
+        "stream": False,
+        "options": {"temperature": temperature, "num_predict": num_predict},
+    }
+    keep_alive = getattr(config, "OLLAMA_KEEP_ALIVE", "")
+    if keep_alive:
+        payload["keep_alive"] = keep_alive
+    return payload
+
+
+def _keep_alive_sent(payload: Dict) -> str:
+    """Cosa ha realmente ricevuto il motore: il valore, o il default Ollama."""
+    return payload.get("keep_alive") or "non inviato (default Ollama)"
+
+
 def query_ollama(model: str, prompt: str, temperature: float, timeout_s: float,
                  num_predict: int = 160):
     """POST /api/generate (stream:false) + profilo energetico della finestra.
@@ -126,12 +156,7 @@ def query_ollama(model: str, prompt: str, temperature: float, timeout_s: float,
     (cloud, legacy). Il percorso locale del benchmark usa _ollama_infer_only
     + profile_window(escludendo la sottofinestra del giudice).
     """
-    payload = {
-        "model": model,
-        "prompt": prompt,
-        "stream": False,
-        "options": {"temperature": temperature, "num_predict": num_predict},
-    }
+    payload = _ollama_payload(model, prompt, temperature, num_predict)
     profiler = CasualWattLocalEnergyProfiler()
 
     t0 = time.monotonic()
@@ -163,6 +188,7 @@ def query_ollama(model: str, prompt: str, temperature: float, timeout_s: float,
     resp_data["decoding_duration_s"] = float(data.get("eval_duration") or 0) / 1e9
     resp_data["raw_created_at"] = data.get("created_at", "")
     resp_data["tool_calls"] = 0
+    resp_data["keep_alive_sent"] = _keep_alive_sent(payload)
     if tokens_estimated:
         resp_data["_tokens_note"] = "input/output token stimati (tiktoken/euristica len//4)"
 
@@ -180,12 +206,7 @@ def _ollama_infer_only(model: str, prompt: str, temperature: float,
     Il profilo viene preso DOPO la valutazione, scorporando la sottofinestra
     del LLM Judge (benchmark_unified, percorso locale).
     """
-    payload = {
-        "model": model,
-        "prompt": prompt,
-        "stream": False,
-        "options": {"temperature": temperature, "num_predict": num_predict},
-    }
+    payload = _ollama_payload(model, prompt, temperature, num_predict)
     t0 = time.monotonic()
     wall_start = time.time()
     resp = requests.post(config.OLLAMA_GENERATE_ENDPOINT, json=payload, timeout=timeout_s)
@@ -213,6 +234,7 @@ def _ollama_infer_only(model: str, prompt: str, temperature: float,
     resp_data["decoding_duration_s"] = float(data.get("eval_duration") or 0) / 1e9
     resp_data["raw_created_at"] = data.get("created_at", "")
     resp_data["tool_calls"] = 0
+    resp_data["keep_alive_sent"] = _keep_alive_sent(payload)
     # finestre della SOLA inferenza (judge escluso dal profiling successivo)
     resp_data["_t0"] = t0
     resp_data["_t1"] = t1
@@ -811,6 +833,8 @@ def run_unified_benchmark(
                     idle_provenance=getattr(local, "idle_provenance", "") or "",
                     # B1: origine lettura finestra package (exact-counter|samples-fallback)
                     package_window_source=getattr(local, "package_window_source", "") or "",
+                    # D1: stato dichiarato del motore locale (valore inviato, o default)
+                    keep_alive_sent=resp_data.get("keep_alive_sent", "") or "",
                     # A2/A3: campi diagnostici GPU/iGPU (mai sommati a local_energy_j)
                     gpu_process_energy_j=_na_or(getattr(local, "gpu_process_energy_j", None)),
                     igpu_energy_j=_na_or(getattr(local, "igpu_energy_j", None)),
@@ -1049,6 +1073,9 @@ def run_unified_benchmark(
             "records_written": len(records),
             "results_csv": str(config.CSV_RESULTS_PATH),
             "notes": "cancelled" if summary["cancelled"] else "completed",
+            # D1: perche' due run con keep_alive diverso non sono confrontabili
+            "ollama_keep_alive": getattr(config, "OLLAMA_KEEP_ALIVE", "")
+                                 or "non inviato (default Ollama)",
         }
         write_run_metadata(meta, config.CSV_RUN_METADATA_PATH)
     except Exception as exc:

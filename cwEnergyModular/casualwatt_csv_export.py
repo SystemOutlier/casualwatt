@@ -79,6 +79,12 @@ CSV_COLUMNS: List[str] = [
     "ollama_pids_used", "d_ollama_cpu_s", "d_busy_s", "n_samples_in_window",
     # answer_type e extracted_answer (valutazione accuratezza)
     "answer_type", "extracted_answer",
+    # D1: lo stato del motore locale e' un parametro del run, non un incidente.
+    # keep_alive NON era mai inviato: il default di Ollama decideva se i pesi
+    # restavano caricati fra una richiesta e la successiva, e nel CSV di
+    # produzione due righe su nove hanno un residuo di 6,0-6,6 s (caricamento)
+    # contro 0,03-1,87 s delle altre. Qui finisce il valore REALMENTE inviato.
+    "keep_alive_sent",
 ]
 
 
@@ -165,6 +171,9 @@ RUN_METADATA_COLUMNS = [
     "idle_power_w", "idle_calibrated_at",
     "ecologits_version", "electricity_maps_used",
     "records_written", "results_csv", "notes",
+    # D1: accodata per non disallineare i file di run metadata gia' scritti
+    # (nessuna migrazione per questo CSV: l'header e' scritto una volta sola).
+    "ollama_keep_alive",
 ]
 
 
