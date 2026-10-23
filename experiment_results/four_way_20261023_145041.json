@@ -1,0 +1,172 @@
+{
+  "timestamp": "20261023_145041",
+  "wall_zero": "2026-10-23T14:47:36.934",
+  "fasi": [
+    [
+      "idle",
+      45.0
+    ],
+    [
+      "load",
+      90.0
+    ],
+    [
+      "idle2",
+      45.0
+    ]
+  ],
+  "fasi_durata_reale_s": {
+    "idle": 45.217,
+    "load": 92.03,
+    "idle2": 45.104
+  },
+  "tokens_load": 736,
+  "per_fase": {
+    "idle": {
+      "n": 45,
+      "emi_J": 523.44,
+      "emi_meter_s": 44.22,
+      "emi_W": 11.84,
+      "lhm_mean_W": 12.25,
+      "lhm_sd_W": 2.52,
+      "modo_debole_lhm_W": 12.08,
+      "modo_debole_emi_W": 11.84,
+      "modo_debole_rapporto": 1.0204,
+      "modo_debole_dt_mediano_tick_s": 1.0,
+      "modo_debole_n_coppie": 44,
+      "cw_J_fase": 534.47,
+      "cw_s_fase": 44.806,
+      "cw_t0_mono": 662670.427,
+      "cw_t1_mono": 662715.233,
+      "cw_W_finestra_uguale": 11.93,
+      "cw_n_campioni": 158,
+      "cw_dt_mediano_s": 0.28,
+      "cw_ritagliato_s": 0.411,
+      "cw_win_note": null,
+      "emi_J_finestra_uguale": 535.213,
+      "emi_W_finestra_uguale": 11.95,
+      "rapporto_cw_div_EMI_finestra_uguale": 0.9986,
+      "hw_n": 0,
+      "hw_mean_W": null,
+      "hw_sd_W": null
+    },
+    "load": {
+      "n": 22,
+      "emi_J": 1911.59,
+      "emi_meter_s": 84.51,
+      "emi_W": 22.62,
+      "lhm_mean_W": 25.41,
+      "lhm_sd_W": 2.72,
+      "modo_debole_lhm_W": 25.53,
+      "modo_debole_emi_W": 22.63,
+      "modo_debole_rapporto": 1.1284,
+      "modo_debole_dt_mediano_tick_s": 4.03,
+      "modo_debole_n_coppie": 21,
+      "cw_J_fase": 2079.705,
+      "cw_s_fase": 91.748,
+      "cw_t0_mono": 662717.24,
+      "cw_t1_mono": 662808.988,
+      "cw_W_finestra_uguale": 22.67,
+      "cw_n_campioni": 301,
+      "cw_dt_mediano_s": 0.298,
+      "cw_ritagliato_s": 0.282,
+      "cw_win_note": null,
+      "emi_J_finestra_uguale": 2062.841,
+      "emi_W_finestra_uguale": 22.48,
+      "rapporto_cw_div_EMI_finestra_uguale": 1.0082,
+      "hw_n": 0,
+      "hw_mean_W": null,
+      "hw_sd_W": null
+    },
+    "idle2": {
+      "n": 45,
+      "emi_J": 553.24,
+      "emi_meter_s": 44.1,
+      "emi_W": 12.54,
+      "lhm_mean_W": 12.54,
+      "lhm_sd_W": 2.76,
+      "modo_debole_lhm_W": 12.22,
+      "modo_debole_emi_W": 12.54,
+      "modo_debole_rapporto": 0.9739,
+      "modo_debole_dt_mediano_tick_s": 1.0,
+      "modo_debole_n_coppie": 44,
+      "cw_J_fase": 550.336,
+      "cw_s_fase": 44.104,
+      "cw_t0_mono": 662809.281,
+      "cw_t1_mono": 662853.385,
+      "cw_W_finestra_uguale": 12.48,
+      "cw_n_campioni": 156,
+      "cw_dt_mediano_s": 0.28,
+      "cw_ritagliato_s": 0.0,
+      "cw_win_note": null,
+      "emi_J_finestra_uguale": 553.242,
+      "emi_W_finestra_uguale": 12.54,
+      "rapporto_cw_div_EMI_finestra_uguale": 0.9947,
+      "hw_n": 0,
+      "hw_mean_W": null,
+      "hw_sd_W": null
+    }
+  },
+  "codecarbon_per_fase": [
+    {
+      "fase": "idle",
+      "cum_duration_s": 54.349,
+      "delta_duration_s": 54.349,
+      "delta_cpu_energy_J": 698.12,
+      "cpu_power_W_fase": 12.85
+    },
+    {
+      "fase": "load",
+      "cum_duration_s": 146.446,
+      "delta_duration_s": 92.097,
+      "delta_cpu_energy_J": 2450.63,
+      "cpu_power_W_fase": 26.61
+    },
+    {
+      "fase": "idle2",
+      "cum_duration_s": 191.561,
+      "delta_duration_s": 45.115,
+      "delta_cpu_energy_J": 392.3,
+      "cpu_power_W_fase": 8.7
+    }
+  ],
+  "codecarbon_backend": [
+    "RAM()",
+    "CPU(Cpu Load)"
+  ],
+  "codecarbon_notes": [],
+  "confronto": {
+    "EMI_W_base": 12.19,
+    "EMI_W_load": 22.62,
+    "EMI_incrementale_J": 881.4,
+    "EMI_J_per_token": 1.1976,
+    "LHM_W_base": 12.39,
+    "LHM_W_load": 25.41,
+    "LHM_incrementale_W": 13.02,
+    "LHM_incrementale_J": 1171.8,
+    "LHM_finestra_uguale_W_base": 12.21,
+    "LHM_finestra_uguale_W_load": 22.67,
+    "LHM_finestra_uguale_incrementale_J": 960.6,
+    "EMI_finestra_uguale_W_base": 12.24,
+    "EMI_finestra_uguale_W_load": 22.48,
+    "EMI_finestra_uguale_incrementale_J": 939.0,
+    "rapporto_LHM_div_EMI_incrementale_finestra_uguale": 1.023,
+    "J_per_token_LHM_finestra_uguale": 1.3052,
+    "rapporto_LHM_div_EMI_J_per_token_finestra_uguale": 1.0898,
+    "CodeCarbon_W_base": 10.77,
+    "CodeCarbon_W_load": 26.61,
+    "CodeCarbon_incrementale_W": 15.84,
+    "HWiNFO_W_base": null,
+    "HWiNFO_W_load": null,
+    "HWiNFO_incrementale_W": null,
+    "HWiNFO_incrementale_J": null,
+    "J_per_token_LHM": 1.5921,
+    "J_per_token_HWiNFO": null,
+    "offset_LHM_meno_EMI_W": 0.21,
+    "offset_HWiNFO_meno_EMI_W": null
+  },
+  "confronto_note": "EMI = contatore hardware cumulativo PKG, riferimento di scala; SRUM (secondo consumatore degli stessi contatori) lo replica a +/-4% su finestre identiche, quindi la decodifica ctypes e' corretta ma SRUM NON e' un arbitro indipendente. LHM = power-integration di produzione: dopo il guard su SensorType (energy_session.py _read_power_w_direct, 23/10) il match per nome non cade piu' sull'omonimo sensore Temperature (IntelCpu.cs:401) e l'offset LHM-EMI e' passato da +54,5 W a +0,22 W (lhm_readpath_probe_20261023_132621). CodeCarbon su questa macchina = modello cpu_load (80 W * (0.1 + 0.9*load^3)), NON una misura: termine di confronto metodologico, non arbitro. HWiNFO = package letto dalla Shared Memory (calibrato a caldo vs EMI), testimone NON passivo perche' il suo polling e' carico CPU. *_finestra_uguale = LHM integrato con trapezio sul buffer del thread di produzione e EMI interpolato sull'asse mono dei tick, sulla STESSA finestra [inizio fase, fine fase]: il rapporto e' same-window e same-clock, e non dipende piu' dal punto in cui il tick 1 Hz capita (sul load il tick e' bloccato dalla richiesta Ollama). I J/token di LHM e HWiNFO senza suffisso usano invece (W_load - W_base) * durata_fase con i soli campioni istantanei: sono quelli metodologicamente piu' deboli e restano nel JSON solo come termine di confronto.",
+  "pi_csv": "four_way_20261023_145041_pi.csv",
+  "hwinfo": "ASSENTE",
+  "hwinfo_note": "OSError: OpenFileMapping fallita (err=2): la Shared Memory di HWiNFO non e' esposta. Abilita 'Shared Memory Support' in Impostazioni -> Generale/Interfaccia utente (manuale p.14) e tieni attiva la finestra sensori."
+}
