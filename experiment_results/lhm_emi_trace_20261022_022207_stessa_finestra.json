@@ -1,0 +1,50 @@
+[
+  {
+    "fase": "idle",
+    "n_lhm": 141,
+    "n_emi": 159,
+    "lhm_J": 2768.25,
+    "lhm_s": 39.776,
+    "lhm_W": 69.596,
+    "emi_J": 651.82,
+    "emi_s": 39.743,
+    "emi_W": 16.401,
+    "rapporto_LHM_div_EMI": 4.2434
+  },
+  {
+    "fase": "load",
+    "n_lhm": 124,
+    "n_emi": 159,
+    "lhm_J": 3795.52,
+    "lhm_s": 39.778,
+    "lhm_W": 95.417,
+    "emi_J": 1535.51,
+    "emi_s": 39.749,
+    "emi_W": 38.63,
+    "rapporto_LHM_div_EMI": 2.47
+  },
+  {
+    "fase": "cool",
+    "n_lhm": 142,
+    "n_emi": 158,
+    "lhm_J": 2875.79,
+    "lhm_s": 40.149,
+    "lhm_W": 71.628,
+    "emi_J": 644.85,
+    "emi_s": 39.767,
+    "emi_W": 16.215,
+    "rapporto_LHM_div_EMI": 4.4173
+  },
+  {
+    "fase": "idle2",
+    "n_lhm": 141,
+    "n_emi": 158,
+    "lhm_J": 2772.54,
+    "lhm_s": 39.826,
+    "lhm_W": 69.616,
+    "emi_J": 625.42,
+    "emi_s": 39.641,
+    "emi_W": 15.777,
+    "rapporto_LHM_div_EMI": 4.4126
+  }
+]
