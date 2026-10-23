@@ -145,10 +145,19 @@ def docstring_da_ast(percorso: str) -> tuple:
             return ""
         return doc.strip().splitlines()[0].strip()
 
+    def registra(nodo, classe) -> None:
+        if isinstance(nodo, (ast.FunctionDef, ast.AsyncFunctionDef)) and nodo.name.startswith("test"):
+            out[(classe, nodo.name)] = prima_riga(nodo)
+
+    # Chiave (classe, nome), non il solo nome: in test_answer_type_evaluation.py
+    # due classi hanno un test_exact_match omonimo, e con la chiave corta una
+    # delle due docstring sarebbe finita su entrambe le righe.
+    for nodo in tree.body:
+        registra(nodo, "")
     for nodo in ast.walk(tree):
-        if isinstance(nodo, (ast.FunctionDef, ast.AsyncFunctionDef)):
-            if nodo.name.startswith("test"):
-                out[nodo.name] = prima_riga(nodo)
+        if isinstance(nodo, ast.ClassDef):
+            for figlio in nodo.body:
+                registra(figlio, nodo.name)
     return (ast.get_docstring(tree) or "").strip(), out
 
 
@@ -223,7 +232,7 @@ def main() -> int:
             abs_path = os.path.join(MODULE_DIR, percorso)
             mod_doc[percorso], doc_cache[percorso] = (
                 docstring_da_ast(abs_path) if os.path.exists(abs_path) else ("", {}))
-        doc = doc_cache[percorso].get(fname, "")
+        doc = doc_cache[percorso].get((classe, fname), "")
         esito = esiti_norm.get(nid.replace("\\", "/").lower(), "") if esiti else ""
         righe_per_file.setdefault(percorso, []).append((classe, fname, param, doc, esito, nid))
 
