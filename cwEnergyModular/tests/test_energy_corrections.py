@@ -1,5 +1,9 @@
 # -*- coding: utf-8 -*-
-"""Test sintetici (senza hardware) delle correzioni A1-A3, B2, C1."""
+"""Test sintetici (senza hardware) delle correzioni A1-A3, B2, C1.
+
+Le 8 docstring dei test di questo file sono state aggiunte il 23/10/2026
+leggendo i corpi, non dall'autore originale delle funzioni.
+"""
 import threading
 from types import SimpleNamespace
 
@@ -102,6 +106,7 @@ def test_A2_gpu_energia_indipendente_dall_utilizzo(util):
 
 # ---------------------------------------------------------------- A3
 def test_A3_senza_nvml_nessun_termine_igpu_sommato():
+    """Senza GPU il termine attribuito vale 0: la somma locale resta solo la CPU."""
     s = FakeSession(lambda t: 30.0, gpu_available=False)
     res = profile(s)
     local_j = res.ollama_active_energy_j + res.gpu_energy_attributed_j
@@ -151,6 +156,7 @@ def test_P1_igpu_sottofinestra_esclusa():
 
 
 def test_P1_igpu_sensore_assente_ritorna_none():
+    """igpu_power_w assente su tutti i campioni: None, non 0 J."""
     s = FakeIGpuSession(igpu_w=None)
     assert s.read_igpu_energy_j(T0, T0 + 10.0) is None
 
@@ -163,12 +169,14 @@ def test_P1_igpu_potenza_variabile_segue_la_finestra():
 
 
 def test_P1_igpu_backend_non_attivo_ritorna_none():
+    """Backend dei sensori non aperto: None, perche' 0 J sarebbe una misura falsa."""
     s = FakeIGpuSession(igpu_w=5.0, lhm_opened=False)
     assert s.read_igpu_energy_j(T0, T0 + 10.0) is None
 
 
 # ---------------------------------------------------------------- B1
 def test_B1_energia_finestra_da_contatore_esatto():
+    """Bordi 1,2-7,7 s non allineati ai campioni: 25 W x 6,5 s e window_source 'exact-counter'."""
     s = FakeSession(lambda t: 25.0)
     res = profile(s, 1.2, 7.7)       # bordi non allineati ai campioni (0,5 s)
     assert res.package_energy_j == pytest.approx(25.0 * 6.5, rel=1e-3)
@@ -208,6 +216,7 @@ def test_P2_idle_gpu_assente_provenance_missing_e_nota():
 
 
 def test_P2_idle_gpu_non_impostato_provenance_missing():
+    """Idle GPU mai impostato (None) e' 'missing' come 0,0: la nota di sovrastima c'e' in entrambi i casi."""
     s = FakeSession(lambda t: 10.0, p_gpu=lambda t: 100.0, gpu_available=True,
                     idle_gpu_w=None)
     res = profile(s)
@@ -226,11 +235,13 @@ def test_P2_idle_gpu_calibrato_provenance_calibrated():
 
 
 def test_P2_senza_gpu_dedicata_provenance_vuota():
+    """Senza GPU dedicata la provenienza e' stringa vuota: dato non applicabile, non dato mancante."""
     s = FakeSession(lambda t: 30.0, gpu_available=False)
     assert profile(s).gpu_idle_provenance == ""
 
 
 def test_P2_colonna_csv_accodata_senza_cambiare_ordine():
+    """gpu_idle_provenance compare una volta sola e l'ordine delle colonne e' bloccato: nuove solo in coda."""
     from casualwatt_csv_export import CSV_COLUMNS
     assert CSV_COLUMNS.count("gpu_idle_provenance") == 1
     # Colonne diagnostiche e answer_type accodate in coda (senza cambiare ordine delle precedenti)
@@ -251,6 +262,7 @@ def test_P2_colonna_csv_accodata_senza_cambiare_ordine():
 
 # ---------------------------------------------------------------- C1
 def test_C1_epcl_ed_energia_per_risposta_corretta_sono_distinte():
+    """60 J con 3 collegamenti corretti: EPCL 20 J/link, energia per risposta corretta 60 J. Due denominatori."""
     from benchmark_unified import _finalize_energy_fields
     ev = SimpleNamespace(n_correct_links=3, acc_comp=0.8, is_correct=True,
                          acc_links_basis="f1_triples")

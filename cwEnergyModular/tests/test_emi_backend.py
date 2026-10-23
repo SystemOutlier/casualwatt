@@ -1,6 +1,9 @@
 # -*- coding: utf-8 -*-
 """Test offline del canale EMI come metodo principale su Windows (23/10).
 
+Le 12 docstring dei test di questo file sono state aggiunte il 23/10/2026
+leggendo i corpi, non dall'autore originale delle funzioni.
+
 Nessun IOCTL reale: il backend e' sostituito da un fake; cio' che si prova
 qui e' la CATENA di decisioni (precedenze, etichette di metodo, lettura dei
 bordi di finestra dal buffer del cumulativo) — non il registro hardware,
@@ -37,6 +40,7 @@ class FakeEMI:
 
 # ------------------------------------------------------------------ unit: backend
 def test_pwh_to_j_conversion():
+    """1_000_000 pWh = 3,6e-3 J, e i campi PP0/PP1/DRAM/ts escono convertiti."""
     b = eb.EMICounterBackend(auto_open=False)
     b.available = True
     b.read_raw = lambda: (1_000_000, 42, 0, 0, 500_000, 43, 250_000, 44)
@@ -50,6 +54,7 @@ def test_pwh_to_j_conversion():
 
 
 def test_unavailable_backend_reads_none():
+    """Backend non aperto: le letture restituiscono None, non 0 J."""
     b = eb.EMICounterBackend(auto_open=False)
     assert b.available is False
     assert b.read_cumulative_energy_j() is None
@@ -57,6 +62,7 @@ def test_unavailable_backend_reads_none():
 
 
 def test_primary_channel_default_and_override(monkeypatch):
+    """Canale primario 'emi' di default, 'lhm' solo se CW_PRIMARY_CHANNEL lo chiede."""
     monkeypatch.delenv("CW_PRIMARY_CHANNEL", raising=False)
     assert es._CPUJouleSource._primary_channel() == "emi"
     monkeypatch.setenv("CW_PRIMARY_CHANNEL", "lhm")
@@ -83,6 +89,7 @@ def _make_source(monkeypatch, available=True):
 
 
 def test_emi_is_preferred_over_lhm(monkeypatch):
+    """Con EMI disponibile il metodo e' 'emi-counter': nessun thread di misura e nessun probe LHM in coda."""
     src, fake = _make_source(monkeypatch, available=True)
     assert src.method == "emi-counter"
     assert src._emi is fake
@@ -93,6 +100,7 @@ def test_emi_is_preferred_over_lhm(monkeypatch):
 
 
 def test_lhm_fallback_when_emi_absent(monkeypatch):
+    """Senza EMI il metodo resta 'unavailable' e il probe LHM pigro e' ancora in coda, con la nota del perche'."""
     src, fake = _make_source(monkeypatch, available=False)
     assert src.method == "unavailable"
     assert src._emi is None
@@ -102,6 +110,7 @@ def test_lhm_fallback_when_emi_absent(monkeypatch):
 
 
 def test_cw_primary_channel_lhm_skips_emi(monkeypatch):
+    """CW_PRIMARY_CHANNEL=lhm non tocca nemmeno il costruttore EMI: contatore di chiamate a zero."""
     monkeypatch.setattr(es, "platform_system", lambda: "Windows")
     monkeypatch.setattr(es._CPUJouleSource, "_try_power_counter", lambda self: False)
     monkeypatch.setattr(
@@ -130,6 +139,7 @@ def _seed_buffer(src, pts):
 
 
 def test_emi_window_energy_exact_edges(monkeypatch):
+    """Finestra intera 40 J, bordi interni interpolati 20 J, sottofinestra del giudice esclusa ai bordi esatti."""
     src, _ = _make_source(monkeypatch)
     _seed_buffer(src, [(1000.0, 0.0), (1002.0, 20.0), (1004.0, 40.0)])
     # cumulativa lineare 10 J/s: finestra piena = 40 J
@@ -143,6 +153,7 @@ def test_emi_window_energy_exact_edges(monkeypatch):
 
 
 def test_emi_window_energy_guards(monkeypatch):
+    """Metodo diverso, buffer vuoto o finestra fuori copertura: None, mai un numero estrapolato."""
     src, _ = _make_source(monkeypatch)
     # metodo diverso: nessun valore (il chiamante dichiara il fallback)
     src.method = "power-integration"
@@ -156,6 +167,7 @@ def test_emi_window_energy_guards(monkeypatch):
 
 
 def test_session_exact_between_routes_buffer_then_counter(monkeypatch):
+    """package_energy_exact_between usa il buffer EMI e degrada a None senza copertura, non a 0."""
     src, _ = _make_source(monkeypatch)
     sess = es.EnergySession.__new__(es.EnergySession)  # niente __post_init__
     sess._source = src
@@ -171,6 +183,7 @@ def test_session_exact_between_routes_buffer_then_counter(monkeypatch):
 
 # ------------------------------------------------------------------ calibrazione
 def test_idle_window_reports_emi_mode(monkeypatch):
+    """La finestra di idle dichiara 'emi-counter' e riporta il delta del contatore (30 J) e la sua durata."""
     src, _ = _make_source(monkeypatch)
     seq = iter([100.0, 130.0])
     src._emi.read_cumulative_energy_j = lambda: next(seq)
@@ -183,6 +196,7 @@ def test_idle_window_reports_emi_mode(monkeypatch):
 
 
 def test_read_power_j_and_package_j_use_counter(monkeypatch):
+    """Letture puntuali del package passano dal contatore cumulativo convertito, non dall'integrazione."""
     src, _ = _make_source(monkeypatch)
     assert src.read_power_j() == pytest.approx(1_000_000 * eb.PWH_TO_J)
     assert src.read_package_j(0.0) == pytest.approx(1_000_000 * eb.PWH_TO_J)
@@ -190,6 +204,7 @@ def test_read_power_j_and_package_j_use_counter(monkeypatch):
 
 # -------------------------------------------------------------------- chiusura
 def test_close_stops_sampler_and_backend(monkeypatch):
+    """close() spegne il thread del sampler, azzera i riferimenti e chiude il backend."""
     src, fake = _make_source(monkeypatch)
     sess = es.EnergySession.__new__(es.EnergySession)
     sess._source = src
