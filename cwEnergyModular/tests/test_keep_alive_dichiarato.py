@@ -20,6 +20,7 @@ Esecuzione:  python -m pytest tests/test_keep_alive_dichiarato.py -v
 """
 import sys
 from pathlib import Path
+from types import SimpleNamespace
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
@@ -103,3 +104,39 @@ def test_schema_esporta_cio_che_e_stato_inviato():
     assert "ollama_keep_alive" in RUN_METADATA_COLUMNS
     # accodata: i file di run metadata gia' scritti non hanno migrazione
     assert RUN_METADATA_COLUMNS[-1] == "ollama_keep_alive"
+
+
+# --- provenienza del metodo: la scrive il percorso, non il template ------------
+# Le 9 righe pubblicate il 19/10 portano cloud_emissions_method = "ecologits gwp
+# (server-side, scope-2 incl. PUE)" mentre ogni valore cloud e' vuoto o zero:
+# l'etichetta era un letterale di _basic_record, scritta anche quando il branch
+# cloud e' stato saltato per assenza di chiave (benchmark_unified.py:900-902).
+# Un metodo dichiarato senza misura dietro e' esattamente cio' che la regola di
+# provenienza (cap. 4) deve impedire.
+
+def _record_locale(monkeypatch):
+    monkeypatch.setattr(
+        bu, "get_carbon_intensity",
+        lambda zone=None: SimpleNamespace(
+            gco2eq_per_kwh=267.0, zone="IT", source="test-table", timestamp=0.0))
+    return bu._basic_record("R1", "S1", "llama", "llama", "ollama", "local", None,
+                            {"id": "p1", "text": "p", "source": "manual",
+                             "ground_truth": "21"}, bu.evalres_placeholder())
+
+
+def test_record_locale_non_dichiara_un_metodo_cloud(monkeypatch):
+    rec = _record_locale(monkeypatch)
+    assert rec["cloud_emissions_method"] == ""
+    assert rec["cloud_energy_j"] == 0.0
+    # nessun valore cloud: la colonna resta assente dal record e l'export la
+    # scrive vuota (restval), che e' lo stato onesto.
+    assert "cloud_emissions_gco2eq" not in rec
+
+
+def test_record_locale_dichiara_comunque_il_fattore_di_griglia(monkeypatch):
+    """Il contrario: la provenienza locale e' obbligatoria anche a zero joule."""
+    rec = _record_locale(monkeypatch)
+    assert rec["local_carbon_intensity_gco2eq_kwh"] == 267.0
+    assert rec["local_carbon_intensity_source"] == "test-table"
+    assert rec["local_carbon_intensity_zone"] == "IT"
+    assert rec["network_measurement_boundary"] == "not-applicable (local mode)"
