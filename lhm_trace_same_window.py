@@ -27,6 +27,14 @@ Metodo, per fase:
 Uso:
   C:\\...\\pythoncore-3.14-64\\python.exe lhm_trace_same_window.py \
       experiment_results/lhm_emi_trace_20261023_154628.csv
+
+ATTENZIONE SUI CANALI LETTI (pkg, pp0): il record EMI espone piu' domini, ma
+PP0 (core) e PP1 (iGPU) stanno DENTRO PKG, non accanto (Beyer & Wendler 2020,
+LNCS 12079; e rapporto PP0/PKG misurato 0,51 a riposo contro 0,84 sotto carico
+nel probe emi_50ms_probe.py del 23/10). Le serie di questo file vanno lette
+UNA ALLA VOLTA contro la propria controparte LHM: mai somare PP0 e PP1 per
+ricostruire il package, e mai trattare DRAM come additivo (su questo host vale
+0). Il confine dichiarato dal metodo e' il package.
 """
 from __future__ import annotations
 
