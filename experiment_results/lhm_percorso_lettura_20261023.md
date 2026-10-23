@@ -175,3 +175,45 @@ Impatto pratico se applicata (da rimisurare, non da assumere): il percorso
 `power-integration` diverrebbe equivalente al canale EMI con l'errore visto nella
 Misura A (~4% sulla pendenza), quindi i protocolli v1/v2/v3 andrebbero **eseguiti
 di nuovo**, non ricorrettati a posteriori con un fattore.
+
+## 6. Correzione APPLICATA (23/10, commit 1422d1b) — prima/dopo misurato
+
+Autorizzazione dell'utente: guard sul `SensorType` (opzione consigliata delle tre
+presentate). `energy_session.py:819` ora ammette il match per nome **solo se**
+`_lhm_sensor_type_name(sensor).strip().lower() == "power"` — lo stesso controllo
+gia' usato da `_select_power_sensor` (`:761`) e `_lhm_power_w` (`:523`), quindi
+nessuna convenzione nuova. L'identita' dell'oggetto selezionato resta la via
+primaria; la temperatura omonima viene saltata.
+
+Stesso probe, stessa macchina, stessa `SESSION`, tre run a distanza di 40 minuti
+(`lhm_readpath_probe_20261023_132621.csv` = PRIMA,
+`lhm_readpath_probe_20261023_140726.csv` = DOPO). La colonna EMI e' quella del
+run DOPO; il run PRIMA aveva il proprio EMI (10,38 / 20,52 / 11,12 W, burn meno
+spinto perche' il pool di processi partiva da freddo) e la sua lettura era
+comunque 64/68/67 °C, cioe' sganciata da qualunque dei due: il confronto
+significativo e' lettura-vs-EMI **nello stesso run**.
+
+| fase | EMI PKG [W] | PRIMA `read_power_w_direct` | PRIMA `produzione_W` | DOPO `read_power_w_direct` | DOPO `produzione_W` |
+|---|---|---|---|---|---|
+| idle | 11,97 | 64,0 (= °C) | 64,38 | **10,37** | 11,84 |
+| burn8 | 37,27 | 68,0 (= °C) | 68,57 | **35,66** | 37,25 |
+| cool | 12,11 | 67,0 (= °C) | 67,15 | **11,25** | 12,47 |
+
+DOPO, `read_power_w_direct` coincide con `_pi_selected.Value` (10,37/35,66/11,25
+in tutti i tick) e la potenza integruta segue EMI: **−1,1% / −0,05% / +3,0%**, la
+firma attesa dalla Misura A. Il gradino idle→burn8 vale ora +25,3 W in lettura e
++25,4 W in produzione (EMI +25,3): la pendenza e' tornata, non e' piu' meta' come
+nei due four-way. Gli omonimi sono sempre in lista (posizione 38 Temperature a
+65,0 °C, posizione 67 Power): la trappola non e' stata rimossa, e' stata resa
+inoffensiva.
+
+Registrazioni: `pytest -q cwEnergyModular/tests` → **23 passed**, nessuna
+regressione. Exit code 127 del probe = eccezione pythonnet nel teardown
+dell'assembly (`TypeManager.AllocateTypeObject`), gia' nota, file scritti prima.
+
+Cosa cambia per la tesi: il metodo in produzione e' ora difeso dai dati, ma
+**tutti i numeri LHM/CasualWatt lato Windows gia' committati restano invalidati**
+(v1 0,256 · v2 0,343 · v3 0,525 J/token, colonne LHM dei due four-way, trace 634
+campioni): vanno **eseguiti di nuovo** a protocollo identico, non moltiplicati
+per un fattore. Primo rilancio in corso: four-way A-B-A 768 token.
+
