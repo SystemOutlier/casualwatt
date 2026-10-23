@@ -1,0 +1,35 @@
+LHM_OK
+[OK] SESSION avviata: method=power-integration sensor='CPU Package' periodo_dichiarato=0.05 s
+[OK] sensori Power visti da produzione: ['CPU Package', 'CPU Cores', 'CPU Memory', 'CPU Platform']
+--- fase idle (30 s, 0 processi burn) ---
+--- fase burn2 (30 s, 2 processi burn) ---
+--- fase burn8 (30 s, 8 processi burn) ---
+--- fase cool (25 s, 0 processi burn) ---
+
+=== fasi ===
+  {"EMI_pkg_W": 14.06, "EMI_pp0_W": 7.83, "produzione_W": 68.26, "campioni_PI_al_s": 3.56, "raw_value_media_W": 13.95, "raw_value_mediana_W": 13.7, "raw_value_max_W": 23.42, "raw_value_min_W": 9.81}
+  {"EMI_pkg_W": 30.01, "EMI_pp0_W": 23.79, "produzione_W": 81.27, "campioni_PI_al_s": 3.36, "raw_value_media_W": 30.8, "raw_value_mediana_W": 30.05, "raw_value_max_W": 44.18, "raw_value_min_W": 23.65}
+  {"EMI_pkg_W": 38.49, "EMI_pp0_W": 32.15, "produzione_W": 95.97, "campioni_PI_al_s": 2.51, "raw_value_media_W": 38.76, "raw_value_mediana_W": 38.28, "raw_value_max_W": 48.56, "raw_value_min_W": 29.29}
+  {"EMI_pkg_W": 14.12, "EMI_pp0_W": 7.86, "produzione_W": 71.12, "campioni_PI_al_s": 3.55, "raw_value_media_W": 13.16, "raw_value_mediana_W": 13.29, "raw_value_max_W": 16.33, "raw_value_min_W": 8.67}
+
+=== confronto ===
+{
+  "idle_EMI_W": 14.06,
+  "idle_produzione_W": 68.26,
+  "offset_W": 54.2,
+  "rapporto_burn8": 2.493,
+  "delta_burn8_EMI_W": 24.43,
+  "delta_burn8_produzione_W": 27.71,
+  "delta_burn2_EMI_W": 15.95,
+  "delta_burn2_produzione_W": 13.01,
+  "campioni_PI_al_s_obs": [
+    3.56,
+    3.36,
+    2.51,
+    3.55
+  ]
+}
+
+[OK] C:\Users\Massimo\Documents\CasualWatt\CWProject\experiment_results\lhm_pi_path_20261023_124936.json
+[OK] C:\Users\Massimo\Documents\CasualWatt\CWProject\experiment_results\lhm_pi_path_20261023_124936.csv
+EXIT=0
