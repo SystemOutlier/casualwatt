@@ -92,6 +92,10 @@ class LocalEnergyResult:
     measurement_boundary: str = ""
     cpu_attribution_method: str = ""
     gpu_attribution_method: str = ""
+    # canale che ha prodotto package_energy_j di questa riga (emi-counter |
+    # power-integration | rapl | unavailable | ...): identico a
+    # SESSION.source_method al momento della misura, salvato PER RIGA
+    energy_calculation_method: str = ""
     notes: List[str] = field(default_factory=list)
     # Diagnostica cpu-time-share (per riga)
     ollama_pids_used: str = ""          # lista PID usati, separati da virgola
@@ -175,6 +179,13 @@ class CasualWattLocalEnergyProfiler:
         res.idle_provenance = idle_proven
 
         method = self.session.source_method
+        # Un solo token che dice DA QUALE CANALE viene il package_energy_j di
+        # QUESTA riga. Fino ad ora il nome del canale compariva solo dentro
+        # stringhe composite (cpu_attribution_method, measurement_boundary),
+        # quindi un CSV di risultati che accoda righe di run fatti con canali
+        # diversi -- emi-counter, power-integration, rapl -- non era
+        # auto-descrittivo senza il file di run metadata.
+        res.energy_calculation_method = method
 
         # ---- B1: energia package ESATTA ai bordi della finestra -----------
         # Con backend attivo si legge il contatore integrato a 0,05 s (stesso
