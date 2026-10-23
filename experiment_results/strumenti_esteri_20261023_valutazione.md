@@ -19,7 +19,7 @@ progetto va in related work, non nel codice.
 | `powerapi-ng/pyJoules` | libreria Python per energia di snippet di codice | **solo GNU/Linux** (dichiarato) | MIT | 2025-12-29 (95 *) | **corrobora il nostro limite di finestra** |
 | `Accenture/energy-consumption-measuring-toolkit` | demo + whitepaper su RAPL/pyJoules, baseline subtraction | non dichiarato (dipende da pyJoules) | **nessun file LICENSE** (API: `license=None`; `LICENSE` grezzo → 404) | 2024-05-02 (7 *) | **metodo si', codice no** |
 | `AIWattch/AI-Wattch` | estensione browser che **stima** l'impatto dei prompt su ChatGPT/Claude/Gemini | Chrome MV3 / Firefox | MIT | 2026-10-14 (19 *) | **contrasto: il polo dell'estima** |
-| `mlco2/impact` | calcolatore di emissioni ML (potenza misurata **o** stimata) + template LaTeX | CLI/web, HTML/JS | MIT | 2026-10-09 (272 *) | **layer emissioni + formato di reporting** |
+| `mlco2/impact` | calcolatore di emissioni ML: ore x tipo di macchina x griglia regionale (**PUE escluso**, vedi §6) + template LaTeX | CLI/web, HTML/JS | MIT | 2026-10-09 (272 *) | **formato di reporting + fattori di griglia** |
 
 ## 2. cpu-energy-meter: il pezzo piu' spendibile
 
@@ -49,10 +49,14 @@ Verificato dal README (`cem.md`, righe citate):
 - `:107-115` uscita raw `-r`: `cpu0_package_joules=4.971924`,
   `cpu0_psys_joules=38.904785` → **gia' parseabile**: perfetto per un confronto
   automatico a finestra identica contro il nostro CSV.
-- `:121-123` paper: **Beyer & Wendler, "CPU Energy Meter: A Tool for
-  Energy-Aware Algorithms Engineering", TACAS 2020, LNCS 12079, pp. 126-133,
-  DOI 10.1007/978-3-030-45237-7_8** (open access) → voce bibliografica pronta,
-  con metodo descritto in letteratura (raro per questi tool).
+- `:121-123` paper: **Dirk Beyer e Philipp Wendler (LMU Munich), "CPU Energy
+  Meter: A Tool for Energy-Aware Algorithms Engineering", TACAS 2020, LNCS
+  12079, pp. 126-133, DOI 10.1007/978-3-030-45237-7_8** (open access;
+  confermato il 23/10 su Springer `link.springer.com/content/pdf/10.1007/
+  978-3-030-45237-7_8.pdf` e sulla bibliografia d'ateneo `sosy-lab.org`) →
+  voce bibliografica pronta, con metodo descritto in letteratura (raro per
+  questi tool). Il README dice "part 2", la nostra prima nota diceva "Part
+  I": nei bib ho messo solo "LNCS 12079" senza asserire il numero di parte.
 
 **Azione**: entra nella `VALIDAZIONE_LINUX_RAPL_CHECKLIST.md` come **secondo
 lettore** (dopo `turbostat`), con l'output `-r` da allineare alle nostre
