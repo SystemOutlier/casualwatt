@@ -143,6 +143,19 @@ OLLAMA_API_URL = OLLAMA_HOST
 OLLAMA_TAGS_ENDPOINT = f"{OLLAMA_API_URL}/api/tags"
 OLLAMA_GENERATE_ENDPOINT = f"{OLLAMA_API_URL}/api/generate"
 
+# keep_alive del motore locale. Vuoto = NON inviare la chiave, cioe' lasciare
+# il default di Ollama: il comportamento storico del framework resta invariato
+# finche' l'operatore non sceglie un valore. La variabile esiste perche' lo
+# stato del motore fra una richiesta e la successiva NON e' una costante: nel
+# CSV di produzione (results/semantic_evaluation_results.csv, run
+# R20261019-1643) due righe su nove hanno un residuo durata-prefill-decoding
+# di 6,64 s e 6,00 s, contro 0,03-1,87 s di tutte le altre, cioe' caricamento
+# dei pesi dentro la finestra misurata. La residenza dei pesi fra le fasi
+# cambia quale J/token si sta davvero misurando. Da qui anche il vincolo di
+# confronto: due run sono confrontabili solo se questo campo coincide
+# (cap. 5 e 6 della tesi, esperimento A-B-A).
+OLLAMA_KEEP_ALIVE = os.getenv("CW_OLLAMA_KEEP_ALIVE", "").strip().strip('"')
+
 # Nomi dei processi Ollama da individuare per il PID (sezione 7, punto 2)
 OLLAMA_PROCESS_NAMES = (
     "ollama.exe",
