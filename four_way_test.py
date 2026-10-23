@@ -123,7 +123,17 @@ def open_emi():
 
 
 def emi_pkg(h):
-    """Ritorna (AbsoluteEnergy_pWh, AbsoluteTime_100ns) del canale PKG (record 0)."""
+    """Ritorna (AbsoluteEnergy_pWh, AbsoluteTime_100ns) del canale PKG (record 0).
+
+    NON ADDITIVITA' DEI DOMINI (Beyer & Wendler 2020, LNCS 12079, e nostri
+    dataset): il record EMI espone PKG, DRAM, PP0, PP1, ma PP0 (core) e PP1
+    (iGPU) sono SOTTOINSIEMI di PKG. Sommarli per ottenere "il package" e'
+    sbagliato per costruzione, e PKG + DRAM non e' "tutto il chip" perche' DRAM
+    ricade gia' nel budget di package su questa piattaforma (qui vale 0, misurato
+    dal probe emi_50ms_probe.py del 23/10: 0 letture non nulle su 800).
+    Questo canale e' l'unico usato nei rapporti perche' e' il confine che il
+    nostro metodo dichiara (package), non perche' sia il piu' grande.
+    """
     out = ctypes.create_string_buffer(64)
     got = ctypes.c_uint(0)
     if not kernel32.DeviceIoControl(h, IOCTL_GET_MEASUREMENT, None, 0,
