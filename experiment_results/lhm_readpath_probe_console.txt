@@ -1,0 +1,64 @@
+LHM_OK
+[OK] method=power-integration sensore selezionato='CPU Package' Power visti=['CPU Package', 'CPU Cores', 'CPU Memory', 'CPU Platform']
+[Sensori con il nome scelto] [{"posizione_in_lista": 38, "tipo": "Temperature", "value": 65.0}, {"posizione_in_lista": 67, "tipo": "Power", "value": 8.691}]
+[OK] il sensore Power scelto e' in posizione: [67]
+--- fase idle (40 s, 0 processi burn) ---
+--- fase burn8 (40 s, 8 processi burn) ---
+--- fase cool (40 s, 0 processi burn) ---
+{
+  "riassunti": [
+    {
+      "fase": "idle",
+      "EMI_pkg_W": 10.38,
+      "read_power_w_direct_mediana": 64.0,
+      "pi_selected_Value_mediana": 9.37,
+      "produzione_W": 64.38,
+      "campioni_PI_al_s": 3.52
+    },
+    {
+      "fase": "burn8",
+      "EMI_pkg_W": 20.52,
+      "read_power_w_direct_mediana": 68.0,
+      "pi_selected_Value_mediana": 18.78,
+      "produzione_W": 68.57,
+      "campioni_PI_al_s": 2.89
+    },
+    {
+      "fase": "cool",
+      "EMI_pkg_W": 11.12,
+      "read_power_w_direct_mediana": 67.0,
+      "pi_selected_Value_mediana": 11.37,
+      "produzione_W": 67.15,
+      "campioni_PI_al_s": 3.52
+    }
+  ],
+  "verdetto": {
+    "domanda": "_read_power_w_direct() ritorna il sensore Power o un omonimo?",
+    "idle_read_vs_Value": [
+      64.0,
+      9.37
+    ],
+    "idle_EMI_W": 10.38,
+    "cool_read_vs_Value": [
+      67.0,
+      11.37
+    ],
+    "cool_EMI_W": 11.12,
+    "firma_attesa_se_temperatura": "read_power_w_direct >> Value del Power, e in fase cool read resta alto mentre Value ed EMI tornano a ~14 W"
+  }
+}
+[OK] C:\Users\Massimo\Documents\CasualWatt\CWProject\experiment_results\lhm_readpath_probe_20261023_132621.json
+[OK] C:\Users\Massimo\Documents\CasualWatt\CWProject\experiment_results\lhm_readpath_probe_20261023_132621.csv
+
+Eccezione non gestita: Python.Runtime.InternalPythonnetException: Failed to create Python type for System.NullReferenceException ---> System.NullReferenceException: Riferimento a un oggetto non impostato su un'istanza di oggetto.
+   in Python.Runtime.TypeManager.AllocateTypeObject(String name, PyType metatype)
+   in Python.Runtime.ReflectedClrType.AllocateClass(Type clrType)
+   in Python.Runtime.ReflectedClrType.GetOrCreate(Type type)
+   --- Fine della traccia dello stack dell'eccezione interna ---
+   in Python.Runtime.ReflectedClrType.GetOrCreate(Type type)
+   in Python.Runtime.Converter.ToPython(Object value, Type type)
+   in Python.Runtime.Exceptions.SetError(Exception e)
+   in Python.Runtime.MethodBinder.Invoke(BorrowedReference inst, BorrowedReference args, BorrowedReference kw, MethodBase info, MethodBase[] methodinfo)
+   in Python.Runtime.MethodObject.Invoke(BorrowedReference target, BorrowedReference args, BorrowedReference kw, MethodBase info)
+   in Python.Runtime.MethodBinding.tp_call(BorrowedReference ob, BorrowedReference args, BorrowedReference kw)
+EXIT=127
