@@ -146,22 +146,42 @@ parole) e il fatto che **l'harness `experiment_validate_lhm.py` non registra i
 campi di fase**, anche se il client di produzione li ha gia'. Da dichiarare nel
 capitolo limiti, e da recuperare nell'harness (vedi #15 dei task).
 
-Per completezza, la geometria dei protocolli da esperimento (quella che vale per
-il numero 1,286 J/token committato), da `lhm_validation_v3_20261023_160430.csv`,
-5 fasi load, 75 richieste:
+Per completezza, la geometria dei protocolli da esperimento. **CORREZIONE
+(23/10, dopo l'audit per le sezioni Risultati):** il blocco che stava qui prima
+divideva i totali token per **75 richieste**, che non e' il numero di richieste
+del CSV committato (`_160430.csv`: 5 run x 5 inferenze = 25); i tre valori
+uscivano percio' divisi per 3, e il numero 1,286 J/token --- che appartiene al
+protocollo lungo, non a questo --- era attribuito alla geometria sbagliata.
+Riletta dai due CSV con `divider = inferenze/run x run`:
 
 ```
-N_in  per richiesta : 12,3 token      (925 token su 75 richieste)
-N_out per richiesta : 31,8 token      (2387 token su 75 richieste)
-durata per richiesta: 3,60 s
-intervallo PI in load: 0,3148 / 0,3224 / 0,3265 / 0,3335 / 0,339 s
-J/token per run      : 0,988 / 1,076 / 0,834 / 0,980 / 1,058
+protocollo LUNGO  _153604.csv  8 run x 15 inf. = 120 richieste, num_predict 128,
+                 baseline 30 s x2, cooldown 15 s
+  N_in   per richiesta : 37,0 token   (555 per run, identici in tutti gli 8 run)
+  N_out  per richiesta : 92,1 token   (media 1380,8 per run / 15)
+  durata per richiesta : 7,05 s       (dt medio 105,82 s per run / 15)
+  J/token              : 1,2862 (CV 8,99%)
+
+protocollo CORTO  _160430.csv  5 run x 5 inf. = 25 richieste, num_predict 128,
+                 baseline 30 s x2, cooldown 15 s
+  N_in   per richiesta : 37,0 token   (185 per run, identici in tutti i 5 run)
+  N_out  per richiesta : 95,5 token   (media 477,4 per run / 5)
+  durata per richiesta : 10,81 s      (dt medio 54,05 s per run / 5)
+  intervallo PI in load: misurato 0,3272 s (dichiarato 0,05 s)
+  J/token per run      : 0,988 / 1,076 / 0,834 / 0,980 / 1,058  -> 0,9873 (CV 9,66%)
 ```
+
+Cambia una cosa sola fra i due: quante inferenze stanno in un run. Il `N_in`
+identico (37) lo conferma. La metrica non e' a confronto, e la forma chiusa di
+cap. 5 (`eq:pendenza-fondo`) lo quantifica: -0,0766 contro -0,1134 J/token per
+watt, cioe' il corto e' il 48% piu' sensibile perche' il suo `dt/N_out` per
+richiesta e' piu' grande (10,81/95,5 contro 7,05/92,1).
 
 **(d) Lo sweep di geometrie (64/512/2048 token in input) resta la vera azione sul protocollo;
 lo split di fase diventa un'azione sul campionamento.** Corretto dal punto (c), le due cose
 non sono in alternativa. Se `E_tot ≈ a·N_in + b·N_out` (`cavagna2026sweetspot`, arXiv:2602.05695,
-già verificato e in bibliografia), allora il nostro 1,29 J/token vale solo per `N_in ≈ 12`.
+già verificato e in bibliografia), allora il nostro 1,286 J/token vale solo per
+`N_in = 37` e `N_out = 92` (non piu' `N_in ≈ 12`: era l'errore del blocco sopra).
 Con 2-3 geometrie a `N_out` fisso stimiamo `a` e `b` e il numero diventa una curva. Questo
 ridefinisce il protocollo v4: non solo "numero fisso di richieste", ma **numero fisso di
 richieste × geometria dichiarata**. Nello stesso run v4 l'harness deve registrare
