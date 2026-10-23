@@ -42,12 +42,14 @@ RUNS = {
 # - il fondo medio del protocollo stesso (eq. 3.4);
 # - 65,0 W: idle_power_w delle 9 righe pubblicate in results/ (manual_override);
 # - 66,095 W: fondo "calibrato" del run R20261019-164316-74070d (era °C, pre-fix);
-# - 16,5 / 13,4 W: fondi EMI (5 test EMI; four-way del 23/10 ore 12:08).
+# - 17,087 W: fondo medio dei quattro test EMI v2 (30 richieste x 32 token,
+#   summary in Tesi-latex/test-emi/emi-ollama-summary-*.txt);
+# - 13,4 W: EMI del four-way del 23/10 alle 12:08.
 FONDI = [
     ("fondo_del_protocollo", None),
     ("65.0_manuale_produzione", 65.0),
     ("66.095_pre_fix_come_was_C", 66.095),
-    ("16.5_fondo_EMI_test", 16.5),
+    ("17.087_fondo_medio_EMI_4_test", 17.087),
     ("13.4_fondo_EMI_four_way", 13.4),
 ]
 

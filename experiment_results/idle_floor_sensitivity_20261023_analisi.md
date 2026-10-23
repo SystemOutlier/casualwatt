@@ -44,17 +44,18 @@ Fondo unico per tutti i run, valore al posto di quello calibrato:
 | fondo imposto [W] | provenienza | J/token (8×15) | delta | J/token (5×5) | delta |
 |---|---|---|---|---|---|
 | 11,547 | fondo medio di questo protocollo | **1,2853** | — | — | — |
-| 13,400 | EMI, four-way 23/10 ore 12:08 | 1,1434 | **−11,0%** | 1,1799 (+18,9% sul suo 0,9924) | — |
+| 13,400 | EMI, four-way 23/10 ore 12:08 | 1,1434 | **−11,0%** | 1,1799 | +18,9% |
 | 15,053 | fondo medio del protocollo corto | — | — | **0,9924** | — |
-| 16,500 | EMI, fondo dei 5 test | 0,9059 | **−29,5%** | 0,8282 | −16,6% |
+| 17,087 | EMI, fondo medio dei quattro test v2 | 0,8609 | **−33,0%** | 0,7616 | −23,3% |
 | 65,000 | `idle_power_w` delle 9 righe pubblicate | **clamp** | 8/8 run a zero | **clamp** | 5/5 a zero |
 | 66,095 | fondo "calibrato" pre-fix (era °C) | **clamp** | 8/8 run a zero | **clamp** | 5/5 a zero |
 
 Due letture, entrambe da portare in discussione.
 
 (1) **Errore sistematico**: sbagliare il fondo di 1 W sposta la metrica del
-6–11%; 5 W di fondo (la distanza fra il fondo proprio e quello EMI dei 5 test)
-valgono **−30%** su J/token. Nessun sensore al mondo recupera quel errore: e' il
+6–11%; $5{,}5$\watts{} di fondo (la distanza fra il fondo proprio del
+protocollo lungo e quello misurato da EMI nei quattro test v2) valgono
+**−33,0%** su J/token. Nessun sensore al mondo recupera quel errore: e' il
 parametro, non la strumentazione.
 
 (2) **Non e' un bias, e' un'annullazione**. Con fondo 65 o 66,095 W il termine
@@ -67,7 +68,41 @@ spiegato dal `package_window_source = unavailable`. Il pavimento del pacchetto
 vale 28,3 W (8×15) e 23,8 W (5×5) **comprensivo del fondo**: un fondo dichiarato
 sopra quel valore non e' "alto", e' fuori dominio.
 
-## 3. Meta' del rumore e' la stima del fondo, non il fondo
+## 3. La stessa pendenza, su un protocollo indipendente: i cinque test EMI
+
+I cinque test EMI eseguiti dall'utente (30 richieste x 32 token su
+`llama3.2:3b`, fondo 60 s x 2, contatore EMI via `emi_ollama_test.py`;
+`Tesi-latex/test-emi/emi-ollama-summary-20261022-*.txt`, file non versionati
+perche' materiali di tesi) sono un protocollo **diverso** dai due A-B-A sopra,
+ma con la stessa forma chiusa. Riga per riga dai loro riepiloghi:
+
+| test (hh:mm:ss) | durata meter [s] | energia lorda [J] | fondo [W] | E_inc [J] | J/token | pendenza dt/960 |
+|---|---|---|---|---|---|---|
+| 02:10:26 | 84,558 | 2.445,693 | 19,467 (una sola finestra) | 799,632 | 0,8330 | -0,0881 |
+| 02:25:06 | 88,659 | 2.402,514 | 17,237 | 874,334 | 0,9108 | -0,0924 |
+| 02:32:18 | 92,495 | 2.607,388 | 17,229 | 1.013,826 | 1,0561 | -0,0964 |
+| 02:36:07 | 74,698 | 2.172,434 | 16,935 | 907,432 | 0,9453 | -0,0778 |
+| 02:40:10 | 74,840 | 2.146,154 | 16,947 | 877,840 | 0,9144 | -0,0780 |
+
+`E_inc` delle ultime tre righe ricalcolata dai campi lordi (i riepiloghi dei
+test 3-5 stampano solo il J/token): la J/token ricostruita vale 1,056069 /
+0,945242 / 0,914416 contro 1,056062 / 0,945250 / 0,914415 pubblicati, cioe'
+concordanza alla quinta cifra decimale, con il residuo dovuto
+all'arrotondamento del fondo nel riepilogo.
+
+- media sui quattro test v2: **0,9566 J/token, CV 7,12%**; sui cinque: 0,9319,
+  CV 8,67% (il test delle 02:10 e' quello col fondo a 19,5 W, gonfiato dalla
+  coda di `ollama-short-test` delle 02:04);
+- correlazione fra fondo e J/token: **r = -0,635** sui cinque punti. Piu' debole
+  del -0,982 dei protocolli A-B-A perche' qui anche l'energia lorda cambia fra un
+  test e l'altro (2.146-2.607 J), quindi il fondo non e' l'unica variabile; il
+  segno pero' e' lo stesso, e su un protocollo scritto da un'altra persona, con
+  un altro numero di richieste, altra durata e altro strumento di lettura.
+- **non** e' una conferma quantitativa della pendenza: la varianza fra test e'
+  del 7-9%, la pendenza ne spiega una parte. E' la conferma che la relazione
+  esiste ed e' negativa, che e' il claim rilevante per RQ2.
+
+## 4. Meta' del rumore e' la stima del fondo, non il fondo
 
 `sd(P_base)` fra i run e' 1,29 W (8×15) e 0,97 W (5×5). Moltiplicata per la
 pendenza del protocollo prevede CV di **7,68%** e **11,14%** contro l'8,99% e
@@ -106,7 +141,7 @@ Tre conclusioni operative per il protocollo v4:
   fondo EMI a fare da riferimento esterno, perche' EMI e LHM qui sono lo stesso
   contatore (`MSR_PKG_ENERGY_STATUS 0x611`) e non possono arbitrarsi a vicenda.
 
-## 4. Cosa NON dice questo esperimento
+## 5. Cosa NON dice questo esperimento
 
 Non tocca `s` di eq. (3.5) (la quota per-processo), perche' i protocolli A-B-A
 non la usano: qui il fondo si sottrae all'intera macchina. Non da' J/risposta
