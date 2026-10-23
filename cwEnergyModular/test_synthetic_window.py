@@ -40,7 +40,6 @@ def test_exact_cpu_times_reading():
     assert delta < 2.0, f"Delta troppo grande: {delta} (aspettato ~0.4 s)"
     
     print(f"[OK] Delta corretto: {delta:.3f} s (aspettato ~0.4 s)")
-    return delta
 
 
 def test_profile_window_with_direct_delta():
@@ -101,8 +100,11 @@ def test_profile_window_with_direct_delta():
     has_exact_note = any("lettura esatta agli estremi" in n for n in result.notes)
     assert has_exact_note, "Nota 'lettura esatta agli estremi' non trovata"
     print("[OK] Nota diagnostica presente")
-    
-    return result
+
+# I due test non restituiscono niente: un valore di ritorno da una funzione di
+# test e' un segnale di confusione tra "misura" e "verifica" (pytest lo avvisa
+# con PytestReturnNotNoneWarning). I numeri utili sono gia' stampati qui sopra,
+# e il blocco __main__ non ha mai letto i ritorni.
 
 
 if __name__ == "__main__":
