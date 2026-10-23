@@ -1,0 +1,64 @@
+﻿PROBE ALTERNATIVE FONTI DI ENERGIA CPU - MINI_IT13 - 2026-10-23T11:59:48
+processo elevato: True
+
+=== 1. powercfg /srumutil (alternativa 'nativa') ===
+output: Completed with status 0 (0x00000000)
+CSV SCRITTO: C:\Users\Massimo\Documents\CasualWatt\CWProject\experiment_results\srum_dump_20261023_115948.csv (31727 righe)
+intestazione: AppId, UserId, TimeStamp, OnBattery, ScreenOn, BatterySaverActive, LowPowerEpochActive, Foreground, InteractivityState, Container, Committed, TimeInMSec, MeasuredBitmap, EnergyLoss, CPUEnergyConsumption, SocEnergyConsumption, DisplayEnergyConsumption, DiskEnergyConsumption, NetworkEnergyConsumption, MBBEnergyConsumption, NPUEnergyConsumption, OtherEnergyConsumption, EmiEnergyConsumption, CPUEnergyConsumptionWorkOnBehalf, CPUEnergyConsumptionAttributed, TotalEnergyConsumption
+campi energia: PRESENTI
+
+=== 2. namespace WMI di terze parti ===
+root\ : subscription, DEFAULT, CIMV2, msdtc, Cli, Intel_ME, SECURITY, HyperVCluster, SecurityCenter2, RSOP, PEH, StandardCimv2, WMI, directory, Policy, virtualization, Interop, Hardware, ServiceModel, SecurityCenter, Microsoft, Appv
+root\OpenHardwareMonitor -> ASSENTE/ERR: Spazio dei nomi non valido 
+root\LibreHardwareMonitor -> ASSENTE/ERR: Spazio dei nomi non valido 
+root\LHM -> ASSENTE/ERR: Spazio dei nomi non valido 
+
+=== 3. root\wmi: classi con nome power/energy ===
+__PARAMETERS
+MSNdis_StatusDevicePowerOn
+NetCx_DevicePowerStateChange
+MSNdis_StatusDevicePowerOff
+MSNdis_StatusDevicePowerOnEx
+PortCls_PowerState
+PortCls_PowerPolicy
+MSNdis_StatusDevicePowerOffEx
+MSChangerParameters
+MSPower
+MSPower_DeviceWakeEnable
+MSPower_DeviceEnable
+MSNdis_ReceiveFilterGlobalParameters
+MSNdis_SetHDSplitParameters
+MSNdis_TcpOffloadParameters
+MSNdis_QueryReceiveQueueParameters
+MSNdis_QueryReceiveFilterParameters
+MSNdis_ReceiveFilterParameters
+MSNdis_LinkParameters
+MSNdis_80211_TransmitPowerLevel
+MSNdis_SetTcpOffloadParameters
+MSNdis_ReceiveQueueParameters
+MSNdis_HDSplitParameters
+MSNdis_SetPortParameters
+MSNdis_InterruptModerationParameters
+MSNdis_SetLinkParameters
+MSNdis_80211_PowerMode
+MSNdis_ReceiveFilterFieldParameters
+MSNdis_PortAuthParameters
+MSNdis_QueryReceiveFilterGlobalParameters
+SystemConfig_V1_Power
+SystemConfig_V0_Power
+SystemConfig_V2_Power
+PowerEvents
+MSFC_DH_Chap_Parameters
+ProcessorPowerMetrics -> ERRORE: Classe non valida 
+MSAPRProcessorPowerMetrics -> ERRORE: Classe non valida 
+
+=== 4. controprova: EMI nativo (canale usato dal four-way) ===
+EMI open=True ioctl=1 PKG_energy_pWh=1017211282766111 PKG_time_100ns=6525942657186
+
+=== 5. software citati come alternative: presenti? ===
+C:\Program Files\Intel\Power Gadget 3.5 -> False
+C:\Program Files (x86)\Intel\Intel(R) Power Gadget -> False
+C:\Program Files\Open Hardware Monitor -> False
+C:\HWiNFO64 Pro -> False
+processo HWiNFO64 in esecuzione: NO
+processi ollama: nessuno
