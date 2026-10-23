@@ -1,0 +1,19 @@
+# CasualWatt - dipendenze OPZIONALI del fallback LibreHardwareMonitor (solo Windows)
+#
+# Perche' un file separato. Dal 23/10 il metodo principale su Windows e' il
+# contatore cumulativo EMI (energy/emi_backend.py), letto con ctypes dalla
+# libreria standard: non serve nulla di quanto qui. pythonnet serve SOLO a
+# energy/energy_session.py (_try_lhm_direct) e a diagnostics.py, cioe' al
+# percorso che si attiva quando il driver EMI manca, e alla diagnostica.
+# Verificato il 24/10: con EMI attivo il probe LHM non viene eseguito nemmeno
+# pigramente (energy_session.py:125-133) e 'clr' non compare in sys.modules.
+#
+# Installare quando serve il fallback:
+#     py -m pip install -r requirements-lhm.txt
+#
+# Senza queste librerie CasualWatt funziona comunque: se EMI non c'e' e non c'e'
+# nemmeno pythonnet, il metodo resta 'unavailable' e i campi energia si
+# scrivono N/A nel CSV (nessuna stima inventata).
+
+# --- aggancio .NET della libreria LibreHardwareMonitor (percorso fallback) ---
+pythonnet>=3.0.3        # modulo 'clr'; avviare da elevato: i sensori LHM richiedono UAC

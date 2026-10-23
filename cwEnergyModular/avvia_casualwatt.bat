@@ -3,6 +3,16 @@ REM =====================================================================
 REM  CasualWatt Energy Benchmark - Avvio automatico con privilegi Admin
 REM  Doppio clic su questo file -> prompt UAC -> app gia' elevata,
 REM  pronta per leggere i sensori reali di LibreHardwareMonitor.
+REM
+REM  STATO 24/10: l'elevazione NON serve al metodo principale. Su Windows
+REM  la misura viene dal contatore cumulativo EMI (energy/emi_backend.py,
+REM  ioctl via ctypes): gira a privilegi standard. L'UAC qui sotto e'
+REM  richiesto solo per il percorso di fallback LibreHardwareMonitor e per
+REM  alcuni sensori di diagnostics.py. Comportamento lasciato identico di
+REM  proposito: l'appelevato non cambia il valore letto da EMI, e il
+REM  canale elevato e' quello con cui e' stato validato il fallback, quindi
+REM  togliere l'elevazione di default romperebbe il confronto A-B-A senza
+REM  un esperimento che lo dimostri. Per partire senza prompt:  py main.py
 REM =====================================================================
 setlocal EnableExtensions
 

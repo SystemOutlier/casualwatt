@@ -20,7 +20,17 @@ nvidia-ml-py>=12.538    # NVML; fornisce anche il modulo 'pynvml'
 # --- Energia inferenza cloud (opzionale: fallback dichiarato se assente) ---
 ecologits>=0.4
 
-# --- Windows 11: sensori CPU via LibreHardwareMonitor (solo Windows) ---
-pythonnet>=3.0.3        # clr per LibreHardwareMonitorLib.dll (avviare come amministratore)
-wmi>=1.5.1;             sys_platform == "win32"   # metriche WMI (scenario iGPU/fallback)
-pywin32>=306;           sys_platform == "win32"   # backend di wmi
+# --- Energia CPU su Windows 11 ---
+# NESSUNA dipendenza obbligatoria: il metodo principale (emi-counter) legge il
+# contatore cumulativo EMI con ctypes dalla libreria standard, senza .NET e senza
+# privilegi elevati (energy/emi_backend.py).
+# Il fallback LibreHardwareMonitor richiede pythonnet: extra DICHIARATO in
+# requirements-lhm.txt, perche' senza di esso l'app gira comunque e, se manca
+# anche il driver EMI, il metodo resta 'unavailable' con i campi energia a N/A.
+#
+# Rimossi il 24/10 perche' mai importati da questo modulo (verificato con grep su
+# tutti i .py: nessun 'import wmi', nessun 'win32api|win32com|win32file'):
+#   wmi>=1.5.1, pywin32>=306   -> unico consumatore il script legacy nella root,
+#                                 consumi_ollama.py, che dichiara la sua stessa
+#                                 riga di install (riga 21) e non fa parte del
+#                                 percorso di misura di cwEnergyModular.
