@@ -9,15 +9,20 @@ Formule implementate (sezione 2 della specifica, nessuna invenzione):
 
 con:
 * E_package      : energia package CPU nella finestra della richiesta.
-                   METODO UFFICIALE SU WINDOWS 11 (CPU senza contatore
-                   Energy, es. Intel i9-13900HK): "power-integration" ->
+                   METODO PRINCIPALE SU WINDOWS 11 (dal 23/10): "emi-counter"
+                   -> contatore package EMI CUMULATIVO (pWh, ioctl documentato
+                   sul device del canale energia Intel), letto ai bordi esatti
+                   della finestra dal buffer a 0,05 s; nessuna integrazione
+                   perche' la grandezza e' gia' energia.
+                   FALLBACK "power-integration" (CPU senza canale EMI):
                    sensore LibreHardwareMonitor 'CPU Package' [W] campionato
                    ogni 0.05 s e integrato nel tempo con regola trapezoidale
                    sum(((P_i + P_i+1)/2) * (t_i+1 - t_i)). NIENTE RAPL/
-                   perf_event_open/turbostat, NIENTE stime TDP, NIENTE
-                   moltiplicatori arbitrari. Su piattaforme non-Windows la
-                   misurazione locale CPU e' disabilitata con messaggio
-                   esplicito (GUI/Ollama/cloud/CSV restano utilizzabili).
+                   perf_event_open/turbostat su Windows, NIENTE stime TDP,
+                   NIENTE moltiplicatori arbitrari. Su Linux: contatore RAPL
+                   ("rapl"). Su piattaforme non supportate la misurazione
+                   locale CPU e' disabilitata con messaggio esplicito
+                   (GUI/Ollama/cloud/CSV restano utilizzabili).
 * P_idle         : potenza idle calibrata (SESSION.calibrate_idle, solo
                    Windows+LHM, >=30 s x 3 ripetizioni, mediana);
 * dt_cpu_ollama  : secondi CPU dell'albero Ollama nella finestra;
@@ -186,10 +191,15 @@ class CasualWattLocalEnergyProfiler:
                 e_package = None
         if e_package is not None and e_package >= 0.0:
             res.package_window_source = "exact-counter"
+            _edge_txt = (
+                "window read exactly at t_start/t_end from the 0.05 s "
+                + ("cumulative EMI counter buffer (no integration)"
+                   if method == "emi-counter"
+                   else "integration counter")
+            )
             res.cpu_attribution_method = (
                 f"{method}; cpu-time-share attribution "
-                "(E_attiva * dt_cpu_ollama/dt_cpu_busy); window read exactly "
-                "at t_start/t_end from the 0.05 s integration counter"
+                "(E_attiva * dt_cpu_ollama/dt_cpu_busy); " + _edge_txt
             )
         else:
             # FALLBACK dichiarato: differenza dei campioni interpolati
@@ -375,7 +385,7 @@ class CasualWattLocalEnergyProfiler:
                     "attivo -> gpu_process_energy_j = N/A"
                 )
         elif method in ("power-integration", "librehardwaremonitor",
-                        "librehardwaremonitor-energy"):
+                        "librehardwaremonitor-energy", "emi-counter"):
             # A3: iGPU Intel/AMD integrata — il sensore 'CPU Package' INCLUDE
             # gia' la grafica: NON si aggiunge ALCUN termine a local_energy_j
             # e NON esiste piu' l'euristica IGPU_POWER_SHARE (deprecata).
@@ -396,11 +406,19 @@ class CasualWattLocalEnergyProfiler:
                     "(gia' incluso nel package, NON sommato)"
                 )
             else:
-                notes.append(
-                    "iGPU: nessun contatore grafico dedicato esposto da LHM (o "
-                    "meno di 2 campioni con potenza iGPU nella finestra); "
-                    "energia iGPU inclusa nel package (dichiarato, nessuna quota inventata)"
-                )
+                if method == "emi-counter":
+                    notes.append(
+                        "iGPU: metodo emi-counter — il campo PP1 del record EMI "
+                        "(involto grafico) esiste ma NON e' ancora letto ai bordi "
+                        "di finestra; energia iGPU inclusa nel package "
+                        "(dichiarato, nessuna quota inventata)"
+                    )
+                else:
+                    notes.append(
+                        "iGPU: nessun contatore grafico dedicato esposto da LHM (o "
+                        "meno di 2 campioni con potenza iGPU nella finestra); "
+                        "energia iGPU inclusa nel package (dichiarato, nessuna quota inventata)"
+                    )
         else:
             res.gpu_attribution_method = "not-applicable"
 
@@ -409,16 +427,24 @@ class CasualWattLocalEnergyProfiler:
         # (lettura esatta del contatore sugli intervalli tenuti, busy e
         # cpu-time Ollama sugli stessi intervalli). Nessuno scaling temporale.
         src_desc = {
+            "emi-counter": (
+                "Windows EMI package energy counter (cumulative pWh, documented "
+                "IOCTL on the Intel energy channel device; window edges read "
+                "from the 0.05 s cumulative-counter buffer; no integration, "
+                "no elevated token required)"
+            ),
             "power-integration": (
                 "LibreHardwareMonitor 'CPU Package' [W] sampled every 0.05 s, "
                 "trapezoidal time integration (no Energy counter on this CPU)"
             ),
             "librehardwaremonitor-energy": "LibreHardwareMonitor package energy counter",
             "librehardwaremonitor": "LibreHardwareMonitor (no readable counters)",
+            "rapl": "RAPL package counter via /sys/class/powercap (Linux)",
             "energy-file": "[DEV/TEST non-Windows] user-provided joule counter file",
             "unavailable": (
-                "LOCAL CPU ENERGY MEASUREMENT DISABLED: available only on "
-                "Windows with LibreHardwareMonitor"
+                "LOCAL CPU ENERGY MEASUREMENT DISABLED: available on Windows "
+                "with the Intel energy channel (EMI) or LibreHardwareMonitor, "
+                "on Linux with RAPL"
             ),
         }.get(method, method)
         res.measurement_boundary = (
