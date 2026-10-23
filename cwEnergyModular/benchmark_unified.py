@@ -36,7 +36,7 @@ from casualwatt_csv_export import export_results_csv, write_run_metadata
 import llm_judge as _lj  # LAST_WINDOWS: finestre reali del sotto-processo giudice
 from cloud_estimator import CloudEnergyEstimator, get_cloud_models
 from energy.carbon_intensity import get_carbon_intensity
-from energy.energy_session import SESSION
+from energy.energy_session import MEASURED_METHODS, SESSION
 from energy.local_energy import CasualWattLocalEnergyProfiler, LocalEnergyResult
 from energy.network_energy import NetworkEnergyTracker
 from evaluator import evaluate_response
@@ -399,8 +399,11 @@ def _estimate_judge_energy(t_start: float, t_end: float) -> Optional[float]:
         if dur <= 0:
             return 0.0
         m = SESSION.source_method
-        if m not in ("power-integration", "librehardwaremonitor-energy",
-                     "emi-counter", "energy-file"):
+        if m not in MEASURED_METHODS:
+            # La lista dei metodi che possono produrre un numero vive in
+            # energy_session (MEASURED_METHODS), non qui: questa riga ne aveva
+            # una copia locale ferma al 22/10 e il backend RAPL, aggiunto dopo,
+            # sarebbe stato scartato come se non misurasse nulla.
             return None
         e_raw = SESSION.package_energy_exact_between(t_start, t_end)
         if e_raw is None:
