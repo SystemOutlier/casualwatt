@@ -75,20 +75,24 @@ Unita' del cumulativo NON convertite (qui interessa il tempo, non i joule).
   - intervallo timestamp registro: min=0.0592 p10=0.0617 p50=0.0769 p90=0.0790 p99=0.0799 max=0.0801 n=211
 ## Lettura dei risultati (MaxArditoQI, 23/10)
 
-1. **Il registro EMI si aggiorna a ogni lettura.** Su tutte le fasi dei 4 CSV
-   committati (5.200+ letture a 50 ms e 4.000 a 10 ms) i timestamp di registro
-   consecutivi NON sono mai identici e il loro intervallo coincide con
-   l'intervallo fra le letture (p50 0,0500 nei file a 50 ms, p50 0,0100 nei
-   file a 10 ms). Il valore `v0` e' nuovo in 11.197/11.199 transizioni
-   consecutive (2 soli duplicati). Quindi il refresh del registro non e'
-   periodico-lento: il driver ricalcola alla richiesta, e la cadenza reale
-   del canale arriva a 100 Hz senza che il polling diventi il collo di
-   bottiglia. Il "3 Hz" rimproverato in rev_metodo.DOCX era il percorso
-   LHM/pythonnet, non il canale principale.
+1. **Il registro EMI si aggiorna a ogni lettura.** I 4 CSV committati contengono
+   11.200 letture (3.200 dichiarate a 50 ms, 8.000 dichiarate a 10 ms) su 8
+   blocchi di fase, cioe' 11.192 transizioni consecutive. I timestamp di
+   registro NON sono mai identici (0 su 11.192) e il loro intervallo coincide
+   con l'intervallo fra le letture (p50 0,0500 nei file a 50 ms, p50 0,0100 in
+   quelli a 10 ms). Il valore `v0` e' nuovo in 11.188 transizioni su 11.192
+   (4 duplicati = 0,036 %, tutti e 4 nei file a 10 ms). Limite onesto della
+   prova: stabilisce che il registro NON e' quantizzato ad intervalli >= 10 ms;
+   sotto i 10 ms non e' stato testato. Quindi il refresh non e'
+   periodico-lento: il driver ricalcola alla richiesta e il polling non e' il
+   collo di bottiglia del canale principale. Il "3 Hz" rimproverato in
+   rev_metodo.DOCX era il percorso LHM/pythonnet.
 2. **Costo osservatore del thread sampler: misurato.** Nel probe live di
-   stanotte (thread ctypes a 20 Hz dichiarato) la fase idle tiene la cadenza
-   (p50 0,0506 s, min 0,0502), la fase spin 1 thread NO: mediana 0,0770 s,
-   coda fino a 0,0801 (+27 ms per lettura, +54 % di intervallo). Con un solo
+   stanotte (thread ctypes a 20 Hz dichiarato, 15 s per fase) la fase idle
+   tiene la cadenza (297 letture, mediana 0,0506 s, min 0,0502, max 0,0514),
+   la fase spin 1 thread NO: 212 letture in 15 s, mediana 0,0770 s, coda fino
+   a 0,0801 (+26 ms per lettura, +52 % di intervallo; frequenza effettiva
+   14,1 Hz contro 20 Hz dichiarati). Con un solo
    core sotto carico saturo il thread del sampler perde lo scheduling, e in
    piu' contende il GIL con l'eventuale parsing in-process. Effetto sul
    NUMERO di finestra: nullo (la finestra differenziale e' delta del
@@ -98,3 +102,12 @@ Unita' del cumulativo NON convertite (qui interessa il tempo, non i joule).
    bordi si leggono con 2 IOCTL, il buffer serve solo alle sottofinestre del
    judge) oppure documentarne il costo come carico di osservazione dichiarato
    e mantenerlo identico in A-B-A.
+
+## Rettifica
+
+La prima stesura di questa sezione, scritta a caldo dal solo output terminale
+visibile (le ultime 3 delle 5 tabelle), riportava "11.197/11.199 transizioni,
+2 duplicati" e "+27 ms / +54 %". Ricalcolate sul file integrale: 11.192
+transizioni, 4 duplicati, +26 ms / +52 %. Gli scarti non cambiano il verdetto,
+ma il numero pubblicato deve essere quello ricalcolato, non quello letto a
+meta' schermo.
