@@ -480,7 +480,13 @@ def _basic_record(run_id, session_id, model_name, model_label, provider, mode,
         "cloud_carbon_intensity_zone": "",
         "cloud_carbon_intensity_source": "",
         "cloud_carbon_intensity_timestamp": "",
-        "cloud_emissions_method": "ecologits gwp (server-side, scope-2 incl. PUE)",
+        # PUNTO TESI (23/10): l'etichetta di metodo cloud NON va scritta dal
+        # template. Il dataset pubblicato 19/10 porta "ecologits gwp (...)" in
+        # 9/9 righe locali, cioe' un metodo dichiarato da un percorso che non e'
+        # mai stato invocato (benchmark_unified.py:900-902 fa SKIP senza chiave).
+        # La riga che produce davvero la stima la scrive nel blocco cloud
+        # (~riga 1002, qui sotto), insieme al valore.
+        "cloud_emissions_method": "",
         "energibridge_csv": "",
         "notes": [],
     }
@@ -995,6 +1001,11 @@ def run_unified_benchmark(
                         rec["notes"] = "; ".join(est.notes)
                     # carbonio cloud: se EcoLogits ha fornito gwp lo riportiamo
                     if est.carbon_gco2eq is not None:
+                        # L'etichetta di metodo viaggia con il valore che descrive:
+                        # il template di _basic_record la lascia vuota (righe locali).
+                        rec["cloud_emissions_method"] = (
+                            "ecologits gwp (server-side, scope-2 incl. PUE)"
+                        )
                         rec["cloud_emissions_gco2eq"] = est.carbon_gco2eq
                         rec["cloud_carbon_intensity_gco2eq_kwh"] = (
                             round(est.carbon_gco2eq / (est.energy_j / 3_600_000.0), 3)
@@ -1003,6 +1014,8 @@ def run_unified_benchmark(
                         rec["cloud_carbon_intensity_zone"] = est.country_code
                         rec["cloud_carbon_intensity_source"] = "ecologits-electricity-mix-repository"
                         rec["cloud_carbon_intensity_timestamp"] = datetime.now(timezone.utc).isoformat(timespec="seconds")
+                    else:
+                        rec["cloud_emissions_method"] = "unavailable (nessun gwp da ecologits)"
 
                     local_j = (
                         client_local.ollama_active_energy_j
