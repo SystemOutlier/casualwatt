@@ -1,0 +1,17 @@
+flush #1 alle 12:09:59 -> bucket piu' recente: 2026-10-23 10:09:00
+ETA' DEL DATO PIU' RECENTE = 121.0 minuti
+--- carico 3 min di inferenza Ollama ---
+generate ok: 54, token: 1728;  EMI pkg delta = 4642.7 J in 183.4 s = 25.31 W
+attesa 30 s prima del secondo flush...
+flush #2 alle 12:13:36 -> bucket piu' recente: 2026-10-23 10:13:00 (eta' 120.6 min)
+
+delta fra i due flush (bucket > ultimo timestamp del flush #1):
+  CPUEnergyConsumption     raw_delta=   -2401337721.0
+  EmiEnergyConsumption     raw_delta=   -5992717509.0
+  TotalEnergyConsumption   raw_delta=   -8796083666.0
+  TimeInMSec               raw_delta=  -74174924665.0
+  app ollama nei nuovi bucket: 2 -> cpu=1966845.0
+  nuovi bucket: ['2026-10-23 10:10:00', '2026-10-23 10:11:00', '2026-10-23 10:12:00', '2026-10-23 10:13:00']
+
+VERDETTO: SRUM VIVE (nuovi bucket dopo il carico)
+EXIT=0

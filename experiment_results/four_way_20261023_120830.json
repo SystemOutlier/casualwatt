@@ -1,0 +1,106 @@
+{
+  "timestamp": "20261023_120830",
+  "wall_zero": "2026-10-23T12:05:28.801",
+  "fasi": [
+    [
+      "idle",
+      45.0
+    ],
+    [
+      "load",
+      90.0
+    ],
+    [
+      "idle2",
+      45.0
+    ]
+  ],
+  "tokens_load": 672,
+  "per_fase": {
+    "idle": {
+      "n": 45,
+      "emi_J": 595.02,
+      "emi_meter_s": 44.06,
+      "emi_W": 13.5,
+      "lhm_mean_W": 68.16,
+      "lhm_sd_W": 1.02,
+      "hw_n": 0,
+      "hw_mean_W": null,
+      "hw_sd_W": null
+    },
+    "load": {
+      "n": 21,
+      "emi_J": 1942.22,
+      "emi_meter_s": 85.83,
+      "emi_W": 22.63,
+      "lhm_mean_W": 73.1,
+      "lhm_sd_W": 1.51,
+      "hw_n": 0,
+      "hw_mean_W": null,
+      "hw_sd_W": null
+    },
+    "idle2": {
+      "n": 45,
+      "emi_J": 590.08,
+      "emi_meter_s": 44.08,
+      "emi_W": 13.39,
+      "lhm_mean_W": 70.56,
+      "lhm_sd_W": 2.69,
+      "hw_n": 0,
+      "hw_mean_W": null,
+      "hw_sd_W": null
+    }
+  },
+  "codecarbon_per_fase": [
+    {
+      "fase": "idle",
+      "cum_duration_s": 55.773,
+      "delta_duration_s": 55.773,
+      "delta_cpu_energy_J": 803.94,
+      "cpu_power_W_fase": 14.41
+    },
+    {
+      "fase": "load",
+      "cum_duration_s": 146.231,
+      "delta_duration_s": 90.458,
+      "delta_cpu_energy_J": 2585.53,
+      "cpu_power_W_fase": 28.58
+    },
+    {
+      "fase": "idle2",
+      "cum_duration_s": 191.333,
+      "delta_duration_s": 45.101,
+      "delta_cpu_energy_J": 400.32,
+      "cpu_power_W_fase": 8.88
+    }
+  ],
+  "codecarbon_backend": [
+    "RAM()",
+    "CPU(Cpu Load)"
+  ],
+  "codecarbon_notes": [],
+  "confronto": {
+    "EMI_W_base": 13.45,
+    "EMI_W_load": 22.63,
+    "EMI_incrementale_J": 788.2,
+    "EMI_J_per_token": 1.173,
+    "LHM_W_base": 69.36,
+    "LHM_W_load": 73.1,
+    "LHM_incrementale_W": 3.74,
+    "LHM_incrementale_J": 336.6,
+    "CodeCarbon_W_base": 11.64,
+    "CodeCarbon_W_load": 28.58,
+    "CodeCarbon_incrementale_W": 16.93,
+    "HWiNFO_W_base": null,
+    "HWiNFO_W_load": null,
+    "HWiNFO_incrementale_W": null,
+    "HWiNFO_incrementale_J": null,
+    "J_per_token_LHM": 0.5009,
+    "J_per_token_HWiNFO": null,
+    "offset_LHM_meno_EMI_W": 55.91,
+    "offset_HWiNFO_meno_EMI_W": null
+  },
+  "confronto_note": "EMI = contatore hardware cumulativo PKG (riferimento di scala). LHM = power-integration del package: gli ASSOLUTI sono invalidati (23/10: HWiNFO 15-19 W a idle + PL1 35 / PL2 55 W), i differenziali A-B-A restano validi perche' l'offset si cancella. CodeCarbon su questa macchina = modello cpu_load (80 W * (0.1 + 0.9*load^3)), NON una misura: termine di confronto metodologico, non arbitro. HWiNFO = package letto dalla Shared Memory (calibrato a caldo vs EMI), testimone NON passivo perche' il suo polling e' carico CPU. I J/token di LHM e HWiNFO usano (W_load - W_base) * durata_fase / token: sono approssimazioni a duty-cycle 1, mentre EMI usa il delta del contatore sulla finestra reale del meter.",
+  "hwinfo": "ASSENTE",
+  "hwinfo_note": "OSError: OpenFileMapping fallita (err=2): la Shared Memory di HWiNFO non e' esposta. Abilita 'Shared Memory Support' in Impostazioni -> Generale/Interfaccia utente (manuale p.14) e tieni attiva la finestra sensori."
+}
