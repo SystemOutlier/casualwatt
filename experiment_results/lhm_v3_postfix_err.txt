@@ -1,0 +1,12 @@
+
+Eccezione non gestita: Python.Runtime.InternalPythonnetException: Failed to create Python type for System.NullReferenceException ---> System.NullReferenceException: Riferimento a un oggetto non impostato su un'istanza di oggetto.
+   in Python.Runtime.TypeManager.AllocateTypeObject(String name, PyType metatype)
+   in Python.Runtime.ReflectedClrType.AllocateClass(Type clrType)
+   in Python.Runtime.ReflectedClrType.GetOrCreate(Type type)
+   --- Fine della traccia dello stack dell'eccezione interna ---
+   in Python.Runtime.ReflectedClrType.GetOrCreate(Type type)
+   in Python.Runtime.Converter.ToPython(Object value, Type type)
+   in Python.Runtime.Exceptions.SetError(Exception e)
+   in Python.Runtime.MethodBinder.Invoke(BorrowedReference inst, BorrowedReference args, BorrowedReference kw, MethodBase info, MethodBase[] methodinfo)
+   in Python.Runtime.MethodObject.Invoke(BorrowedReference target, BorrowedReference args, BorrowedReference kw, MethodBase info)
+   in Python.Runtime.MethodBinding.tp_call(BorrowedReference ob, BorrowedReference args, BorrowedReference kw)
