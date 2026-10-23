@@ -1,0 +1,87 @@
+{
+  "timestamp": "2026-10-23T13:47:43",
+  "finestra_s": 61.4,
+  "token": 832,
+  "needles": [
+    "ollama",
+    "llama-server"
+  ],
+  "cpu_s_albero_ollama": 607.09,
+  "cpu_s_solo_nome_ollama": 1.36,
+  "cpu_s_sistema_somma_processi": 1209.16,
+  "cpu_s_busy_da_cpu_times": 827.17,
+  "cpu_s_idle_da_cpu_times": 411.86,
+  "core_secondi_al_secondo_da_somma_processi": 19.69,
+  "nuclei_logici": 20,
+  "completitudine_denominatore": 0.9847,
+  "share_ollama_su_tempo_totale": 0.5021,
+  "share_ollama_su_tempo_busy": 0.7339,
+  "share_col_vecchio_needle": 0.0011,
+  "confronto_con_SRUM": {
+    "SRUM_ollama_share_of_cpu_load": 0.7361,
+    "fonte": "experiment_results/srum_emi_cross_20261023_130553.json",
+    "nota": "quota CPUEnergyConsumption di ollama.exe + ollama app.exe + llama-server.exe sul totale di CPU nel load: modello EPI di Windows, NON misura. Stessa macchina, carico identico (richette num_predict 32, temperature 0).",
+    "share_busy_misurato": 0.7339,
+    "delta_assoluto": 0.0022,
+    "verdetto": "confrontabile solo con la quota busy: il tempo totale include l'allocatore (System Idle Process) e dava 0,50"
+  },
+  "raggruppato_per_pattern_s": {
+    "ollama": 0.89,
+    "llama-server": 606.12,
+    "qoder": 1.42,
+    "brave": 132.26,
+    "hwinfo": 5.67,
+    "system": 419.84
+  },
+  "top_processi_s": [
+    [
+      "llama-server.exe (9264)",
+      606.12
+    ],
+    [
+      "System Idle Process (0)",
+      411.72
+    ],
+    [
+      "brave.exe (6416)",
+      40.72
+    ],
+    [
+      "brave.exe (8152)",
+      25.8
+    ],
+    [
+      "brave.exe (14112)",
+      24.8
+    ],
+    [
+      "dwm.exe (28248)",
+      17.39
+    ],
+    [
+      "MsMpEng.exe (5948)",
+      13.88
+    ],
+    [
+      "System (4)",
+      8.12
+    ],
+    [
+      "brave.exe (31144)",
+      7.5
+    ],
+    [
+      "brave.exe (28304)",
+      6.19
+    ],
+    [
+      "HWiNFO64.EXE (10592)",
+      5.67
+    ],
+    [
+      "brave.exe (16168)",
+      4.84
+    ]
+  ],
+  "system_idle_process_s": 411.72
+}
