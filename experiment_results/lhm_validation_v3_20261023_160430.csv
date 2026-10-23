@@ -1,0 +1,16 @@
+﻿run_id;phase;method;energy_j;dt_s;power_w;tokens_in;tokens_out;pids;window_source;pi_measured_interval_s;e_inc_j;j_per_token
+1;base_a;power-integration;456.856101;30.019;15.2187;0;0;;counter-delta-fallback;0.2882;;
+1;load;power-integration;1163.926056;47.443;24.5329;185;486;16000;counter-delta-fallback;0.3335;480.359448;0.988394
+1;base_b;power-integration;407.990476;30.005;13.5974;0;0;;counter-delta-fallback;0.288;;
+2;base_a;power-integration;419.516541;30.001;13.9834;0;0;;counter-delta-fallback;0.2832;;
+2;load;power-integration;1336.118367;56.258;23.7499;185;495;16000;counter-delta-fallback;0.3265;532.584594;1.075928
+2;base_b;power-integration;437.507952;30.002;14.5827;0;0;;counter-delta-fallback;0.2841;;
+3;base_a;power-integration;418.323851;30.001;13.9438;0;0;;counter-delta-fallback;0.2882;;
+3;load;power-integration;1295.315196;55.204;23.4644;185;448;16000;counter-delta-fallback;0.339;373.630483;0.833997
+3;base_b;power-integration;583.486658;30.002;19.4485;0;0;;counter-delta-fallback;0.2869;;
+4;base_a;power-integration;454.868321;30.002;15.1614;0;0;;counter-delta-fallback;0.2873;;
+4;load;power-integration;1379.615031;58.484;23.5896;185;509;16000;counter-delta-fallback;0.3224;499.060478;0.980472
+4;base_b;power-integration;449.411964;30.059;14.9512;0;0;;counter-delta-fallback;0.292;;
+5;base_a;power-integration;457.854762;30.001;15.2613;0;0;;counter-delta-fallback;0.3002;;
+5;load;power-integration;1258.612546;52.871;23.8053;185;449;16000;counter-delta-fallback;0.3148;475.004612;1.057917
+5;base_b;power-integration;431.440037;30.001;14.3809;0;0;;counter-delta-fallback;0.2861;;

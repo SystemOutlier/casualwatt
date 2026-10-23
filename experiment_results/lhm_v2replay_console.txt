@@ -1,0 +1,96 @@
+==================================================================
+ESPERIMENTO VALIDAZIONE LHM v3 — CasualWatt (A-B-A, carico lungo)
+==================================================================
+Modello: llama3.2:3b | num_predict: 128
+Run: 5 x (5 inferenze)
+Baseline: 30s x2 | cooldown 15s | output: experiment_results
+==================================================================
+LHM_OK
+[INFO] Sessione avviata. Metodo: power-integration
+[INFO] PI: sensore='CPU Package' intervallo dichiarato=0.05 s intervallo misurato=None s campioni=1
+[INFO] P_idle non calibrato. Calibrazione idle (30 s x 3 finestre, mediana)…
+    .. Finestra idle: 30 s x 3 ripetizioni (totale stimato ~92 s). NON generare carico…
+    .. Calibrazione idle: ripetizione 1/3 in corso (30 s)… tieni il PC a riposo
+    .. Ripetizione 1/3 completata: P_media = 14.36 W su finestra di 30.0 s
+    .. Calibrazione idle: ripetizione 2/3 in corso (30 s)… tieni il PC a riposo
+    .. Ripetizione 2/3 completata: P_media = 15.16 W su finestra di 30.0 s
+    .. Calibrazione idle: ripetizione 3/3 in corso (30 s)… tieni il PC a riposo
+    .. Ripetizione 3/3 completata: P_media = 14.72 W su finestra di 30.0 s
+[OK] P_idle calibrato: 14.72 W (provenienza: calibrated)
+
+[INFO] Warm-up: 3 inferenze (num_predict=128, non misurate)…
+  warm-up 1/3: 15.46 s
+  warm-up 2/3: 6.17 s
+  warm-up 3/3: 10.06 s
+
+==================================================================
+RUN 1/5  [BASE_A 30s -> LOAD 5x128tok -> COOLDOWN 15s -> BASE_B 30s]
+==================================================================
+[BASE_A] 30.0 s a riposo…
+  BASE_A: E=456.86 J  dt=30.02 s  P=15.22 W  (counter-delta-fallback)
+[LOAD] 5 inferenze (num_predict=128)…
+  LOAD: E=1163.93 J  dt=47.44 s  P=24.53 W  tok=185+486  (counter-delta-fallback)
+[COOLDOWN] 15 s (spin worker Ollama)…
+[BASE_B] 30.0 s a riposo…
+  BASE_B: E=407.99 J  dt=30.01 s  P=13.60 W  (counter-delta-fallback)
+  [A-B-A] P_base_avg=14.41 W  E_inc=480.36 J  J/token=0.9884
+
+==================================================================
+RUN 2/5  [BASE_A 30s -> LOAD 5x128tok -> COOLDOWN 15s -> BASE_B 30s]
+==================================================================
+[BASE_A] 30.0 s a riposo…
+  BASE_A: E=419.52 J  dt=30.00 s  P=13.98 W  (counter-delta-fallback)
+[LOAD] 5 inferenze (num_predict=128)…
+  LOAD: E=1336.12 J  dt=56.26 s  P=23.75 W  tok=185+495  (counter-delta-fallback)
+[COOLDOWN] 15 s (spin worker Ollama)…
+[BASE_B] 30.0 s a riposo…
+  BASE_B: E=437.51 J  dt=30.00 s  P=14.58 W  (counter-delta-fallback)
+  [A-B-A] P_base_avg=14.28 W  E_inc=532.58 J  J/token=1.0759
+
+==================================================================
+RUN 3/5  [BASE_A 30s -> LOAD 5x128tok -> COOLDOWN 15s -> BASE_B 30s]
+==================================================================
+[BASE_A] 30.0 s a riposo…
+  BASE_A: E=418.32 J  dt=30.00 s  P=13.94 W  (counter-delta-fallback)
+[LOAD] 5 inferenze (num_predict=128)…
+  LOAD: E=1295.32 J  dt=55.20 s  P=23.46 W  tok=185+448  (counter-delta-fallback)
+[COOLDOWN] 15 s (spin worker Ollama)…
+[BASE_B] 30.0 s a riposo…
+  BASE_B: E=583.49 J  dt=30.00 s  P=19.45 W  (counter-delta-fallback)
+  [A-B-A] P_base_avg=16.70 W  E_inc=373.63 J  J/token=0.8340
+
+==================================================================
+RUN 4/5  [BASE_A 30s -> LOAD 5x128tok -> COOLDOWN 15s -> BASE_B 30s]
+==================================================================
+[BASE_A] 30.0 s a riposo…
+  BASE_A: E=454.87 J  dt=30.00 s  P=15.16 W  (counter-delta-fallback)
+[LOAD] 5 inferenze (num_predict=128)…
+  LOAD: E=1379.62 J  dt=58.48 s  P=23.59 W  tok=185+509  (counter-delta-fallback)
+[COOLDOWN] 15 s (spin worker Ollama)…
+[BASE_B] 30.0 s a riposo…
+  BASE_B: E=449.41 J  dt=30.06 s  P=14.95 W  (counter-delta-fallback)
+  [A-B-A] P_base_avg=15.06 W  E_inc=499.06 J  J/token=0.9805
+
+==================================================================
+RUN 5/5  [BASE_A 30s -> LOAD 5x128tok -> COOLDOWN 15s -> BASE_B 30s]
+==================================================================
+[BASE_A] 30.0 s a riposo…
+  BASE_A: E=457.85 J  dt=30.00 s  P=15.26 W  (counter-delta-fallback)
+[LOAD] 5 inferenze (num_predict=128)…
+  LOAD: E=1258.61 J  dt=52.87 s  P=23.81 W  tok=185+449  (counter-delta-fallback)
+[COOLDOWN] 15 s (spin worker Ollama)…
+[BASE_B] 30.0 s a riposo…
+  BASE_B: E=431.44 J  dt=30.00 s  P=14.38 W  (counter-delta-fallback)
+  [A-B-A] P_base_avg=14.82 W  E_inc=475.00 J  J/token=1.0579
+[OK] CSV: experiment_results\lhm_validation_v3_20261023_160430.csv
+[OK] JSON: experiment_results\lhm_validation_v3_20261023_160430.json
+[OK] Report: experiment_results\lhm_validation_v3_20261023_160430.md
+
+==================================================================
+RISULTATI
+==================================================================
+PI intervallo misurato: 0.3272 s (dichiarato 0.05 s)
+Letture: {'counter-delta-fallback': 15}
+P_base(A-B-A): 15.05 W  P_idle calibrato: 14.724 W
+E_inc medio:   472.13 J  (CV 12.6%)
+J/token:       0.9873  (CV 9.66%, IC95 [0.8909, 1.0838])
