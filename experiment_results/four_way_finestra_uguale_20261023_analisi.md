@@ -117,15 +117,17 @@ VERDETTO: coerente
 Serve perche' il JSON e' scritto dallo stesso codice che calcola i numeri: da
 solo non e' una verifica.
 
-## 6. Difetto nuovo, misurato ma NON corretto: il thread PI campiona 6x piu' lento del dichiarato
+## 6. Difetto gia' misurato il 22/10, confermato qui e NON corretto: il thread PI campiona 6x piu' lento del dichiarato
 
 `POWER_SAMPLE_INTERVAL_S = 0.05` (`energy_session.py:45`) e i docstring che
 promettono "campioni CPU Package ogni 0,05 s" (`:849`, `:898`, `:904`, `:1107`,
 `:1203`) non reggono su questa macchina: il thread fa `wait(0.05)` **dopo** la
 lettura (`:869`), e `_read_power_w_direct` scorre tutto l'hardware chiamando
-`hw.Update()` su ogni hardware finche' non trova il sensore. Periodo reale
-misurato dal buffer snapshottato: **0,28-0,30 s** (662 campioni sui 182,4 s di
-run; 156-301 per fase). Cinque-sei volte piu' lento del dichiarato.
+`hw.Update()` su ogni hardware finche' non trova il sensore. **Non e' una
+scoperta di oggi**: `lhm_validation_v3_20261022_010741.json` registra gia'
+`pi_interval_measured_s = 0,3224` contro `pi_interval_declared_s = 0,05`.
+Qui lo si vede direttamente nel buffer snapshottato: periodo **0,28-0,30 s**
+(662 campioni sui 182,4 s di run; 156-301 per fase).
 
 Impatto sui numeri di questo documento: nessuno rilevabile - l'integrale
 trapezoidale a 3,5 Hz su finestre da 45-92 s coincide col contatore a meno
