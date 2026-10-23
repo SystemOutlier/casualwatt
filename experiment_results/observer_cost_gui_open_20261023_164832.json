@@ -1,0 +1,13 @@
+{
+  "tag": "gui_open",
+  "timestamp": "20261023_164832",
+  "durata_finestra_s": 89.84,
+  "emi_pkg_W": 11.9197,
+  "lhm_pi_media_W": 12.0742,
+  "lhm_pi_n_campioni": 357,
+  "pi_intervallo_mediano_s": 0.2803,
+  "pi_intervallo_dichiarato_s": 0.05,
+  "gui_pid": 14828,
+  "gui_cpu_s_nella_finestra": 3.125,
+  "righe_csv": 357
+}
