@@ -400,7 +400,7 @@ def _estimate_judge_energy(t_start: float, t_end: float) -> Optional[float]:
             return 0.0
         m = SESSION.source_method
         if m not in ("power-integration", "librehardwaremonitor-energy",
-                     "energy-file"):
+                     "emi-counter", "energy-file"):
             return None
         e_raw = SESSION.package_energy_exact_between(t_start, t_end)
         if e_raw is None:

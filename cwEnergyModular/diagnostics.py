@@ -405,6 +405,36 @@ def run_diagnostics(log_callback: Optional[Callable[[str], None]] = None) -> dic
         except Exception:
             pass
 
+    # ------------------------------------------- canale EMI (principale, 23/10)
+    # Il metodo PRINCIPALE su Windows dal 23/10 e' il contatore cumulativo
+    # EMI (energy/emi_backend.py): la scansione LHM sopra resta utile perche'
+    # documenta il FALLBACK, ma 'method_expected' deve dire cosa fara' davvero
+    # l'avvio di produzione.
+    try:
+        from energy.emi_backend import EMICounterBackend
+        from energy.energy_session import _CPUJouleSource
+
+        emi = EMICounterBackend()
+        summary["emi_available"] = emi.available
+        if emi.available:
+            _cum = emi.read_cumulative_energy_j()
+            summary["emi_pkg_cum_j"] = round(_cum, 1) if _cum is not None else None
+            _emit(lines, log_callback, _OK,
+                  "[EMI] contatore package cumulativo leggibile anche da "
+                  f"processo non elevato (device: {emi.device_path}). "
+                  "Metodo principale 'emi-counter': LHM resta solo fallback.")
+            if _CPUJouleSource._primary_channel() == "emi":
+                summary["method_expected"] = "emi-counter"
+        else:
+            _emit(lines, log_callback, _INFO,
+                  "[EMI] canale non disponibile "
+                  f"({emi.last_error or 'nessuna interfaccia device'}): "
+                  "la misurazione locale usa la catena LHM provata sopra.")
+        emi.close()
+    except Exception as exc:  # noqa: BLE001 - il probe non deve mai rompere il report
+        _emit(lines, log_callback, _INFO,
+              f"[EMI] probe non eseguibile ({type(exc).__name__}: {exc})")
+
     # ------------------------------------------------------------- riepilogo
     _emit(lines, log_callback, _INFO, "Riepilogo diagnostica: " + "; ".join(
         f"{k}={v}" for k, v in summary.items() if k != "errors"

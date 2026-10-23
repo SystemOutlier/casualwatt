@@ -54,6 +54,7 @@ class _CPUJouleSource:
     def __init__(self) -> None:
         self.method = "unavailable"
         self._lhm = None
+        self._emi = None   # backend Windows EMI (energy.emi_backend.EMICounterBackend)
         self._rapl = None  # backend Linux RAPL (rapl_backend.RAPLBackend)
         # True solo DOPO Computer().Open() riuscito (spec §6: apertura unica).
         # I lettori di sensori controllano questo flag: un'apertura fallita o
@@ -77,6 +78,15 @@ class _CPUJouleSource:
         self._pi_prev: Optional[tuple] = None   # ultimo punto (t, w) integrato
         self._pi_sensor_name: Optional[str] = None
         self._pi_sensors_seen: List[str] = []   # nomi Power visti (diagnostica)
+        # ---- emi-counter (metodo principale Windows dal 23/10) -------------
+        # Buffer (t_monotono, cum_j) del contatore cumulativo, campionato a
+        # 0,05 s: serve per leggere la finestra AI BORDI ESATTI come fa il
+        # buffer del thread PI (per query brevi il delta dei campioni di
+        # sessione a ~0,5 s sarebbe troppo rozzo).
+        self._emi_thread: Optional[threading.Thread] = None
+        self._emi_stop = threading.Event()
+        self._emi_lock = threading.Lock()
+        self._emi_samples: List[tuple] = []     # (t_monotono, cum_j)
         self._local_disabled_msg = (
             "Local CPU energy measurement is available on Windows (LibreHardwareMonitor) "
             "and Linux (RAPL via /sys/class/powercap/)."
@@ -112,6 +122,15 @@ class _CPUJouleSource:
             # probe LHM (evita figli inutili su Linux/dev e rispetta la
             # precedenza 'solo se LHM non disponibile' del vecchio ordine).
             pass
+        elif (platform_system() == "Windows" and self._primary_channel() == "emi"
+                and self._try_emi()):
+            # 23/10: il METODO PRINCIPALE su Windows e' il contatore EMI
+            # (cumulativo, ctypes, senza token elevato). Con EMI attivo il
+            # probe LHM NON viene eseguito nemmeno pigramente: niente .NET,
+            # niente watchdog, niente apertura Computer da minuti. LHM resta
+            # il fallback completo se il driver EMI manca (CW_PRIMARY_CHANNEL
+            # =lhm forza comunque il vecchio ordine).
+            pass
         elif lazy and platform_system() == "Windows":
             self._lazy_pending = True
             self._notes.append(
@@ -129,6 +148,54 @@ class _CPUJouleSource:
             # eventuale simulatore di test gia' gestito sopra da CW_ENERGY_FILE.
             self.method = "unavailable"
             self._notes.append(self._local_disabled_msg)
+
+    # -- canale principale (EMI vs LHM) ------------------------------------
+    @staticmethod
+    def _primary_channel() -> str:
+        """Canale preferito su Windows: "emi" (default dal 23/10) o "lhm".
+
+        CW_PRIMARY_CHANNEL=lhm ripristina l'ordine precedente senza toccare
+        codice: serve per confrontare i due canali sulla stessa macchina.
+        """
+        try:
+            import os as _os
+
+            val = _os.environ.get("CW_PRIMARY_CHANNEL", "emi").strip().lower()
+        except Exception:  # pragma: no cover
+            val = "emi"
+        return "lhm" if val == "lhm" else "emi"
+
+    def _try_emi(self) -> bool:
+        """Aggancia il contatore EMI; True solo se la PRIMA lettura riesce.
+
+        Nessun fallback silenzioso: se il device non c'e' o l'IOCTL fallisce,
+        ritorna False e il chiamante prosegue con la catena LHM esistente.
+        """
+        try:
+            from energy.emi_backend import EMICounterBackend, METHOD_LABEL
+
+            backend = EMICounterBackend()
+            if backend.available:
+                self._emi = backend
+                self.method = METHOD_LABEL
+                # Il sampler NON parte qui: l'import del modulo non deve mai
+                # avviare thread di misura (stessa regola del thread PI, che
+                # parte in EnergySession.start()).
+                self._notes.extend(backend.notes)
+                self._notes.append(
+                    "metodo principale 'emi-counter': contatore package "
+                    "cumulativo (pWh) letto via IOCTL; LHM non interrogata "
+                    "(fallback automatico solo se il canale EMI manca)"
+                )
+                return True
+            self._notes.extend(backend.notes)
+            self._notes.append(
+                "EMI non disponibile: si usa la catena LHM "
+                "(energy-counter / power-integration)"
+            )
+        except Exception as exc:  # noqa: BLE001 - degrazione dichiarata
+            self._notes.append(f"EMI non disponibile ({type(exc).__name__})")
+        return False
 
     def _activate_backend(self) -> bool:
         """Sonda LHM e classifica il metodo energetico (idempotente).
@@ -895,6 +962,96 @@ class _CPUJouleSource:
                 "power_sensors_seen": list(self._pi_sensors_seen),
             }
 
+    # -- emi-counter: sampler del cumulativo e finestra esatta --------------
+    def _emi_loop(self) -> None:
+        """Campiona il contatore EMI cumulativo ogni 0,05 s.
+
+        NON integra nulla: il contatore e' gia' energia. Il buffer (t, J)
+        serve solo a poter collocare i bordi di una finestra trascorsa fra
+        due campioni (lettura esatta ai bordi, come per il thread PI).
+        """
+        while not self._emi_stop.is_set():
+            t = time.monotonic()
+            try:
+                cum = self._emi.read_cumulative_energy_j() if self._emi else None
+            except Exception:
+                cum = None
+            if cum is not None:
+                with self._emi_lock:
+                    if self._emi_samples and cum < self._emi_samples[-1][1]:
+                        # contatore decresciuto (reset del driver/riapertura):
+                        # si riparte il buffer, niente estrapolazioni false
+                        self._emi_samples.clear()
+                    self._emi_samples.append((t, cum))
+                    if len(self._emi_samples) > 4000:
+                        del self._emi_samples[:2000]
+            self._emi_stop.wait(self.POWER_SAMPLE_INTERVAL_S)
+
+    def _start_emi_sampling(self) -> None:
+        if self._emi_thread is not None and self._emi_thread.is_alive():
+            return
+        self._emi_stop.clear()
+        self._emi_thread = threading.Thread(
+            target=self._emi_loop, name="cw-emi-sampler", daemon=True
+        )
+        self._emi_thread.start()
+
+    def stop_emi_sampling(self) -> None:
+        """Arresta il sampler EMI (join entro 5 s, stessa regola del PI)."""
+        th = self._emi_thread
+        if th is None:
+            return
+        self._emi_stop.set()
+        th.join(timeout=5.0)
+        self._emi_thread = None
+
+    def _emi_cum_at(self, buf: List[tuple], t: float) -> Optional[float]:
+        """Contatore interpolato linearmente all'istante t (None fuori copertura)."""
+        if not buf:
+            return None
+        if t <= buf[0][0]:
+            # bordo sinistro: arretrato massimo 1 s, poi None (nessuna
+            # estrapolazione del cumulativo)
+            return buf[0][1] if buf[0][0] - t <= 1.0 else None
+        if t >= buf[-1][0]:
+            return buf[-1][1] if t - buf[-1][0] <= 1.0 else None
+        import bisect
+        ts = [p[0] for p in buf]
+        i = bisect.bisect_left(ts, t)
+        (t0, e0), (t1, e1) = buf[i - 1], buf[i]
+        if t1 == t0:
+            return e1
+        return e0 + (e1 - e0) * (t - t0) / (t1 - t0)
+
+    def emi_window_energy_j(self, t_start: float, t_end: float,
+                            exclude_windows: Optional[List[tuple]] = None
+                            ) -> Optional[float]:
+        """Delta del CONTATORE cumulativo sulla finestra, letti i bordi dal
+        buffer a 0,05 s (nessuna integrazione trapezoidale: il cumulativo
+        NON la richiede). Le sottofinestre escluse (LLM Judge) sono rimosse
+        alla fonte: si somma solo la differenza sui segmenti tenuti.
+
+        Ritorna None se il metodo non e' 'emi-counter', se il backend non ha
+        letture, o se il buffer non copre la finestra (il chiamante degrada
+        al fallback dichiarato sui campioni).
+        """
+        if self.method != "emi-counter":
+            return None
+        with self._emi_lock:
+            buf = list(self._emi_samples)
+        if len(buf) < 2:
+            return None
+        segments = [(max(t_start, a), min(t_end, b)) for a, b in
+                    _free_subintervals((t_start, t_end),
+                                       sorted(exclude_windows or []))]
+        total = 0.0
+        for (a, b) in segments:
+            ca, cb = self._emi_cum_at(buf, a), self._emi_cum_at(buf, b)
+            if ca is None or cb is None or cb < ca:
+                return None
+            total += cb - ca
+        return round(max(total, 0.0), 6)
+
     # -- B1: energia ESATTA su una finestra dal buffer a 0,05 s -------------
     def pi_window_energy_j(self, t_start: float, t_end: float,
                            exclude_windows: Optional[List[tuple]] = None
@@ -1103,6 +1260,8 @@ class _CPUJouleSource:
 
         Metodi reali supportati (nessuna stima TDP, nessun moltiplicatore
         arbitrario):
+          * "emi-counter"                 -> contatore package EMI cumulato
+            [J] (Windows, ioctl sul record pWh; metodo principale dal 23/10);
           * "power-integration"           -> integrazione trapezoidale del
             sensore CPU Package [W] a 0.05 s (metodo ufficiale su i9-13900HK);
           * "librehardwaremonitor-energy" -> contatore Energy LHM [J];
@@ -1111,6 +1270,8 @@ class _CPUJouleSource:
           * "energy-file"                 -> contatore dev/test non-Windows.
         ``busy_seconds_total`` e' ignorato (retro-compatibilita' di firma).
         """
+        if self.method == "emi-counter":
+            return self._emi.read_cumulative_energy_j() if self._emi else None
         if self.method == "power-integration":
             with self._pi_lock:
                 return self._pi_energy_j
@@ -1134,6 +1295,7 @@ class _CPUJouleSource:
 
         Stessa funzione usata dal benchmark (principio di specifica: la
         calibrazione empirica campiona con il medesimo percorso):
+          * emi-counter -> contatore package EMI cumulato (pWh -> J);
           * power-integration -> energia gia' integrata a 0.05 s;
           * energy-counter LHM / file dev-test -> contatore cumulato;
           * rapl -> contatore RAPL Linux cumulato.
@@ -1141,6 +1303,8 @@ class _CPUJouleSource:
         deve dichiararlo (mai fallback TDP silenzioso).
         """
         try:
+            if self.method == "emi-counter":
+                return self._emi.read_cumulative_energy_j() if self._emi else None
             if self.method == "power-integration":
                 with self._pi_lock:
                     if self._pi_energy_j > 0:
@@ -1257,7 +1421,9 @@ class _CPUJouleSource:
             e_end = self.read_power_j()
             dt = max(time.monotonic() - t0, 1e-6)
             if e_end is not None and e_end >= e_start:
-                return (e_end - e_start, dt, "energy-counter")
+                _mode = ("emi-counter" if self.method == "emi-counter"
+                         else "energy-counter")
+                return (e_end - e_start, dt, _mode)
         # 4) nessun backend: propagazione diagnostica al chiamante
         if err_after_counter:
             self._last_read_error = err_after_counter
@@ -1534,6 +1700,10 @@ class EnergySession:
                 and getattr(self._source, "_lhm_opened", False)
             ):
                 self._source._start_power_integration()
+            # emi-counter: il buffer (t, cumulata) del contatore parte qui,
+            # non all'import (stessa disciplina del thread PI).
+            if self._source.method == "emi-counter":
+                self._source._start_emi_sampling()
             self._stop.clear()
             # allinea la base del contatore di potenza al momento dell'avvio:
             # cosi' read_power_j()/package_energy_j restano coerenti tra
@@ -1576,6 +1746,16 @@ class EnergySession:
             src.stop_power_integration()
         except Exception:
             pass
+        try:
+            src.stop_emi_sampling()
+        except Exception:
+            pass
+        if getattr(src, "_emi", None) is not None:
+            try:
+                src._emi.close()
+            except Exception:
+                pass
+            src._emi = None
         if getattr(src, "_lhm", None) is not None:
             try:
                 # Close() solo se Open() era riuscito: chiamarla su un
@@ -1617,7 +1797,16 @@ class EnergySession:
         m = self._source.method
         if m == "power-integration":
             return self._source.pi_window_energy_j(t_start, t_end, exclude_windows)
-        if m in ("librehardwaremonitor-energy", "energy-file", "rapl"):
+        if m == "emi-counter":
+            # bordi esatti letti dal buffer del cumulativo a 0,05 s: niente
+            # trapezi, e' la differenza del contatore sui segmenti tenuti.
+            e_buf = self._source.emi_window_energy_j(t_start, t_end, exclude_windows)
+            if e_buf is not None:
+                return e_buf
+            # buffer insufficiente (finestra oltre la copertura): degrada al
+            # ramo contatore qui sotto, che resta un percorso a campione
+            # reale e dichiarato — mai un valore interpolato inventato.
+        if m in ("emi-counter", "librehardwaremonitor-energy", "energy-file", "rapl"):
             # finestra trascorsa: fonte affidabile sono i campioni del
             # contatore cumulato ai bordi REALI della finestra (nessuna
             # interpolazione), con sottrazione delle regioni escluse.
@@ -1769,7 +1958,7 @@ class EnergySession:
         # backend LHM NON e' attivo con un metodo reale, la calibrazione si
         # ferma PRIMA di toccare qualsiasi oggetto pythonnet.
         # Nota: su Linux con RAPL, il metodo e' gia' "rapl" e non serve recovery LHM.
-        if (self._source.method not in ("power-integration", "librehardwaremonitor-energy", "rapl")
+        if (self._source.method not in ("power-integration", "librehardwaremonitor-energy", "rapl", "emi-counter")
                 and self._source._lhm is not None
                 and platform_system() == "Windows"):
             # LHM era gia' stata AGGANCIATA in questo processo (Computer()
@@ -1802,7 +1991,7 @@ class EnergySession:
                 self._source.notes.append(
                     f"retry LHM aggiuntivo fallito ({type(exc).__name__})"
                 )
-        if self._source.method not in ("power-integration", "librehardwaremonitor-energy", "rapl"):
+        if self._source.method not in ("power-integration", "librehardwaremonitor-energy", "rapl", "emi-counter"):
             # Recupero mirato: diagnostics.py ha GIA' dimostrato che, nel
             # processo principale elevato, Computer().Open() e la scansione
             # sensori funzionano senza crash pythonnet. Un eventuale falli-
@@ -1843,7 +2032,7 @@ class EnergySession:
                             f"Recupero RIUSCITO: metodo attivo "
                             f"'{self._source.method}'"
                         )
-        if self._source.method not in ("power-integration", "librehardwaremonitor-energy", "rapl"):
+        if self._source.method not in ("power-integration", "librehardwaremonitor-energy", "rapl", "emi-counter"):
             cause = "; ".join(self._source.notes[-3:]) or f"metodo='{self._source.method}'"
             raise RuntimeError(
                 "calibrazione idle fallita: nessun contatore di energia/potenza "
