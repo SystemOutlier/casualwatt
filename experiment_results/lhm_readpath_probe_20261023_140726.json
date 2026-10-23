@@ -1,0 +1,69 @@
+{
+  "timestamp": "20261023_140726",
+  "fasi": [
+    [
+      "idle",
+      40.0
+    ],
+    [
+      "burn8",
+      40.0
+    ],
+    [
+      "cool",
+      40.0
+    ]
+  ],
+  "sensori_omonimi": [
+    {
+      "posizione_in_lista": 38,
+      "tipo": "Temperature",
+      "value": 65.0
+    },
+    {
+      "posizione_in_lista": 67,
+      "tipo": "Power",
+      "value": 8.418
+    }
+  ],
+  "riassunti": [
+    {
+      "fase": "idle",
+      "EMI_pkg_W": 11.97,
+      "read_power_w_direct_mediana": 10.37,
+      "pi_selected_Value_mediana": 10.37,
+      "produzione_W": 11.84,
+      "campioni_PI_al_s": 3.51
+    },
+    {
+      "fase": "burn8",
+      "EMI_pkg_W": 37.27,
+      "read_power_w_direct_mediana": 35.66,
+      "pi_selected_Value_mediana": 35.66,
+      "produzione_W": 37.25,
+      "campioni_PI_al_s": 3.33
+    },
+    {
+      "fase": "cool",
+      "EMI_pkg_W": 12.11,
+      "read_power_w_direct_mediana": 11.25,
+      "pi_selected_Value_mediana": 11.25,
+      "produzione_W": 12.47,
+      "campioni_PI_al_s": 3.51
+    }
+  ],
+  "verdetto": {
+    "domanda": "_read_power_w_direct() ritorna il sensore Power o un omonimo?",
+    "idle_read_vs_Value": [
+      10.37,
+      10.37
+    ],
+    "idle_EMI_W": 11.97,
+    "cool_read_vs_Value": [
+      11.25,
+      11.25
+    ],
+    "cool_EMI_W": 12.11,
+    "firma_attesa_se_temperatura": "read_power_w_direct >> Value del Power, e in fase cool read resta alto mentre Value ed EMI tornano a ~14 W"
+  }
+}
