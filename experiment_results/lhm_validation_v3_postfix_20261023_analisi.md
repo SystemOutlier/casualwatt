@@ -113,7 +113,7 @@ C:\Users\Massimo\AppData\Local\Python\pythoncore-3.14-64\python.exe -u \
 
 Default = v3. Le varianti si scelgono con le variabili d'ambiente
 `CW_EXP_RUNS`, `CW_EXP_INF`, `CW_EXP_NUMPREDICT`, `CW_EXP_BASELINE_S`,
-`CW_EXP_COOLDOWN_S` (v2 = 5 run × 5 inferenze, non ancora rilanciata). Il
+`CW_EXP_COOLDOWN_S` (il replay del set v2 e' in §7). Il
 teardown pythonnet **e' accaduto anche qui**: `lhm_v3_postfix_err.txt` (1089 B)
 contiene l'eccezione CLR non gestita (`InternalPythonnetException` su
 `NullReferenceException`, `Python.Runtime.TypeManager.AllocateTypeObject`),
@@ -122,3 +122,60 @@ e tre con timestamp 15:36:04): il blocco `finally` dello script salva prima che
 il processo muoia, quindi i dati sono integri. Il processo, essendo distaccato
 (`Start-Process`), non ha un codice d'uscita osservabile da questa console; sui
 run foreground lo stesso difetto dà exit 127.
+
+## 7. Replay del set di knobs v2 (5 run × 5 inferenze)
+
+Eseguito 23/10 **15:51:38 → 16:04:30** (12 min 52 s; `lhm_validation_v3_20261023_160430.{csv,
+json,md}` — il tag nel nome file e' hardcoded `v3` dallo script, i knobs vengono
+dalle env `CW_EXP_RUNS=5 CW_EXP_INF=5`, tutto il resto default), console
+`lhm_v2replay_console.txt`, stderr **vuoto (0 B)**: il lancio CLR del teardown
+non e' deterministico — presente nel run v3 di oggi (1089 B di stderr), assente
+qui, a parita' di script e di procedura. Ricalcolato indipendentemente dal CSV:
+identico al JSON (J/token 0,987342, CV 9,66%, E_inc 472,13 J, P_base 15,05 W).
+
+| | v2 pre-fix (22/10 00:16) | v2 replay (23/10 16:04) |
+|---|---|---|
+| P_base | 71,25 "W" | **15,05 W** |
+| P_load | 75,65 "W" (CV 1,18%) | 23,83 W (CV 1,75%) |
+| segnale ΔP | 4,40 | **8,78** |
+| E_inc | 153,72 J (CV 25,19%) | **472,13 J (CV 12,60%)** |
+| J/token | 0,3433 (CV 21,53%) | **0,9873 (CV 9,66%)** |
+| finestre fallback | 15/15 | 15/15 |
+
+I quattro numeri dello stesso protocollo, prima e dopo il fix:
+
+| protocollo | pre-fix J/token | post-fix J/token | post-fix CV |
+|---|---|---|---|
+| v2 (5 × 5 inf, burst ~53 s) | 0,3433 | **0,9873** | 9,66% |
+| v3 (8 × 15 inf, burst ~107 s) | 0,5245 | **1,2862** | 8,99% |
+| rapporto v3/v2 | 1,53 | **1,30** | — |
+
+Tre cose da tenere separate. (a) **La dipendenza dalla lunghezza del burst e'
+confermata anche sulla scala corretta** (1,30×): non era un artefatto dei gradi,
+e' termico/duty-cycle, e va dichiarata come parametro del protocollo. (b) **Il
+modello "rumore = baseline" regge anche qui**: sd(P_base) 0,97 W su un segnale
+di 8,78 W → CV attesa **11,1%**, osservata 9,66% (v3: attesa 7,7%, osservata
+8,99%). (c) **La baseline del replay v2 e' piu' alta di quella v3** (15,05 vs
+11,55 W) a parita' di macchina e a 30 minuti di distanza: `keep_alive` tiene i
+worker Ollama attivi in modo diverso a seconda di quanto recently il modello e'
+stato usato, e questo cambia `E_inc` di ~30%. La baseline va misurata dentro
+ogni protocollo (A-B-A), mai presa in prestito da un altro run.
+
+Nota di lettura dei CSV, per non ripescare questo dubbio tra sei mesi: la
+colonna `tokens_in` **non e' il prompt di una richiesta**, e' la somma di
+`prompt_eval_count` sulle N inferenze del run — 37 token × 5 = 185 nel replay
+v2, 37 × 15 = 555 nel replay v3. `J/token` divide per `tokens_out` e non e'
+toccata da questo.
+
+## 8. Stato dei protocolli dopo il fix
+
+Rilanciati: **v3** (§1-§3) e **v2** (§7), piu' la **trace simultanea
+LHM+EMI** (`lhm_emi_trace_postfix_20261023_analisi.md`, commit 533b5de) e il
+**four-way a finestra uguale** (commit 4cde6bf). Non rilanciabile con lo script
+attuale: **v1** — era una versione precedente di
+`experiment_validate_lhm.py` (commit a096a04) senza `num_predict` bloccato e
+senza A-B-A, e i suoi numeri non hanno un knob corrispondente. Suite di test
+del progetto verde: **60 passed, 6 warnings** (23/10, `pytest cwEnergyModular
+-q`; un `pytest` nudo dalla root raccoglie anche i banchi `cpuepower/`
+`cpuepower2/` e fallisce la raccolta per `ModuleNotFoundError:
+cpuepower.attribution` — non e' un difetto del progetto).
