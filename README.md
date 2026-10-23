@@ -17,8 +17,11 @@ Target principale: **Windows 11**, Python 3.14 x64. Con il canale EMI attivo l'a
 ## Installazione (Windows 11)
 
 ```powershell
-py -m pip install requests pandas psutil codecarbon ecologits nvidia-ml-py pythonnet sentence-transformers
+py -m pip install -r cwEnergyModular/requirements.txt        # nucleo: gira anche senza elevazione
+py -m pip install -r cwEnergyModular/requirements-lhm.txt    # solo se serve il fallback LHM
 ```
+
+La prima riga basta per misurare: il metodo principale `emi-counter` usa `ctypes` dalla libreria standard. La seconda aggiunge `pythonnet`, che serve esclusivamente al percorso di fallback LibreHardwareMonitor (`energy/energy_session.py`) e a `diagnostics.py` — sono gli unici due moduli che fanno `import clr`; verificato il 24/10: con EMI attivo `clr` non viene importato. `wmi` e `pywin32`, che una versione di questa istruzione elencava, non sono importati da nessun file di `cwEnergyModular` (grep su `import wmi` e `win32api|win32com|win32file`: nessun risultato); l'unico consumatore nel repository è lo script legacy `consumi_ollama.py`, che dichiara la propria riga di installazione. Lo stesso vale per `codecarbon`: non è usato dall'applicazione, l'unico import è nell'harness una tantum `four_way_test.py:259`, dove è dentro un `try/except` che registra una nota e degrada a "sorgente non disponibile" se il pacchetto manca; le righe in `experiment_results/codecarbon_four_way/` vengono da lì, non dalla misura di CasualWatt.
 
 Le DLL di fallback LibreHardwareMonitor (`LibreHardwareMonitorLib.dll`, `HidSharp.dll`, `Microsoft.Win32.TaskScheduler.dll`) sono incluse in `cwEnergyModular/LibreHardwareMonitorLib/LibreHardwareMonitor/`. `LibreHardwareMonitorLib.dll` è distribuita senza modifiche sotto **MPL-2.0**: il testo integrale della licenza è allegato in `cwEnergyModular/LibreHardwareMonitorLib/LibreHardwareMonitor/MPL-2.0.txt` ( preso da mozilla.org, verificato il 23/10 sul `LICENSE` upstream), con gli avvisi third-party in `THIRD-PARTY-NOTICES.md` nella stessa cartella; per `HidSharp.dll` e `Microsoft.Win32.TaskScheduler.dll` la licenza va ri-verificata presso i rispettivi upstream prima di qualsiasi ridistribuzione.
 
