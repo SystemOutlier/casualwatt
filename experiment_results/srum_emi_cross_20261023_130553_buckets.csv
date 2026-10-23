@@ -1,0 +1,133 @@
+fase;appId;time_stamp_utc;time_in_msec;cpu_energy_raw;emi_energy_raw;total_energy_raw
+idle;EMI_RAPL_Package0_PKG;2026-10-23T11:06:00;53233.0;0.0;797358.0;797358.0
+idle;EMI_RAPL_Package0_PP0;2026-10-23T11:06:00;53233.0;0.0;481101.0;481101.0
+idle;EMI_RAPL_Package0_PP1;2026-10-23T11:06:00;53233.0;0.0;13776.0;13776.0
+idle;\Device\HarddiskVolume3\Users\Massimo\AppData\Local\Programs\Ollama\lib\ollama\llama-server.exe;2026-10-23T11:06:00;53233.0;71492.0;0.0;71492.0
+idle;\Device\HarddiskVolume3\Users\Massimo\AppData\Local\Programs\Ollama\ollama.exe;2026-10-23T11:06:00;53233.0;6344.0;0.0;6344.0
+idle;\Device\HarddiskVolume3\Users\Massimo\AppData\Local\Programs\Ollama\ollama app.exe;2026-10-23T11:06:00;53233.0;571.0;0.0;571.0
+idle;EMI_RAPL_Package0_PKG;2026-10-23T11:06:00;6756.0;0.0;152780.0;152780.0
+idle;EMI_RAPL_Package0_PP0;2026-10-23T11:06:00;6756.0;0.0;111531.0;111531.0
+idle;EMI_RAPL_Package0_PP1;2026-10-23T11:06:00;6756.0;0.0;2471.0;2471.0
+idle;\Device\HarddiskVolume3\Users\Massimo\AppData\Local\Programs\Ollama\lib\ollama\llama-server.exe;2026-10-23T11:06:00;6756.0;3333.0;0.0;3333.0
+idle;\Device\HarddiskVolume3\Users\Massimo\AppData\Local\Programs\Ollama\ollama.exe;2026-10-23T11:06:00;6756.0;1201.0;0.0;1201.0
+idle;\Device\HarddiskVolume3\Users\Massimo\AppData\Local\Programs\Ollama\ollama app.exe;2026-10-23T11:06:00;6756.0;72.0;0.0;72.0
+idle;EMI_RAPL_Package0_PKG;2026-10-23T11:07:00;60009.0;0.0;1399635.0;1399635.0
+idle;EMI_RAPL_Package0_PP0;2026-10-23T11:07:00;60009.0;0.0;1029916.0;1029916.0
+idle;EMI_RAPL_Package0_PP1;2026-10-23T11:07:00;60009.0;0.0;22636.0;22636.0
+idle;\Device\HarddiskVolume3\Users\Massimo\AppData\Local\Programs\Ollama\lib\ollama\llama-server.exe;2026-10-23T11:07:00;60009.0;729.0;0.0;729.0
+idle;\Device\HarddiskVolume3\Users\Massimo\AppData\Local\Programs\Ollama\ollama.exe;2026-10-23T11:07:00;60009.0;12325.0;0.0;12325.0
+idle;\Device\HarddiskVolume3\Users\Massimo\AppData\Local\Programs\Ollama\ollama app.exe;2026-10-23T11:07:00;60009.0;718.0;0.0;718.0
+idle;EMI_RAPL_Package0_PKG;2026-10-23T11:08:00;59993.0;0.0;1366337.0;1366337.0
+idle;EMI_RAPL_Package0_PP0;2026-10-23T11:08:00;59993.0;0.0;996707.0;996707.0
+idle;EMI_RAPL_Package0_PP1;2026-10-23T11:08:00;59993.0;0.0;22738.0;22738.0
+idle;\Device\HarddiskVolume3\Users\Massimo\AppData\Local\Programs\Ollama\lib\ollama\llama-server.exe;2026-10-23T11:08:00;59993.0;708.0;0.0;708.0
+idle;\Device\HarddiskVolume3\Users\Massimo\AppData\Local\Programs\Ollama\ollama.exe;2026-10-23T11:08:00;59993.0;11573.0;0.0;11573.0
+idle;\Device\HarddiskVolume3\Users\Massimo\AppData\Local\Programs\Ollama\ollama app.exe;2026-10-23T11:08:00;59993.0;735.0;0.0;735.0
+idle;EMI_RAPL_Package0_PKG;2026-10-23T11:09:00;59995.0;0.0;811214.0;811214.0
+idle;EMI_RAPL_Package0_PP0;2026-10-23T11:09:00;59995.0;0.0;444159.0;444159.0
+idle;EMI_RAPL_Package0_PP1;2026-10-23T11:09:00;59995.0;0.0;21855.0;21855.0
+idle;\Device\HarddiskVolume3\Users\Massimo\AppData\Local\Programs\Ollama\lib\ollama\llama-server.exe;2026-10-23T11:09:00;59995.0;374.0;0.0;374.0
+idle;\Device\HarddiskVolume3\Users\Massimo\AppData\Local\Programs\Ollama\ollama.exe;2026-10-23T11:09:00;59995.0;6150.0;0.0;6150.0
+idle;\Device\HarddiskVolume3\Users\Massimo\AppData\Local\Programs\Ollama\ollama app.exe;2026-10-23T11:09:00;59995.0;688.0;0.0;688.0
+load;EMI_RAPL_Package0_PKG;2026-10-23T11:10:00;12077.0;0.0;161245.0;161245.0
+load;EMI_RAPL_Package0_PP0;2026-10-23T11:10:00;12077.0;0.0;87314.0;87314.0
+load;EMI_RAPL_Package0_PP1;2026-10-23T11:10:00;12077.0;0.0;4381.0;4381.0
+load;\Device\HarddiskVolume3\Users\Massimo\AppData\Local\Programs\Ollama\lib\ollama\llama-server.exe;2026-10-23T11:10:00;12077.0;73.0;0.0;73.0
+load;\Device\HarddiskVolume3\Users\Massimo\AppData\Local\Programs\Ollama\ollama.exe;2026-10-23T11:10:00;12077.0;1292.0;0.0;1292.0
+load;\Device\HarddiskVolume3\Users\Massimo\AppData\Local\Programs\Ollama\ollama app.exe;2026-10-23T11:10:00;12077.0;127.0;0.0;127.0
+load;EMI_RAPL_Package0_PKG;2026-10-23T11:10:00;47933.0;0.0;1193141.0;1193141.0
+load;EMI_RAPL_Package0_PP0;2026-10-23T11:10:00;47933.0;0.0;830707.0;830707.0
+load;EMI_RAPL_Package0_PP1;2026-10-23T11:10:00;47933.0;0.0;19979.0;19979.0
+load;\Device\HarddiskVolume3\Users\Massimo\AppData\Local\Programs\Ollama\lib\ollama\llama-server.exe;2026-10-23T11:10:00;47933.0;490787.0;0.0;490787.0
+load;\Device\HarddiskVolume3\Users\Massimo\AppData\Local\Programs\Ollama\ollama.exe;2026-10-23T11:10:00;47933.0;5986.0;0.0;5986.0
+load;\Device\HarddiskVolume3\Users\Massimo\AppData\Local\Programs\Ollama\ollama app.exe;2026-10-23T11:10:00;47933.0;471.0;0.0;471.0
+load;EMI_RAPL_Package0_PKG;2026-10-23T11:11:00;59992.0;0.0;1648887.0;1648887.0
+load;EMI_RAPL_Package0_PP0;2026-10-23T11:11:00;59992.0;0.0;1195204.0;1195204.0
+load;EMI_RAPL_Package0_PP1;2026-10-23T11:11:00;59992.0;0.0;14565.0;14565.0
+load;\Device\HarddiskVolume3\Users\Massimo\AppData\Local\Programs\Ollama\lib\ollama\llama-server.exe;2026-10-23T11:11:00;59992.0;812746.0;0.0;812746.0
+load;\Device\HarddiskVolume3\Users\Massimo\AppData\Local\Programs\Ollama\ollama.exe;2026-10-23T11:11:00;59992.0;7205.0;0.0;7205.0
+load;\Device\HarddiskVolume3\Users\Massimo\AppData\Local\Programs\Ollama\ollama app.exe;2026-10-23T11:11:00;59992.0;516.0;0.0;516.0
+load;EMI_RAPL_Package0_PKG;2026-10-23T11:12:00;60001.0;0.0;1713227.0;1713227.0
+load;EMI_RAPL_Package0_PP0;2026-10-23T11:12:00;60001.0;0.0;1264300.0;1264300.0
+load;EMI_RAPL_Package0_PP1;2026-10-23T11:12:00;60001.0;0.0;8889.0;8889.0
+load;\Device\HarddiskVolume3\Users\Massimo\AppData\Local\Programs\Ollama\lib\ollama\llama-server.exe;2026-10-23T11:12:00;60001.0;930405.0;0.0;930405.0
+load;\Device\HarddiskVolume3\Users\Massimo\AppData\Local\Programs\Ollama\ollama.exe;2026-10-23T11:12:00;60001.0;7002.0;0.0;7002.0
+load;\Device\HarddiskVolume3\Users\Massimo\AppData\Local\Programs\Ollama\ollama app.exe;2026-10-23T11:12:00;60001.0;453.0;0.0;453.0
+load;EMI_RAPL_Package0_PKG;2026-10-23T11:13:00;59993.0;0.0;1742448.0;1742448.0
+load;EMI_RAPL_Package0_PP0;2026-10-23T11:13:00;59993.0;0.0;1291830.0;1291830.0
+load;EMI_RAPL_Package0_PP1;2026-10-23T11:13:00;59993.0;0.0;9916.0;9916.0
+load;\Device\HarddiskVolume3\Users\Massimo\AppData\Local\Programs\Ollama\lib\ollama\llama-server.exe;2026-10-23T11:13:00;59993.0;968908.0;0.0;968908.0
+load;\Device\HarddiskVolume3\Users\Massimo\AppData\Local\Programs\Ollama\ollama.exe;2026-10-23T11:13:00;59993.0;7065.0;0.0;7065.0
+load;\Device\HarddiskVolume3\Users\Massimo\AppData\Local\Programs\Ollama\ollama app.exe;2026-10-23T11:13:00;59993.0;419.0;0.0;419.0
+load;EMI_RAPL_Package0_PKG;2026-10-23T11:14:00;60011.0;0.0;1708602.0;1708602.0
+load;EMI_RAPL_Package0_PP0;2026-10-23T11:14:00;60011.0;0.0;1255015.0;1255015.0
+load;EMI_RAPL_Package0_PP1;2026-10-23T11:14:00;60011.0;0.0;10774.0;10774.0
+load;\Device\HarddiskVolume3\Users\Massimo\AppData\Local\Programs\Ollama\lib\ollama\llama-server.exe;2026-10-23T11:14:00;60011.0;889528.0;0.0;889528.0
+load;\Device\HarddiskVolume3\Users\Massimo\AppData\Local\Programs\Ollama\ollama.exe;2026-10-23T11:14:00;60011.0;6648.0;0.0;6648.0
+load;\Device\HarddiskVolume3\Users\Massimo\AppData\Local\Programs\Ollama\ollama app.exe;2026-10-23T11:14:00;60011.0;473.0;0.0;473.0
+load;EMI_RAPL_Package0_PKG;2026-10-23T11:15:00;59989.0;0.0;1711697.0;1711697.0
+load;EMI_RAPL_Package0_PP0;2026-10-23T11:15:00;59989.0;0.0;1264016.0;1264016.0
+load;EMI_RAPL_Package0_PP1;2026-10-23T11:15:00;59989.0;0.0;8125.0;8125.0
+load;\Device\HarddiskVolume3\Users\Massimo\AppData\Local\Programs\Ollama\lib\ollama\llama-server.exe;2026-10-23T11:15:00;59989.0;974655.0;0.0;974655.0
+load;\Device\HarddiskVolume3\Users\Massimo\AppData\Local\Programs\Ollama\ollama.exe;2026-10-23T11:15:00;59989.0;6549.0;0.0;6549.0
+load;\Device\HarddiskVolume3\Users\Massimo\AppData\Local\Programs\Ollama\ollama app.exe;2026-10-23T11:15:00;59989.0;425.0;0.0;425.0
+load;EMI_RAPL_Package0_PKG;2026-10-23T11:16:00;60003.0;0.0;1721711.0;1721711.0
+load;EMI_RAPL_Package0_PP0;2026-10-23T11:16:00;60003.0;0.0;1272480.0;1272480.0
+load;EMI_RAPL_Package0_PP1;2026-10-23T11:16:00;60003.0;0.0;8306.0;8306.0
+load;\Device\HarddiskVolume3\Users\Massimo\AppData\Local\Programs\Ollama\lib\ollama\llama-server.exe;2026-10-23T11:16:00;60003.0;938866.0;0.0;938866.0
+load;\Device\HarddiskVolume3\Users\Massimo\AppData\Local\Programs\Ollama\ollama.exe;2026-10-23T11:16:00;60003.0;6914.0;0.0;6914.0
+load;\Device\HarddiskVolume3\Users\Massimo\AppData\Local\Programs\Ollama\ollama app.exe;2026-10-23T11:16:00;60003.0;439.0;0.0;439.0
+load;EMI_RAPL_Package0_PKG;2026-10-23T11:17:00;40324.0;0.0;1152590.0;1152590.0
+load;EMI_RAPL_Package0_PP0;2026-10-23T11:17:00;40324.0;0.0;854531.0;854531.0
+load;EMI_RAPL_Package0_PP1;2026-10-23T11:17:00;40324.0;0.0;4987.0;4987.0
+load;\Device\HarddiskVolume3\Users\Massimo\AppData\Local\Programs\Ollama\lib\ollama\llama-server.exe;2026-10-23T11:17:00;40324.0;688568.0;0.0;688568.0
+load;\Device\HarddiskVolume3\Users\Massimo\AppData\Local\Programs\Ollama\ollama.exe;2026-10-23T11:17:00;40324.0;4265.0;0.0;4265.0
+load;\Device\HarddiskVolume3\Users\Massimo\AppData\Local\Programs\Ollama\ollama app.exe;2026-10-23T11:17:00;40324.0;268.0;0.0;268.0
+load;EMI_RAPL_Package0_PKG;2026-10-23T11:17:00;19673.0;0.0;553499.0;553499.0
+load;EMI_RAPL_Package0_PP0;2026-10-23T11:17:00;19673.0;0.0;407747.0;407747.0
+load;EMI_RAPL_Package0_PP1;2026-10-23T11:17:00;19673.0;0.0;2690.0;2690.0
+load;\Device\HarddiskVolume3\Users\Massimo\AppData\Local\Programs\Ollama\lib\ollama\llama-server.exe;2026-10-23T11:17:00;19673.0;323244.0;0.0;323244.0
+load;\Device\HarddiskVolume3\Users\Massimo\AppData\Local\Programs\Ollama\ollama.exe;2026-10-23T11:17:00;19673.0;2066.0;0.0;2066.0
+load;\Device\HarddiskVolume3\Users\Massimo\AppData\Local\Programs\Ollama\ollama app.exe;2026-10-23T11:17:00;19673.0;130.0;0.0;130.0
+load;EMI_RAPL_Package0_PKG;2026-10-23T11:18:00;60000.0;0.0;1712992.0;1712992.0
+load;EMI_RAPL_Package0_PP0;2026-10-23T11:18:00;60000.0;0.0;1268001.0;1268001.0
+load;EMI_RAPL_Package0_PP1;2026-10-23T11:18:00;60000.0;0.0;8157.0;8157.0
+load;\Device\HarddiskVolume3\Users\Massimo\AppData\Local\Programs\Ollama\lib\ollama\llama-server.exe;2026-10-23T11:18:00;60000.0;996085.0;0.0;996085.0
+load;\Device\HarddiskVolume3\Users\Massimo\AppData\Local\Programs\Ollama\ollama.exe;2026-10-23T11:18:00;60000.0;6837.0;0.0;6837.0
+load;\Device\HarddiskVolume3\Users\Massimo\AppData\Local\Programs\Ollama\ollama app.exe;2026-10-23T11:18:00;60000.0;424.0;0.0;424.0
+load;EMI_RAPL_Package0_PKG;2026-10-23T11:19:00;60002.0;0.0;1722815.0;1722815.0
+load;EMI_RAPL_Package0_PP0;2026-10-23T11:19:00;60002.0;0.0;1279015.0;1279015.0
+load;EMI_RAPL_Package0_PP1;2026-10-23T11:19:00;60002.0;0.0;7790.0;7790.0
+load;\Device\HarddiskVolume3\Users\Massimo\AppData\Local\Programs\Ollama\lib\ollama\llama-server.exe;2026-10-23T11:19:00;60002.0;1028416.0;0.0;1028416.0
+load;\Device\HarddiskVolume3\Users\Massimo\AppData\Local\Programs\Ollama\ollama.exe;2026-10-23T11:19:00;60002.0;6490.0;0.0;6490.0
+load;\Device\HarddiskVolume3\Users\Massimo\AppData\Local\Programs\Ollama\ollama app.exe;2026-10-23T11:19:00;60002.0;403.0;0.0;403.0
+load;EMI_RAPL_Package0_PKG;2026-10-23T11:20:00;59995.0;0.0;940915.0;940915.0
+load;EMI_RAPL_Package0_PP0;2026-10-23T11:20:00;59995.0;0.0;581492.0;581492.0
+load;EMI_RAPL_Package0_PP1;2026-10-23T11:20:00;59995.0;0.0;6858.0;6858.0
+load;\Device\HarddiskVolume3\Users\Massimo\AppData\Local\Programs\Ollama\lib\ollama\llama-server.exe;2026-10-23T11:20:00;59995.0;344604.0;0.0;344604.0
+load;\Device\HarddiskVolume3\Users\Massimo\AppData\Local\Programs\Ollama\ollama.exe;2026-10-23T11:20:00;59995.0;5468.0;0.0;5468.0
+load;\Device\HarddiskVolume3\Users\Massimo\AppData\Local\Programs\Ollama\ollama app.exe;2026-10-23T11:20:00;59995.0;511.0;0.0;511.0
+idle2;EMI_RAPL_Package0_PKG;2026-10-23T11:21:00;31065.0;0.0;329483.0;329483.0
+idle2;EMI_RAPL_Package0_PP0;2026-10-23T11:21:00;31065.0;0.0;161893.0;161893.0
+idle2;EMI_RAPL_Package0_PP1;2026-10-23T11:21:00;31065.0;0.0;3234.0;3234.0
+idle2;\Device\HarddiskVolume3\Users\Massimo\AppData\Local\Programs\Ollama\lib\ollama\llama-server.exe;2026-10-23T11:21:00;31065.0;214.0;0.0;214.0
+idle2;\Device\HarddiskVolume3\Users\Massimo\AppData\Local\Programs\Ollama\ollama.exe;2026-10-23T11:21:00;31065.0;3735.0;0.0;3735.0
+idle2;\Device\HarddiskVolume3\Users\Massimo\AppData\Local\Programs\Ollama\ollama app.exe;2026-10-23T11:21:00;31065.0;404.0;0.0;404.0
+idle2;EMI_RAPL_Package0_PKG;2026-10-23T11:21:00;28938.0;0.0;362444.0;362444.0
+idle2;EMI_RAPL_Package0_PP0;2026-10-23T11:21:00;28938.0;0.0;203844.0;203844.0
+idle2;EMI_RAPL_Package0_PP1;2026-10-23T11:21:00;28938.0;0.0;3127.0;3127.0
+idle2;\Device\HarddiskVolume3\Users\Massimo\AppData\Local\Programs\Ollama\lib\ollama\llama-server.exe;2026-10-23T11:21:00;28938.0;157.0;0.0;157.0
+idle2;\Device\HarddiskVolume3\Users\Massimo\AppData\Local\Programs\Ollama\ollama.exe;2026-10-23T11:21:00;28938.0;2685.0;0.0;2685.0
+idle2;\Device\HarddiskVolume3\Users\Massimo\AppData\Local\Programs\Ollama\ollama app.exe;2026-10-23T11:21:00;28938.0;330.0;0.0;330.0
+idle2;EMI_RAPL_Package0_PKG;2026-10-23T11:22:00;59991.0;0.0;720450.0;720450.0
+idle2;EMI_RAPL_Package0_PP0;2026-10-23T11:22:00;59991.0;0.0;388598.0;388598.0
+idle2;EMI_RAPL_Package0_PP1;2026-10-23T11:22:00;59991.0;0.0;7200.0;7200.0
+idle2;\Device\HarddiskVolume3\Users\Massimo\AppData\Local\Programs\Ollama\lib\ollama\llama-server.exe;2026-10-23T11:22:00;59991.0;316.0;0.0;316.0
+idle2;\Device\HarddiskVolume3\Users\Massimo\AppData\Local\Programs\Ollama\ollama.exe;2026-10-23T11:22:00;59991.0;5549.0;0.0;5549.0
+idle2;\Device\HarddiskVolume3\Users\Massimo\AppData\Local\Programs\Ollama\ollama app.exe;2026-10-23T11:22:00;59991.0;661.0;0.0;661.0
+idle2;EMI_RAPL_Package0_PKG;2026-10-23T11:23:00;60004.0;0.0;608178.0;608178.0
+idle2;EMI_RAPL_Package0_PP0;2026-10-23T11:23:00;60004.0;0.0;286757.0;286757.0
+idle2;EMI_RAPL_Package0_PP1;2026-10-23T11:23:00;60004.0;0.0;5843.0;5843.0
+idle2;\Device\HarddiskVolume3\Users\Massimo\AppData\Local\Programs\Ollama\lib\ollama\llama-server.exe;2026-10-23T11:23:00;60004.0;327.0;0.0;327.0
+idle2;\Device\HarddiskVolume3\Users\Massimo\AppData\Local\Programs\Ollama\ollama.exe;2026-10-23T11:23:00;60004.0;4922.0;0.0;4922.0
+idle2;\Device\HarddiskVolume3\Users\Massimo\AppData\Local\Programs\Ollama\ollama app.exe;2026-10-23T11:23:00;60004.0;667.0;0.0;667.0

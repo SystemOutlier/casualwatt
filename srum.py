@@ -11,8 +11,18 @@ experiment_results/alternative_sources_probe_20261023_115948.txt).
 Colonne che ci interessano (dump reale su MINI_IT13, 23/10/2026):
   CPUEnergyConsumption, EmiEnergyConsumption, TotalEnergyConsumption,
   TimeInMSec, AppId, TimeStamp.
-Su questa macchina i campi energia SONO popolati (31726/31726 righe non zero),
-nonostante il PC non abbia batteria — fatto non ovvio e verificato, non assunto.
+Su questa macchina i campi energia SONO popolati, nonostante il PC non abbia
+batteria — ma NON tutti allo stesso modo, e su questo il primo referto era
+sbagliato ("31726/31726 righe non zero"). Conteggio MISURATO riga per riga sul
+dump `srum_dump_20261023_121718_start.csv` (34156 righe):
+  CPUEnergyConsumption 33346 | TotalEnergyConsumption 34040 |
+  **EmiEnergyConsumption 596** | SocEnergyConsumption 185.
+I 596 non-zero di `EmiEnergyConsumption` sono TUTTI (verificato riga per riga) i
+pseudo-AppId `EMI_RAPL_Package0_PKG` / `_PP0` / `_PP1` (per loro
+`CPUEnergyConsumption` = 0 e `Emi == Total`): Windows espone li' i domini RAPL
+con ~1 riga da minuto (gap consecutivi MISURATI = 60,0 s). Nel dump ne ho
+trovati 51-55, il che suggerisce una ritenzione di circa un'ora — deduzione dal
+conteggio, non un fatto di doc. Il campo per-processo, invece, e' il modello EPI.
 
 WARNING di metodologia:
 * **colonna `TimeStamp` = UTC naive, non orario locale.** Misurato 23/10/2026:
@@ -21,8 +31,17 @@ WARNING di metodologia:
   (offset della macchina 2:00:00). Non e' un archivio in ritardo: e' vivo a
   granularita' ~1 minuto. Chi confronta finestre deve usare
   :func:`utc_now_naive`, altrimenti la finestra e' vuota per 2 ore.
-* i valori sono nella scala interna di Windows (millijoule, da confermare contro
-  EMI sulla stessa finestra: e' esattamente lo scopo di srum_emi_cross.py);
+* **i bucket da minuto vengono fusi in un record ORARIO a ogni boundary di epoch
+  (misurato: 08:32, 09:32, 10:32 UTC).** Un dump preso dopo il boundary non
+  contiene piu' i minuti inglobati: `srum_emi_cross.py` v1 ha cosi' perso
+  l'intera fase di load (`bucket_nella_finestra = 0`). Serve dumpare ad ogni
+  confine di fase e contare solo le righe mai viste (dedup per firma).
+* lo stesso minuto puo' essere scritto come **righe complementari** (misurato
+  10:02 -> `TimeInMSec` 26593 + 33399 = 59992): filtrare le righe "corte"
+  perde energia, la copertura va valutata minuto per minuto.
+* **unita' = millijoule, CONFERMATA misurando**, non assunta: rapporto
+  SRUM/EMI su bucket allineati = **0,9985 (sd 0,0076)**
+  (`srum_emi_scale.py`, 23/10/2026).
 * `powercfg /srumutil` FORNISCE un flush e costa CPU: va chiamato solo ai confini
   di fase, mai nel tick, e il suo costo va dichiarato;
 * la ripartizione per processo e' prodotta dal modello EPI di Windows (eventualmente
