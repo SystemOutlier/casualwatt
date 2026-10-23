@@ -20,7 +20,7 @@ Target principale: **Windows 11**, Python 3.14 x64. Con il canale EMI attivo l'a
 py -m pip install requests pandas psutil codecarbon ecologits nvidia-ml-py pythonnet sentence-transformers
 ```
 
-Le DLL di fallback LibreHardwareMonitor (`LibreHardwareMonitorLib.dll`, `HidSharp.dll`, `Microsoft.Win32.TaskScheduler.dll`) sono incluse in `cwEnergyModular/LibreHardwareMonitorLib/LibreHardwareMonitor/`. `LibreHardwareMonitorLib.dll` è distribuita senza modifiche sotto **MPL-2.0** (testo: https://github.com/LibreHardwareMonitor/LibreHardwareMonitor/blob/master/LICENSE, verificato il 23/10); per `HidSharp.dll` e `Microsoft.Win32.TaskScheduler.dll` la licenza va ri-verificata presso i rispettivi upstream prima di qualsiasi ridistribuzione.
+Le DLL di fallback LibreHardwareMonitor (`LibreHardwareMonitorLib.dll`, `HidSharp.dll`, `Microsoft.Win32.TaskScheduler.dll`) sono incluse in `cwEnergyModular/LibreHardwareMonitorLib/LibreHardwareMonitor/`. `LibreHardwareMonitorLib.dll` è distribuita senza modifiche sotto **MPL-2.0**: il testo integrale della licenza è allegato in `cwEnergyModular/LibreHardwareMonitorLib/LibreHardwareMonitor/MPL-2.0.txt` ( preso da mozilla.org, verificato il 23/10 sul `LICENSE` upstream), con gli avvisi third-party in `THIRD-PARTY-NOTICES.md` nella stessa cartella; per `HidSharp.dll` e `Microsoft.Win32.TaskScheduler.dll` la licenza va ri-verificata presso i rispettivi upstream prima di qualsiasi ridistribuzione.
 
 ## Avvio
 
