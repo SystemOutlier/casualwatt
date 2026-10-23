@@ -1,0 +1,52 @@
+[INFO] python: C:\Users\Massimo\AppData\Local\Python\pythoncore-3.14-64\python.exe
+[INFO] apertura EMI: \\?\acpi#genuineintel_-_intel64_family_6_model_186_-_13th_ge...
+
+[FASE] riposo: 40 s a 50 ms
+  [riposo] 800 letture in 39.95 s -> cadenza reale 50.0 ms (dichiarata 50 ms)
+
+[FASE] load4: 40 s a 50 ms
+  [load4] 800 letture in 39.95 s -> cadenza reale 50.0 ms (dichiarata 50 ms)
+
+[OK] CSV grezzo: C:\Users\Massimo\Documents\CasualWatt\CWProject\experiment_results\emi_50ms_probe_20261023_184046.csv
+
+=== FASE riposo ===
+
+Cadenza reale mediana: 50.0 ms (dichiarata 50 ms, min 46.4 / max 54.4)
+
+--- risoluzione per canale (fase considerata: quella indicata) ---
+canale  nulli%  ts_av%  ts_med_ms  quantum_pWh  fin_k   fin_ms  P_med_W     tot_J
+PKG       0.00  100.00      50.01            1      1     50.0   11.264   477.118
+DRAM    100.00  100.00      50.01         None   None     None      0.0     0.000
+PP0       0.00  100.00      50.01            1      1     50.0    5.435   240.900
+PP1       0.00  100.00      50.01            1      1     50.0     0.27    12.868
+
+--- rapporti di dominio (non additivi: PP0, PP1 sottoinsiemi di PKG) ---
+  PP0/PKG = 0.5049   (240.900 J su 477.118 J)
+  PP1/PKG = 0.0270   (12.868 J su 477.118 J)
+  DRAM/PKG = 0.0000   (0.000 J su 477.118 J)
+  (PP0+PP1)/PKG = 0.5319  -- il residuo 223.350 J e' la parte di package non attribuita a core ne' a iGPU
+
+=== FASE load4 ===
+
+Cadenza reale mediana: 50.0 ms (dichiarata 50 ms, min 49.3 / max 50.7)
+
+--- risoluzione per canale (fase considerata: quella indicata) ---
+canale  nulli%  ts_av%  ts_med_ms  quantum_pWh  fin_k   fin_ms  P_med_W     tot_J
+PKG       0.00  100.00      49.99            1      1     50.0   36.809  1473.197
+DRAM    100.00  100.00      49.99         None   None     None      0.0     0.000
+PP0       0.00  100.00      49.99            1      1     50.0   30.483  1236.698
+PP1       0.00  100.00      49.99            1      1     50.0    0.289    13.279
+
+--- rapporti di dominio (non additivi: PP0, PP1 sottoinsiemi di PKG) ---
+  PP0/PKG = 0.8395   (1236.698 J su 1473.197 J)
+  PP1/PKG = 0.0090   (13.279 J su 1473.197 J)
+  DRAM/PKG = 0.0000   (0.000 J su 1473.197 J)
+  (PP0+PP1)/PKG = 0.8485  -- il residuo 223.220 J e' la parte di package non attribuita a core ne' a iGPU
+
+[LETTURA DELLA RISPOSTA]
+  Se alla cadenza reale i delta PKG sono nulli in una frazione
+  consistente dei casi, allora 50 ms di sampling NON aggiunge
+  informazione: il limite e' del registro, e la tesi deve scriverlo
+  come proprieta' dello strumento (cap.3.3), non come nostro difetto.
+  Se invece i delta sono quasi sempre non nulli, il collo e' il
+  nostro percorso di lettura (thread LHM) e va rivisto.

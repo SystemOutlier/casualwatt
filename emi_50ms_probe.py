@@ -253,9 +253,18 @@ def analyse(rows, interval_s):
                 med = statistics.median([dt[i] for i in range(max(0, len(dt) - k))])
                 best = (k, k * med * 1000.0, cover)
         rate = [d[i] * PWH_TO_J / dt[i] for i in range(len(d)) if dt[i] > 0]
+        # Il timestamp del dominio: senza questo controllo un delta non nullo
+        # potrebbe essere il driver che ricopia lo stesso record. Se anche il
+        # ts avanza, la lettura e' aggiornata e il conteggio e' genuino.
+        ts = [r[2][ti] for r in rows]
+        dts = [(ts[i + 1] - ts[i]) * 1e-4 for i in range(len(ts) - 1)]  # -> ms
         out.append({
             "canale": name,
             "letture": len(rows),
+            "ts_avanzato_pct": round(100.0 * sum(1 for x in dts if x > 0)
+                                     / max(len(dts), 1), 2),
+            "ts_dt_med_ms": round(statistics.median(dts), 2) if dts else None,
+            "ts_dt_min_ms": round(min(dts), 2) if dts else None,
             "delta_nulli_pct": round(100.0 * zero / max(len(d), 1), 2),
             "delta_negativi": neg,
             "min_pwh": min(nz) if nz else None,
@@ -279,14 +288,31 @@ def print_report(analysis, dt, interval_s):
           f"(dichiarata {interval_s*1000:.0f} ms, "
           f"min {min(dt)*1000:.1f} / max {max(dt)*1000:.1f})")
     print("\n--- risoluzione per canale (fase considerata: quella indicata) ---")
-    hdr = (f"{'canale':6} {'nulli%':>7} {'quantum_pWh':>12} {'quantum_mJ':>11} "
-           f"{'fin_k':>6} {'fin_ms':>8} {'P_med_W':>8} {'tot_J':>9}")
+    hdr = (f"{'canale':6} {'nulli%':>7} {'ts_av%':>7} {'ts_med_ms':>10} "
+           f"{'quantum_pWh':>12} {'fin_k':>6} {'fin_ms':>8} {'P_med_W':>8} {'tot_J':>9}")
     print(hdr)
     for a in analysis:
         print(f"{a['canale']:6} {a['delta_nulli_pct']:7.2f} "
-              f"{str(a['quantum_pwh']):>12} {str(a['quantum_mj']):>11} "
+              f"{a['ts_avanzato_pct']:7.2f} {str(a['ts_dt_med_ms']):>10} "
+              f"{str(a['quantum_pwh']):>12} "
               f"{str(a['finestra_k']):>6} {str(a['finestra_ms']):>8} "
               f"{str(a['potenza_mediana_w']):>8} {a['tot_j_finestra']:9.3f}")
+    # Rapporti di dominio: servono a dichiarare il confine, non a sommare.
+    # PP0 e PP1 stanno DENTRO PKG, quindi (PP0+PP1)/PKG vale < 1 e NON deve
+    # valere 1: la differenza e' l'involto del package (memoria, IA, logiche).
+    by = {a["canale"]: a["tot_j_finestra"] for a in analysis}
+    if by.get("PKG"):
+        print("\n--- rapporti di dominio (non additivi: PP0, PP1 sottoinsiemi di PKG) ---")
+        for c in ("PP0", "PP1", "DRAM"):
+            if by.get(c) is not None:
+                print(f"  {c}/PKG = {by[c] / by['PKG']:.4f}   "
+                      f"({by[c]:.3f} J su {by['PKG']:.3f} J)")
+        if by.get("PP0") is not None and by.get("PP1") is not None:
+            s = by["PP0"] + by["PP1"]
+            print(f"  (PP0+PP1)/PKG = {s / by['PKG']:.4f}  "
+                  f"-- il residuo {by['PKG'] - s:.3f} J e' la parte di package "
+                  "non attribuita a core ne' a iGPU")
+
 
 
 def main() -> int:
