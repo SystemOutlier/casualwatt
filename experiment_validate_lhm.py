@@ -1,8 +1,8 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 """
-experiment_validate_lhm.py — v3
-===============================
+experiment_validate_lhm.py — v3 + verbale v4
+============================================
 
 Esperimento controllato per validare la misura energetica LHM di CasualWatt
 su Windows (power-integration sul sensore 'CPU Package').
@@ -29,12 +29,42 @@ Cambi v3 (dalla run v2 20261022_001626, ONLY two knobs):
   Duration stimata: ~25-30 min (carico ~105 s/run + 2x30 s baseline
   + 15 s cooldown, x8) + calibrazione idle se assente.
 
+CAMBI v4 (aggiunte NON distruttive: nessun numero dei run v3 cambia se non si
+passano i nuovi knob; lo scopo e' che il prossimo run sia ripetibile DA ALTRI
+e che la geometria diventi una variabile). Dal protocollo v3 rilanciato il
+23/10 (J/token 1,2862, CV 8,99%, r = -0,982 con la baseline):
+  1. VERBALE DI RUN nelle colonne CSV: `keep_alive` INVIATO (prima mai
+     mandato: Ollama usava il default e il residuo del modello fra le richieste
+     era un fatto non dichiarato), `emi_available` (flag: i rapporti LHM/EMI
+     valgono solo se il secondo canale era aperto), `top_processes` (carico
+     concorrente ai bordi della finestra), target/realizzazione di N_in.
+  2. DURATE DI FASE: `prompt_eval_duration` e `eval_duration` l'API di Ollama li
+     espone anche con stream:false -- il nostro client di produzione li legge
+     gia' (benchmark_unified.py:161-163) e questo harness li SCARTEVA. Ora
+     prefill_s e decoding_s finiscono nel CSV, con ms/token e rapporto: e' la
+     conferma INTERNA e misurata del claim "decode ~ un ordine di grandezza
+     sopra prefill" (horswill2026greenpixie), in forma TEMPORALE (i joule di
+     fase restano separati solo con una cadenza confrontabile: vedi
+     emi_50ms_probe.py).
+  3. DERIVA DELLA BASELINE (BASE_B - BASE_A) in statistiche: con r = -0,982 fra
+     J/token e baseline, la deriva e' la variabile da controllare nel v4, non
+     il numero di token.
+  4. GEOMETRIA COME VARIABILE LIBERA: CW_EXP_TARGET_IN riempie il prompt e
+     CW_EXP_NUMPREDICT fissa N_out -> sweep di N_in a N_out costante
+     (forma E ~ a*N_in + b*N_out di cavagna2026sweetspot). CW_EXP_COLD_MODEL=1
+     mette keep_alive="0" come seconda condizione, per separare costo di
+     caricamento e costo di generazione (6,0--6,6 s osservati fuori fase nel
+     CSV di produzione).
+
 Requisiti (invariati):
   - processo ELEVATO (UAC Admin): i sensori Power LHM restano invisibili
     senza elevazione (diagnostics.py: Energy=0, Power=0)
   - Ollama attivo su localhost:11434, modello gia' scaricato
   - interprete: C:\\Users\\Massimo\\AppData\\Local\\Python\\pythoncore-3.14-64\\python.exe
     (launcher `py` rotto: stub WindowsApps)
+  - GUI di LibreHardwareMonitor CHIUSA: il costo dell'osservatore e' di
+    0,2--0,9 W non arbitrati (misurato 23/10), e la regola operativa e'
+    dichiararlo, non correggerlo a posteriori
 """
 
 from __future__ import annotations
@@ -77,6 +107,18 @@ class ExperimentConfig:
     cooldown_s: float = 15.0                 # pausa post-carico prima di BASE_B (v2)
     ollama_host: str = "http://localhost:11434"
     output_dir: Path = Path("experiment_results")
+    # --- v4: geometria dichiarata, non più incidente -----------------------
+    # keep_alive NON era mai impostato nel nostro codice: Ollama usa il suo
+    # default (5 min) e il modello resta residente fra le richieste. Il
+    # CSV di produzione mostra 6,0--6,6 s di durata fuori fase (caricamento
+    # modello) su due righe su nove: senza tenere il vettore carico fisso, la
+    # J/token mischia costo di caricamento e costo di generazione.
+    keep_alive: str = "5m"
+    # Riempimento del prompt fino a N token di input circa: rende la geometria
+    # (N_in x N_out) una variabile LIBERA invece che una proprieta' del prompt.
+    target_tokens_in: Optional[int] = None
+    pad_unit: str = ("Ripeti questa frase senza commentarla: la misura energetica "
+                     "dichiara il confine. ")
 
 
 def load_config() -> ExperimentConfig:
@@ -96,7 +138,31 @@ def load_config() -> ExperimentConfig:
         c.baseline_window_s = float(os.environ["CW_EXP_BASELINE_S"])
     if os.getenv("CW_EXP_COOLDOWN_S"):
         c.cooldown_s = float(os.environ["CW_EXP_COOLDOWN_S"])
+    # Nuovi knob v4: sweep di geometria a N_out fisso.
+    if os.getenv("CW_EXP_KEEPALIVE"):
+        c.keep_alive = os.environ["CW_EXP_KEEPALIVE"]
+    if os.getenv("CW_EXP_TARGET_IN"):
+        c.target_tokens_in = int(os.environ["CW_EXP_TARGET_IN"])
+    if os.getenv("CW_EXP_COLD_MODEL") == "1":
+        # forza il discaricamento fra le richieste (2a condizione, NON la 1a)
+        c.keep_alive = "0"
     return c
+
+
+def build_prompt(config: ExperimentConfig) -> str:
+    """Prompt con geometria d'input controllata.
+
+    Con target_tokens_in = None restituisce il prompt naturale: il comportamento
+    dei run v1--v3 e' riproducibile invariato (regola 'keep current until
+    proven'). Con un target, ripete `pad_unit` finche' la richiesta NON arriva a
+    quel prompt_eval_count; il valore OSSERVATO viene registrato riga per riga,
+    perche' e' il contatore di Ollama a definire la geometria, non la stima.
+    """
+    if not config.target_tokens_in:
+        return config.prompt
+    p = config.prompt
+    reps = max(1, int(config.target_tokens_in // 16))
+    return p + " " + config.pad_unit * reps
 
 
 # =============================================================================
@@ -104,19 +170,39 @@ def load_config() -> ExperimentConfig:
 # =============================================================================
 
 def ollama_generate(config: ExperimentConfig) -> Tuple[dict, float]:
-    """Una generazione con num_predict bloccato; ritorna (json, durata_s)."""
+    """Una generazione con num_predict bloccato; ritorna (json, durata_s).
+
+    Due campi del payload sono qui per la prima volta e vanno dichiarati:
+      - `keep_alive`: prima non veniva mai passato, quindi Ollama applicava il
+        suo default e il modello restava residente fra le richieste. Il CSV di
+        produzione mostra 6,0--6,6 s di durata fuori fase su 2 righe su 9
+        (caricamento modello): senza tenere il vettore carico fisso, la J/token
+        mischia costo di caricamento e costo di generazione.
+      - prompt con geometria controllata (`build_prompt`): la N_in diventa una
+        variabile libera invece che una proprieta' del testo.
+
+    Le durate di fase (`prompt_eval_duration`, `eval_duration`) l'API le espone
+    ANCHE con stream:false (verificato su docs/api.md): sono nanosecondi e
+    diventano prefill_duration_s / decoding_duration_s, che prima venivano
+    semplicemente scartati.
+    """
     url = f"{config.ollama_host}/api/generate"
     payload = {
         "model": config.model,
-        "prompt": config.prompt,
+        "prompt": build_prompt(config),
         "stream": False,
         "options": {"num_predict": config.num_predict},
+        "keep_alive": config.keep_alive,
     }
     t0 = time.monotonic()
     resp = requests.post(url, json=payload, timeout=180)
     dt = time.monotonic() - t0
     resp.raise_for_status()
-    return resp.json(), dt
+    data = resp.json()
+    data["_client_duration_s"] = dt
+    data["_prefill_duration_s"] = float(data.get("prompt_eval_duration") or 0) / 1e9
+    data["_decoding_duration_s"] = float(data.get("eval_duration") or 0) / 1e9
+    return data, dt
 
 
 def get_ollama_pids() -> List[int]:
@@ -129,6 +215,68 @@ def get_ollama_pids() -> List[int]:
         except (psutil.NoSuchProcess, psutil.AccessDenied):
             continue
     return pids
+
+
+def emi_available() -> Tuple[bool, str]:
+    """Il contatore EMI e' leggibile su questa macchina? (flag di verbale)
+
+    Non sostituisce LHM e non viene usato nei calcoli: serve a scrivere nel
+    verbale SE un secondo canale era disponibile, perche' i rapporti LHM/EMI
+    0,9947--1,0082 del 23/10 valgono solo quando entrambi erano aperti. Un
+    run senza questo campo non e' confrontabile con uno che ce l'ha.
+    """
+    try:
+        import ctypes
+        import struct as _struct
+        k32 = ctypes.windll.kernel32
+        k32.CreateFileW.restype = ctypes.c_void_p
+        k32.CreateFileW.argtypes = [ctypes.c_wchar_p, ctypes.c_uint, ctypes.c_uint,
+                                    ctypes.c_void_p, ctypes.c_uint, ctypes.c_uint,
+                                    ctypes.c_void_p]
+        k32.DeviceIoControl.restype = ctypes.c_bool
+        k32.DeviceIoControl.argtypes = [ctypes.c_void_p, ctypes.c_uint,
+                                        ctypes.c_void_p, ctypes.c_uint,
+                                        ctypes.c_void_p, ctypes.c_uint,
+                                        ctypes.POINTER(ctypes.c_uint), ctypes.c_void_p]
+        dev = (r'\\?\acpi#genuineintel_-_intel64_family_6_model_186_-_13th_gen_'
+               r'intel(r)_core(tm)_i9-13900hk#0#{45bd8344-7ed6-49cf-a440-c276c933b053}')
+        h = k32.CreateFileW(dev, 0x80000000, 3, None, 3, 0x80, None)
+        if h is None or ctypes.c_ssize_t(h).value == -1:
+            return False, f"CreateFileW err={ctypes.GetLastError()}"
+        inbuf = ctypes.create_string_buffer(16)
+        _struct.pack_into("<H", inbuf, 0, 0)
+        out = ctypes.create_string_buffer(64)
+        got = ctypes.c_uint(0)
+        ok = k32.DeviceIoControl(h, 0x0022400C, inbuf, 16, out, 64,
+                                 ctypes.byref(got), None)
+        k32.CloseHandle(h)
+        if not ok:
+            return False, f"IOCTL err={ctypes.GetLastError()}"
+        v = _struct.unpack("<8Q", out.raw[:64])
+        return True, f"PKG={v[0]} pWh"
+    except Exception as e:                      # non-Windows, o driver assente
+        return False, f"{type(e).__name__}: {e}"
+
+
+def busy_processes(top: int = 3) -> str:
+    """I processi piu' voraci nell'istante del campione.
+
+    serve a rendere un run RIPETIBILE da parte di altri: il package assorbe
+    anche quello che fa il sistema, e 'ANTIVIRUS in scansione' e' una causa di
+    varianza che il solo P_base non rivela. Formato 'nome=xx%;nome=yy%'.
+    """
+    try:
+        rows = []
+        for p in psutil.process_iter(["pid", "name", "cpu_percent"]):
+            try:
+                if p.info["cpu_percent"] and p.info["cpu_percent"] > 1.0:
+                    rows.append((p.info["cpu_percent"], p.info["name"]))
+            except (psutil.NoSuchProcess, psutil.AccessDenied):
+                continue
+        rows.sort(reverse=True)
+        return ";".join(f"{n}={c:.0f}%" for c, n in rows[:top]) or "nessuno"
+    except Exception:
+        return "n/d"
 
 
 # =============================================================================
@@ -244,6 +392,14 @@ class RunRecord:
     pi_measured_interval_s: Optional[float] = None
     e_inc_j: Optional[float] = None       # solo sul rigo load (A-B-A)
     j_per_token: Optional[float] = None   # solo sul rigo load
+    # --- v4: verbale di run (queste colonne mancavano, e senza di esse un run
+    #     non e' pienamente ripetibile ne' confrontabile) --------------------
+    prefill_s: Optional[float] = None     # somma prompt_eval_duration sul load
+    decoding_s: Optional[float] = None    # somma eval_duration sul load
+    keep_alive: str = ""                  # valore INVIATO, non assunto
+    target_tokens_in: Optional[int] = None
+    top_processes: str = ""               # carico concorrente all'inizio finestra
+    emi_available: str = ""               # 'si'/'no: motivo' (flag, non misura)
 
 
 # =============================================================================
@@ -284,6 +440,13 @@ def run_experiment(config: ExperimentConfig) -> List[RunRecord]:
 
     calibrate_idle_if_needed()
 
+    emi_ok, emi_note = emi_available()
+    emi_flag = ("si" if emi_ok else f"no: {emi_note}")
+    print(f"[VERBALE] EMI leggibile: {emi_flag}")
+    print(f"[VERBALE] keep_alive inviato: {config.keep_alive!r} | "
+          f"target_tokens_in: {config.target_tokens_in} | "
+          f"num_predict: {config.num_predict}")
+
     print(f"\n[INFO] Warm-up: {config.warmup_inferences} inferenze "
           f"(num_predict={config.num_predict}, non misurate)…")
     for i in range(config.warmup_inferences):
@@ -304,21 +467,28 @@ def run_experiment(config: ExperimentConfig) -> List[RunRecord]:
                                  round(base_a.dt_s, 3),
                                  round(base_a.energy_j / base_a.dt_s, 4),
                                  window_source=base_a.wsrc,
-                                 pi_measured_interval_s=base_a.pi["measured_interval_s"]))
+                                 pi_measured_interval_s=base_a.pi["measured_interval_s"],
+                                 keep_alive=config.keep_alive,
+                                 emi_available=emi_flag))
 
         # ---- LOAD -------------------------------------------------------
         print(f"[LOAD] {config.n_inferences_per_run} inferenze "
               f"(num_predict={config.num_predict})…")
         pids = set(get_ollama_pids())
         tok_in = tok_out = 0
+        prefill_s = decoding_s = 0.0
+        top_before = busy_processes()
         c0 = read_counter_j()
         t0 = time.monotonic()
         for _ in range(config.n_inferences_per_run):
             data, _ = ollama_generate(config)
             tok_in += data.get("prompt_eval_count", 0)
             tok_out += data.get("eval_count", 0)
+            prefill_s += data.get("_prefill_duration_s", 0.0)
+            decoding_s += data.get("_decoding_duration_s", 0.0)
             pids |= set(get_ollama_pids())
         t1 = time.monotonic()
+        top_after = busy_processes()
         c1 = read_counter_j()
         e_load, wsrc_load = window_energy_j(t0, t1, c0, c1)
         if e_load is None:
@@ -329,8 +499,19 @@ def run_experiment(config: ExperimentConfig) -> List[RunRecord]:
             )
         load = PhaseResult(max(e_load, 0.0), t1 - t0, wsrc_load, pi_diagnostics())
         p_load = load.energy_j / load.dt_s
+        # Rapporto ms per token fra decode e prefill: e' la CONFERMA INTERNA del
+        # claim "ordine di grandezza" (horswill2026greenpixie), ed e' temporale,
+        # non energetica -- i joule di fase non li abbiamo ancora.
+        ms_pre = (prefill_s / max(tok_in, 1) * 1000.0) if tok_in else None
+        ms_dec = (decoding_s / max(tok_out, 1) * 1000.0) if tok_out else None
+        ratio = (ms_dec / ms_pre) if ms_pre and ms_dec else None
         print(f"  LOAD: E={load.energy_j:.2f} J  dt={load.dt_s:.2f} s  "
               f"P={p_load:.2f} W  tok={tok_in}+{tok_out}  ({load.wsrc})")
+        print(f"  FASI: prefill={prefill_s:.2f} s  decode={decoding_s:.2f} s  "
+              f"ms/tok {ms_pre if ms_pre is None else round(ms_pre,2)} / "
+              f"{ms_dec if ms_dec is None else round(ms_dec,2)}  "
+              f"ratio={ratio if ratio is None else round(ratio,2)}")
+
 
         # ---- COOLDOWN + BASE_B ------------------------------------------
         print(f"[COOLDOWN] {config.cooldown_s:.0f} s (spin worker Ollama)…")
@@ -352,12 +533,20 @@ def run_experiment(config: ExperimentConfig) -> List[RunRecord]:
                                  ",".join(str(p) for p in sorted(pids)),
                                  load.wsrc, load.pi.get("measured_interval_s"),
                                  round(e_inc, 6),
-                                 round(jpt, 6) if jpt is not None else None))
+                                 round(jpt, 6) if jpt is not None else None,
+                                 prefill_s=round(prefill_s, 4),
+                                 decoding_s=round(decoding_s, 4),
+                                 keep_alive=config.keep_alive,
+                                 target_tokens_in=config.target_tokens_in,
+                                 top_processes=(top_before + " | " + top_after),
+                                 emi_available=emi_flag))
         records.append(RunRecord(run, "base_b", method, round(base_b.energy_j, 6),
                                  round(base_b.dt_s, 3),
                                  round(base_b.energy_j / base_b.dt_s, 4),
                                  window_source=base_b.wsrc,
-                                 pi_measured_interval_s=base_b.pi["measured_interval_s"]))
+                                 pi_measured_interval_s=base_b.pi["measured_interval_s"],
+                                 keep_alive=config.keep_alive,
+                                 emi_available=emi_flag))
 
     SESSION.stop()
     return records
@@ -386,6 +575,20 @@ class Stats:
     window_sources: Dict[str, int]
     pi_interval_measured_s: Optional[float]
     pi_interval_declared_s: Optional[float]
+    # --- v4: derivata della baseline e geometria di fase -------------------
+    # La J/token e' sensibile a P_base con r = -0,982 (misurato): se la baseline
+    # deriva fra BASE_A e BASE_B, il numero che riportiamo non e' una misura di
+    # efficienza ma una funzione di quanto era stabile il fondo. Per questo la
+    # derivata va nel verbale, non solo il suo segno.
+    deriva_baseline_mean_w: Optional[float] = None
+    deriva_baseline_max_w: Optional[float] = None
+    prefill_ms_per_token: Optional[float] = None
+    decoding_ms_per_token: Optional[float] = None
+    ratio_fasi_mediano: Optional[float] = None
+    keep_alive: str = ""
+    emi_available: str = ""
+    target_tokens_in: Optional[int] = None
+    tokens_in_mean: Optional[float] = None
 
 
 def _mean_cv(vals: List[float]) -> Tuple[float, float]:
@@ -442,6 +645,28 @@ def compute_stats(records: List[RunRecord], config: ExperimentConfig) -> Optiona
     p_load_mean, p_load_cv = _mean_cv(p_loads)
     e_inc_mean, e_inc_cv = _mean_cv(e_incs)
     j_mean, j_cv = _mean_cv(jpts)
+
+    # Deriva della baseline dentro lo stesso run (BASE_B - BASE_A): e' la causa
+    # candidata numero uno dell'instabilita' dei J/token fra run.
+    derivas = []
+    for run_id, ph in by_run.items():
+        if "base_a" in ph and "base_b" in ph:
+            derivas.append(ph["base_b"].power_w - ph["base_a"].power_w)
+
+    # Geometria di fase: ms per token di prefill e di decode, e il loro rapporto
+    # (conferma interna del claim "ordine di grandezza", in forma temporale).
+    ms_pre, ms_dec, ratios = [], [], []
+    tin = []
+    for ld in loads:
+        if ld.tokens_in and ld.prefill_s:
+            v = ld.prefill_s / ld.tokens_in * 1000.0
+            ms_pre.append(v)
+            tin.append(ld.tokens_in)
+        if ld.tokens_out and ld.decoding_s:
+            ms_dec.append(ld.decoding_s / ld.tokens_out * 1000.0)
+        if ms_pre and ms_dec and ms_pre[-1] and ms_dec[-1]:
+            ratios.append(ms_dec[-1] / ms_pre[-1])
+
     src = SESSION._source
     return Stats(
         method=loads[0].method,
@@ -461,6 +686,16 @@ def compute_stats(records: List[RunRecord], config: ExperimentConfig) -> Optiona
         window_sources=wsources,
         pi_interval_measured_s=round(statistics.mean(pi_ivs), 4) if pi_ivs else None,
         pi_interval_declared_s=getattr(src, "POWER_SAMPLE_INTERVAL_S", None),
+        deriva_baseline_mean_w=(round(statistics.mean(derivas), 4) if derivas else None),
+        deriva_baseline_max_w=(round(max((abs(d) for d in derivas), default=0.0), 4)
+                               if derivas else None),
+        prefill_ms_per_token=(round(statistics.mean(ms_pre), 4) if ms_pre else None),
+        decoding_ms_per_token=(round(statistics.mean(ms_dec), 4) if ms_dec else None),
+        ratio_fasi_mediano=(round(statistics.median(ratios), 3) if ratios else None),
+        keep_alive=config.keep_alive,
+        emi_available=loads[0].emi_available,
+        target_tokens_in=config.target_tokens_in,
+        tokens_in_mean=(round(statistics.mean(tin), 1) if tin else None),
     )
 
 
@@ -470,7 +705,9 @@ def compute_stats(records: List[RunRecord], config: ExperimentConfig) -> Optiona
 
 CSV_COLS = ["run_id", "phase", "method", "energy_j", "dt_s", "power_w",
             "tokens_in", "tokens_out", "pids", "window_source",
-            "pi_measured_interval_s", "e_inc_j", "j_per_token"]
+            "pi_measured_interval_s", "e_inc_j", "j_per_token",
+            "prefill_s", "decoding_s", "keep_alive", "target_tokens_in",
+            "top_processes", "emi_available"]
 
 
 def save_csv(records: List[RunRecord], out_path: Path):
@@ -482,7 +719,9 @@ def save_csv(records: List[RunRecord], out_path: Path):
             w.writerow([r.run_id, r.phase, r.method, r.energy_j, r.dt_s,
                         r.power_w, r.tokens_in, r.tokens_out, r.pids,
                         r.window_source, r.pi_measured_interval_s,
-                        r.e_inc_j, r.j_per_token])
+                        r.e_inc_j, r.j_per_token, r.prefill_s, r.decoding_s,
+                        r.keep_alive, r.target_tokens_in, r.top_processes,
+                        r.emi_available])
     print(f"[OK] CSV: {out_path}")
 
 
@@ -496,7 +735,10 @@ def save_json(stats: Optional[Stats], out_path: Path):
 def generate_report(config: ExperimentConfig, records: List[RunRecord],
                     stats: Optional[Stats], out_path: Path):
     L: List[str] = []
-    L.append("# Validazione LHM — Esperimento v3 (A-B-A, carico lungo 15x128)")
+    # Titolo generato dalla configurazione: il v2 ha girato con 15x128 e il
+    # titolo fisso etichetta come "15x128" anche una smoke run da 3x128.
+    L.append(f"# Validazione LHM — A-B-A, carico "
+             f"{config.n_inferences_per_run}x{config.num_predict} tok")
     L.append("")
     L.append(f"**Data**: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}  ")
     L.append(f"**Modello**: `{config.model}` | **Prompt**: `{config.prompt}`  ")
@@ -504,13 +746,17 @@ def generate_report(config: ExperimentConfig, records: List[RunRecord],
              f"{config.n_inferences_per_run} | **run**: {config.n_runs}  ")
     L.append(f"**Baseline**: {config.baseline_window_s:.0f} s x2 (A-B-A) | "
              f"**Cool-down**: {config.cooldown_s:.0f} s")
+    L.append(f"**Geometria dichiarata**: N_in target = "
+             f"{config.target_tokens_in if config.target_tokens_in else 'prompt naturale (non controllata)'}"
+             f" | N_out = {config.num_predict} | "
+             f"**keep_alive** = `{config.keep_alive}`")
     L.append("")
     L.append("## Per-run")
     L.append("")
     L.append("| run | E_load [J] | P_load [W] | P_baseA [W] | P_baseB [W] | "
-             "E_inc [J] | tok_out | J/token | wsrc |")
+             "E_inc [J] | tok in+out | prefill [s] | decode [s] | J/token | wsrc |")
     L.append("|-----|-----------|-----------|-------------|-------------|"
-             "--------|---------|---------|------|")
+             "--------|------------|------------|------------|---------|------|")
     by_run: Dict[int, Dict[str, RunRecord]] = {}
     for r in records:
         by_run.setdefault(r.run_id, {})[r.phase] = r
@@ -525,9 +771,12 @@ def generate_report(config: ExperimentConfig, records: List[RunRecord],
                  + (f"{a.power_w:.2f}" if a else "-") + " | "
                  + (f"{b.power_w:.2f}" if b else "-") + " | "
                  + (f"{ld.e_inc_j:.1f}" if ld.e_inc_j is not None else "-") + " | "
-                 + f"{ld.tokens_out} | "
+                 + f"{ld.tokens_in}+{ld.tokens_out} | "
+                 + (f"{ld.prefill_s:.2f}" if ld.prefill_s is not None else "-") + " | "
+                 + (f"{ld.decoding_s:.2f}" if ld.decoding_s is not None else "-") + " | "
                  + (f"{ld.j_per_token:.4f}" if ld.j_per_token is not None else "-")
                  + f" | {ld.window_source} |")
+
     L.append("")
     if stats:
         L.append("## Statistiche")
@@ -550,6 +799,18 @@ def generate_report(config: ExperimentConfig, records: List[RunRecord],
         L.append(f"- Intervallo campioni PI: dichiarato "
                  f"{stats.pi_interval_declared_s} s, **misurato "
                  f"{stats.pi_interval_measured_s} s**")
+        L.append(f"- Deriva della baseline nel run (BASE_B - BASE_A): media "
+                 f"{stats.deriva_baseline_mean_w} W, |massimo| "
+                 f"{stats.deriva_baseline_max_w} W")
+        if stats.prefill_ms_per_token is not None:
+            L.append(f"- Geometria di fase: {stats.tokens_in_mean} token di input "
+                     f"medi, prefill {stats.prefill_ms_per_token:.2f} ms/token, "
+                     f"decode {stats.decoding_ms_per_token:.2f} ms/token, "
+                     f"rapporto mediano **{stats.ratio_fasi_mediano}** "
+                     "(conferma TEMPORALE del claim 'ordine di grandezza'; i joule "
+                     "di fase restano non separati)")
+        L.append(f"- keep_alive inviato: `{stats.keep_alive}` | EMI leggibile: "
+                 f"{stats.emi_available}")
         L.append("")
         L.append("## Limiti dichiarati")
         L.append("")
@@ -562,6 +823,14 @@ def generate_report(config: ExperimentConfig, records: List[RunRecord],
         L.append("3. P_base A-B-A cattura il sistema con modello Ollama "
                  "residente: la baseline e' 'warm idle', condizione coerente "
                  "col benchmark ma da dichiarare.")
+        L.append("4. La cadenza reale del thread di integrazione non e' quella "
+                 "dichiarata: se l'intervallo misurato supera la tolerance di "
+                 "pi_window_energy_j (0,1 s) il percorso exact-counter degrada a "
+                 "fallback, e questo cambia la natura della lettura di finestra.")
+        L.append("5. Il carico concorrente esterno al protocollo (antivirus, "
+                 "indicizzazione) non e' eliminabile: viene registrato nel campo "
+                 "top_processes per rendere il run leggibile, non ripetibile per magia.")
+
     out_path.parent.mkdir(parents=True, exist_ok=True)
     out_path.write_text("\n".join(L), encoding="utf-8")
     print(f"[OK] Report: {out_path}")
@@ -627,6 +896,12 @@ def main():
             print(f"J/token:       {stats.j_token_mean:.4f}  "
                   f"(CV {stats.j_token_cv_pct}%, "
                   f"IC95 [{stats.j_token_ci95[0]:.4f}, {stats.j_token_ci95[1]:.4f}])")
+        print(f"Deriva baseline: {stats.deriva_baseline_mean_w} W "
+              f"(|max| {stats.deriva_baseline_max_w} W)")
+        if stats.ratio_fasi_mediano is not None:
+            print(f"Fasi:            prefill {stats.prefill_ms_per_token:.2f} "
+                  f"ms/tok, decode {stats.decoding_ms_per_token:.2f} ms/tok, "
+                  f"ratio {stats.ratio_fasi_mediano}")
 
 
 if __name__ == "__main__":
