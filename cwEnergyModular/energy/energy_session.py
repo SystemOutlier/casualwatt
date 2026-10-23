@@ -816,14 +816,29 @@ class _CPUJouleSource:
                     s for sub in (list(getattr(hw, "SubHardware", []) or [])) for s in sub.Sensors
                 ]:
                     try:
-                        if sensor is sel or str(sensor.Name) == self._pi_sensor_name:
-                            raw = sensor.Value
-                            if raw is None:
-                                return None
-                            val = float(raw)
-                            if val != val or val < 0:
-                                return None
-                            return val
+                        # Match per IDENTITA' dell'oggetto selezionato, oppure per
+                        # nome ESATTAMENTE coincidente MA solo se il sensore e'
+                        # di tipo Power. Senza il guard sul tipo il confronto per
+                        # nome cadeva sul primo omonimo: LibreHardwareMonitor
+                        # espone un sensore Temperatura chiamato "CPU Package"
+                        # (IntelCpu.cs:401) PRIMA dell'omonimo Power (:480), e
+                        # _pi_loop() integrava gradi·celsius come joule.
+                        # Misurato 23/10: esperiment_results/
+                        # lhm_readpath_probe_20261023_132621.csv — lettura di
+                        # produzione 64/68/67 "W" (°C) contro 9,37/18,78/11,37 W
+                        # del sensore Power reale.
+                        if sensor is not sel and not (
+                            str(sensor.Name) == self._pi_sensor_name
+                            and self._lhm_sensor_type_name(sensor).strip().lower() == "power"
+                        ):
+                            continue
+                        raw = sensor.Value
+                        if raw is None:
+                            return None
+                        val = float(raw)
+                        if val != val or val < 0:
+                            return None
+                        return val
                     except Exception:
                         continue
         except Exception as exc:
