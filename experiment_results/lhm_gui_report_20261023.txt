@@ -1,0 +1,3238 @@
+
+LibreHardwareMonitor Report
+
+--------------------------------------------------------------------------------
+
+Version: 0.9.6.0
+
+--------------------------------------------------------------------------------
+
+Common Language Runtime: 10.0.13
+Operating System: Microsoft Windows NT 10.0.26200.0
+Process Type: 64-Bit
+
+--------------------------------------------------------------------------------
+
+Sensors
+
+|
++- Mini IT13 (/motherboard)
+|
++- 13th Gen Intel Core i9-13900HK (/intelcpu/0)
+|  +- CPU Core       : 0.997925 0.612183  1.19495 (/intelcpu/0/voltage/0)
+|  +- P-Core #1      : 0.997925 0.630005  1.18884 (/intelcpu/0/voltage/1)
+|  +- P-Core #2      : 0.983032 0.621826  1.21997 (/intelcpu/0/voltage/2)
+|  +- P-Core #3      : 0.968018  0.63269   1.2738 (/intelcpu/0/voltage/3)
+|  +- P-Core #4      : 0.983032 0.627319  1.13892 (/intelcpu/0/voltage/4)
+|  +- P-Core #5      : 0.997925 0.627319  1.22815 (/intelcpu/0/voltage/5)
+|  +- P-Core #6      : 0.983032 0.633911  1.24377 (/intelcpu/0/voltage/6)
+|  +- E-Core #1      : 0.987915 0.624512  1.27148 (/intelcpu/0/voltage/7)
+|  +- E-Core #2      : 0.980713  0.62854  1.24878 (/intelcpu/0/voltage/8)
+|  +- E-Core #3      :  0.97583  0.62854  1.24878 (/intelcpu/0/voltage/9)
+|  +- E-Core #4      : 0.955811 0.621948  1.26379 (/intelcpu/0/voltage/10)
+|  +- E-Core #5      : 0.960815 0.624512  1.26648 (/intelcpu/0/voltage/11)
+|  +- E-Core #6      :  0.96582 0.627686   1.2688 (/intelcpu/0/voltage/12)
+|  +- E-Core #7      : 0.955811 0.633667  1.28638 (/intelcpu/0/voltage/13)
+|  +- E-Core #8      : 0.955811 0.633301  1.28381 (/intelcpu/0/voltage/14)
+|  +- CPU Package    :  13.9577  6.83624  44.0328 (/intelcpu/0/power/0)
+|  +- CPU Cores      :  7.28741  2.00686  38.7062 (/intelcpu/0/power/1)
+|  +- CPU Memory     :        0        0        0 (/intelcpu/0/power/3)
+|  +- CPU Platform   : 0.325832 0.297399 0.339063 (/intelcpu/0/power/4)
+|  +- Bus Speed      :    99.84  99.8305  99.8549 (/intelcpu/0/clock/0)
+|  +- P-Core #1      :  2595.84  399.359   4492.8 (/intelcpu/0/clock/1)
+|  +- P-Core #2      :  1198.08   399.36   4492.8 (/intelcpu/0/clock/2)
+|  +- P-Core #3      :   798.72  399.359   4492.8 (/intelcpu/0/clock/3)
+|  +- P-Core #4      :   2995.2   399.36   4492.8 (/intelcpu/0/clock/4)
+|  +- P-Core #5      :  3394.56   399.36   4492.8 (/intelcpu/0/clock/5)
+|  +- P-Core #6      :  2595.84   399.36   4492.8 (/intelcpu/0/clock/6)
+|  +- E-Core #1      :  2795.52   399.36  3095.07 (/intelcpu/0/clock/7)
+|  +- E-Core #2      :   1497.6   599.04  3095.07 (/intelcpu/0/clock/8)
+|  +- E-Core #3      :  2396.16  698.879  3095.05 (/intelcpu/0/clock/9)
+|  +- E-Core #4      :  1896.96  698.879   3494.4 (/intelcpu/0/clock/10)
+|  +- E-Core #5      :  2396.16   399.36  3095.06 (/intelcpu/0/clock/11)
+|  +- E-Core #6      :     2496   599.04  3095.06 (/intelcpu/0/clock/12)
+|  +- E-Core #7      :  2396.16   599.04  3893.76 (/intelcpu/0/clock/13)
+|  +- E-Core #8      :  2595.84   399.36  3394.56 (/intelcpu/0/clock/14)
+|  +- Core Max       :       58       52      100 (/intelcpu/0/temperature/0)
+|  +- Core Average   :  56.0714  48.6429     82.5 (/intelcpu/0/temperature/1)
+|  +- P-Core #1      :       57       47       86 (/intelcpu/0/temperature/2)
+|  +- P-Core #2      :       58       45       94 (/intelcpu/0/temperature/3)
+|  +- P-Core #3      :       56       46       80 (/intelcpu/0/temperature/4)
+|  +- P-Core #4      :       55       45      100 (/intelcpu/0/temperature/5)
+|  +- P-Core #5      :       53       45       85 (/intelcpu/0/temperature/6)
+|  +- P-Core #6      :       54       41      100 (/intelcpu/0/temperature/7)
+|  +- E-Core #1      :       58       51       78 (/intelcpu/0/temperature/8)
+|  +- E-Core #2      :       58       51       78 (/intelcpu/0/temperature/9)
+|  +- E-Core #3      :       57       51       78 (/intelcpu/0/temperature/10)
+|  +- E-Core #4      :       57       51       80 (/intelcpu/0/temperature/11)
+|  +- E-Core #5      :       56       48       97 (/intelcpu/0/temperature/12)
+|  +- E-Core #6      :       56       48       97 (/intelcpu/0/temperature/13)
+|  +- E-Core #7      :       55       48       97 (/intelcpu/0/temperature/14)
+|  +- E-Core #8      :       55       49       98 (/intelcpu/0/temperature/15)
+|  +- CPU Package    :       68       59      100 (/intelcpu/0/temperature/16)
+|  +- P-Core #1 Distance to TjMax :       43       14       53 (/intelcpu/0/temperature/17)
+|  +- P-Core #2 Distance to TjMax :       42        6       55 (/intelcpu/0/temperature/18)
+|  +- P-Core #3 Distance to TjMax :       44       20       54 (/intelcpu/0/temperature/19)
+|  +- P-Core #4 Distance to TjMax :       45        0       55 (/intelcpu/0/temperature/20)
+|  +- P-Core #5 Distance to TjMax :       47       15       55 (/intelcpu/0/temperature/21)
+|  +- P-Core #6 Distance to TjMax :       46        0       59 (/intelcpu/0/temperature/22)
+|  +- E-Core #1 Distance to TjMax :       42       22       49 (/intelcpu/0/temperature/23)
+|  +- E-Core #2 Distance to TjMax :       42       22       49 (/intelcpu/0/temperature/24)
+|  +- E-Core #3 Distance to TjMax :       43       22       49 (/intelcpu/0/temperature/25)
+|  +- E-Core #4 Distance to TjMax :       43       20       49 (/intelcpu/0/temperature/26)
+|  +- E-Core #5 Distance to TjMax :       44        3       52 (/intelcpu/0/temperature/27)
+|  +- E-Core #6 Distance to TjMax :       44        3       52 (/intelcpu/0/temperature/28)
+|  +- E-Core #7 Distance to TjMax :       45        3       52 (/intelcpu/0/temperature/29)
+|  +- E-Core #8 Distance to TjMax :       45        2       51 (/intelcpu/0/temperature/30)
+|  +- CPU Total      :    26.36     4.75    92.27 (/intelcpu/0/load/0)
+|  +- CPU Core Max   :    54.69    20.31      100 (/intelcpu/0/load/1)
+|  +- CPU Core #1 Thread #1 :    31.25        0    95.31 (/intelcpu/0/load/2)
+|  +- CPU Core #1 Thread #2 :     4.76        0    98.44 (/intelcpu/0/load/3)
+|  +- CPU Core #2 Thread #1 :    54.69        0    98.44 (/intelcpu/0/load/4)
+|  +- CPU Core #2 Thread #2 :       50        0    98.46 (/intelcpu/0/load/5)
+|  +- CPU Core #3 Thread #1 :    31.25        0      100 (/intelcpu/0/load/6)
+|  +- CPU Core #3 Thread #2 :    17.19        0    98.48 (/intelcpu/0/load/7)
+|  +- CPU Core #4 Thread #1 :    23.44        0      100 (/intelcpu/0/load/8)
+|  +- CPU Core #4 Thread #2 :     1.59        0      100 (/intelcpu/0/load/9)
+|  +- CPU Core #5 Thread #1 :    23.44        0      100 (/intelcpu/0/load/10)
+|  +- CPU Core #5 Thread #2 :        0        0      100 (/intelcpu/0/load/11)
+|  +- CPU Core #6 Thread #1 :    28.12        0      100 (/intelcpu/0/load/12)
+|  +- CPU Core #6 Thread #2 :        0        0      100 (/intelcpu/0/load/13)
+|  +- CPU Core #7    :    28.12        0      100 (/intelcpu/0/load/14)
+|  +- CPU Core #8    :    30.16        0      100 (/intelcpu/0/load/15)
+|  +- CPU Core #9    :    32.81        0      100 (/intelcpu/0/load/16)
+|  +- CPU Core #10   :    23.44        0      100 (/intelcpu/0/load/17)
+|  +- CPU Core #11   :    32.81        0      100 (/intelcpu/0/load/18)
+|  +- CPU Core #12   :    42.19        0      100 (/intelcpu/0/load/19)
+|  +- CPU Core #13   :    32.81        0      100 (/intelcpu/0/load/20)
+|  +- CPU Core #14   :    39.06        0      100 (/intelcpu/0/load/21)
+|
++- Virtual Memory (/vram)
+|  +- Memory         :  93.2829  76.2262  97.5582 (/vram/load/1)
+|  +- Memory Used    :  31.4381  25.6896  32.8789 (/vram/data/2)
+|  +- Memory Available :  2.26377 0.822945  8.01221 (/vram/data/3)
+|
++- Total Memory (/ram)
+|  +- Memory         :  71.6538  56.0721  76.4875 (/ram/load/0)
+|  +- Memory Used    :  22.7156  17.7759  24.2479 (/ram/data/0)
+|  +- Memory Available :  8.98626   7.4539  13.9259 (/ram/data/1)
+|
++- Shenzhen WODPOSIT Technology Co - WPBH32D408SWM-16G (#0) (/memory/dimm/0)
+|  +- Capacity       :       32       32       32 (/memory/dimm/0/data/50)
+|  +- tCKAVGmin (Minimum Cycle Time) :    0.625    0.625    0.625 (/memory/dimm/0/timing/20)
+|  +- tCKAVGmax (Maximum Cycle Time) :      1.6      1.6      1.6 (/memory/dimm/0/timing/21)
+|  +- tAA (CAS Latency Time) :    13.75    13.75    13.75 (/memory/dimm/0/timing/22)
+|  +- tRCD (RAS to CAS Delay Time) :    13.75    13.75    13.75 (/memory/dimm/0/timing/23)
+|  +- tRP (Row Precharge Delay Time) :    13.75    13.75    13.75 (/memory/dimm/0/timing/24)
+|  +- tRAS (Active to Precharge Delay Time) :       32       32       32 (/memory/dimm/0/timing/25)
+|  +- tRC (Active to Active/Refresh Delay Time) :    45.75    45.75    45.75 (/memory/dimm/0/timing/26)
+|  +- tRFC1 (Refresh Recovery Delay Time) :      350      350      350 (/memory/dimm/0/timing/27)
+|  +- tRFC2 (Refresh Recovery Delay Time) :      260      260      260 (/memory/dimm/0/timing/28)
+|  +- tRFC4 (Refresh Recovery Delay Time) :      160      160      160 (/memory/dimm/0/timing/29)
+|  +- tFAW (Four Activate Window Time) :       21       21       21 (/memory/dimm/0/timing/30)
+|  +- tRRD_S (Activate to Activate Delay Time) :      2.5      2.5      2.5 (/memory/dimm/0/timing/31)
+|  +- tRRD_L (Activate to Activate Delay Time) :      4.9      4.9      4.9 (/memory/dimm/0/timing/32)
+|  +- tCCD_L (CAS to CAS Delay Time) :        5        5        5 (/memory/dimm/0/timing/33)
+|  +- tWR (Write Recovery Time) :       15       15       15 (/memory/dimm/0/timing/34)
+|  +- tWTR_S (Write to Read Time) :      2.5      2.5      2.5 (/memory/dimm/0/timing/35)
+|  +- tWTR_L (Write to Read Time) :      7.5      7.5      7.5 (/memory/dimm/0/timing/36)
+|
++- Shenzhen WODPOSIT Technology Co - WPBH32D408SWM-16G (#2) (/memory/dimm/2)
+|  +- Capacity       :       32       32       32 (/memory/dimm/2/data/50)
+|  +- tCKAVGmin (Minimum Cycle Time) :    0.625    0.625    0.625 (/memory/dimm/2/timing/20)
+|  +- tCKAVGmax (Maximum Cycle Time) :      1.6      1.6      1.6 (/memory/dimm/2/timing/21)
+|  +- tAA (CAS Latency Time) :    13.75    13.75    13.75 (/memory/dimm/2/timing/22)
+|  +- tRCD (RAS to CAS Delay Time) :    13.75    13.75    13.75 (/memory/dimm/2/timing/23)
+|  +- tRP (Row Precharge Delay Time) :    13.75    13.75    13.75 (/memory/dimm/2/timing/24)
+|  +- tRAS (Active to Precharge Delay Time) :       32       32       32 (/memory/dimm/2/timing/25)
+|  +- tRC (Active to Active/Refresh Delay Time) :    45.75    45.75    45.75 (/memory/dimm/2/timing/26)
+|  +- tRFC1 (Refresh Recovery Delay Time) :      350      350      350 (/memory/dimm/2/timing/27)
+|  +- tRFC2 (Refresh Recovery Delay Time) :      260      260      260 (/memory/dimm/2/timing/28)
+|  +- tRFC4 (Refresh Recovery Delay Time) :      160      160      160 (/memory/dimm/2/timing/29)
+|  +- tFAW (Four Activate Window Time) :       21       21       21 (/memory/dimm/2/timing/30)
+|  +- tRRD_S (Activate to Activate Delay Time) :      2.5      2.5      2.5 (/memory/dimm/2/timing/31)
+|  +- tRRD_L (Activate to Activate Delay Time) :      4.9      4.9      4.9 (/memory/dimm/2/timing/32)
+|  +- tCCD_L (CAS to CAS Delay Time) :        5        5        5 (/memory/dimm/2/timing/33)
+|  +- tWR (Write Recovery Time) :       15       15       15 (/memory/dimm/2/timing/34)
+|  +- tWTR_S (Write to Read Time) :      2.5      2.5      2.5 (/memory/dimm/2/timing/35)
+|  +- tWTR_L (Write to Read Time) :      7.5      7.5      7.5 (/memory/dimm/2/timing/36)
+|
++- Intel(R) Iris(R) Xe Graphics (/gpu-intel-integrated/%5C%5C%3F%5CPCI%23VEN_8086%26DEV_A7A0%26SUBSYS_00000000%26REV_04%233%2611583659%260%2610%23%7B1ca05180-a699-450a-9a0c-de4fbe3ddd89%7D)
+|  +- GPU Core       :    0.222     0.21    0.425 (/gpu-intel-integrated/%5C%5C%3F%5CPCI%23VEN_8086%26DEV_A7A0%26SUBSYS_00000000%26REV_04%233%2611583659%260%2610%23%7B1ca05180-a699-450a-9a0c-de4fbe3ddd89%7D/voltage/0)
+|  +- GPU Power      :  0.60822 0.00800966  2.37256 (/gpu-intel-integrated/%5C%5C%3F%5CPCI%23VEN_8086%26DEV_A7A0%26SUBSYS_00000000%26REV_04%233%2611583659%260%2610%23%7B1ca05180-a699-450a-9a0c-de4fbe3ddd89%7D/power/0)
+|  +- GPU Core       :      300      100     1500 (/gpu-intel-integrated/%5C%5C%3F%5CPCI%23VEN_8086%26DEV_A7A0%26SUBSYS_00000000%26REV_04%233%2611583659%260%2610%23%7B1ca05180-a699-450a-9a0c-de4fbe3ddd89%7D/clock/0)
+|  +- D3D            :        0        0        0 (/gpu-intel-integrated/%5C%5C%3F%5CPCI%23VEN_8086%26DEV_A7A0%26SUBSYS_00000000%26REV_04%233%2611583659%260%2610%23%7B1ca05180-a699-450a-9a0c-de4fbe3ddd89%7D/load/0)
+|  +- D3D            :        0        0        0 (/gpu-intel-integrated/%5C%5C%3F%5CPCI%23VEN_8086%26DEV_A7A0%26SUBSYS_00000000%26REV_04%233%2611583659%260%2610%23%7B1ca05180-a699-450a-9a0c-de4fbe3ddd89%7D/load/1)
+|  +- D3D            :        0        0        0 (/gpu-intel-integrated/%5C%5C%3F%5CPCI%23VEN_8086%26DEV_A7A0%26SUBSYS_00000000%26REV_04%233%2611583659%260%2610%23%7B1ca05180-a699-450a-9a0c-de4fbe3ddd89%7D/load/2)
+|  +- D3D            :        0        0        0 (/gpu-intel-integrated/%5C%5C%3F%5CPCI%23VEN_8086%26DEV_A7A0%26SUBSYS_00000000%26REV_04%233%2611583659%260%2610%23%7B1ca05180-a699-450a-9a0c-de4fbe3ddd89%7D/load/3)
+|  +- D3D            :        0        0        0 (/gpu-intel-integrated/%5C%5C%3F%5CPCI%23VEN_8086%26DEV_A7A0%26SUBSYS_00000000%26REV_04%233%2611583659%260%2610%23%7B1ca05180-a699-450a-9a0c-de4fbe3ddd89%7D/load/4)
+|  +- D3D            :        0        0        0 (/gpu-intel-integrated/%5C%5C%3F%5CPCI%23VEN_8086%26DEV_A7A0%26SUBSYS_00000000%26REV_04%233%2611583659%260%2610%23%7B1ca05180-a699-450a-9a0c-de4fbe3ddd89%7D/load/5)
+|  +- D3D            :        0        0        0 (/gpu-intel-integrated/%5C%5C%3F%5CPCI%23VEN_8086%26DEV_A7A0%26SUBSYS_00000000%26REV_04%233%2611583659%260%2610%23%7B1ca05180-a699-450a-9a0c-de4fbe3ddd89%7D/load/6)
+|  +- D3D 3D         :  72.5501  2.49709  95.0887 (/gpu-intel-integrated/%5C%5C%3F%5CPCI%23VEN_8086%26DEV_A7A0%26SUBSYS_00000000%26REV_04%233%2611583659%260%2610%23%7B1ca05180-a699-450a-9a0c-de4fbe3ddd89%7D/load/7)
+|  +- D3D Copy       :        0        0        0 (/gpu-intel-integrated/%5C%5C%3F%5CPCI%23VEN_8086%26DEV_A7A0%26SUBSYS_00000000%26REV_04%233%2611583659%260%2610%23%7B1ca05180-a699-450a-9a0c-de4fbe3ddd89%7D/load/8)
+|  +- D3D Overlay    :        0        0        0 (/gpu-intel-integrated/%5C%5C%3F%5CPCI%23VEN_8086%26DEV_A7A0%26SUBSYS_00000000%26REV_04%233%2611583659%260%2610%23%7B1ca05180-a699-450a-9a0c-de4fbe3ddd89%7D/load/9)
+|  +- D3D Video Decode :        0        0  19.6942 (/gpu-intel-integrated/%5C%5C%3F%5CPCI%23VEN_8086%26DEV_A7A0%26SUBSYS_00000000%26REV_04%233%2611583659%260%2610%23%7B1ca05180-a699-450a-9a0c-de4fbe3ddd89%7D/load/10)
+|  +- D3D Video Decode :        0        0  47.6657 (/gpu-intel-integrated/%5C%5C%3F%5CPCI%23VEN_8086%26DEV_A7A0%26SUBSYS_00000000%26REV_04%233%2611583659%260%2610%23%7B1ca05180-a699-450a-9a0c-de4fbe3ddd89%7D/load/11)
+|  +- D3D Video Processing :        0        0   7.3687 (/gpu-intel-integrated/%5C%5C%3F%5CPCI%23VEN_8086%26DEV_A7A0%26SUBSYS_00000000%26REV_04%233%2611583659%260%2610%23%7B1ca05180-a699-450a-9a0c-de4fbe3ddd89%7D/load/12)
+|  +- D3D Shared Memory Used :  2012.11  1406.58   2566.7 (/gpu-intel-integrated/%5C%5C%3F%5CPCI%23VEN_8086%26DEV_A7A0%26SUBSYS_00000000%26REV_04%233%2611583659%260%2610%23%7B1ca05180-a699-450a-9a0c-de4fbe3ddd89%7D/smalldata/0)
+|  +- D3D Shared Memory Free :  14216.3  13664.6  14824.8 (/gpu-intel-integrated/%5C%5C%3F%5CPCI%23VEN_8086%26DEV_A7A0%26SUBSYS_00000000%26REV_04%233%2611583659%260%2610%23%7B1ca05180-a699-450a-9a0c-de4fbe3ddd89%7D/smalldata/1)
+|  +- D3D Shared Memory Total :  16231.3  16231.3  16231.3 (/gpu-intel-integrated/%5C%5C%3F%5CPCI%23VEN_8086%26DEV_A7A0%26SUBSYS_00000000%26REV_04%233%2611583659%260%2610%23%7B1ca05180-a699-450a-9a0c-de4fbe3ddd89%7D/smalldata/2)
+|
++- Lexar SSD NQ7A1 1TB (/nvme/0)
+|  +- Composite Temperature :       57        0       61 (/nvme/0/temperature/0)
+|  +- Temperature #1 :    56.85        0    60.85 (/nvme/0/temperature/1)
+|  +- Temperature #2 :    10.85        0    68.85 (/nvme/0/temperature/2)
+|  +- Warning Temperature :       89        0       89 (/nvme/0/temperature/10)
+|  +- Critical Temperature :       94        0       94 (/nvme/0/temperature/11)
+|  +- Used Space     :  38.1341  37.9744  38.3111 (/nvme/0/load/30)
+|  +- Read Activity  :        0        0      100 (/nvme/0/load/51)
+|  +- Write Activity : 0.684554        0  79.0766 (/nvme/0/load/52)
+|  +- Total Activity : 0.392912        0  99.9978 (/nvme/0/load/53)
+|  +- Life           :       97        0       97 (/nvme/0/level/20)
+|  +- Available Spare :      100        0      100 (/nvme/0/level/100)
+|  +- Available Spare Threshold :        1        0        1 (/nvme/0/level/101)
+|  +- Percentage Used :        3        0        3 (/nvme/0/level/102)
+|  +- Power On Count :      604        0      604 (/nvme/0/factor/23)
+|  +- Power On Hours :      621        0      621 (/nvme/0/factor/24)
+|  +- Data Read      :     7069        0     7069 (/nvme/0/data/21)
+|  +- Data Written   :     8250        0     8250 (/nvme/0/data/22)
+|  +- Free Space     :  633.636  631.824  635.272 (/nvme/0/data/31)
+|  +- Total Space    :  1024.21  1024.21  1024.21 (/nvme/0/data/32)
+|  +- Read Rate      :        0        0 1.04867E+08 (/nvme/0/throughput/54)
+|  +- Write Rate     :  57445.1        0 7.01399E+08 (/nvme/0/throughput/55)
+|
++- Connessione alla rete locale (LAN)* 10 (/nic/%7B582B2AE6-27DD-4B51-8FBA-6BD04AE48DDF%7D)
+|  +- Network Utilization :        0        0        0 (/nic/%7B582B2AE6-27DD-4B51-8FBA-6BD04AE48DDF%7D/load/1)
+|  +- Data Uploaded  :        0        0        0 (/nic/%7B582B2AE6-27DD-4B51-8FBA-6BD04AE48DDF%7D/data/2)
+|  +- Data Downloaded :        0        0        0 (/nic/%7B582B2AE6-27DD-4B51-8FBA-6BD04AE48DDF%7D/data/3)
+|  +- Upload Speed   :        0        0        0 (/nic/%7B582B2AE6-27DD-4B51-8FBA-6BD04AE48DDF%7D/throughput/7)
+|  +- Download Speed :        0        0        0 (/nic/%7B582B2AE6-27DD-4B51-8FBA-6BD04AE48DDF%7D/throughput/8)
+|
++- Connessione alla rete locale (LAN)* 10-Native WiFi Filter Driver-0000 (/nic/%7BFB68BBA1-23D6-11F0-A93A-CC4740ECDF93%7D)
+|  +- Network Utilization :        0        0        0 (/nic/%7BFB68BBA1-23D6-11F0-A93A-CC4740ECDF93%7D/load/1)
+|  +- Data Uploaded  :        0        0        0 (/nic/%7BFB68BBA1-23D6-11F0-A93A-CC4740ECDF93%7D/data/2)
+|  +- Data Downloaded :        0        0        0 (/nic/%7BFB68BBA1-23D6-11F0-A93A-CC4740ECDF93%7D/data/3)
+|  +- Upload Speed   :        0        0        0 (/nic/%7BFB68BBA1-23D6-11F0-A93A-CC4740ECDF93%7D/throughput/7)
+|  +- Download Speed :        0        0        0 (/nic/%7BFB68BBA1-23D6-11F0-A93A-CC4740ECDF93%7D/throughput/8)
+|
++- Connessione alla rete locale (LAN)* 10-QoS Packet Scheduler-0000 (/nic/%7B102139C5-C8D9-11F1-A9BA-50BBB5A55A7B%7D)
+|  +- Network Utilization :        0        0        0 (/nic/%7B102139C5-C8D9-11F1-A9BA-50BBB5A55A7B%7D/load/1)
+|  +- Data Uploaded  :        0        0        0 (/nic/%7B102139C5-C8D9-11F1-A9BA-50BBB5A55A7B%7D/data/2)
+|  +- Data Downloaded :        0        0        0 (/nic/%7B102139C5-C8D9-11F1-A9BA-50BBB5A55A7B%7D/data/3)
+|  +- Upload Speed   :        0        0        0 (/nic/%7B102139C5-C8D9-11F1-A9BA-50BBB5A55A7B%7D/throughput/7)
+|  +- Download Speed :        0        0        0 (/nic/%7B102139C5-C8D9-11F1-A9BA-50BBB5A55A7B%7D/throughput/8)
+|
++- Connessione alla rete locale (LAN)* 10-VirtualBox NDIS Light-Weight Filter-0000 (/nic/%7B0D915A4F-9199-11F1-A99C-50BBB5A55A7B%7D)
+|  +- Network Utilization :        0        0        0 (/nic/%7B0D915A4F-9199-11F1-A99C-50BBB5A55A7B%7D/load/1)
+|  +- Data Uploaded  :        0        0        0 (/nic/%7B0D915A4F-9199-11F1-A99C-50BBB5A55A7B%7D/data/2)
+|  +- Data Downloaded :        0        0        0 (/nic/%7B0D915A4F-9199-11F1-A99C-50BBB5A55A7B%7D/data/3)
+|  +- Upload Speed   :        0        0        0 (/nic/%7B0D915A4F-9199-11F1-A99C-50BBB5A55A7B%7D/throughput/7)
+|  +- Download Speed :        0        0        0 (/nic/%7B0D915A4F-9199-11F1-A99C-50BBB5A55A7B%7D/throughput/8)
+|
++- Connessione alla rete locale (LAN)* 10-WFP 802.3 MAC Layer LightWeight Filter-0000 (/nic/%7B102139C6-C8D9-11F1-A9BA-50BBB5A55A7B%7D)
+|  +- Network Utilization :        0        0        0 (/nic/%7B102139C6-C8D9-11F1-A9BA-50BBB5A55A7B%7D/load/1)
+|  +- Data Uploaded  :        0        0        0 (/nic/%7B102139C6-C8D9-11F1-A9BA-50BBB5A55A7B%7D/data/2)
+|  +- Data Downloaded :        0        0        0 (/nic/%7B102139C6-C8D9-11F1-A9BA-50BBB5A55A7B%7D/data/3)
+|  +- Upload Speed   :        0        0        0 (/nic/%7B102139C6-C8D9-11F1-A9BA-50BBB5A55A7B%7D/throughput/7)
+|  +- Download Speed :        0        0        0 (/nic/%7B102139C6-C8D9-11F1-A9BA-50BBB5A55A7B%7D/throughput/8)
+|
++- Connessione alla rete locale (LAN)* 10-WFP Native MAC Layer LightWeight Filter-0000 (/nic/%7B102139C4-C8D9-11F1-A9BA-50BBB5A55A7B%7D)
+|  +- Network Utilization :        0        0        0 (/nic/%7B102139C4-C8D9-11F1-A9BA-50BBB5A55A7B%7D/load/1)
+|  +- Data Uploaded  :        0        0        0 (/nic/%7B102139C4-C8D9-11F1-A9BA-50BBB5A55A7B%7D/data/2)
+|  +- Data Downloaded :        0        0        0 (/nic/%7B102139C4-C8D9-11F1-A9BA-50BBB5A55A7B%7D/data/3)
+|  +- Upload Speed   :        0        0        0 (/nic/%7B102139C4-C8D9-11F1-A9BA-50BBB5A55A7B%7D/throughput/7)
+|  +- Download Speed :        0        0        0 (/nic/%7B102139C4-C8D9-11F1-A9BA-50BBB5A55A7B%7D/throughput/8)
+|
++- Connessione alla rete locale (LAN)* 5 (/nic/%7B876CCE7C-7663-4ECD-BB07-9F4798437F72%7D)
+|  +- Network Utilization :        0        0        0 (/nic/%7B876CCE7C-7663-4ECD-BB07-9F4798437F72%7D/load/1)
+|  +- Data Uploaded  :        0        0        0 (/nic/%7B876CCE7C-7663-4ECD-BB07-9F4798437F72%7D/data/2)
+|  +- Data Downloaded :        0        0        0 (/nic/%7B876CCE7C-7663-4ECD-BB07-9F4798437F72%7D/data/3)
+|  +- Upload Speed   :        0        0        0 (/nic/%7B876CCE7C-7663-4ECD-BB07-9F4798437F72%7D/throughput/7)
+|  +- Download Speed :        0        0        0 (/nic/%7B876CCE7C-7663-4ECD-BB07-9F4798437F72%7D/throughput/8)
+|
++- Connessione alla rete locale (LAN)* 6 (/nic/%7BF569A294-E9A4-4D1C-A2A2-867992AB2333%7D)
+|  +- Network Utilization :        0        0        0 (/nic/%7BF569A294-E9A4-4D1C-A2A2-867992AB2333%7D/load/1)
+|  +- Data Uploaded  :        0        0        0 (/nic/%7BF569A294-E9A4-4D1C-A2A2-867992AB2333%7D/data/2)
+|  +- Data Downloaded :        0        0        0 (/nic/%7BF569A294-E9A4-4D1C-A2A2-867992AB2333%7D/data/3)
+|  +- Upload Speed   :        0        0        0 (/nic/%7BF569A294-E9A4-4D1C-A2A2-867992AB2333%7D/throughput/7)
+|  +- Download Speed :        0        0        0 (/nic/%7BF569A294-E9A4-4D1C-A2A2-867992AB2333%7D/throughput/8)
+|
++- Connessione alla rete locale (LAN)* 6-QoS Packet Scheduler-0000 (/nic/%7B10213D03-C8D9-11F1-A9BA-50BBB5A55A7B%7D)
+|  +- Network Utilization :        0        0        0 (/nic/%7B10213D03-C8D9-11F1-A9BA-50BBB5A55A7B%7D/load/1)
+|  +- Data Uploaded  :        0        0        0 (/nic/%7B10213D03-C8D9-11F1-A9BA-50BBB5A55A7B%7D/data/2)
+|  +- Data Downloaded :        0        0        0 (/nic/%7B10213D03-C8D9-11F1-A9BA-50BBB5A55A7B%7D/data/3)
+|  +- Upload Speed   :        0        0        0 (/nic/%7B10213D03-C8D9-11F1-A9BA-50BBB5A55A7B%7D/throughput/7)
+|  +- Download Speed :        0        0        0 (/nic/%7B10213D03-C8D9-11F1-A9BA-50BBB5A55A7B%7D/throughput/8)
+|
++- Connessione alla rete locale (LAN)* 6-WFP Native MAC Layer LightWeight Filter-0000 (/nic/%7B10213D02-C8D9-11F1-A9BA-50BBB5A55A7B%7D)
+|  +- Network Utilization :        0        0        0 (/nic/%7B10213D02-C8D9-11F1-A9BA-50BBB5A55A7B%7D/load/1)
+|  +- Data Uploaded  :        0        0        0 (/nic/%7B10213D02-C8D9-11F1-A9BA-50BBB5A55A7B%7D/data/2)
+|  +- Data Downloaded :        0        0        0 (/nic/%7B10213D02-C8D9-11F1-A9BA-50BBB5A55A7B%7D/data/3)
+|  +- Upload Speed   :        0        0        0 (/nic/%7B10213D02-C8D9-11F1-A9BA-50BBB5A55A7B%7D/throughput/7)
+|  +- Download Speed :        0        0        0 (/nic/%7B10213D02-C8D9-11F1-A9BA-50BBB5A55A7B%7D/throughput/8)
+|
++- Connessione alla rete locale (LAN)* 7 (/nic/%7BF79BFB85-D604-4491-BC80-8ECE25035719%7D)
+|  +- Network Utilization :        0        0        0 (/nic/%7BF79BFB85-D604-4491-BC80-8ECE25035719%7D/load/1)
+|  +- Data Uploaded  :        0        0        0 (/nic/%7BF79BFB85-D604-4491-BC80-8ECE25035719%7D/data/2)
+|  +- Data Downloaded :        0        0        0 (/nic/%7BF79BFB85-D604-4491-BC80-8ECE25035719%7D/data/3)
+|  +- Upload Speed   :        0        0        0 (/nic/%7BF79BFB85-D604-4491-BC80-8ECE25035719%7D/throughput/7)
+|  +- Download Speed :        0        0        0 (/nic/%7BF79BFB85-D604-4491-BC80-8ECE25035719%7D/throughput/8)
+|
++- Connessione alla rete locale (LAN)* 7-QoS Packet Scheduler-0000 (/nic/%7B10213D05-C8D9-11F1-A9BA-50BBB5A55A7B%7D)
+|  +- Network Utilization :        0        0        0 (/nic/%7B10213D05-C8D9-11F1-A9BA-50BBB5A55A7B%7D/load/1)
+|  +- Data Uploaded  :        0        0        0 (/nic/%7B10213D05-C8D9-11F1-A9BA-50BBB5A55A7B%7D/data/2)
+|  +- Data Downloaded :        0        0        0 (/nic/%7B10213D05-C8D9-11F1-A9BA-50BBB5A55A7B%7D/data/3)
+|  +- Upload Speed   :        0        0        0 (/nic/%7B10213D05-C8D9-11F1-A9BA-50BBB5A55A7B%7D/throughput/7)
+|  +- Download Speed :        0        0        0 (/nic/%7B10213D05-C8D9-11F1-A9BA-50BBB5A55A7B%7D/throughput/8)
+|
++- Connessione alla rete locale (LAN)* 7-WFP Native MAC Layer LightWeight Filter-0000 (/nic/%7B10213D04-C8D9-11F1-A9BA-50BBB5A55A7B%7D)
+|  +- Network Utilization :        0        0        0 (/nic/%7B10213D04-C8D9-11F1-A9BA-50BBB5A55A7B%7D/load/1)
+|  +- Data Uploaded  :        0        0        0 (/nic/%7B10213D04-C8D9-11F1-A9BA-50BBB5A55A7B%7D/data/2)
+|  +- Data Downloaded :        0        0        0 (/nic/%7B10213D04-C8D9-11F1-A9BA-50BBB5A55A7B%7D/data/3)
+|  +- Upload Speed   :        0        0        0 (/nic/%7B10213D04-C8D9-11F1-A9BA-50BBB5A55A7B%7D/throughput/7)
+|  +- Download Speed :        0        0        0 (/nic/%7B10213D04-C8D9-11F1-A9BA-50BBB5A55A7B%7D/throughput/8)
+|
++- Connessione alla rete locale (LAN)* 8 (/nic/%7BF2FEECD4-BA7C-4AD1-B32D-ACEF61B657DE%7D)
+|  +- Network Utilization :        0        0        0 (/nic/%7BF2FEECD4-BA7C-4AD1-B32D-ACEF61B657DE%7D/load/1)
+|  +- Data Uploaded  :        0        0        0 (/nic/%7BF2FEECD4-BA7C-4AD1-B32D-ACEF61B657DE%7D/data/2)
+|  +- Data Downloaded :        0        0        0 (/nic/%7BF2FEECD4-BA7C-4AD1-B32D-ACEF61B657DE%7D/data/3)
+|  +- Upload Speed   :        0        0        0 (/nic/%7BF2FEECD4-BA7C-4AD1-B32D-ACEF61B657DE%7D/throughput/7)
+|  +- Download Speed :        0        0        0 (/nic/%7BF2FEECD4-BA7C-4AD1-B32D-ACEF61B657DE%7D/throughput/8)
+|
++- Connessione alla rete locale (LAN)* 8-QoS Packet Scheduler-0000 (/nic/%7B10213D07-C8D9-11F1-A9BA-50BBB5A55A7B%7D)
+|  +- Network Utilization :        0        0        0 (/nic/%7B10213D07-C8D9-11F1-A9BA-50BBB5A55A7B%7D/load/1)
+|  +- Data Uploaded  :        0        0        0 (/nic/%7B10213D07-C8D9-11F1-A9BA-50BBB5A55A7B%7D/data/2)
+|  +- Data Downloaded :        0        0        0 (/nic/%7B10213D07-C8D9-11F1-A9BA-50BBB5A55A7B%7D/data/3)
+|  +- Upload Speed   :        0        0        0 (/nic/%7B10213D07-C8D9-11F1-A9BA-50BBB5A55A7B%7D/throughput/7)
+|  +- Download Speed :        0        0        0 (/nic/%7B10213D07-C8D9-11F1-A9BA-50BBB5A55A7B%7D/throughput/8)
+|
++- Connessione alla rete locale (LAN)* 8-WFP Native MAC Layer LightWeight Filter-0000 (/nic/%7B10213D06-C8D9-11F1-A9BA-50BBB5A55A7B%7D)
+|  +- Network Utilization :        0        0        0 (/nic/%7B10213D06-C8D9-11F1-A9BA-50BBB5A55A7B%7D/load/1)
+|  +- Data Uploaded  :        0        0        0 (/nic/%7B10213D06-C8D9-11F1-A9BA-50BBB5A55A7B%7D/data/2)
+|  +- Data Downloaded :        0        0        0 (/nic/%7B10213D06-C8D9-11F1-A9BA-50BBB5A55A7B%7D/data/3)
+|  +- Upload Speed   :        0        0        0 (/nic/%7B10213D06-C8D9-11F1-A9BA-50BBB5A55A7B%7D/throughput/7)
+|  +- Download Speed :        0        0        0 (/nic/%7B10213D06-C8D9-11F1-A9BA-50BBB5A55A7B%7D/throughput/8)
+|
++- Connessione alla rete locale (LAN)* 9 (/nic/%7B170A88A2-E416-40BA-ACC7-7A6DDC7DE357%7D)
+|  +- Network Utilization :        0        0        0 (/nic/%7B170A88A2-E416-40BA-ACC7-7A6DDC7DE357%7D/load/1)
+|  +- Data Uploaded  :        0        0        0 (/nic/%7B170A88A2-E416-40BA-ACC7-7A6DDC7DE357%7D/data/2)
+|  +- Data Downloaded :        0        0        0 (/nic/%7B170A88A2-E416-40BA-ACC7-7A6DDC7DE357%7D/data/3)
+|  +- Upload Speed   :        0        0        0 (/nic/%7B170A88A2-E416-40BA-ACC7-7A6DDC7DE357%7D/throughput/7)
+|  +- Download Speed :        0        0        0 (/nic/%7B170A88A2-E416-40BA-ACC7-7A6DDC7DE357%7D/throughput/8)
+|
++- Connessione alla rete locale (LAN)* 9-Native WiFi Filter Driver-0000 (/nic/%7BC3F8CAA1-23D4-11F0-A939-BB21CACA193F%7D)
+|  +- Network Utilization :        0        0        0 (/nic/%7BC3F8CAA1-23D4-11F0-A939-BB21CACA193F%7D/load/1)
+|  +- Data Uploaded  :        0        0        0 (/nic/%7BC3F8CAA1-23D4-11F0-A939-BB21CACA193F%7D/data/2)
+|  +- Data Downloaded :        0        0        0 (/nic/%7BC3F8CAA1-23D4-11F0-A939-BB21CACA193F%7D/data/3)
+|  +- Upload Speed   :        0        0        0 (/nic/%7BC3F8CAA1-23D4-11F0-A939-BB21CACA193F%7D/throughput/7)
+|  +- Download Speed :        0        0        0 (/nic/%7BC3F8CAA1-23D4-11F0-A939-BB21CACA193F%7D/throughput/8)
+|
++- Connessione alla rete locale (LAN)* 9-QoS Packet Scheduler-0000 (/nic/%7B1021389D-C8D9-11F1-A9BA-50BBB5A55A7B%7D)
+|  +- Network Utilization :        0        0        0 (/nic/%7B1021389D-C8D9-11F1-A9BA-50BBB5A55A7B%7D/load/1)
+|  +- Data Uploaded  :        0        0        0 (/nic/%7B1021389D-C8D9-11F1-A9BA-50BBB5A55A7B%7D/data/2)
+|  +- Data Downloaded :        0        0        0 (/nic/%7B1021389D-C8D9-11F1-A9BA-50BBB5A55A7B%7D/data/3)
+|  +- Upload Speed   :        0        0        0 (/nic/%7B1021389D-C8D9-11F1-A9BA-50BBB5A55A7B%7D/throughput/7)
+|  +- Download Speed :        0        0        0 (/nic/%7B1021389D-C8D9-11F1-A9BA-50BBB5A55A7B%7D/throughput/8)
+|
++- Connessione alla rete locale (LAN)* 9-VirtualBox NDIS Light-Weight Filter-0000 (/nic/%7B0D915A4B-9199-11F1-A99C-50BBB5A55A7B%7D)
+|  +- Network Utilization :        0        0        0 (/nic/%7B0D915A4B-9199-11F1-A99C-50BBB5A55A7B%7D/load/1)
+|  +- Data Uploaded  :        0        0        0 (/nic/%7B0D915A4B-9199-11F1-A99C-50BBB5A55A7B%7D/data/2)
+|  +- Data Downloaded :        0        0        0 (/nic/%7B0D915A4B-9199-11F1-A99C-50BBB5A55A7B%7D/data/3)
+|  +- Upload Speed   :        0        0        0 (/nic/%7B0D915A4B-9199-11F1-A99C-50BBB5A55A7B%7D/throughput/7)
+|  +- Download Speed :        0        0        0 (/nic/%7B0D915A4B-9199-11F1-A99C-50BBB5A55A7B%7D/throughput/8)
+|
++- Connessione alla rete locale (LAN)* 9-WFP 802.3 MAC Layer LightWeight Filter-0000 (/nic/%7B1021389E-C8D9-11F1-A9BA-50BBB5A55A7B%7D)
+|  +- Network Utilization :        0        0        0 (/nic/%7B1021389E-C8D9-11F1-A9BA-50BBB5A55A7B%7D/load/1)
+|  +- Data Uploaded  :        0        0        0 (/nic/%7B1021389E-C8D9-11F1-A9BA-50BBB5A55A7B%7D/data/2)
+|  +- Data Downloaded :        0        0        0 (/nic/%7B1021389E-C8D9-11F1-A9BA-50BBB5A55A7B%7D/data/3)
+|  +- Upload Speed   :        0        0        0 (/nic/%7B1021389E-C8D9-11F1-A9BA-50BBB5A55A7B%7D/throughput/7)
+|  +- Download Speed :        0        0        0 (/nic/%7B1021389E-C8D9-11F1-A9BA-50BBB5A55A7B%7D/throughput/8)
+|
++- Connessione alla rete locale (LAN)* 9-WFP Native MAC Layer LightWeight Filter-0000 (/nic/%7B1021386B-C8D9-11F1-A9BA-50BBB5A55A7B%7D)
+|  +- Network Utilization :        0        0        0 (/nic/%7B1021386B-C8D9-11F1-A9BA-50BBB5A55A7B%7D/load/1)
+|  +- Data Uploaded  :        0        0        0 (/nic/%7B1021386B-C8D9-11F1-A9BA-50BBB5A55A7B%7D/data/2)
+|  +- Data Downloaded :        0        0        0 (/nic/%7B1021386B-C8D9-11F1-A9BA-50BBB5A55A7B%7D/data/3)
+|  +- Upload Speed   :        0        0        0 (/nic/%7B1021386B-C8D9-11F1-A9BA-50BBB5A55A7B%7D/throughput/7)
+|  +- Download Speed :        0        0        0 (/nic/%7B1021386B-C8D9-11F1-A9BA-50BBB5A55A7B%7D/throughput/8)
+|
++- Connessione di rete Bluetooth (/nic/%7B021A4026-A92C-4BDB-9563-6181D173E0B2%7D)
+|  +- Network Utilization :        0        0        0 (/nic/%7B021A4026-A92C-4BDB-9563-6181D173E0B2%7D/load/1)
+|  +- Data Uploaded  :        0        0        0 (/nic/%7B021A4026-A92C-4BDB-9563-6181D173E0B2%7D/data/2)
+|  +- Data Downloaded :        0        0        0 (/nic/%7B021A4026-A92C-4BDB-9563-6181D173E0B2%7D/data/3)
+|  +- Upload Speed   :        0        0        0 (/nic/%7B021A4026-A92C-4BDB-9563-6181D173E0B2%7D/throughput/7)
+|  +- Download Speed :        0        0        0 (/nic/%7B021A4026-A92C-4BDB-9563-6181D173E0B2%7D/throughput/8)
+|
++- Ethernet (/nic/%7B8F62D661-5FEE-4D32-8B10-3A29E1417207%7D)
+|  +- Network Utilization :        0        0        0 (/nic/%7B8F62D661-5FEE-4D32-8B10-3A29E1417207%7D/load/1)
+|  +- Data Uploaded  :        0        0        0 (/nic/%7B8F62D661-5FEE-4D32-8B10-3A29E1417207%7D/data/2)
+|  +- Data Downloaded :        0        0        0 (/nic/%7B8F62D661-5FEE-4D32-8B10-3A29E1417207%7D/data/3)
+|  +- Upload Speed   :        0        0        0 (/nic/%7B8F62D661-5FEE-4D32-8B10-3A29E1417207%7D/throughput/7)
+|  +- Download Speed :        0        0        0 (/nic/%7B8F62D661-5FEE-4D32-8B10-3A29E1417207%7D/throughput/8)
+|
++- Ethernet (debugger del kernel) (/nic/%7BB15C9239-E094-4A1D-8564-ABF3D8A0DE44%7D)
+|  +- Network Utilization :      NaN                   (/nic/%7BB15C9239-E094-4A1D-8564-ABF3D8A0DE44%7D/load/1)
+|  +- Data Uploaded  :        0        0        0 (/nic/%7BB15C9239-E094-4A1D-8564-ABF3D8A0DE44%7D/data/2)
+|  +- Data Downloaded :        0        0        0 (/nic/%7BB15C9239-E094-4A1D-8564-ABF3D8A0DE44%7D/data/3)
+|  +- Upload Speed   :        0        0        0 (/nic/%7BB15C9239-E094-4A1D-8564-ABF3D8A0DE44%7D/throughput/7)
+|  +- Download Speed :        0        0        0 (/nic/%7BB15C9239-E094-4A1D-8564-ABF3D8A0DE44%7D/throughput/8)
+|
++- Ethernet 2 (/nic/%7BC4DD11AE-A8AA-49BB-9D2F-4DE45494DABB%7D)
+|  +- Network Utilization :        0        0        0 (/nic/%7BC4DD11AE-A8AA-49BB-9D2F-4DE45494DABB%7D/load/1)
+|  +- Data Uploaded  :        0        0        0 (/nic/%7BC4DD11AE-A8AA-49BB-9D2F-4DE45494DABB%7D/data/2)
+|  +- Data Downloaded :        0        0        0 (/nic/%7BC4DD11AE-A8AA-49BB-9D2F-4DE45494DABB%7D/data/3)
+|  +- Upload Speed   :        0        0        0 (/nic/%7BC4DD11AE-A8AA-49BB-9D2F-4DE45494DABB%7D/throughput/7)
+|  +- Download Speed :        0        0        0 (/nic/%7BC4DD11AE-A8AA-49BB-9D2F-4DE45494DABB%7D/throughput/8)
+|
++- Ethernet 2-QoS Packet Scheduler-0000 (/nic/%7B10213769-C8D9-11F1-A9BA-806E6F6E6963%7D)
+|  +- Network Utilization :        0        0        0 (/nic/%7B10213769-C8D9-11F1-A9BA-806E6F6E6963%7D/load/1)
+|  +- Data Uploaded  :        0        0        0 (/nic/%7B10213769-C8D9-11F1-A9BA-806E6F6E6963%7D/data/2)
+|  +- Data Downloaded :        0        0        0 (/nic/%7B10213769-C8D9-11F1-A9BA-806E6F6E6963%7D/data/3)
+|  +- Upload Speed   :        0        0        0 (/nic/%7B10213769-C8D9-11F1-A9BA-806E6F6E6963%7D/throughput/7)
+|  +- Download Speed :        0        0        0 (/nic/%7B10213769-C8D9-11F1-A9BA-806E6F6E6963%7D/throughput/8)
+|
++- Ethernet 2-WFP 802.3 MAC Layer LightWeight Filter-0000 (/nic/%7B1021376A-C8D9-11F1-A9BA-806E6F6E6963%7D)
+|  +- Network Utilization :        0        0        0 (/nic/%7B1021376A-C8D9-11F1-A9BA-806E6F6E6963%7D/load/1)
+|  +- Data Uploaded  :        0        0        0 (/nic/%7B1021376A-C8D9-11F1-A9BA-806E6F6E6963%7D/data/2)
+|  +- Data Downloaded :        0        0        0 (/nic/%7B1021376A-C8D9-11F1-A9BA-806E6F6E6963%7D/data/3)
+|  +- Upload Speed   :        0        0        0 (/nic/%7B1021376A-C8D9-11F1-A9BA-806E6F6E6963%7D/throughput/7)
+|  +- Download Speed :        0        0        0 (/nic/%7B1021376A-C8D9-11F1-A9BA-806E6F6E6963%7D/throughput/8)
+|
++- Ethernet 2-WFP Native MAC Layer LightWeight Filter-0000 (/nic/%7B10213768-C8D9-11F1-A9BA-806E6F6E6963%7D)
+|  +- Network Utilization :        0        0        0 (/nic/%7B10213768-C8D9-11F1-A9BA-806E6F6E6963%7D/load/1)
+|  +- Data Uploaded  :        0        0        0 (/nic/%7B10213768-C8D9-11F1-A9BA-806E6F6E6963%7D/data/2)
+|  +- Data Downloaded :        0        0        0 (/nic/%7B10213768-C8D9-11F1-A9BA-806E6F6E6963%7D/data/3)
+|  +- Upload Speed   :        0        0        0 (/nic/%7B10213768-C8D9-11F1-A9BA-806E6F6E6963%7D/throughput/7)
+|  +- Download Speed :        0        0        0 (/nic/%7B10213768-C8D9-11F1-A9BA-806E6F6E6963%7D/throughput/8)
+|
++- Ethernet-QoS Packet Scheduler-0000 (/nic/%7B1021376C-C8D9-11F1-A9BA-806E6F6E6963%7D)
+|  +- Network Utilization :        0        0        0 (/nic/%7B1021376C-C8D9-11F1-A9BA-806E6F6E6963%7D/load/1)
+|  +- Data Uploaded  :        0        0        0 (/nic/%7B1021376C-C8D9-11F1-A9BA-806E6F6E6963%7D/data/2)
+|  +- Data Downloaded :        0        0        0 (/nic/%7B1021376C-C8D9-11F1-A9BA-806E6F6E6963%7D/data/3)
+|  +- Upload Speed   :        0        0        0 (/nic/%7B1021376C-C8D9-11F1-A9BA-806E6F6E6963%7D/throughput/7)
+|  +- Download Speed :        0        0        0 (/nic/%7B1021376C-C8D9-11F1-A9BA-806E6F6E6963%7D/throughput/8)
+|
++- Ethernet-VirtualBox NDIS Light-Weight Filter-0000 (/nic/%7B0D915A51-9199-11F1-A99C-50BBB5A55A7B%7D)
+|  +- Network Utilization :        0        0        0 (/nic/%7B0D915A51-9199-11F1-A99C-50BBB5A55A7B%7D/load/1)
+|  +- Data Uploaded  :        0        0        0 (/nic/%7B0D915A51-9199-11F1-A99C-50BBB5A55A7B%7D/data/2)
+|  +- Data Downloaded :        0        0        0 (/nic/%7B0D915A51-9199-11F1-A99C-50BBB5A55A7B%7D/data/3)
+|  +- Upload Speed   :        0        0        0 (/nic/%7B0D915A51-9199-11F1-A99C-50BBB5A55A7B%7D/throughput/7)
+|  +- Download Speed :        0        0        0 (/nic/%7B0D915A51-9199-11F1-A99C-50BBB5A55A7B%7D/throughput/8)
+|
++- Ethernet-WFP 802.3 MAC Layer LightWeight Filter-0000 (/nic/%7B1021376D-C8D9-11F1-A9BA-806E6F6E6963%7D)
+|  +- Network Utilization :        0        0        0 (/nic/%7B1021376D-C8D9-11F1-A9BA-806E6F6E6963%7D/load/1)
+|  +- Data Uploaded  :        0        0        0 (/nic/%7B1021376D-C8D9-11F1-A9BA-806E6F6E6963%7D/data/2)
+|  +- Data Downloaded :        0        0        0 (/nic/%7B1021376D-C8D9-11F1-A9BA-806E6F6E6963%7D/data/3)
+|  +- Upload Speed   :        0        0        0 (/nic/%7B1021376D-C8D9-11F1-A9BA-806E6F6E6963%7D/throughput/7)
+|  +- Download Speed :        0        0        0 (/nic/%7B1021376D-C8D9-11F1-A9BA-806E6F6E6963%7D/throughput/8)
+|
++- Ethernet-WFP Native MAC Layer LightWeight Filter-0000 (/nic/%7B1021376B-C8D9-11F1-A9BA-806E6F6E6963%7D)
+|  +- Network Utilization :        0        0        0 (/nic/%7B1021376B-C8D9-11F1-A9BA-806E6F6E6963%7D/load/1)
+|  +- Data Uploaded  :        0        0        0 (/nic/%7B1021376B-C8D9-11F1-A9BA-806E6F6E6963%7D/data/2)
+|  +- Data Downloaded :        0        0        0 (/nic/%7B1021376B-C8D9-11F1-A9BA-806E6F6E6963%7D/data/3)
+|  +- Upload Speed   :        0        0        0 (/nic/%7B1021376B-C8D9-11F1-A9BA-806E6F6E6963%7D/throughput/7)
+|  +- Download Speed :        0        0        0 (/nic/%7B1021376B-C8D9-11F1-A9BA-806E6F6E6963%7D/throughput/8)
+|
++- vEthernet (Default Switch) (/nic/%7BE909A9E8-3B2D-4178-994D-66C4E112FFBD%7D)
+|  +- Network Utilization :        0        0 4.88219E-05 (/nic/%7BE909A9E8-3B2D-4178-994D-66C4E112FFBD%7D/load/1)
+|  +- Data Uploaded  : 0.00197736 0.00195859 0.00197736 (/nic/%7BE909A9E8-3B2D-4178-994D-66C4E112FFBD%7D/data/2)
+|  +- Data Downloaded :        0        0        0 (/nic/%7BE909A9E8-3B2D-4178-994D-66C4E112FFBD%7D/data/3)
+|  +- Upload Speed   :        0        0  610.274 (/nic/%7BE909A9E8-3B2D-4178-994D-66C4E112FFBD%7D/throughput/7)
+|  +- Download Speed :        0        0        0 (/nic/%7BE909A9E8-3B2D-4178-994D-66C4E112FFBD%7D/throughput/8)
+|
++- vEthernet (Default Switch)-QoS Packet Scheduler-0000 (/nic/%7B10213927-C8D9-11F1-A9BA-50BBB5A55A7B%7D)
+|  +- Network Utilization :        0        0 4.88213E-05 (/nic/%7B10213927-C8D9-11F1-A9BA-50BBB5A55A7B%7D/load/1)
+|  +- Data Uploaded  : 0.00197736 0.00195859 0.00197736 (/nic/%7B10213927-C8D9-11F1-A9BA-50BBB5A55A7B%7D/data/2)
+|  +- Data Downloaded :        0        0        0 (/nic/%7B10213927-C8D9-11F1-A9BA-50BBB5A55A7B%7D/data/3)
+|  +- Upload Speed   :        0        0  610.267 (/nic/%7B10213927-C8D9-11F1-A9BA-50BBB5A55A7B%7D/throughput/7)
+|  +- Download Speed :        0        0        0 (/nic/%7B10213927-C8D9-11F1-A9BA-50BBB5A55A7B%7D/throughput/8)
+|
++- vEthernet (Default Switch)-VirtualBox NDIS Light-Weight Filter-0000 (/nic/%7B10213926-C8D9-11F1-A9BA-50BBB5A55A7B%7D)
+|  +- Network Utilization :        0        0 4.88211E-05 (/nic/%7B10213926-C8D9-11F1-A9BA-50BBB5A55A7B%7D/load/1)
+|  +- Data Uploaded  : 0.00197736 0.00195859 0.00197736 (/nic/%7B10213926-C8D9-11F1-A9BA-50BBB5A55A7B%7D/data/2)
+|  +- Data Downloaded :        0        0        0 (/nic/%7B10213926-C8D9-11F1-A9BA-50BBB5A55A7B%7D/data/3)
+|  +- Upload Speed   :        0        0  610.263 (/nic/%7B10213926-C8D9-11F1-A9BA-50BBB5A55A7B%7D/throughput/7)
+|  +- Download Speed :        0        0        0 (/nic/%7B10213926-C8D9-11F1-A9BA-50BBB5A55A7B%7D/throughput/8)
+|
++- vEthernet (Default Switch)-WFP 802.3 MAC Layer LightWeight Filter-0000 (/nic/%7B10213928-C8D9-11F1-A9BA-50BBB5A55A7B%7D)
+|  +- Network Utilization :        0        0 4.88201E-05 (/nic/%7B10213928-C8D9-11F1-A9BA-50BBB5A55A7B%7D/load/1)
+|  +- Data Uploaded  : 0.00197736 0.00195859 0.00197736 (/nic/%7B10213928-C8D9-11F1-A9BA-50BBB5A55A7B%7D/data/2)
+|  +- Data Downloaded :        0        0        0 (/nic/%7B10213928-C8D9-11F1-A9BA-50BBB5A55A7B%7D/data/3)
+|  +- Upload Speed   :        0        0  610.252 (/nic/%7B10213928-C8D9-11F1-A9BA-50BBB5A55A7B%7D/throughput/7)
+|  +- Download Speed :        0        0        0 (/nic/%7B10213928-C8D9-11F1-A9BA-50BBB5A55A7B%7D/throughput/8)
+|
++- vEthernet (Default Switch)-WFP Native MAC Layer LightWeight Filter-0000 (/nic/%7B10213925-C8D9-11F1-A9BA-50BBB5A55A7B%7D)
+|  +- Network Utilization :        0        0 4.8813E-05 (/nic/%7B10213925-C8D9-11F1-A9BA-50BBB5A55A7B%7D/load/1)
+|  +- Data Uploaded  : 0.00197736 0.00195859 0.00197736 (/nic/%7B10213925-C8D9-11F1-A9BA-50BBB5A55A7B%7D/data/2)
+|  +- Data Downloaded :        0        0        0 (/nic/%7B10213925-C8D9-11F1-A9BA-50BBB5A55A7B%7D/data/3)
+|  +- Upload Speed   :        0        0  610.163 (/nic/%7B10213925-C8D9-11F1-A9BA-50BBB5A55A7B%7D/throughput/7)
+|  +- Download Speed :        0        0        0 (/nic/%7B10213925-C8D9-11F1-A9BA-50BBB5A55A7B%7D/throughput/8)
+|
++- vEthernet (WSLCore) (/nic/%7B392A2035-B167-4D5A-8A6E-1FBA6153DF37%7D)
+|  +- Network Utilization :        0        0 4.88109E-05 (/nic/%7B392A2035-B167-4D5A-8A6E-1FBA6153DF37%7D/load/1)
+|  +- Data Uploaded  : 0.00147962 0.00146085 0.00147962 (/nic/%7B392A2035-B167-4D5A-8A6E-1FBA6153DF37%7D/data/2)
+|  +- Data Downloaded : 1.86414E-05 1.86414E-05 1.86414E-05 (/nic/%7B392A2035-B167-4D5A-8A6E-1FBA6153DF37%7D/data/3)
+|  +- Upload Speed   :        0        0  610.137 (/nic/%7B392A2035-B167-4D5A-8A6E-1FBA6153DF37%7D/throughput/7)
+|  +- Download Speed :        0        0        0 (/nic/%7B392A2035-B167-4D5A-8A6E-1FBA6153DF37%7D/throughput/8)
+|
++- vEthernet (WSLCore)-QoS Packet Scheduler-0000 (/nic/%7BCABCFA01-CB47-11F1-A9BA-50BBB5A55A7B%7D)
+|  +- Network Utilization :        0        0 4.88102E-05 (/nic/%7BCABCFA01-CB47-11F1-A9BA-50BBB5A55A7B%7D/load/1)
+|  +- Data Uploaded  : 0.00147962 0.00146085 0.00147962 (/nic/%7BCABCFA01-CB47-11F1-A9BA-50BBB5A55A7B%7D/data/2)
+|  +- Data Downloaded : 1.86414E-05 1.86414E-05 1.86414E-05 (/nic/%7BCABCFA01-CB47-11F1-A9BA-50BBB5A55A7B%7D/data/3)
+|  +- Upload Speed   :        0        0  610.128 (/nic/%7BCABCFA01-CB47-11F1-A9BA-50BBB5A55A7B%7D/throughput/7)
+|  +- Download Speed :        0        0        0 (/nic/%7BCABCFA01-CB47-11F1-A9BA-50BBB5A55A7B%7D/throughput/8)
+|
++- vEthernet (WSLCore)-VirtualBox NDIS Light-Weight Filter-0000 (/nic/%7BCABCFA00-CB47-11F1-A9BA-50BBB5A55A7B%7D)
+|  +- Network Utilization :        0        0 4.881E-05 (/nic/%7BCABCFA00-CB47-11F1-A9BA-50BBB5A55A7B%7D/load/1)
+|  +- Data Uploaded  : 0.00147962 0.00146085 0.00147962 (/nic/%7BCABCFA00-CB47-11F1-A9BA-50BBB5A55A7B%7D/data/2)
+|  +- Data Downloaded : 1.86414E-05 1.86414E-05 1.86414E-05 (/nic/%7BCABCFA00-CB47-11F1-A9BA-50BBB5A55A7B%7D/data/3)
+|  +- Upload Speed   :        0        0  610.125 (/nic/%7BCABCFA00-CB47-11F1-A9BA-50BBB5A55A7B%7D/throughput/7)
+|  +- Download Speed :        0        0        0 (/nic/%7BCABCFA00-CB47-11F1-A9BA-50BBB5A55A7B%7D/throughput/8)
+|
++- vEthernet (WSLCore)-WFP 802.3 MAC Layer LightWeight Filter-0000 (/nic/%7BCABCFA02-CB47-11F1-A9BA-50BBB5A55A7B%7D)
+|  +- Network Utilization :        0        0 4.88096E-05 (/nic/%7BCABCFA02-CB47-11F1-A9BA-50BBB5A55A7B%7D/load/1)
+|  +- Data Uploaded  : 0.00147962 0.00146085 0.00147962 (/nic/%7BCABCFA02-CB47-11F1-A9BA-50BBB5A55A7B%7D/data/2)
+|  +- Data Downloaded : 1.86414E-05 1.86414E-05 1.86414E-05 (/nic/%7BCABCFA02-CB47-11F1-A9BA-50BBB5A55A7B%7D/data/3)
+|  +- Upload Speed   :        0        0   610.12 (/nic/%7BCABCFA02-CB47-11F1-A9BA-50BBB5A55A7B%7D/throughput/7)
+|  +- Download Speed :        0        0        0 (/nic/%7BCABCFA02-CB47-11F1-A9BA-50BBB5A55A7B%7D/throughput/8)
+|
++- vEthernet (WSLCore)-WFP Native MAC Layer LightWeight Filter-0000 (/nic/%7BCABCF9FF-CB47-11F1-A9BA-50BBB5A55A7B%7D)
+|  +- Network Utilization :        0        0 4.88093E-05 (/nic/%7BCABCF9FF-CB47-11F1-A9BA-50BBB5A55A7B%7D/load/1)
+|  +- Data Uploaded  : 0.00147962 0.00146085 0.00147962 (/nic/%7BCABCF9FF-CB47-11F1-A9BA-50BBB5A55A7B%7D/data/2)
+|  +- Data Downloaded : 1.86414E-05 1.86414E-05 1.86414E-05 (/nic/%7BCABCF9FF-CB47-11F1-A9BA-50BBB5A55A7B%7D/data/3)
+|  +- Upload Speed   :        0        0  610.117 (/nic/%7BCABCF9FF-CB47-11F1-A9BA-50BBB5A55A7B%7D/throughput/7)
+|  +- Download Speed :        0        0        0 (/nic/%7BCABCF9FF-CB47-11F1-A9BA-50BBB5A55A7B%7D/throughput/8)
+|
++- VMware Network Adapter VMnet1 (/nic/%7BBB68810F-D64D-4E1D-BDB1-DFBC6D31454B%7D)
+|  +- Network Utilization :        0        0 5.30556E-05 (/nic/%7BBB68810F-D64D-4E1D-BDB1-DFBC6D31454B%7D/load/1)
+|  +- Data Uploaded  : 6.91973E-07 5.26197E-07 6.91973E-07 (/nic/%7BBB68810F-D64D-4E1D-BDB1-DFBC6D31454B%7D/data/2)
+|  +- Data Downloaded : 4.28408E-08 2.79397E-08 4.28408E-08 (/nic/%7BBB68810F-D64D-4E1D-BDB1-DFBC6D31454B%7D/data/3)
+|  +- Upload Speed   :        0        0  6.63195 (/nic/%7BBB68810F-D64D-4E1D-BDB1-DFBC6D31454B%7D/throughput/7)
+|  +- Download Speed :        0        0  1.04698 (/nic/%7BBB68810F-D64D-4E1D-BDB1-DFBC6D31454B%7D/throughput/8)
+|
++- VMware Network Adapter VMnet8 (/nic/%7BD3BB4D5E-F4D0-4500-8C7F-47AFE61E7031%7D)
+|  +- Network Utilization : 1.59015E-05        0 5.30555E-05 (/nic/%7BD3BB4D5E-F4D0-4500-8C7F-47AFE61E7031%7D/load/1)
+|  +- Data Uploaded  : 3.66289E-06 2.43727E-06 3.66289E-06 (/nic/%7BD3BB4D5E-F4D0-4500-8C7F-47AFE61E7031%7D/data/2)
+|  +- Data Downloaded : 4.28408E-08 2.79397E-08 4.28408E-08 (/nic/%7BD3BB4D5E-F4D0-4500-8C7F-47AFE61E7031%7D/data/3)
+|  +- Upload Speed   :  1.98768        0  6.63194 (/nic/%7BD3BB4D5E-F4D0-4500-8C7F-47AFE61E7031%7D/throughput/7)
+|  +- Download Speed :        0        0  1.04704 (/nic/%7BD3BB4D5E-F4D0-4500-8C7F-47AFE61E7031%7D/throughput/8)
+|
++- vSwitch (Default Switch) (/nic/%7BFDC0E843-6DE0-4611-8C09-C7F46166261C%7D)
+|  +- Network Utilization :        0        0        0 (/nic/%7BFDC0E843-6DE0-4611-8C09-C7F46166261C%7D/load/1)
+|  +- Data Uploaded  :        0        0        0 (/nic/%7BFDC0E843-6DE0-4611-8C09-C7F46166261C%7D/data/2)
+|  +- Data Downloaded :        0        0        0 (/nic/%7BFDC0E843-6DE0-4611-8C09-C7F46166261C%7D/data/3)
+|  +- Upload Speed   :        0        0        0 (/nic/%7BFDC0E843-6DE0-4611-8C09-C7F46166261C%7D/throughput/7)
+|  +- Download Speed :        0        0        0 (/nic/%7BFDC0E843-6DE0-4611-8C09-C7F46166261C%7D/throughput/8)
+|
++- vSwitch (Default Switch)-Hyper-V Virtual Switch Extension Filter-0000 (/nic/%7B10213922-C8D9-11F1-A9BA-50BBB5A55A7B%7D)
+|  +- Network Utilization :        0        0        0 (/nic/%7B10213922-C8D9-11F1-A9BA-50BBB5A55A7B%7D/load/1)
+|  +- Data Uploaded  :        0        0        0 (/nic/%7B10213922-C8D9-11F1-A9BA-50BBB5A55A7B%7D/data/2)
+|  +- Data Downloaded :        0        0        0 (/nic/%7B10213922-C8D9-11F1-A9BA-50BBB5A55A7B%7D/data/3)
+|  +- Upload Speed   :        0        0        0 (/nic/%7B10213922-C8D9-11F1-A9BA-50BBB5A55A7B%7D/throughput/7)
+|  +- Download Speed :        0        0        0 (/nic/%7B10213922-C8D9-11F1-A9BA-50BBB5A55A7B%7D/throughput/8)
+|
++- vSwitch (WSLCore) (/nic/%7B7C2614D2-A72F-4C0E-88D0-C43DFD964B20%7D)
+|  +- Network Utilization :        0        0        0 (/nic/%7B7C2614D2-A72F-4C0E-88D0-C43DFD964B20%7D/load/1)
+|  +- Data Uploaded  :        0        0        0 (/nic/%7B7C2614D2-A72F-4C0E-88D0-C43DFD964B20%7D/data/2)
+|  +- Data Downloaded :        0        0        0 (/nic/%7B7C2614D2-A72F-4C0E-88D0-C43DFD964B20%7D/data/3)
+|  +- Upload Speed   :        0        0        0 (/nic/%7B7C2614D2-A72F-4C0E-88D0-C43DFD964B20%7D/throughput/7)
+|  +- Download Speed :        0        0        0 (/nic/%7B7C2614D2-A72F-4C0E-88D0-C43DFD964B20%7D/throughput/8)
+|
++- vSwitch (WSLCore)-Hyper-V Virtual Switch Extension Filter-0000 (/nic/%7BCABCF9FC-CB47-11F1-A9BA-50BBB5A55A7B%7D)
+|  +- Network Utilization :        0        0        0 (/nic/%7BCABCF9FC-CB47-11F1-A9BA-50BBB5A55A7B%7D/load/1)
+|  +- Data Uploaded  :        0        0        0 (/nic/%7BCABCF9FC-CB47-11F1-A9BA-50BBB5A55A7B%7D/data/2)
+|  +- Data Downloaded :        0        0        0 (/nic/%7BCABCF9FC-CB47-11F1-A9BA-50BBB5A55A7B%7D/data/3)
+|  +- Upload Speed   :        0        0        0 (/nic/%7BCABCF9FC-CB47-11F1-A9BA-50BBB5A55A7B%7D/throughput/7)
+|  +- Download Speed :        0        0        0 (/nic/%7BCABCF9FC-CB47-11F1-A9BA-50BBB5A55A7B%7D/throughput/8)
+|
++- Wi-Fi (/nic/%7B1AB052B4-EB82-4CAD-917B-85337EE1A214%7D)
+|  +- Network Utilization : 0.0421657        0  9.23426 (/nic/%7B1AB052B4-EB82-4CAD-917B-85337EE1A214%7D/load/1)
+|  +- Data Uploaded  :  3.90118  3.69318  3.90118 (/nic/%7B1AB052B4-EB82-4CAD-917B-85337EE1A214%7D/data/2)
+|  +- Data Downloaded :  16.2394  15.6412  16.2394 (/nic/%7B1AB052B4-EB82-4CAD-917B-85337EE1A214%7D/data/3)
+|  +- Upload Speed   :  1192.69        0   672533 (/nic/%7B1AB052B4-EB82-4CAD-917B-85337EE1A214%7D/throughput/7)
+|  +- Download Speed :  14619.4        0 3.43981E+06 (/nic/%7B1AB052B4-EB82-4CAD-917B-85337EE1A214%7D/throughput/8)
+|
++- Wi-Fi-Native WiFi Filter Driver-0000 (/nic/%7BC3F8CA9A-23D4-11F0-A939-BB21CACA193F%7D)
+|  +- Network Utilization : 0.0421679        0  9.23434 (/nic/%7BC3F8CA9A-23D4-11F0-A939-BB21CACA193F%7D/load/1)
+|  +- Data Uploaded  :  3.90118  3.69318  3.90118 (/nic/%7BC3F8CA9A-23D4-11F0-A939-BB21CACA193F%7D/data/2)
+|  +- Data Downloaded :  16.2394  15.6412  16.2394 (/nic/%7BC3F8CA9A-23D4-11F0-A939-BB21CACA193F%7D/data/3)
+|  +- Upload Speed   :  1192.76        0   672508 (/nic/%7BC3F8CA9A-23D4-11F0-A939-BB21CACA193F%7D/throughput/7)
+|  +- Download Speed :  14620.2        0 3.43984E+06 (/nic/%7BC3F8CA9A-23D4-11F0-A939-BB21CACA193F%7D/throughput/8)
+|
++- Wi-Fi-QoS Packet Scheduler-0000 (/nic/%7BCABD04C4-CB47-11F1-A9BA-50BBB5A55A7B%7D)
+|  +- Network Utilization : 0.042169        0  9.23445 (/nic/%7BCABD04C4-CB47-11F1-A9BA-50BBB5A55A7B%7D/load/1)
+|  +- Data Uploaded  :  3.90118  3.69318  3.90118 (/nic/%7BCABD04C4-CB47-11F1-A9BA-50BBB5A55A7B%7D/data/2)
+|  +- Data Downloaded :  16.2394  15.6412  16.2394 (/nic/%7BCABD04C4-CB47-11F1-A9BA-50BBB5A55A7B%7D/data/3)
+|  +- Upload Speed   :  1192.79        0   672480 (/nic/%7BCABD04C4-CB47-11F1-A9BA-50BBB5A55A7B%7D/throughput/7)
+|  +- Download Speed :  14620.6        0 3.43988E+06 (/nic/%7BCABD04C4-CB47-11F1-A9BA-50BBB5A55A7B%7D/throughput/8)
+|
++- Wi-Fi-Virtual WiFi Filter Driver-0000 (/nic/%7BC3F8CA99-23D4-11F0-A939-BB21CACA193F%7D)
+|  +- Network Utilization : 0.0421694        0  9.25851 (/nic/%7BC3F8CA99-23D4-11F0-A939-BB21CACA193F%7D/load/1)
+|  +- Data Uploaded  :  3.90118  3.69318  3.90118 (/nic/%7BC3F8CA99-23D4-11F0-A939-BB21CACA193F%7D/data/2)
+|  +- Data Downloaded :  16.2394  15.6412  16.2394 (/nic/%7BC3F8CA99-23D4-11F0-A939-BB21CACA193F%7D/data/3)
+|  +- Upload Speed   :   1192.8        0   672455 (/nic/%7BC3F8CA99-23D4-11F0-A939-BB21CACA193F%7D/throughput/7)
+|  +- Download Speed :  14620.7        0 3.4489E+06 (/nic/%7BC3F8CA99-23D4-11F0-A939-BB21CACA193F%7D/throughput/8)
+|
++- Wi-Fi-VirtualBox NDIS Light-Weight Filter-0000 (/nic/%7B0D915A4D-9199-11F1-A99C-50BBB5A55A7B%7D)
+|  +- Network Utilization : 0.0421703        0  9.25807 (/nic/%7B0D915A4D-9199-11F1-A99C-50BBB5A55A7B%7D/load/1)
+|  +- Data Uploaded  :  3.90118  3.69318  3.90118 (/nic/%7B0D915A4D-9199-11F1-A99C-50BBB5A55A7B%7D/data/2)
+|  +- Data Downloaded :  16.2394  15.6412  16.2394 (/nic/%7B0D915A4D-9199-11F1-A99C-50BBB5A55A7B%7D/data/3)
+|  +- Upload Speed   :  1192.82        0   672435 (/nic/%7B0D915A4D-9199-11F1-A99C-50BBB5A55A7B%7D/throughput/7)
+|  +- Download Speed :    14621        0 3.44874E+06 (/nic/%7B0D915A4D-9199-11F1-A99C-50BBB5A55A7B%7D/throughput/8)
+|
++- Wi-Fi-WFP 802.3 MAC Layer LightWeight Filter-0000 (/nic/%7B102137E7-C8D9-11F1-A9BA-50BBB5A55A7B%7D)
+|  +- Network Utilization : 0.0421707        0  9.25753 (/nic/%7B102137E7-C8D9-11F1-A9BA-50BBB5A55A7B%7D/load/1)
+|  +- Data Uploaded  :  3.90118  3.69318  3.90118 (/nic/%7B102137E7-C8D9-11F1-A9BA-50BBB5A55A7B%7D/data/2)
+|  +- Data Downloaded :  16.2394  15.6412  16.2394 (/nic/%7B102137E7-C8D9-11F1-A9BA-50BBB5A55A7B%7D/data/3)
+|  +- Upload Speed   :  1192.83        0   672411 (/nic/%7B102137E7-C8D9-11F1-A9BA-50BBB5A55A7B%7D/throughput/7)
+|  +- Download Speed :  14621.2        0 3.44854E+06 (/nic/%7B102137E7-C8D9-11F1-A9BA-50BBB5A55A7B%7D/throughput/8)
+|
++- Wi-Fi-WFP Native MAC Layer LightWeight Filter-0000 (/nic/%7B102137E5-C8D9-11F1-A9BA-50BBB5A55A7B%7D)
+|  +- Network Utilization : 0.0421711        0   9.2571 (/nic/%7B102137E5-C8D9-11F1-A9BA-50BBB5A55A7B%7D/load/1)
+|  +- Data Uploaded  :  3.90118  3.69318  3.90118 (/nic/%7B102137E5-C8D9-11F1-A9BA-50BBB5A55A7B%7D/data/2)
+|  +- Data Downloaded :  16.2394  15.6412  16.2394 (/nic/%7B102137E5-C8D9-11F1-A9BA-50BBB5A55A7B%7D/data/3)
+|  +- Upload Speed   :  1192.85        0   672428 (/nic/%7B102137E5-C8D9-11F1-A9BA-50BBB5A55A7B%7D/throughput/7)
+|  +- Download Speed :  14621.3        0 3.44838E+06 (/nic/%7B102137E5-C8D9-11F1-A9BA-50BBB5A55A7B%7D/throughput/8)
+
+--------------------------------------------------------------------------------
+
+Parameters
+
+|
++- Mini IT13 (/motherboard)
+|
++- 13th Gen Intel Core i9-13900HK (/intelcpu/0)
+|  |
+|  +- P-Core #1 (/intelcpu/0/temperature/2)
+|  |  +- TjMax [°C] : 100 : 100
+|  |  +- TSlope [°C] : 1 : 1
+|  |
+|  +- P-Core #2 (/intelcpu/0/temperature/3)
+|  |  +- TjMax [°C] : 100 : 100
+|  |  +- TSlope [°C] : 1 : 1
+|  |
+|  +- P-Core #3 (/intelcpu/0/temperature/4)
+|  |  +- TjMax [°C] : 100 : 100
+|  |  +- TSlope [°C] : 1 : 1
+|  |
+|  +- P-Core #4 (/intelcpu/0/temperature/5)
+|  |  +- TjMax [°C] : 100 : 100
+|  |  +- TSlope [°C] : 1 : 1
+|  |
+|  +- P-Core #5 (/intelcpu/0/temperature/6)
+|  |  +- TjMax [°C] : 100 : 100
+|  |  +- TSlope [°C] : 1 : 1
+|  |
+|  +- P-Core #6 (/intelcpu/0/temperature/7)
+|  |  +- TjMax [°C] : 100 : 100
+|  |  +- TSlope [°C] : 1 : 1
+|  |
+|  +- E-Core #1 (/intelcpu/0/temperature/8)
+|  |  +- TjMax [°C] : 100 : 100
+|  |  +- TSlope [°C] : 1 : 1
+|  |
+|  +- E-Core #2 (/intelcpu/0/temperature/9)
+|  |  +- TjMax [°C] : 100 : 100
+|  |  +- TSlope [°C] : 1 : 1
+|  |
+|  +- E-Core #3 (/intelcpu/0/temperature/10)
+|  |  +- TjMax [°C] : 100 : 100
+|  |  +- TSlope [°C] : 1 : 1
+|  |
+|  +- E-Core #4 (/intelcpu/0/temperature/11)
+|  |  +- TjMax [°C] : 100 : 100
+|  |  +- TSlope [°C] : 1 : 1
+|  |
+|  +- E-Core #5 (/intelcpu/0/temperature/12)
+|  |  +- TjMax [°C] : 100 : 100
+|  |  +- TSlope [°C] : 1 : 1
+|  |
+|  +- E-Core #6 (/intelcpu/0/temperature/13)
+|  |  +- TjMax [°C] : 100 : 100
+|  |  +- TSlope [°C] : 1 : 1
+|  |
+|  +- E-Core #7 (/intelcpu/0/temperature/14)
+|  |  +- TjMax [°C] : 100 : 100
+|  |  +- TSlope [°C] : 1 : 1
+|  |
+|  +- E-Core #8 (/intelcpu/0/temperature/15)
+|  |  +- TjMax [°C] : 100 : 100
+|  |  +- TSlope [°C] : 1 : 1
+|  |
+|  +- CPU Package (/intelcpu/0/temperature/16)
+|  |  +- TjMax [°C] : 100 : 100
+|  |  +- TSlope [°C] : 1 : 1
+|
++- Virtual Memory (/vram)
+|
++- Total Memory (/ram)
+|
++- Shenzhen WODPOSIT Technology Co - WPBH32D408SWM-16G (#0) (/memory/dimm/0)
+|
++- Shenzhen WODPOSIT Technology Co - WPBH32D408SWM-16G (#2) (/memory/dimm/2)
+|
++- Intel(R) Iris(R) Xe Graphics (/gpu-intel-integrated/%5C%5C%3F%5CPCI%23VEN_8086%26DEV_A7A0%26SUBSYS_00000000%26REV_04%233%2611583659%260%2610%23%7B1ca05180-a699-450a-9a0c-de4fbe3ddd89%7D)
+|
++- Lexar SSD NQ7A1 1TB (/nvme/0)
+|
++- Connessione alla rete locale (LAN)* 10 (/nic/%7B582B2AE6-27DD-4B51-8FBA-6BD04AE48DDF%7D)
+|
++- Connessione alla rete locale (LAN)* 10-Native WiFi Filter Driver-0000 (/nic/%7BFB68BBA1-23D6-11F0-A93A-CC4740ECDF93%7D)
+|
++- Connessione alla rete locale (LAN)* 10-QoS Packet Scheduler-0000 (/nic/%7B102139C5-C8D9-11F1-A9BA-50BBB5A55A7B%7D)
+|
++- Connessione alla rete locale (LAN)* 10-VirtualBox NDIS Light-Weight Filter-0000 (/nic/%7B0D915A4F-9199-11F1-A99C-50BBB5A55A7B%7D)
+|
++- Connessione alla rete locale (LAN)* 10-WFP 802.3 MAC Layer LightWeight Filter-0000 (/nic/%7B102139C6-C8D9-11F1-A9BA-50BBB5A55A7B%7D)
+|
++- Connessione alla rete locale (LAN)* 10-WFP Native MAC Layer LightWeight Filter-0000 (/nic/%7B102139C4-C8D9-11F1-A9BA-50BBB5A55A7B%7D)
+|
++- Connessione alla rete locale (LAN)* 5 (/nic/%7B876CCE7C-7663-4ECD-BB07-9F4798437F72%7D)
+|
++- Connessione alla rete locale (LAN)* 6 (/nic/%7BF569A294-E9A4-4D1C-A2A2-867992AB2333%7D)
+|
++- Connessione alla rete locale (LAN)* 6-QoS Packet Scheduler-0000 (/nic/%7B10213D03-C8D9-11F1-A9BA-50BBB5A55A7B%7D)
+|
++- Connessione alla rete locale (LAN)* 6-WFP Native MAC Layer LightWeight Filter-0000 (/nic/%7B10213D02-C8D9-11F1-A9BA-50BBB5A55A7B%7D)
+|
++- Connessione alla rete locale (LAN)* 7 (/nic/%7BF79BFB85-D604-4491-BC80-8ECE25035719%7D)
+|
++- Connessione alla rete locale (LAN)* 7-QoS Packet Scheduler-0000 (/nic/%7B10213D05-C8D9-11F1-A9BA-50BBB5A55A7B%7D)
+|
++- Connessione alla rete locale (LAN)* 7-WFP Native MAC Layer LightWeight Filter-0000 (/nic/%7B10213D04-C8D9-11F1-A9BA-50BBB5A55A7B%7D)
+|
++- Connessione alla rete locale (LAN)* 8 (/nic/%7BF2FEECD4-BA7C-4AD1-B32D-ACEF61B657DE%7D)
+|
++- Connessione alla rete locale (LAN)* 8-QoS Packet Scheduler-0000 (/nic/%7B10213D07-C8D9-11F1-A9BA-50BBB5A55A7B%7D)
+|
++- Connessione alla rete locale (LAN)* 8-WFP Native MAC Layer LightWeight Filter-0000 (/nic/%7B10213D06-C8D9-11F1-A9BA-50BBB5A55A7B%7D)
+|
++- Connessione alla rete locale (LAN)* 9 (/nic/%7B170A88A2-E416-40BA-ACC7-7A6DDC7DE357%7D)
+|
++- Connessione alla rete locale (LAN)* 9-Native WiFi Filter Driver-0000 (/nic/%7BC3F8CAA1-23D4-11F0-A939-BB21CACA193F%7D)
+|
++- Connessione alla rete locale (LAN)* 9-QoS Packet Scheduler-0000 (/nic/%7B1021389D-C8D9-11F1-A9BA-50BBB5A55A7B%7D)
+|
++- Connessione alla rete locale (LAN)* 9-VirtualBox NDIS Light-Weight Filter-0000 (/nic/%7B0D915A4B-9199-11F1-A99C-50BBB5A55A7B%7D)
+|
++- Connessione alla rete locale (LAN)* 9-WFP 802.3 MAC Layer LightWeight Filter-0000 (/nic/%7B1021389E-C8D9-11F1-A9BA-50BBB5A55A7B%7D)
+|
++- Connessione alla rete locale (LAN)* 9-WFP Native MAC Layer LightWeight Filter-0000 (/nic/%7B1021386B-C8D9-11F1-A9BA-50BBB5A55A7B%7D)
+|
++- Connessione di rete Bluetooth (/nic/%7B021A4026-A92C-4BDB-9563-6181D173E0B2%7D)
+|
++- Ethernet (/nic/%7B8F62D661-5FEE-4D32-8B10-3A29E1417207%7D)
+|
++- Ethernet (debugger del kernel) (/nic/%7BB15C9239-E094-4A1D-8564-ABF3D8A0DE44%7D)
+|
++- Ethernet 2 (/nic/%7BC4DD11AE-A8AA-49BB-9D2F-4DE45494DABB%7D)
+|
++- Ethernet 2-QoS Packet Scheduler-0000 (/nic/%7B10213769-C8D9-11F1-A9BA-806E6F6E6963%7D)
+|
++- Ethernet 2-WFP 802.3 MAC Layer LightWeight Filter-0000 (/nic/%7B1021376A-C8D9-11F1-A9BA-806E6F6E6963%7D)
+|
++- Ethernet 2-WFP Native MAC Layer LightWeight Filter-0000 (/nic/%7B10213768-C8D9-11F1-A9BA-806E6F6E6963%7D)
+|
++- Ethernet-QoS Packet Scheduler-0000 (/nic/%7B1021376C-C8D9-11F1-A9BA-806E6F6E6963%7D)
+|
++- Ethernet-VirtualBox NDIS Light-Weight Filter-0000 (/nic/%7B0D915A51-9199-11F1-A99C-50BBB5A55A7B%7D)
+|
++- Ethernet-WFP 802.3 MAC Layer LightWeight Filter-0000 (/nic/%7B1021376D-C8D9-11F1-A9BA-806E6F6E6963%7D)
+|
++- Ethernet-WFP Native MAC Layer LightWeight Filter-0000 (/nic/%7B1021376B-C8D9-11F1-A9BA-806E6F6E6963%7D)
+|
++- vEthernet (Default Switch) (/nic/%7BE909A9E8-3B2D-4178-994D-66C4E112FFBD%7D)
+|
++- vEthernet (Default Switch)-QoS Packet Scheduler-0000 (/nic/%7B10213927-C8D9-11F1-A9BA-50BBB5A55A7B%7D)
+|
++- vEthernet (Default Switch)-VirtualBox NDIS Light-Weight Filter-0000 (/nic/%7B10213926-C8D9-11F1-A9BA-50BBB5A55A7B%7D)
+|
++- vEthernet (Default Switch)-WFP 802.3 MAC Layer LightWeight Filter-0000 (/nic/%7B10213928-C8D9-11F1-A9BA-50BBB5A55A7B%7D)
+|
++- vEthernet (Default Switch)-WFP Native MAC Layer LightWeight Filter-0000 (/nic/%7B10213925-C8D9-11F1-A9BA-50BBB5A55A7B%7D)
+|
++- vEthernet (WSLCore) (/nic/%7B392A2035-B167-4D5A-8A6E-1FBA6153DF37%7D)
+|
++- vEthernet (WSLCore)-QoS Packet Scheduler-0000 (/nic/%7BCABCFA01-CB47-11F1-A9BA-50BBB5A55A7B%7D)
+|
++- vEthernet (WSLCore)-VirtualBox NDIS Light-Weight Filter-0000 (/nic/%7BCABCFA00-CB47-11F1-A9BA-50BBB5A55A7B%7D)
+|
++- vEthernet (WSLCore)-WFP 802.3 MAC Layer LightWeight Filter-0000 (/nic/%7BCABCFA02-CB47-11F1-A9BA-50BBB5A55A7B%7D)
+|
++- vEthernet (WSLCore)-WFP Native MAC Layer LightWeight Filter-0000 (/nic/%7BCABCF9FF-CB47-11F1-A9BA-50BBB5A55A7B%7D)
+|
++- VMware Network Adapter VMnet1 (/nic/%7BBB68810F-D64D-4E1D-BDB1-DFBC6D31454B%7D)
+|
++- VMware Network Adapter VMnet8 (/nic/%7BD3BB4D5E-F4D0-4500-8C7F-47AFE61E7031%7D)
+|
++- vSwitch (Default Switch) (/nic/%7BFDC0E843-6DE0-4611-8C09-C7F46166261C%7D)
+|
++- vSwitch (Default Switch)-Hyper-V Virtual Switch Extension Filter-0000 (/nic/%7B10213922-C8D9-11F1-A9BA-50BBB5A55A7B%7D)
+|
++- vSwitch (WSLCore) (/nic/%7B7C2614D2-A72F-4C0E-88D0-C43DFD964B20%7D)
+|
++- vSwitch (WSLCore)-Hyper-V Virtual Switch Extension Filter-0000 (/nic/%7BCABCF9FC-CB47-11F1-A9BA-50BBB5A55A7B%7D)
+|
++- Wi-Fi (/nic/%7B1AB052B4-EB82-4CAD-917B-85337EE1A214%7D)
+|
++- Wi-Fi-Native WiFi Filter Driver-0000 (/nic/%7BC3F8CA9A-23D4-11F0-A939-BB21CACA193F%7D)
+|
++- Wi-Fi-QoS Packet Scheduler-0000 (/nic/%7BCABD04C4-CB47-11F1-A9BA-50BBB5A55A7B%7D)
+|
++- Wi-Fi-Virtual WiFi Filter Driver-0000 (/nic/%7BC3F8CA99-23D4-11F0-A939-BB21CACA193F%7D)
+|
++- Wi-Fi-VirtualBox NDIS Light-Weight Filter-0000 (/nic/%7B0D915A4D-9199-11F1-A99C-50BBB5A55A7B%7D)
+|
++- Wi-Fi-WFP 802.3 MAC Layer LightWeight Filter-0000 (/nic/%7B102137E7-C8D9-11F1-A9BA-50BBB5A55A7B%7D)
+|
++- Wi-Fi-WFP Native MAC Layer LightWeight Filter-0000 (/nic/%7B102137E5-C8D9-11F1-A9BA-50BBB5A55A7B%7D)
+
+--------------------------------------------------------------------------------
+
+Motherboard
+
+SMBios Version: 3.6
+
+BIOS Vendor: American Megatrends International, LLC.
+BIOS Version: 1.23
+BIOS Date: 21/04/2025
+BIOS Size: 16 MB
+
+System Manufacturer: GEEKOM
+System Name: Mini IT13
+System Version: Default string
+System Wakeup: PowerSwitch
+
+Motherboard Manufacturer: Default string
+Motherboard Name: Mini IT13
+Motherboard Version: Default string
+Motherboard Serial: Default string
+
+System Enclosure Type: RackMountChassis
+System Enclosure Manufacturer: Default string
+System Enclosure Version: Default string
+System Enclosure Serial: Default string
+System Enclosure Asset Tag: Default string
+System Enclosure SKU: Default string
+System Enclosure Boot Up State: Safe
+System Enclosure Power Supply State: Safe
+System Enclosure Thermal State: Safe
+System Enclosure Power Cords: 1
+System Enclosure Lock Detected: No
+System Enclosure Security Status: None
+
+Processor Manufacturer: Intel(R) Corporation
+Processor Type: CentralProcessor
+Processor Version: 13th Gen Intel(R) Core(TM) i9-13900HK
+Processor Serial: To Be Filled By O.E.M.
+Processor Socket Designation: U3E1
+Processor Socket: 65
+Processor Version: 13th Gen Intel(R) Core(TM) i9-13900HK
+Processor Family: IntelCoreI9
+Processor Core Count: 14
+Processor Core Enabled: 14
+Processor Thread Count: 20
+Processor External Clock: 100 Mhz
+Processor Max Speed: 8500 Mhz
+Processor Current Speed: 2574 Mhz
+
+Cache [L1] Size: 288
+Cache [L1] Associativity: 12Way
+
+Cache [L1] Size: 192
+Cache [L1] Associativity: 8Way
+
+Cache [L2] Size: 7680
+Cache [L2] Associativity: Other
+
+Cache [L3] Size: 24576
+Cache [L3] Associativity: 12Way
+
+Cache [L1] Size: 256
+Cache [L1] Associativity: 8Way
+
+Cache [L1] Size: 512
+Cache [L1] Associativity: 8Way
+
+Cache [L2] Size: 4096
+Cache [L2] Associativity: 16Way
+
+Cache [L3] Size: 24576
+Cache [L3] Associativity: 12Way
+
+Memory Device [0] Manufacturer: 0x0B45
+Memory Device [0] Part Number: WPBH32D408SWM-16G
+Memory Device [0] Device Locator: Controller0-ChannelA-DIMM0
+Memory Device [0] Bank Locator: BANK 0
+Memory Device [0] Speed: 3200
+Memory Device [0] Configured Speed: 3200
+Memory Device [0] Configured Voltage: 1200
+Memory Device [0] Size: 16384 MB
+
+Memory Device [1] Manufacturer: 0x0B45
+Memory Device [1] Part Number: WPBH32D408SWM-16G
+Memory Device [1] Device Locator: Controller1-ChannelA-DIMM0
+Memory Device [1] Bank Locator: BANK 0
+Memory Device [1] Speed: 3200
+Memory Device [1] Configured Speed: 3200
+Memory Device [1] Configured Voltage: 1200
+Memory Device [1] Size: 16384 MB
+
+SMBios Table
+
+ AAMGAFoTAAAAGgAAAQIA8AP/gJj7dwEAAAADDQUbAB8AAEFtZXJpY2FuIE1lZ2F0
+ cmVuZHMgSW50ZXJuYXRpb25hbCwgTExDLgAxLjIzADA0LzIxLzIwMjUAAAEbAQAB
+ AgMEgKPv2IFj8BGnmFm5EhjfAAYFBkdFRUtPTQBNaW5pIElUMTMARGVmYXVsdCBz
+ dHJpbmcARzAxMjQ2ODIyNTgwMDAyOABHRUVLT00gTWluaSBJVDEzAElUIFNlcmll
+ cwAAAg8CAAECAwQFCQYDAAoARGVmYXVsdCBzdHJpbmcATWluaSBJVDEzAERlZmF1
+ bHQgc3RyaW5nAERlZmF1bHQgc3RyaW5nAERlZmF1bHQgc3RyaW5nAERlZmF1bHQg
+ c3RyaW5nAAADFgMAARcCAwQDAwMDAAAAAAABAAMFRGVmYXVsdCBzdHJpbmcARGVm
+ YXVsdCBzdHJpbmcARGVmYXVsdCBzdHJpbmcARGVmYXVsdCBzdHJpbmcARGVmYXVs
+ dCBzdHJpbmcAAAgJBAABAAIAAEludGVybmFsIENvbm5lY3RvciAxAEV4dGVybmFs
+ IENvbm5lY3RvciAxAAAICQUAAQACAABJbnRlcm5hbCBDb25uZWN0b3IgMgBFeHRl
+ cm5hbCBDb25uZWN0b3IgMgAACAkGAAEAAgAASW50ZXJuYWwgQ29ubmVjdG9yIDMA
+ RXh0ZXJuYWwgQ29ubmVjdG9yIDMAAAgJBwABAAIAAEludGVybmFsIENvbm5lY3Rv
+ ciA0AEV4dGVybmFsIENvbm5lY3RvciA0AAAICQgAAQACAABJbnRlcm5hbCBDb25u
+ ZWN0b3IgNQBFeHRlcm5hbCBDb25uZWN0b3IgNQAACREJAAGmBQMDAQAEAQAAAABT
+ bG90IDEAAAkRCgABpgUDAwEABAEAAAAAU2xvdCAyAAAJEQsAAaYFAwMBAAQBAAAA
+ AFNsb3QgMwAACREMAAGmBQMDAQAEAQAAAABTbG90IDQAAAkRDQABpgUDAwEABAEA
+ AAAAU2xvdCA1AAAKBg4AggFEZXZpY2UgMQAACwUPAAFEZWZhdWx0IHN0cmluZwAA
+ DAUQAAFEZWZhdWx0IHN0cmluZwAADRYRAAEAAAAAAAAAAAAAAAAAAAAAAWVufFVT
+ fGlzbzg4NTktMQAAGhYSAAFnAIAAgACAAIAAgAAAAAAAgFZvbHRhZ2UgUHJvYmUg
+ IzEAABoWEwABZwCAAIAAgACAAIAAAAAAAIBWb2x0YWdlIFByb2JlICMyAAAbDxQA
+ AABnAAAAAAAAgAFDb29saW5nIGRldmljZSAjMQAAGw8VAAAAZwAAAAAAAIABQ29v
+ bGluZyBkZXZpY2UgIzIAABsPFgAAAGIAAAAAAACAAUNvb2xpbmcgZGV2aWNlICMz
+ AAAcFhcAAWcAgACAAIAAgACAAAAAAACAVGVtcGVyYXR1cmUgUHJvYmUgIzEAABwW
+ GAABYgCAAIAAgACAAIAAAAAAAIBUZW1wZXJhdHVyZSBQcm9iZSAjMgAAHBYZAAFi
+ AIAAgACAAIAAgAAAAAAAgFRlbXBlcmF0dXJlIFByb2JlICMzAAAcFhoAAWIAgACA
+ AIAAgACAAAAAAACAVGVtcGVyYXR1cmUgUHJvYmUgIzQAAB0WGwABZwCAAIAAgACA
+ AIAAAAAAAIBFbGVjdHJpY2FsIFByb2JlICMxAAAdFhwAAWIAgACAAIAAgACAAAAA
+ AACARWxlY3RyaWNhbCBQcm9iZSAjMgAAHRYdAAFiAIAAgACAAIAAgAAAAAAAgEVs
+ ZWN0cmljYWwgUHJvYmUgIzMAAB0WHgABYgCAAIAAgACAAIAAAAAAAIBFbGVjdHJp
+ Y2FsIFByb2JlICM0AAAdFh8AAWIAgACAAIAAgACAAAAAAACARWxlY3RyaWNhbCBQ
+ cm9iZSAjNQAAIAsgAAAAAAAAAAAAACILIQABAgAAAAACTWFuYWdlbWVudCBEZXYg
+ IzEAACcWIgABAQIDBAUGBwCAohESABQAHwBEZWZhdWx0IHN0cmluZwBEZWZhdWx0
+ IHN0cmluZwBEZWZhdWx0IHN0cmluZwBEZWZhdWx0IHN0cmluZwBEZWZhdWx0IHN0
+ cmluZwBEZWZhdWx0IHN0cmluZwBEZWZhdWx0IHN0cmluZwAAJxYjAAEBAgMEBQYH
+ AICiERMAFQAeAERlZmF1bHQgc3RyaW5nAERlZmF1bHQgc3RyaW5nAERlZmF1bHQg
+ c3RyaW5nAERlZmF1bHQgc3RyaW5nAERlZmF1bHQgc3RyaW5nAERlZmF1bHQgc3Ry
+ aW5nAERlZmF1bHQgc3RyaW5nAAAnFiQAAQEBAQEBAQIAgKIR//8WAP//RGVmYXVs
+ dCBzdHJpbmcARGVmYXVsdCBzdHJpbmcARGVmYXVsdCBzdHJpbmcARGVmYXVsdCBz
+ dHJpbmcARGVmYXVsdCBzdHJpbmcARGVmYXVsdCBzdHJpbmcARGVmYXVsdCBzdHJp
+ bmcAACwJJQAAAAEBAAAALRomAAECAQMBBAUGAAAAAQAAAAABAAQBAABCSU9TIEZp
+ cm13YXJlADEuMjMAMDAwMDAwMDAtMDAwMC0wMDAwLTAwMDAtMDAwMDAwMDAwMDAw
+ ADA0LzIxLzIwMjUARGVmYXVsdCBzdHJpbmcAMS4yMwAAEBcnAAMDAwAAAAT+/wIA
+ AAAAAAAAAAAAABFcKAAnAP7/QABAAABADQABAhqAAIAMAwQFBgIAAAAAgAywBLAE
+ sAQDCAAAC0UAAAAAAAAAAAAAAAAAAAAAAAAEAAAAAAAAAAAAAAAAAAAAAAAAAAAA
+ AAAAAAAAQ29udHJvbGxlcjAtQ2hhbm5lbEEtRElNTTAAQkFOSyAwADB4MEI0NQAy
+ NTA3MDJBRAA5ODc2NTQzMjEwAFdQQkgzMkQ0MDhTV00tMTZHICAgAAARXCkAJwD+
+ /0AAQAAAQA0AAQIagACADAMEBQYCAAAAAIAMsASwBLAEAwgAAAtFAAAAAAAAAAAA
+ AAAAAAAAAAAABAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAENvbnRyb2xsZXIx
+ LUNoYW5uZWxBLURJTU0wAEJBTksgMAAweDBCNDUAMjUwNzAzREYAOTg3NjU0MzIx
+ MABXUEJIMzJENDA4U1dNLTE2RyAgIAAAEx8qAAAAAAD///8BJwACAAAAAAAAAAAA
+ AAAAAAAAAAAAKx8rAElOVEMCABIAWAJtCBkAAhAAAAAAAAAAAAAAAFRQTSAyLjAA
+ SU5URUwAAC0aLAABAgEAAQMEAP//////////AAAEAQAAVFBNIEZpcm13YXJlADI1
+ ODAwMTIuMTkwODZEADIwMjEtMDUtMTVUMDA6MDA6MDBaAElOVEVMAAAUIy0AAAAA
+ AP///wAoACoA/wEBAAAAAAAAAAAAAAAAAAAAAAAAFCMuAAAAAAH///8BKQAqAP8C
+ AQAAAAAAAAAAAAAAAAAAAAAAAN0MLwABAQAEAAAAAEZTUCBCaW5hcnkgVmVyc2lv
+ bgAA3RowAAMBAAwAp1AAAgAAAEESAAMAARINAABSZWZlcmVuY2UgQ29kZSAtIENQ
+ VQB1Q29kZSBWZXJzaW9uAFRYVCBBQ00gdmVyc2lvbgAA3RoxAAMBAAwAp1AAAgAA
+ AAAAAAMEEAEZbQhSZWZlcmVuY2UgQ29kZSAtIE1FAE1FQnggdmVyc2lvbgBNRSBG
+ aXJtd2FyZSBWZXJzaW9uAENvbnN1bWVyIFNLVQAA3S8yAAYBAAwAp1AAAgP/////
+ /wQA////AQAFAP///wEABgACRgAAAAcABAAAAABSZWZlcmVuY2UgQ29kZSAtIFBD
+ SABQQ0gtQ1JJRCBTdGF0dXMARGlzYWJsZWQAUENILUNSSUQgT3JpZ2luYWwgVmFs
+ dWUAUENILUNSSUQgTmV3IFZhbHVlAE9QUk9NIC0gUlNUIC0gUkFJRABQQ0ggSHNp
+ byBWZXJzaW9uAADdUjMACwEADACnUAACAAAABJMAAwAMAKdQAAQF//////8GAAAA
+ AAAABwAAAAAAAAgA//////8JACQABgAACgAAAABCIAsAEwEAAAAMAP//////UmVm
+ ZXJlbmNlIENvZGUgLSBTQSAtIFN5c3RlbSBBZ2VudABSZWZlcmVuY2UgQ29kZSAt
+ IE1SQwBTQSAtIFBDSWUgVmVyc2lvbgBTQS1DUklEIFN0YXR1cwBEaXNhYmxlZABT
+ QS1DUklEIE9yaWdpbmFsIFZhbHVlAFNBLUNSSUQgTmV3IFZhbHVlAE9QUk9NIC0g
+ VkJJT1MASU8gTWFuYWdlYWJpbGl0eSBFbmdpbmUgRlcgVmVyc2lvbgBQSFkgQnVp
+ bGQgVmVyc2lvbgBUaHVuZGVyYm9sdChUTSkgRlcgVmVyc2lvbgBTeXN0ZW0gQWdl
+ bnQgTWFuYWdlYWJpbGl0eSBFbmdpbmUgRlcgVmVyc2lvbgAABxs0AAGAASABIAEg
+ ACAAAAQECSABAAAgAQAATDEgQ2FjaGUAAAcbNQABgAHAAMAAIAAgAAAEAwfAAAAA
+ wAAAAEwxIENhY2hlAAAHGzYAAYEBAB4AHiAAIAAABQUBAB4AAAAeAABMMiBDYWNo
+ ZQAABxs3AAGCAQBgAGAgACAAAAYFCQBgAAAAYAAATDMgQ2FjaGUAAAcbOAABgAEA
+ AQABIAAgAAAEBAcAAQAAAAEAAEwxIENhY2hlAAAHGzkAAYABAAIAAiAAIAAABAMH
+ AAIAAAACAABMMSBDYWNoZQAABxs6AAGBAQAQABAgACAAAAUFCAAQAAAAEAAATDIg
+ Q2FjaGUAAAcbOwABggEAYABgIAAgAAAGBQkAYAAAAGAAAEwzIENhY2hlAAAEMDwA
+ AQPPAqIGCwD/++u/A4lkADQhDgpBQTkAOgA7AAQFBg4OFPwAzwAOAA4AFABVM0Ux
+ AEludGVsKFIpIENvcnBvcmF0aW9uADEzdGggR2VuIEludGVsKFIpIENvcmUoVE0p
+ IGk5LTEzOTAwSEsAVG8gQmUgRmlsbGVkIEJ5IE8uRS5NLgBUbyBCZSBGaWxsZWQg
+ QnkgTy5FLk0uAFRvIEJlIEZpbGxlZCBCeSBPLkUuTS4AAIIYPQAkQU1UAAAAAACl
+ 7wKAAAAARQABBgAAg0A+ADUAAAAAAAAAAAAAAPgAnVEAAAAAISAAAAEAEABtCBkA
+ AAAAAP4A//8AAAAAAAAAACYAAAB2UHJvAAAAAAAAKQs/AAGBAQAAAABPbmJvYXJk
+ IC0gT3RoZXIAACkLQAABgwEAAAAQT25ib2FyZCAtIFZpZGVvAAApC0EAAYECAAAA
+ QE9uYm9hcmQgLSBPdGhlcgAAKQtCAAGBAwAAAGhPbmJvYXJkIC0gT3RoZXIAACkL
+ QwABgQQAAABqT25ib2FyZCAtIE90aGVyAAApC0QAAYEFAAAAa09uYm9hcmQgLSBP
+ dGhlcgAAKQtFAAGBBgAAAKBPbmJvYXJkIC0gT3RoZXIAACkLRgABgQcAAACiT25i
+ b2FyZCAtIE90aGVyAAApC0cAAYEIAAAAsE9uYm9hcmQgLSBPdGhlcgAAKQtIAAGJ
+ AQAAALhPbmJvYXJkIC0gU0FUQQAAKQtJAAGBCQAAAPhPbmJvYXJkIC0gT3RoZXIA
+ ACkLSgABhwEAAAD7T25ib2FyZCAtIFNvdW5kAAApC0sAAYEKAAAA/E9uYm9hcmQg
+ LSBPdGhlcgAAKQtMAAGBCwAAAP1PbmJvYXJkIC0gT3RoZXIAAN1nTQAOAQD/////
+ /wIA//////8DBP//////BQb//////wcI//////8JAP//////CgD/////AAsAAB8A
+ AAAMAAAhAGMQDQD//////w4AAAcAAAAPABMFACwWEAD//////xEA//////9MYW4g
+ UGh5IFZlcnNpb24AU2Vuc29yIEZpcm13YXJlIFZlcnNpb24ARGVidWcgTW9kZSBT
+ dGF0dXMARGlzYWJsZWQAUGVyZm9ybWFuY2UgTW9kZSBTdGF0dXMARGlzYWJsZWQA
+ RGVidWcgVXNlIFVTQihEaXNhYmxlZDpTZXJpYWwpAERpc2FibGVkAElDQyBPdmVy
+ Y2xvY2tpbmcgVmVyc2lvbgBVTkRJIFZlcnNpb24ARUMgRlcgVmVyc2lvbgBHT1Ag
+ VmVyc2lvbgBSb3lhbCBQYXJrIFZlcnNpb24AUGxhdGZvcm0gVmVyc2lvbgBSU1Qg
+ UHJlT1MgVmVyc2lvbgBUQ1NTIFBEMCBWZXJzaW9uAFRDU1MgUEQxIFZlcnNpb24A
+ AIUsTgD5tJV4TZIKQZY5EjhisopjAIaACBYSICYShoABAAAAYXJXGAMAAAAAAACI
+ CE8AAAAAAAAADghQAAHbAAAkTUVJAADbalEAAQQBRQIAkAYBEIAgAAAAAEAAAAAA
+ AAACAGBAAv///////////////////////////////wMAAACAAAAAAAAAAAAAAAAA
+ AAAAAAAAAAAEAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAATUVJMQBNRUkyAE1FSTMA
+ TUVJNAAAiAZSAAAAAAAOF1MAAd0vAN0wAN0xAN0yAN0zAN1NAEZpcm13YXJlIFZl
+ cnNpb24gSW5mbwAAfwRUAAAA
+
+LpcIO
+
+Chip ID: Unknown Winbond / Nuvoton / Fintek with ID 0x5571 at 0x4E/0x4F
+
+Chip ID: Unknown ITE with ID 0x5571 at 0x4E/0x4F
+
+Chip ID: Unknown SMSC with ID 0x5571 at 0x4E/0x4F
+
+--------------------------------------------------------------------------------
+
+CPUID
+
+Processor 0
+
+Processor Vendor: Intel
+Processor Brand: 13th Gen Intel(R) Core(TM) i9-13900HK
+Family: 0x6
+Model: 0xBA
+Stepping: 0x2
+
+CPUID Return Values
+
+ CPU Group: 0
+ CPU Thread: 0
+ APIC ID: 0
+ Processor ID: 0
+ Core ID: 0
+ Thread ID: 0
+
+ Function  EAX       EBX       ECX       EDX
+ 00000000  00000020  756E6547  6C65746E  49656E69
+ 00000001  000B06A2  00800800  FFFAF38B  BFCBFBFF
+ 00000002  00FEFF01  000000F0  00000000  00000000
+ 00000003  00000000  00000000  00000000  00000000
+ 00000004  FC004121  02C0003F  0000003F  00000000
+ 00000005  00000040  00000040  00000003  00002020
+ 00000006  009F8FF3  00000002  00000409  00000003
+ 00000007  00000002  239C27A9  184007A4  BC18C410
+ 00000008  00000000  00000000  00000000  00000000
+ 00000009  00000000  00000000  00000000  00000000
+ 0000000A  07300605  00000000  00000007  00008603
+ 0000000B  00000001  00000002  00000100  00000000
+ 0000000C  00000000  00000000  00000000  00000000
+ 0000000D  00000007  00000340  00000340  00000000
+ 0000000E  00000000  00000000  00000000  00000000
+ 0000000F  00000000  00000000  00000000  00000000
+ 00000010  00000000  00000000  00000000  00000000
+ 00000011  00000000  00000000  00000000  00000000
+ 00000012  00000000  00000000  00000000  00000000
+ 00000013  00000000  00000000  00000000  00000000
+ 00000014  00000001  0000005F  00000007  00000000
+ 00000015  00000002  0000009C  0249F000  00000000
+ 00000016  00000000  00000000  00000000  00000000
+ 00000017  00000000  00000000  00000000  00000000
+ 00000018  00000000  00000000  00000000  00000000
+ 00000019  00000000  00000000  00000000  00000000
+ 0000001A  40000001  00000000  00000000  00000000
+ 0000001B  00000000  00000000  00000000  00000000
+ 0000001C  4000000B  00000007  00000007  00000000
+ 0000001D  00000000  00000000  00000000  00000000
+ 0000001E  00000000  00000000  00000000  00000000
+ 0000001F  00000001  00000002  00000100  00000000
+ 00000020  00000000  00000001  00000000  00000000
+ 80000000  80000008  00000000  00000000  00000000
+ 80000001  00000000  00000000  00000121  2C100800
+ 80000002  68743331  6E654720  746E4920  52286C65
+ 80000003  6F432029  54286572  6920294D  33312D39
+ 80000004  48303039  0000004B  00000000  00000000
+ 80000005  00000000  00000000  00000000  00000000
+ 80000006  00000000  00000000  05007040  00000000
+ 80000007  00000000  00000000  00000000  00000100
+ 80000008  00003027  00000000  00000000  00000000
+
+ CPU Group: 0
+ CPU Thread: 1
+ APIC ID: 1
+ Processor ID: 0
+ Core ID: 0
+ Thread ID: 1
+
+ Function  EAX       EBX       ECX       EDX
+ 00000000  00000020  756E6547  6C65746E  49656E69
+ 00000001  000B06A2  01800800  FFFAF38B  BFCBFBFF
+ 00000002  00FEFF01  000000F0  00000000  00000000
+ 00000003  00000000  00000000  00000000  00000000
+ 00000004  FC004121  02C0003F  0000003F  00000000
+ 00000005  00000040  00000040  00000003  00002020
+ 00000006  009F8FF3  00000002  00000409  00000003
+ 00000007  00000002  239C27A9  184007A4  BC18C410
+ 00000008  00000000  00000000  00000000  00000000
+ 00000009  00000000  00000000  00000000  00000000
+ 0000000A  07300605  00000000  00000007  00008603
+ 0000000B  00000001  00000002  00000100  00000001
+ 0000000C  00000000  00000000  00000000  00000000
+ 0000000D  00000007  00000340  00000340  00000000
+ 0000000E  00000000  00000000  00000000  00000000
+ 0000000F  00000000  00000000  00000000  00000000
+ 00000010  00000000  00000000  00000000  00000000
+ 00000011  00000000  00000000  00000000  00000000
+ 00000012  00000000  00000000  00000000  00000000
+ 00000013  00000000  00000000  00000000  00000000
+ 00000014  00000001  0000005F  00000007  00000000
+ 00000015  00000002  0000009C  0249F000  00000000
+ 00000016  00000000  00000000  00000000  00000000
+ 00000017  00000000  00000000  00000000  00000000
+ 00000018  00000000  00000000  00000000  00000000
+ 00000019  00000000  00000000  00000000  00000000
+ 0000001A  40000001  00000000  00000000  00000000
+ 0000001B  00000000  00000000  00000000  00000000
+ 0000001C  4000000B  00000007  00000007  00000000
+ 0000001D  00000000  00000000  00000000  00000000
+ 0000001E  00000000  00000000  00000000  00000000
+ 0000001F  00000001  00000002  00000100  00000001
+ 00000020  00000000  00000001  00000000  00000000
+ 80000000  80000008  00000000  00000000  00000000
+ 80000001  00000000  00000000  00000121  2C100800
+ 80000002  68743331  6E654720  746E4920  52286C65
+ 80000003  6F432029  54286572  6920294D  33312D39
+ 80000004  48303039  0000004B  00000000  00000000
+ 80000005  00000000  00000000  00000000  00000000
+ 80000006  00000000  00000000  05007040  00000000
+ 80000007  00000000  00000000  00000000  00000100
+ 80000008  00003027  00000000  00000000  00000000
+
+ CPU Group: 0
+ CPU Thread: 2
+ APIC ID: 8
+ Processor ID: 0
+ Core ID: 4
+ Thread ID: 0
+
+ Function  EAX       EBX       ECX       EDX
+ 00000000  00000020  756E6547  6C65746E  49656E69
+ 00000001  000B06A2  08800800  FFFAF38B  BFCBFBFF
+ 00000002  00FEFF01  000000F0  00000000  00000000
+ 00000003  00000000  00000000  00000000  00000000
+ 00000004  FC004121  02C0003F  0000003F  00000000
+ 00000005  00000040  00000040  00000003  00002020
+ 00000006  009F8FF3  00000002  00000409  00010003
+ 00000007  00000002  239C27A9  184007A4  BC18C410
+ 00000008  00000000  00000000  00000000  00000000
+ 00000009  00000000  00000000  00000000  00000000
+ 0000000A  07300605  00000000  00000007  00008603
+ 0000000B  00000001  00000002  00000100  00000008
+ 0000000C  00000000  00000000  00000000  00000000
+ 0000000D  00000007  00000340  00000340  00000000
+ 0000000E  00000000  00000000  00000000  00000000
+ 0000000F  00000000  00000000  00000000  00000000
+ 00000010  00000000  00000000  00000000  00000000
+ 00000011  00000000  00000000  00000000  00000000
+ 00000012  00000000  00000000  00000000  00000000
+ 00000013  00000000  00000000  00000000  00000000
+ 00000014  00000001  0000005F  00000007  00000000
+ 00000015  00000002  0000009C  0249F000  00000000
+ 00000016  00000000  00000000  00000000  00000000
+ 00000017  00000000  00000000  00000000  00000000
+ 00000018  00000000  00000000  00000000  00000000
+ 00000019  00000000  00000000  00000000  00000000
+ 0000001A  40000001  00000000  00000000  00000000
+ 0000001B  00000000  00000000  00000000  00000000
+ 0000001C  4000000B  00000007  00000007  00000000
+ 0000001D  00000000  00000000  00000000  00000000
+ 0000001E  00000000  00000000  00000000  00000000
+ 0000001F  00000001  00000002  00000100  00000008
+ 00000020  00000000  00000001  00000000  00000000
+ 80000000  80000008  00000000  00000000  00000000
+ 80000001  00000000  00000000  00000121  2C100800
+ 80000002  68743331  6E654720  746E4920  52286C65
+ 80000003  6F432029  54286572  6920294D  33312D39
+ 80000004  48303039  0000004B  00000000  00000000
+ 80000005  00000000  00000000  00000000  00000000
+ 80000006  00000000  00000000  05007040  00000000
+ 80000007  00000000  00000000  00000000  00000100
+ 80000008  00003027  00000000  00000000  00000000
+
+ CPU Group: 0
+ CPU Thread: 3
+ APIC ID: 9
+ Processor ID: 0
+ Core ID: 4
+ Thread ID: 1
+
+ Function  EAX       EBX       ECX       EDX
+ 00000000  00000020  756E6547  6C65746E  49656E69
+ 00000001  000B06A2  09800800  FFFAF38B  BFCBFBFF
+ 00000002  00FEFF01  000000F0  00000000  00000000
+ 00000003  00000000  00000000  00000000  00000000
+ 00000004  FC004121  02C0003F  0000003F  00000000
+ 00000005  00000040  00000040  00000003  00002020
+ 00000006  009F8FF3  00000002  00000409  00010003
+ 00000007  00000002  239C27A9  184007A4  BC18C410
+ 00000008  00000000  00000000  00000000  00000000
+ 00000009  00000000  00000000  00000000  00000000
+ 0000000A  07300605  00000000  00000007  00008603
+ 0000000B  00000001  00000002  00000100  00000009
+ 0000000C  00000000  00000000  00000000  00000000
+ 0000000D  00000007  00000340  00000340  00000000
+ 0000000E  00000000  00000000  00000000  00000000
+ 0000000F  00000000  00000000  00000000  00000000
+ 00000010  00000000  00000000  00000000  00000000
+ 00000011  00000000  00000000  00000000  00000000
+ 00000012  00000000  00000000  00000000  00000000
+ 00000013  00000000  00000000  00000000  00000000
+ 00000014  00000001  0000005F  00000007  00000000
+ 00000015  00000002  0000009C  0249F000  00000000
+ 00000016  00000000  00000000  00000000  00000000
+ 00000017  00000000  00000000  00000000  00000000
+ 00000018  00000000  00000000  00000000  00000000
+ 00000019  00000000  00000000  00000000  00000000
+ 0000001A  40000001  00000000  00000000  00000000
+ 0000001B  00000000  00000000  00000000  00000000
+ 0000001C  4000000B  00000007  00000007  00000000
+ 0000001D  00000000  00000000  00000000  00000000
+ 0000001E  00000000  00000000  00000000  00000000
+ 0000001F  00000001  00000002  00000100  00000009
+ 00000020  00000000  00000001  00000000  00000000
+ 80000000  80000008  00000000  00000000  00000000
+ 80000001  00000000  00000000  00000121  2C100800
+ 80000002  68743331  6E654720  746E4920  52286C65
+ 80000003  6F432029  54286572  6920294D  33312D39
+ 80000004  48303039  0000004B  00000000  00000000
+ 80000005  00000000  00000000  00000000  00000000
+ 80000006  00000000  00000000  05007040  00000000
+ 80000007  00000000  00000000  00000000  00000100
+ 80000008  00003027  00000000  00000000  00000000
+
+ CPU Group: 0
+ CPU Thread: 4
+ APIC ID: 16
+ Processor ID: 0
+ Core ID: 8
+ Thread ID: 0
+
+ Function  EAX       EBX       ECX       EDX
+ 00000000  00000020  756E6547  6C65746E  49656E69
+ 00000001  000B06A2  10800800  FFFAF38B  BFCBFBFF
+ 00000002  00FEFF01  000000F0  00000000  00000000
+ 00000003  00000000  00000000  00000000  00000000
+ 00000004  FC004121  02C0003F  0000003F  00000000
+ 00000005  00000040  00000040  00000003  00002020
+ 00000006  009F8FF3  00000002  00000409  00020003
+ 00000007  00000002  239C27A9  184007A4  BC18C410
+ 00000008  00000000  00000000  00000000  00000000
+ 00000009  00000000  00000000  00000000  00000000
+ 0000000A  07300605  00000000  00000007  00008603
+ 0000000B  00000001  00000002  00000100  00000010
+ 0000000C  00000000  00000000  00000000  00000000
+ 0000000D  00000007  00000340  00000340  00000000
+ 0000000E  00000000  00000000  00000000  00000000
+ 0000000F  00000000  00000000  00000000  00000000
+ 00000010  00000000  00000000  00000000  00000000
+ 00000011  00000000  00000000  00000000  00000000
+ 00000012  00000000  00000000  00000000  00000000
+ 00000013  00000000  00000000  00000000  00000000
+ 00000014  00000001  0000005F  00000007  00000000
+ 00000015  00000002  0000009C  0249F000  00000000
+ 00000016  00000000  00000000  00000000  00000000
+ 00000017  00000000  00000000  00000000  00000000
+ 00000018  00000000  00000000  00000000  00000000
+ 00000019  00000000  00000000  00000000  00000000
+ 0000001A  40000001  00000000  00000000  00000000
+ 0000001B  00000000  00000000  00000000  00000000
+ 0000001C  4000000B  00000007  00000007  00000000
+ 0000001D  00000000  00000000  00000000  00000000
+ 0000001E  00000000  00000000  00000000  00000000
+ 0000001F  00000001  00000002  00000100  00000010
+ 00000020  00000000  00000001  00000000  00000000
+ 80000000  80000008  00000000  00000000  00000000
+ 80000001  00000000  00000000  00000121  2C100800
+ 80000002  68743331  6E654720  746E4920  52286C65
+ 80000003  6F432029  54286572  6920294D  33312D39
+ 80000004  48303039  0000004B  00000000  00000000
+ 80000005  00000000  00000000  00000000  00000000
+ 80000006  00000000  00000000  05007040  00000000
+ 80000007  00000000  00000000  00000000  00000100
+ 80000008  00003027  00000000  00000000  00000000
+
+ CPU Group: 0
+ CPU Thread: 5
+ APIC ID: 17
+ Processor ID: 0
+ Core ID: 8
+ Thread ID: 1
+
+ Function  EAX       EBX       ECX       EDX
+ 00000000  00000020  756E6547  6C65746E  49656E69
+ 00000001  000B06A2  11800800  FFFAF38B  BFCBFBFF
+ 00000002  00FEFF01  000000F0  00000000  00000000
+ 00000003  00000000  00000000  00000000  00000000
+ 00000004  FC004121  02C0003F  0000003F  00000000
+ 00000005  00000040  00000040  00000003  00002020
+ 00000006  009F8FF3  00000002  00000409  00020003
+ 00000007  00000002  239C27A9  184007A4  BC18C410
+ 00000008  00000000  00000000  00000000  00000000
+ 00000009  00000000  00000000  00000000  00000000
+ 0000000A  07300605  00000000  00000007  00008603
+ 0000000B  00000001  00000002  00000100  00000011
+ 0000000C  00000000  00000000  00000000  00000000
+ 0000000D  00000007  00000340  00000340  00000000
+ 0000000E  00000000  00000000  00000000  00000000
+ 0000000F  00000000  00000000  00000000  00000000
+ 00000010  00000000  00000000  00000000  00000000
+ 00000011  00000000  00000000  00000000  00000000
+ 00000012  00000000  00000000  00000000  00000000
+ 00000013  00000000  00000000  00000000  00000000
+ 00000014  00000001  0000005F  00000007  00000000
+ 00000015  00000002  0000009C  0249F000  00000000
+ 00000016  00000000  00000000  00000000  00000000
+ 00000017  00000000  00000000  00000000  00000000
+ 00000018  00000000  00000000  00000000  00000000
+ 00000019  00000000  00000000  00000000  00000000
+ 0000001A  40000001  00000000  00000000  00000000
+ 0000001B  00000000  00000000  00000000  00000000
+ 0000001C  4000000B  00000007  00000007  00000000
+ 0000001D  00000000  00000000  00000000  00000000
+ 0000001E  00000000  00000000  00000000  00000000
+ 0000001F  00000001  00000002  00000100  00000011
+ 00000020  00000000  00000001  00000000  00000000
+ 80000000  80000008  00000000  00000000  00000000
+ 80000001  00000000  00000000  00000121  2C100800
+ 80000002  68743331  6E654720  746E4920  52286C65
+ 80000003  6F432029  54286572  6920294D  33312D39
+ 80000004  48303039  0000004B  00000000  00000000
+ 80000005  00000000  00000000  00000000  00000000
+ 80000006  00000000  00000000  05007040  00000000
+ 80000007  00000000  00000000  00000000  00000100
+ 80000008  00003027  00000000  00000000  00000000
+
+ CPU Group: 0
+ CPU Thread: 6
+ APIC ID: 24
+ Processor ID: 0
+ Core ID: 12
+ Thread ID: 0
+
+ Function  EAX       EBX       ECX       EDX
+ 00000000  00000020  756E6547  6C65746E  49656E69
+ 00000001  000B06A2  18800800  FFFAF38B  BFCBFBFF
+ 00000002  00FEFF01  000000F0  00000000  00000000
+ 00000003  00000000  00000000  00000000  00000000
+ 00000004  FC004121  02C0003F  0000003F  00000000
+ 00000005  00000040  00000040  00000003  00002020
+ 00000006  009F8FF3  00000002  00000409  00030003
+ 00000007  00000002  239C27A9  184007A4  BC18C410
+ 00000008  00000000  00000000  00000000  00000000
+ 00000009  00000000  00000000  00000000  00000000
+ 0000000A  07300605  00000000  00000007  00008603
+ 0000000B  00000001  00000002  00000100  00000018
+ 0000000C  00000000  00000000  00000000  00000000
+ 0000000D  00000007  00000340  00000340  00000000
+ 0000000E  00000000  00000000  00000000  00000000
+ 0000000F  00000000  00000000  00000000  00000000
+ 00000010  00000000  00000000  00000000  00000000
+ 00000011  00000000  00000000  00000000  00000000
+ 00000012  00000000  00000000  00000000  00000000
+ 00000013  00000000  00000000  00000000  00000000
+ 00000014  00000001  0000005F  00000007  00000000
+ 00000015  00000002  0000009C  0249F000  00000000
+ 00000016  00000000  00000000  00000000  00000000
+ 00000017  00000000  00000000  00000000  00000000
+ 00000018  00000000  00000000  00000000  00000000
+ 00000019  00000000  00000000  00000000  00000000
+ 0000001A  40000001  00000000  00000000  00000000
+ 0000001B  00000000  00000000  00000000  00000000
+ 0000001C  4000000B  00000007  00000007  00000000
+ 0000001D  00000000  00000000  00000000  00000000
+ 0000001E  00000000  00000000  00000000  00000000
+ 0000001F  00000001  00000002  00000100  00000018
+ 00000020  00000000  00000001  00000000  00000000
+ 80000000  80000008  00000000  00000000  00000000
+ 80000001  00000000  00000000  00000121  2C100800
+ 80000002  68743331  6E654720  746E4920  52286C65
+ 80000003  6F432029  54286572  6920294D  33312D39
+ 80000004  48303039  0000004B  00000000  00000000
+ 80000005  00000000  00000000  00000000  00000000
+ 80000006  00000000  00000000  05007040  00000000
+ 80000007  00000000  00000000  00000000  00000100
+ 80000008  00003027  00000000  00000000  00000000
+
+ CPU Group: 0
+ CPU Thread: 7
+ APIC ID: 25
+ Processor ID: 0
+ Core ID: 12
+ Thread ID: 1
+
+ Function  EAX       EBX       ECX       EDX
+ 00000000  00000020  756E6547  6C65746E  49656E69
+ 00000001  000B06A2  19800800  FFFAF38B  BFCBFBFF
+ 00000002  00FEFF01  000000F0  00000000  00000000
+ 00000003  00000000  00000000  00000000  00000000
+ 00000004  FC004121  02C0003F  0000003F  00000000
+ 00000005  00000040  00000040  00000003  00002020
+ 00000006  009F8FF3  00000002  00000409  00030003
+ 00000007  00000002  239C27A9  184007A4  BC18C410
+ 00000008  00000000  00000000  00000000  00000000
+ 00000009  00000000  00000000  00000000  00000000
+ 0000000A  07300605  00000000  00000007  00008603
+ 0000000B  00000001  00000002  00000100  00000019
+ 0000000C  00000000  00000000  00000000  00000000
+ 0000000D  00000007  00000340  00000340  00000000
+ 0000000E  00000000  00000000  00000000  00000000
+ 0000000F  00000000  00000000  00000000  00000000
+ 00000010  00000000  00000000  00000000  00000000
+ 00000011  00000000  00000000  00000000  00000000
+ 00000012  00000000  00000000  00000000  00000000
+ 00000013  00000000  00000000  00000000  00000000
+ 00000014  00000001  0000005F  00000007  00000000
+ 00000015  00000002  0000009C  0249F000  00000000
+ 00000016  00000000  00000000  00000000  00000000
+ 00000017  00000000  00000000  00000000  00000000
+ 00000018  00000000  00000000  00000000  00000000
+ 00000019  00000000  00000000  00000000  00000000
+ 0000001A  40000001  00000000  00000000  00000000
+ 0000001B  00000000  00000000  00000000  00000000
+ 0000001C  4000000B  00000007  00000007  00000000
+ 0000001D  00000000  00000000  00000000  00000000
+ 0000001E  00000000  00000000  00000000  00000000
+ 0000001F  00000001  00000002  00000100  00000019
+ 00000020  00000000  00000001  00000000  00000000
+ 80000000  80000008  00000000  00000000  00000000
+ 80000001  00000000  00000000  00000121  2C100800
+ 80000002  68743331  6E654720  746E4920  52286C65
+ 80000003  6F432029  54286572  6920294D  33312D39
+ 80000004  48303039  0000004B  00000000  00000000
+ 80000005  00000000  00000000  00000000  00000000
+ 80000006  00000000  00000000  05007040  00000000
+ 80000007  00000000  00000000  00000000  00000100
+ 80000008  00003027  00000000  00000000  00000000
+
+ CPU Group: 0
+ CPU Thread: 8
+ APIC ID: 32
+ Processor ID: 0
+ Core ID: 16
+ Thread ID: 0
+
+ Function  EAX       EBX       ECX       EDX
+ 00000000  00000020  756E6547  6C65746E  49656E69
+ 00000001  000B06A2  20800800  FFFAF38B  BFCBFBFF
+ 00000002  00FEFF01  000000F0  00000000  00000000
+ 00000003  00000000  00000000  00000000  00000000
+ 00000004  FC004121  02C0003F  0000003F  00000000
+ 00000005  00000040  00000040  00000003  00002020
+ 00000006  009F8FF3  00000002  00000409  00040003
+ 00000007  00000002  239C27A9  184007A4  BC18C410
+ 00000008  00000000  00000000  00000000  00000000
+ 00000009  00000000  00000000  00000000  00000000
+ 0000000A  07300605  00000000  00000007  00008603
+ 0000000B  00000001  00000002  00000100  00000020
+ 0000000C  00000000  00000000  00000000  00000000
+ 0000000D  00000007  00000340  00000340  00000000
+ 0000000E  00000000  00000000  00000000  00000000
+ 0000000F  00000000  00000000  00000000  00000000
+ 00000010  00000000  00000000  00000000  00000000
+ 00000011  00000000  00000000  00000000  00000000
+ 00000012  00000000  00000000  00000000  00000000
+ 00000013  00000000  00000000  00000000  00000000
+ 00000014  00000001  0000005F  00000007  00000000
+ 00000015  00000002  0000009C  0249F000  00000000
+ 00000016  00000000  00000000  00000000  00000000
+ 00000017  00000000  00000000  00000000  00000000
+ 00000018  00000000  00000000  00000000  00000000
+ 00000019  00000000  00000000  00000000  00000000
+ 0000001A  40000001  00000000  00000000  00000000
+ 0000001B  00000000  00000000  00000000  00000000
+ 0000001C  4000000B  00000007  00000007  00000000
+ 0000001D  00000000  00000000  00000000  00000000
+ 0000001E  00000000  00000000  00000000  00000000
+ 0000001F  00000001  00000002  00000100  00000020
+ 00000020  00000000  00000001  00000000  00000000
+ 80000000  80000008  00000000  00000000  00000000
+ 80000001  00000000  00000000  00000121  2C100800
+ 80000002  68743331  6E654720  746E4920  52286C65
+ 80000003  6F432029  54286572  6920294D  33312D39
+ 80000004  48303039  0000004B  00000000  00000000
+ 80000005  00000000  00000000  00000000  00000000
+ 80000006  00000000  00000000  05007040  00000000
+ 80000007  00000000  00000000  00000000  00000100
+ 80000008  00003027  00000000  00000000  00000000
+
+ CPU Group: 0
+ CPU Thread: 9
+ APIC ID: 33
+ Processor ID: 0
+ Core ID: 16
+ Thread ID: 1
+
+ Function  EAX       EBX       ECX       EDX
+ 00000000  00000020  756E6547  6C65746E  49656E69
+ 00000001  000B06A2  21800800  FFFAF38B  BFCBFBFF
+ 00000002  00FEFF01  000000F0  00000000  00000000
+ 00000003  00000000  00000000  00000000  00000000
+ 00000004  FC004121  02C0003F  0000003F  00000000
+ 00000005  00000040  00000040  00000003  00002020
+ 00000006  009F8FF3  00000002  00000409  00040003
+ 00000007  00000002  239C27A9  184007A4  BC18C410
+ 00000008  00000000  00000000  00000000  00000000
+ 00000009  00000000  00000000  00000000  00000000
+ 0000000A  07300605  00000000  00000007  00008603
+ 0000000B  00000001  00000002  00000100  00000021
+ 0000000C  00000000  00000000  00000000  00000000
+ 0000000D  00000007  00000340  00000340  00000000
+ 0000000E  00000000  00000000  00000000  00000000
+ 0000000F  00000000  00000000  00000000  00000000
+ 00000010  00000000  00000000  00000000  00000000
+ 00000011  00000000  00000000  00000000  00000000
+ 00000012  00000000  00000000  00000000  00000000
+ 00000013  00000000  00000000  00000000  00000000
+ 00000014  00000001  0000005F  00000007  00000000
+ 00000015  00000002  0000009C  0249F000  00000000
+ 00000016  00000000  00000000  00000000  00000000
+ 00000017  00000000  00000000  00000000  00000000
+ 00000018  00000000  00000000  00000000  00000000
+ 00000019  00000000  00000000  00000000  00000000
+ 0000001A  40000001  00000000  00000000  00000000
+ 0000001B  00000000  00000000  00000000  00000000
+ 0000001C  4000000B  00000007  00000007  00000000
+ 0000001D  00000000  00000000  00000000  00000000
+ 0000001E  00000000  00000000  00000000  00000000
+ 0000001F  00000001  00000002  00000100  00000021
+ 00000020  00000000  00000001  00000000  00000000
+ 80000000  80000008  00000000  00000000  00000000
+ 80000001  00000000  00000000  00000121  2C100800
+ 80000002  68743331  6E654720  746E4920  52286C65
+ 80000003  6F432029  54286572  6920294D  33312D39
+ 80000004  48303039  0000004B  00000000  00000000
+ 80000005  00000000  00000000  00000000  00000000
+ 80000006  00000000  00000000  05007040  00000000
+ 80000007  00000000  00000000  00000000  00000100
+ 80000008  00003027  00000000  00000000  00000000
+
+ CPU Group: 0
+ CPU Thread: 10
+ APIC ID: 40
+ Processor ID: 0
+ Core ID: 20
+ Thread ID: 0
+
+ Function  EAX       EBX       ECX       EDX
+ 00000000  00000020  756E6547  6C65746E  49656E69
+ 00000001  000B06A2  28800800  FFFAF38B  BFCBFBFF
+ 00000002  00FEFF01  000000F0  00000000  00000000
+ 00000003  00000000  00000000  00000000  00000000
+ 00000004  FC004121  02C0003F  0000003F  00000000
+ 00000005  00000040  00000040  00000003  00002020
+ 00000006  009F8FF3  00000002  00000409  00050003
+ 00000007  00000002  239C27A9  184007A4  BC18C410
+ 00000008  00000000  00000000  00000000  00000000
+ 00000009  00000000  00000000  00000000  00000000
+ 0000000A  07300605  00000000  00000007  00008603
+ 0000000B  00000001  00000002  00000100  00000028
+ 0000000C  00000000  00000000  00000000  00000000
+ 0000000D  00000007  00000340  00000340  00000000
+ 0000000E  00000000  00000000  00000000  00000000
+ 0000000F  00000000  00000000  00000000  00000000
+ 00000010  00000000  00000000  00000000  00000000
+ 00000011  00000000  00000000  00000000  00000000
+ 00000012  00000000  00000000  00000000  00000000
+ 00000013  00000000  00000000  00000000  00000000
+ 00000014  00000001  0000005F  00000007  00000000
+ 00000015  00000002  0000009C  0249F000  00000000
+ 00000016  00000000  00000000  00000000  00000000
+ 00000017  00000000  00000000  00000000  00000000
+ 00000018  00000000  00000000  00000000  00000000
+ 00000019  00000000  00000000  00000000  00000000
+ 0000001A  40000001  00000000  00000000  00000000
+ 0000001B  00000000  00000000  00000000  00000000
+ 0000001C  4000000B  00000007  00000007  00000000
+ 0000001D  00000000  00000000  00000000  00000000
+ 0000001E  00000000  00000000  00000000  00000000
+ 0000001F  00000001  00000002  00000100  00000028
+ 00000020  00000000  00000001  00000000  00000000
+ 80000000  80000008  00000000  00000000  00000000
+ 80000001  00000000  00000000  00000121  2C100800
+ 80000002  68743331  6E654720  746E4920  52286C65
+ 80000003  6F432029  54286572  6920294D  33312D39
+ 80000004  48303039  0000004B  00000000  00000000
+ 80000005  00000000  00000000  00000000  00000000
+ 80000006  00000000  00000000  05007040  00000000
+ 80000007  00000000  00000000  00000000  00000100
+ 80000008  00003027  00000000  00000000  00000000
+
+ CPU Group: 0
+ CPU Thread: 11
+ APIC ID: 41
+ Processor ID: 0
+ Core ID: 20
+ Thread ID: 1
+
+ Function  EAX       EBX       ECX       EDX
+ 00000000  00000020  756E6547  6C65746E  49656E69
+ 00000001  000B06A2  29800800  FFFAF38B  BFCBFBFF
+ 00000002  00FEFF01  000000F0  00000000  00000000
+ 00000003  00000000  00000000  00000000  00000000
+ 00000004  FC004121  02C0003F  0000003F  00000000
+ 00000005  00000040  00000040  00000003  00002020
+ 00000006  009F8FF3  00000002  00000409  00050003
+ 00000007  00000002  239C27A9  184007A4  BC18C410
+ 00000008  00000000  00000000  00000000  00000000
+ 00000009  00000000  00000000  00000000  00000000
+ 0000000A  07300605  00000000  00000007  00008603
+ 0000000B  00000001  00000002  00000100  00000029
+ 0000000C  00000000  00000000  00000000  00000000
+ 0000000D  00000007  00000340  00000340  00000000
+ 0000000E  00000000  00000000  00000000  00000000
+ 0000000F  00000000  00000000  00000000  00000000
+ 00000010  00000000  00000000  00000000  00000000
+ 00000011  00000000  00000000  00000000  00000000
+ 00000012  00000000  00000000  00000000  00000000
+ 00000013  00000000  00000000  00000000  00000000
+ 00000014  00000001  0000005F  00000007  00000000
+ 00000015  00000002  0000009C  0249F000  00000000
+ 00000016  00000000  00000000  00000000  00000000
+ 00000017  00000000  00000000  00000000  00000000
+ 00000018  00000000  00000000  00000000  00000000
+ 00000019  00000000  00000000  00000000  00000000
+ 0000001A  40000001  00000000  00000000  00000000
+ 0000001B  00000000  00000000  00000000  00000000
+ 0000001C  4000000B  00000007  00000007  00000000
+ 0000001D  00000000  00000000  00000000  00000000
+ 0000001E  00000000  00000000  00000000  00000000
+ 0000001F  00000001  00000002  00000100  00000029
+ 00000020  00000000  00000001  00000000  00000000
+ 80000000  80000008  00000000  00000000  00000000
+ 80000001  00000000  00000000  00000121  2C100800
+ 80000002  68743331  6E654720  746E4920  52286C65
+ 80000003  6F432029  54286572  6920294D  33312D39
+ 80000004  48303039  0000004B  00000000  00000000
+ 80000005  00000000  00000000  00000000  00000000
+ 80000006  00000000  00000000  05007040  00000000
+ 80000007  00000000  00000000  00000000  00000100
+ 80000008  00003027  00000000  00000000  00000000
+
+ CPU Group: 0
+ CPU Thread: 12
+ APIC ID: 48
+ Processor ID: 0
+ Core ID: 24
+ Thread ID: 0
+
+ Function  EAX       EBX       ECX       EDX
+ 00000000  00000020  756E6547  6C65746E  49656E69
+ 00000001  000B06A2  30800800  FFFAF38B  BFCBFBFF
+ 00000002  00FEFF01  000000F0  00000000  00000000
+ 00000003  00000000  00000000  00000000  00000000
+ 00000004  FC004121  01C0003F  0000003F  00000000
+ 00000005  00000040  00000040  00000003  00002020
+ 00000006  009F8FF3  00000002  00000409  00060003
+ 00000007  00000002  239C27A9  184007A4  BC18C410
+ 00000008  00000000  00000000  00000000  00000000
+ 00000009  00000000  00000000  00000000  00000000
+ 0000000A  07300605  00000000  00000007  00008603
+ 0000000B  00000001  00000002  00000100  00000030
+ 0000000C  00000000  00000000  00000000  00000000
+ 0000000D  00000007  00000340  00000340  00000000
+ 0000000E  00000000  00000000  00000000  00000000
+ 0000000F  00000000  00000000  00000000  00000000
+ 00000010  00000000  00000000  00000000  00000000
+ 00000011  00000000  00000000  00000000  00000000
+ 00000012  00000000  00000000  00000000  00000000
+ 00000013  00000000  00000000  00000000  00000000
+ 00000014  00000001  0000005F  80000007  00000000
+ 00000015  00000002  0000009C  0249F000  00000000
+ 00000016  00000000  00000000  00000000  00000000
+ 00000017  00000000  00000000  00000000  00000000
+ 00000018  00000000  00000000  00000000  00000000
+ 00000019  00000000  00000000  00000000  00000000
+ 0000001A  20000001  00000000  00000000  00000000
+ 0000001B  00000000  00000000  00000000  00000000
+ 0000001C  4000000B  00000007  00000007  00000000
+ 0000001D  00000000  00000000  00000000  00000000
+ 0000001E  00000000  00000000  00000000  00000000
+ 0000001F  00000001  00000002  00000100  00000030
+ 00000020  00000000  00000001  00000000  00000000
+ 80000000  80000008  00000000  00000000  00000000
+ 80000001  00000000  00000000  00000121  2C100800
+ 80000002  68743331  6E654720  746E4920  52286C65
+ 80000003  6F432029  54286572  6920294D  33312D39
+ 80000004  48303039  0000004B  00000000  00000000
+ 80000005  00000000  00000000  00000000  00000000
+ 80000006  00000000  00000000  05007040  00000000
+ 80000007  00000000  00000000  00000000  00000100
+ 80000008  00003027  00000000  00000000  00000000
+
+ CPU Group: 0
+ CPU Thread: 13
+ APIC ID: 50
+ Processor ID: 0
+ Core ID: 25
+ Thread ID: 0
+
+ Function  EAX       EBX       ECX       EDX
+ 00000000  00000020  756E6547  6C65746E  49656E69
+ 00000001  000B06A2  32800800  FFFAF38B  BFCBFBFF
+ 00000002  00FEFF01  000000F0  00000000  00000000
+ 00000003  00000000  00000000  00000000  00000000
+ 00000004  FC004121  01C0003F  0000003F  00000000
+ 00000005  00000040  00000040  00000003  00002020
+ 00000006  009F8FF3  00000002  00000409  00060003
+ 00000007  00000002  239C27A9  184007A4  BC18C410
+ 00000008  00000000  00000000  00000000  00000000
+ 00000009  00000000  00000000  00000000  00000000
+ 0000000A  07300605  00000000  00000007  00008603
+ 0000000B  00000001  00000002  00000100  00000032
+ 0000000C  00000000  00000000  00000000  00000000
+ 0000000D  00000007  00000340  00000340  00000000
+ 0000000E  00000000  00000000  00000000  00000000
+ 0000000F  00000000  00000000  00000000  00000000
+ 00000010  00000000  00000000  00000000  00000000
+ 00000011  00000000  00000000  00000000  00000000
+ 00000012  00000000  00000000  00000000  00000000
+ 00000013  00000000  00000000  00000000  00000000
+ 00000014  00000001  0000005F  80000007  00000000
+ 00000015  00000002  0000009C  0249F000  00000000
+ 00000016  00000000  00000000  00000000  00000000
+ 00000017  00000000  00000000  00000000  00000000
+ 00000018  00000000  00000000  00000000  00000000
+ 00000019  00000000  00000000  00000000  00000000
+ 0000001A  20000001  00000000  00000000  00000000
+ 0000001B  00000000  00000000  00000000  00000000
+ 0000001C  4000000B  00000007  00000007  00000000
+ 0000001D  00000000  00000000  00000000  00000000
+ 0000001E  00000000  00000000  00000000  00000000
+ 0000001F  00000001  00000002  00000100  00000032
+ 00000020  00000000  00000001  00000000  00000000
+ 80000000  80000008  00000000  00000000  00000000
+ 80000001  00000000  00000000  00000121  2C100800
+ 80000002  68743331  6E654720  746E4920  52286C65
+ 80000003  6F432029  54286572  6920294D  33312D39
+ 80000004  48303039  0000004B  00000000  00000000
+ 80000005  00000000  00000000  00000000  00000000
+ 80000006  00000000  00000000  05007040  00000000
+ 80000007  00000000  00000000  00000000  00000100
+ 80000008  00003027  00000000  00000000  00000000
+
+ CPU Group: 0
+ CPU Thread: 14
+ APIC ID: 52
+ Processor ID: 0
+ Core ID: 26
+ Thread ID: 0
+
+ Function  EAX       EBX       ECX       EDX
+ 00000000  00000020  756E6547  6C65746E  49656E69
+ 00000001  000B06A2  34800800  FFFAF38B  BFCBFBFF
+ 00000002  00FEFF01  000000F0  00000000  00000000
+ 00000003  00000000  00000000  00000000  00000000
+ 00000004  FC004121  01C0003F  0000003F  00000000
+ 00000005  00000040  00000040  00000003  00002020
+ 00000006  009F8FF3  00000002  00000409  00060003
+ 00000007  00000002  239C27A9  184007A4  BC18C410
+ 00000008  00000000  00000000  00000000  00000000
+ 00000009  00000000  00000000  00000000  00000000
+ 0000000A  07300605  00000000  00000007  00008603
+ 0000000B  00000001  00000002  00000100  00000034
+ 0000000C  00000000  00000000  00000000  00000000
+ 0000000D  00000007  00000340  00000340  00000000
+ 0000000E  00000000  00000000  00000000  00000000
+ 0000000F  00000000  00000000  00000000  00000000
+ 00000010  00000000  00000000  00000000  00000000
+ 00000011  00000000  00000000  00000000  00000000
+ 00000012  00000000  00000000  00000000  00000000
+ 00000013  00000000  00000000  00000000  00000000
+ 00000014  00000001  0000005F  80000007  00000000
+ 00000015  00000002  0000009C  0249F000  00000000
+ 00000016  00000000  00000000  00000000  00000000
+ 00000017  00000000  00000000  00000000  00000000
+ 00000018  00000000  00000000  00000000  00000000
+ 00000019  00000000  00000000  00000000  00000000
+ 0000001A  20000001  00000000  00000000  00000000
+ 0000001B  00000000  00000000  00000000  00000000
+ 0000001C  4000000B  00000007  00000007  00000000
+ 0000001D  00000000  00000000  00000000  00000000
+ 0000001E  00000000  00000000  00000000  00000000
+ 0000001F  00000001  00000002  00000100  00000034
+ 00000020  00000000  00000001  00000000  00000000
+ 80000000  80000008  00000000  00000000  00000000
+ 80000001  00000000  00000000  00000121  2C100800
+ 80000002  68743331  6E654720  746E4920  52286C65
+ 80000003  6F432029  54286572  6920294D  33312D39
+ 80000004  48303039  0000004B  00000000  00000000
+ 80000005  00000000  00000000  00000000  00000000
+ 80000006  00000000  00000000  05007040  00000000
+ 80000007  00000000  00000000  00000000  00000100
+ 80000008  00003027  00000000  00000000  00000000
+
+ CPU Group: 0
+ CPU Thread: 15
+ APIC ID: 54
+ Processor ID: 0
+ Core ID: 27
+ Thread ID: 0
+
+ Function  EAX       EBX       ECX       EDX
+ 00000000  00000020  756E6547  6C65746E  49656E69
+ 00000001  000B06A2  36800800  FFFAF38B  BFCBFBFF
+ 00000002  00FEFF01  000000F0  00000000  00000000
+ 00000003  00000000  00000000  00000000  00000000
+ 00000004  FC004121  01C0003F  0000003F  00000000
+ 00000005  00000040  00000040  00000003  00002020
+ 00000006  009F8FF3  00000002  00000409  00060003
+ 00000007  00000002  239C27A9  184007A4  BC18C410
+ 00000008  00000000  00000000  00000000  00000000
+ 00000009  00000000  00000000  00000000  00000000
+ 0000000A  07300605  00000000  00000007  00008603
+ 0000000B  00000001  00000002  00000100  00000036
+ 0000000C  00000000  00000000  00000000  00000000
+ 0000000D  00000007  00000340  00000340  00000000
+ 0000000E  00000000  00000000  00000000  00000000
+ 0000000F  00000000  00000000  00000000  00000000
+ 00000010  00000000  00000000  00000000  00000000
+ 00000011  00000000  00000000  00000000  00000000
+ 00000012  00000000  00000000  00000000  00000000
+ 00000013  00000000  00000000  00000000  00000000
+ 00000014  00000001  0000005F  80000007  00000000
+ 00000015  00000002  0000009C  0249F000  00000000
+ 00000016  00000000  00000000  00000000  00000000
+ 00000017  00000000  00000000  00000000  00000000
+ 00000018  00000000  00000000  00000000  00000000
+ 00000019  00000000  00000000  00000000  00000000
+ 0000001A  20000001  00000000  00000000  00000000
+ 0000001B  00000000  00000000  00000000  00000000
+ 0000001C  4000000B  00000007  00000007  00000000
+ 0000001D  00000000  00000000  00000000  00000000
+ 0000001E  00000000  00000000  00000000  00000000
+ 0000001F  00000001  00000002  00000100  00000036
+ 00000020  00000000  00000001  00000000  00000000
+ 80000000  80000008  00000000  00000000  00000000
+ 80000001  00000000  00000000  00000121  2C100800
+ 80000002  68743331  6E654720  746E4920  52286C65
+ 80000003  6F432029  54286572  6920294D  33312D39
+ 80000004  48303039  0000004B  00000000  00000000
+ 80000005  00000000  00000000  00000000  00000000
+ 80000006  00000000  00000000  05007040  00000000
+ 80000007  00000000  00000000  00000000  00000100
+ 80000008  00003027  00000000  00000000  00000000
+
+ CPU Group: 0
+ CPU Thread: 16
+ APIC ID: 56
+ Processor ID: 0
+ Core ID: 28
+ Thread ID: 0
+
+ Function  EAX       EBX       ECX       EDX
+ 00000000  00000020  756E6547  6C65746E  49656E69
+ 00000001  000B06A2  38800800  FFFAF38B  BFCBFBFF
+ 00000002  00FEFF01  000000F0  00000000  00000000
+ 00000003  00000000  00000000  00000000  00000000
+ 00000004  FC004121  01C0003F  0000003F  00000000
+ 00000005  00000040  00000040  00000003  00002020
+ 00000006  009F8FF3  00000002  00000409  00070003
+ 00000007  00000002  239C27A9  184007A4  BC18C410
+ 00000008  00000000  00000000  00000000  00000000
+ 00000009  00000000  00000000  00000000  00000000
+ 0000000A  07300605  00000000  00000007  00008603
+ 0000000B  00000001  00000002  00000100  00000038
+ 0000000C  00000000  00000000  00000000  00000000
+ 0000000D  00000007  00000340  00000340  00000000
+ 0000000E  00000000  00000000  00000000  00000000
+ 0000000F  00000000  00000000  00000000  00000000
+ 00000010  00000000  00000000  00000000  00000000
+ 00000011  00000000  00000000  00000000  00000000
+ 00000012  00000000  00000000  00000000  00000000
+ 00000013  00000000  00000000  00000000  00000000
+ 00000014  00000001  0000005F  80000007  00000000
+ 00000015  00000002  0000009C  0249F000  00000000
+ 00000016  00000000  00000000  00000000  00000000
+ 00000017  00000000  00000000  00000000  00000000
+ 00000018  00000000  00000000  00000000  00000000
+ 00000019  00000000  00000000  00000000  00000000
+ 0000001A  20000001  00000000  00000000  00000000
+ 0000001B  00000000  00000000  00000000  00000000
+ 0000001C  4000000B  00000007  00000007  00000000
+ 0000001D  00000000  00000000  00000000  00000000
+ 0000001E  00000000  00000000  00000000  00000000
+ 0000001F  00000001  00000002  00000100  00000038
+ 00000020  00000000  00000001  00000000  00000000
+ 80000000  80000008  00000000  00000000  00000000
+ 80000001  00000000  00000000  00000121  2C100800
+ 80000002  68743331  6E654720  746E4920  52286C65
+ 80000003  6F432029  54286572  6920294D  33312D39
+ 80000004  48303039  0000004B  00000000  00000000
+ 80000005  00000000  00000000  00000000  00000000
+ 80000006  00000000  00000000  05007040  00000000
+ 80000007  00000000  00000000  00000000  00000100
+ 80000008  00003027  00000000  00000000  00000000
+
+ CPU Group: 0
+ CPU Thread: 17
+ APIC ID: 58
+ Processor ID: 0
+ Core ID: 29
+ Thread ID: 0
+
+ Function  EAX       EBX       ECX       EDX
+ 00000000  00000020  756E6547  6C65746E  49656E69
+ 00000001  000B06A2  3A800800  FFFAF38B  BFCBFBFF
+ 00000002  00FEFF01  000000F0  00000000  00000000
+ 00000003  00000000  00000000  00000000  00000000
+ 00000004  FC004121  01C0003F  0000003F  00000000
+ 00000005  00000040  00000040  00000003  00002020
+ 00000006  009F8FF3  00000002  00000409  00070003
+ 00000007  00000002  239C27A9  184007A4  BC18C410
+ 00000008  00000000  00000000  00000000  00000000
+ 00000009  00000000  00000000  00000000  00000000
+ 0000000A  07300605  00000000  00000007  00008603
+ 0000000B  00000001  00000002  00000100  0000003A
+ 0000000C  00000000  00000000  00000000  00000000
+ 0000000D  00000007  00000340  00000340  00000000
+ 0000000E  00000000  00000000  00000000  00000000
+ 0000000F  00000000  00000000  00000000  00000000
+ 00000010  00000000  00000000  00000000  00000000
+ 00000011  00000000  00000000  00000000  00000000
+ 00000012  00000000  00000000  00000000  00000000
+ 00000013  00000000  00000000  00000000  00000000
+ 00000014  00000001  0000005F  80000007  00000000
+ 00000015  00000002  0000009C  0249F000  00000000
+ 00000016  00000000  00000000  00000000  00000000
+ 00000017  00000000  00000000  00000000  00000000
+ 00000018  00000000  00000000  00000000  00000000
+ 00000019  00000000  00000000  00000000  00000000
+ 0000001A  20000001  00000000  00000000  00000000
+ 0000001B  00000000  00000000  00000000  00000000
+ 0000001C  4000000B  00000007  00000007  00000000
+ 0000001D  00000000  00000000  00000000  00000000
+ 0000001E  00000000  00000000  00000000  00000000
+ 0000001F  00000001  00000002  00000100  0000003A
+ 00000020  00000000  00000001  00000000  00000000
+ 80000000  80000008  00000000  00000000  00000000
+ 80000001  00000000  00000000  00000121  2C100800
+ 80000002  68743331  6E654720  746E4920  52286C65
+ 80000003  6F432029  54286572  6920294D  33312D39
+ 80000004  48303039  0000004B  00000000  00000000
+ 80000005  00000000  00000000  00000000  00000000
+ 80000006  00000000  00000000  05007040  00000000
+ 80000007  00000000  00000000  00000000  00000100
+ 80000008  00003027  00000000  00000000  00000000
+
+ CPU Group: 0
+ CPU Thread: 18
+ APIC ID: 60
+ Processor ID: 0
+ Core ID: 30
+ Thread ID: 0
+
+ Function  EAX       EBX       ECX       EDX
+ 00000000  00000020  756E6547  6C65746E  49656E69
+ 00000001  000B06A2  3C800800  FFFAF38B  BFCBFBFF
+ 00000002  00FEFF01  000000F0  00000000  00000000
+ 00000003  00000000  00000000  00000000  00000000
+ 00000004  FC004121  01C0003F  0000003F  00000000
+ 00000005  00000040  00000040  00000003  00002020
+ 00000006  009F8FF3  00000002  00000409  00070003
+ 00000007  00000002  239C27A9  184007A4  BC18C410
+ 00000008  00000000  00000000  00000000  00000000
+ 00000009  00000000  00000000  00000000  00000000
+ 0000000A  07300605  00000000  00000007  00008603
+ 0000000B  00000001  00000002  00000100  0000003C
+ 0000000C  00000000  00000000  00000000  00000000
+ 0000000D  00000007  00000340  00000340  00000000
+ 0000000E  00000000  00000000  00000000  00000000
+ 0000000F  00000000  00000000  00000000  00000000
+ 00000010  00000000  00000000  00000000  00000000
+ 00000011  00000000  00000000  00000000  00000000
+ 00000012  00000000  00000000  00000000  00000000
+ 00000013  00000000  00000000  00000000  00000000
+ 00000014  00000001  0000005F  80000007  00000000
+ 00000015  00000002  0000009C  0249F000  00000000
+ 00000016  00000000  00000000  00000000  00000000
+ 00000017  00000000  00000000  00000000  00000000
+ 00000018  00000000  00000000  00000000  00000000
+ 00000019  00000000  00000000  00000000  00000000
+ 0000001A  20000001  00000000  00000000  00000000
+ 0000001B  00000000  00000000  00000000  00000000
+ 0000001C  4000000B  00000007  00000007  00000000
+ 0000001D  00000000  00000000  00000000  00000000
+ 0000001E  00000000  00000000  00000000  00000000
+ 0000001F  00000001  00000002  00000100  0000003C
+ 00000020  00000000  00000001  00000000  00000000
+ 80000000  80000008  00000000  00000000  00000000
+ 80000001  00000000  00000000  00000121  2C100800
+ 80000002  68743331  6E654720  746E4920  52286C65
+ 80000003  6F432029  54286572  6920294D  33312D39
+ 80000004  48303039  0000004B  00000000  00000000
+ 80000005  00000000  00000000  00000000  00000000
+ 80000006  00000000  00000000  05007040  00000000
+ 80000007  00000000  00000000  00000000  00000100
+ 80000008  00003027  00000000  00000000  00000000
+
+ CPU Group: 0
+ CPU Thread: 19
+ APIC ID: 62
+ Processor ID: 0
+ Core ID: 31
+ Thread ID: 0
+
+ Function  EAX       EBX       ECX       EDX
+ 00000000  00000020  756E6547  6C65746E  49656E69
+ 00000001  000B06A2  3E800800  FFFAF38B  BFCBFBFF
+ 00000002  00FEFF01  000000F0  00000000  00000000
+ 00000003  00000000  00000000  00000000  00000000
+ 00000004  FC004121  01C0003F  0000003F  00000000
+ 00000005  00000040  00000040  00000003  00002020
+ 00000006  009F8FF3  00000002  00000409  00070003
+ 00000007  00000002  239C27A9  184007A4  BC18C410
+ 00000008  00000000  00000000  00000000  00000000
+ 00000009  00000000  00000000  00000000  00000000
+ 0000000A  07300605  00000000  00000007  00008603
+ 0000000B  00000001  00000002  00000100  0000003E
+ 0000000C  00000000  00000000  00000000  00000000
+ 0000000D  00000007  00000340  00000340  00000000
+ 0000000E  00000000  00000000  00000000  00000000
+ 0000000F  00000000  00000000  00000000  00000000
+ 00000010  00000000  00000000  00000000  00000000
+ 00000011  00000000  00000000  00000000  00000000
+ 00000012  00000000  00000000  00000000  00000000
+ 00000013  00000000  00000000  00000000  00000000
+ 00000014  00000001  0000005F  80000007  00000000
+ 00000015  00000002  0000009C  0249F000  00000000
+ 00000016  00000000  00000000  00000000  00000000
+ 00000017  00000000  00000000  00000000  00000000
+ 00000018  00000000  00000000  00000000  00000000
+ 00000019  00000000  00000000  00000000  00000000
+ 0000001A  20000001  00000000  00000000  00000000
+ 0000001B  00000000  00000000  00000000  00000000
+ 0000001C  4000000B  00000007  00000007  00000000
+ 0000001D  00000000  00000000  00000000  00000000
+ 0000001E  00000000  00000000  00000000  00000000
+ 0000001F  00000001  00000002  00000100  0000003E
+ 00000020  00000000  00000001  00000000  00000000
+ 80000000  80000008  00000000  00000000  00000000
+ 80000001  00000000  00000000  00000121  2C100800
+ 80000002  68743331  6E654720  746E4920  52286C65
+ 80000003  6F432029  54286572  6920294D  33312D39
+ 80000004  48303039  0000004B  00000000  00000000
+ 80000005  00000000  00000000  00000000  00000000
+ 80000006  00000000  00000000  05007040  00000000
+ 80000007  00000000  00000000  00000000  00000100
+ 80000008  00003027  00000000  00000000  00000000
+
+--------------------------------------------------------------------------------
+
+Intel CPU
+
+Name: 13th Gen Intel Core i9-13900HK
+Number of Cores: 14
+Threads per Core: 2
+Timer Frequency: 10 MHz
+Time Stamp Counter: Invariant
+Estimated Time Stamp Counter Frequency: 2995.65 MHz
+Estimated Time Stamp Counter Frequency Error: 0.53922 Mhz
+Time Stamp Counter Frequency: 2995.2000000000003 MHz
+
+MicroArchitecture: RaptorLake
+Time Stamp Counter Multiplier: 30
+
+--------------------------------------------------------------------------------
+
+Memory Report:
+Virtual Memory (/vram):
+
+Memory Used: 31,438057
+Memory Available: 2,263771
+Memory: 93,28294
+Total Memory (/ram):
+
+Memory Used: 22,715572
+Memory Available: 8,986256
+Memory: 71,653824
+Shenzhen WODPOSIT Technology Co - WPBH32D408SWM-16G (#0) (/memory/dimm/0):
+
+tCKAVGmin (Minimum Cycle Time): 0,625
+tCKAVGmax (Maximum Cycle Time): 1,6
+tAA (CAS Latency Time): 13,75
+tRCD (RAS to CAS Delay Time): 13,75
+tRP (Row Precharge Delay Time): 13,75
+tRAS (Active to Precharge Delay Time): 32
+tRC (Active to Active/Refresh Delay Time): 45,75
+tRFC1 (Refresh Recovery Delay Time): 350
+tRFC2 (Refresh Recovery Delay Time): 260
+tRFC4 (Refresh Recovery Delay Time): 160
+tFAW (Four Activate Window Time): 21
+tRRD_S (Activate to Activate Delay Time): 2,5
+tRRD_L (Activate to Activate Delay Time): 4,9
+tCCD_L (CAS to CAS Delay Time): 5
+tWR (Write Recovery Time): 15
+tWTR_S (Write to Read Time): 2,5
+tWTR_L (Write to Read Time): 7,5
+Capacity: 32
+Shenzhen WODPOSIT Technology Co - WPBH32D408SWM-16G (#2) (/memory/dimm/2):
+
+tCKAVGmin (Minimum Cycle Time): 0,625
+tCKAVGmax (Maximum Cycle Time): 1,6
+tAA (CAS Latency Time): 13,75
+tRCD (RAS to CAS Delay Time): 13,75
+tRP (Row Precharge Delay Time): 13,75
+tRAS (Active to Precharge Delay Time): 32
+tRC (Active to Active/Refresh Delay Time): 45,75
+tRFC1 (Refresh Recovery Delay Time): 350
+tRFC2 (Refresh Recovery Delay Time): 260
+tRFC4 (Refresh Recovery Delay Time): 160
+tFAW (Four Activate Window Time): 21
+tRRD_S (Activate to Activate Delay Time): 2,5
+tRRD_L (Activate to Activate Delay Time): 4,9
+tCCD_L (CAS to CAS Delay Time): 5
+tWR (Write Recovery Time): 15
+tWTR_S (Write to Read Time): 2,5
+tWTR_L (Write to Read Time): 7,5
+Capacity: 32
+--------------------------------------------------------------------------------
+
+Intel GPU Detection
+
+Intel GCL Initialized: True
+
+Device handles found: 1
+Intel GPU (D3D - Integrated)
+
+Number of D3D adapters: 2
+
+AdapterIndex: 0
+DeviceId: \\?\ROOT#BasicRender#0000#{1ca05180-a699-450a-9a0c-de4fbe3ddd89}
+IsIntel: False
+
+AdapterIndex: 1
+DeviceId: \\?\PCI#VEN_8086&DEV_A7A0&SUBSYS_00000000&REV_04#3&11583659&0&10#{1ca05180-a699-450a-9a0c-de4fbe3ddd89}
+IsIntel: True
+GpuSharedLimit: 17019789312
+GpuSharedUsed: 1607815168
+GpuSharedMax: 1607815168
+GpuDedicatedLimit: 0
+GpuDedicatedUsed: 0
+GpuDedicatedMax: 0
+Integrated: True
+
+--------------------------------------------------------------------------------
+
+Power Monitors:
+
+
+--------------------------------------------------------------------------------
+
+FTD2XX
+
+Status: missing DLL
+
+--------------------------------------------------------------------------------
+
+AquaComputer Hardware
+
+No AquaComputer Hardware found.
+
+--------------------------------------------------------------------------------
+
+AeroCool Hardware
+
+No AeroCool Hardware found.
+
+--------------------------------------------------------------------------------
+
+Nzxt Hardware
+
+No Nzxt Hardware found.
+
+--------------------------------------------------------------------------------
+
+Razer Hardware
+
+No Razer Hardware found.
+
+--------------------------------------------------------------------------------
+
+ARCTIC Hardware
+
+--------------------------------------------------------------------------------
+
+MSI Hardware:
+
+
+--------------------------------------------------------------------------------
+
+Storage
+
+Drive Name: Lexar SSD NQ7A1 1TB
+Firmware Version and Revision: V1.2.3; V1.2.3
+
+Smart Attributes:
+ID, Description, Value, Threshold
+  1,                                             Critical Warning,                  0,   0
+  2,                                        Composite Temperature,                330,   0
+  3,                                              Available Spare,                100,   0
+  4,                                    Available Spare Threshold,                  1,   0
+  5,                                              Percentage Used,                  3,   0
+  6,                                              Data Units Read,           14825937,   0
+  7,                                           Data Units Written,           17301792,   0
+  8,                                           Host Read Commands,          163577000,   0
+  9,                                          Host Write Commands,          280179400,   0
+ 10,                                         Controller Busy Time,                625,   0
+ 11,                                                 Power Cycles,                604,   0
+ 12,                                               Power On Hours,                621,   0
+ 13,                                             Unsafe Shutdowns,                 55,   0
+ 14,                              Media and Data Integrity Errors,                  0,   0
+ 15,                      Number of Error Information Log Entries,                  0,   0
+ 16,                           Warning Composite Temperature Time,               1208,   0
+ 17,                          Critical Composite Temperature Time,                191,   0
+ 18,                                         Temperature Sensor 1,                330,   0
+ 19,                                         Temperature Sensor 2,                284,   0
+ 20,                                         Temperature Sensor 3,                  0,   0
+ 21,                                         Temperature Sensor 4,                  0,   0
+ 22,                                         Temperature Sensor 5,                  0,   0
+ 23,                                         Temperature Sensor 6,                  0,   0
+ 24,                                         Temperature Sensor 7,                  0,   0
+ 25,                                         Temperature Sensor 8,                  0,   0
+ 26,            Thermal Management Temperature 1 Transition Count,                 79,   0
+ 27,            Thermal Management Temperature 2 Transition Count,                359,   0
+ 28,              Total Time For Thermal Management Temperature 1,               1120,   0
+ 29,              Total Time For Thermal Management Temperature 2,                402,   0
+
+Partitions:
+Partition #1
+Available Free Space: 221515776
+Partition #2
+Partition #3
+Drive Letter: C
+Available Free Space: 633292910592
+Partition #4
+Available Free Space: 120205312
+
+Total Free Size: 633636032512
+Total Size: 1024209543168
+--------------------------------------------------------------------------------
+
+Microsoft Wi-Fi Direct Virtual Adapter #2
+Down
+
+Data Uploaded
+0
+
+Data Downloaded
+0
+
+Upload Speed
+0
+
+Download Speed
+0
+
+Network Utilization
+0
+
+Microsoft Wi-Fi Direct Virtual Adapter #2-Native WiFi Filter Driver-0000
+Down
+
+Data Uploaded
+0
+
+Data Downloaded
+0
+
+Upload Speed
+0
+
+Download Speed
+0
+
+Network Utilization
+0
+
+Microsoft Wi-Fi Direct Virtual Adapter #2-QoS Packet Scheduler-0000
+Down
+
+Data Uploaded
+0
+
+Data Downloaded
+0
+
+Upload Speed
+0
+
+Download Speed
+0
+
+Network Utilization
+0
+
+Microsoft Wi-Fi Direct Virtual Adapter #2-VirtualBox NDIS Light-Weight Filter-0000
+Down
+
+Data Uploaded
+0
+
+Data Downloaded
+0
+
+Upload Speed
+0
+
+Download Speed
+0
+
+Network Utilization
+0
+
+Microsoft Wi-Fi Direct Virtual Adapter #2-WFP 802.3 MAC Layer LightWeight Filter-0000
+Down
+
+Data Uploaded
+0
+
+Data Downloaded
+0
+
+Upload Speed
+0
+
+Download Speed
+0
+
+Network Utilization
+0
+
+Microsoft Wi-Fi Direct Virtual Adapter #2-WFP Native MAC Layer LightWeight Filter-0000
+Down
+
+Data Uploaded
+0
+
+Data Downloaded
+0
+
+Upload Speed
+0
+
+Download Speed
+0
+
+Network Utilization
+0
+
+WAN Miniport (PPPOE)
+Down
+
+Data Uploaded
+0
+
+Data Downloaded
+0
+
+Upload Speed
+0
+
+Download Speed
+0
+
+Network Utilization
+0
+
+WAN Miniport (IP)
+Up
+
+Data Uploaded
+0
+
+Data Downloaded
+0
+
+Upload Speed
+0
+
+Download Speed
+0
+
+Network Utilization
+0
+
+WAN Miniport (IP)-QoS Packet Scheduler-0000
+Up
+
+Data Uploaded
+0
+
+Data Downloaded
+0
+
+Upload Speed
+0
+
+Download Speed
+0
+
+Network Utilization
+0
+
+WAN Miniport (IP)-WFP Native MAC Layer LightWeight Filter-0000
+Up
+
+Data Uploaded
+0
+
+Data Downloaded
+0
+
+Upload Speed
+0
+
+Download Speed
+0
+
+Network Utilization
+0
+
+WAN Miniport (IPv6)
+Up
+
+Data Uploaded
+0
+
+Data Downloaded
+0
+
+Upload Speed
+0
+
+Download Speed
+0
+
+Network Utilization
+0
+
+WAN Miniport (IPv6)-QoS Packet Scheduler-0000
+Up
+
+Data Uploaded
+0
+
+Data Downloaded
+0
+
+Upload Speed
+0
+
+Download Speed
+0
+
+Network Utilization
+0
+
+WAN Miniport (IPv6)-WFP Native MAC Layer LightWeight Filter-0000
+Up
+
+Data Uploaded
+0
+
+Data Downloaded
+0
+
+Upload Speed
+0
+
+Download Speed
+0
+
+Network Utilization
+0
+
+WAN Miniport (Network Monitor)
+Up
+
+Data Uploaded
+0
+
+Data Downloaded
+0
+
+Upload Speed
+0
+
+Download Speed
+0
+
+Network Utilization
+0
+
+WAN Miniport (Network Monitor)-QoS Packet Scheduler-0000
+Up
+
+Data Uploaded
+0
+
+Data Downloaded
+0
+
+Upload Speed
+0
+
+Download Speed
+0
+
+Network Utilization
+0
+
+WAN Miniport (Network Monitor)-WFP Native MAC Layer LightWeight Filter-0000
+Up
+
+Data Uploaded
+0
+
+Data Downloaded
+0
+
+Upload Speed
+0
+
+Download Speed
+0
+
+Network Utilization
+0
+
+Microsoft Wi-Fi Direct Virtual Adapter
+Down
+
+Data Uploaded
+0
+
+Data Downloaded
+0
+
+Upload Speed
+0
+
+Download Speed
+0
+
+Network Utilization
+0
+
+Microsoft Wi-Fi Direct Virtual Adapter-Native WiFi Filter Driver-0000
+Down
+
+Data Uploaded
+0
+
+Data Downloaded
+0
+
+Upload Speed
+0
+
+Download Speed
+0
+
+Network Utilization
+0
+
+Microsoft Wi-Fi Direct Virtual Adapter-QoS Packet Scheduler-0000
+Down
+
+Data Uploaded
+0
+
+Data Downloaded
+0
+
+Upload Speed
+0
+
+Download Speed
+0
+
+Network Utilization
+0
+
+Microsoft Wi-Fi Direct Virtual Adapter-VirtualBox NDIS Light-Weight Filter-0000
+Down
+
+Data Uploaded
+0
+
+Data Downloaded
+0
+
+Upload Speed
+0
+
+Download Speed
+0
+
+Network Utilization
+0
+
+Microsoft Wi-Fi Direct Virtual Adapter-WFP 802.3 MAC Layer LightWeight Filter-0000
+Down
+
+Data Uploaded
+0
+
+Data Downloaded
+0
+
+Upload Speed
+0
+
+Download Speed
+0
+
+Network Utilization
+0
+
+Microsoft Wi-Fi Direct Virtual Adapter-WFP Native MAC Layer LightWeight Filter-0000
+Down
+
+Data Uploaded
+0
+
+Data Downloaded
+0
+
+Upload Speed
+0
+
+Download Speed
+0
+
+Network Utilization
+0
+
+Bluetooth Device (Personal Area Network)
+Down
+
+Data Uploaded
+0
+
+Data Downloaded
+0
+
+Upload Speed
+0
+
+Download Speed
+0
+
+Network Utilization
+0
+
+Intel(R) Ethernet Controller I226-V
+Down
+
+Data Uploaded
+0
+
+Data Downloaded
+0
+
+Upload Speed
+0
+
+Download Speed
+0
+
+Network Utilization
+0
+
+Microsoft Kernel Debug Network Adapter
+NotPresent
+
+Data Uploaded
+0
+
+Data Downloaded
+0
+
+Upload Speed
+0
+
+Download Speed
+0
+
+Network Utilization
+NaN
+
+VirtualBox Host-Only Ethernet Adapter
+Up
+
+Data Uploaded
+0
+
+Data Downloaded
+0
+
+Upload Speed
+0
+
+Download Speed
+0
+
+Network Utilization
+0
+
+VirtualBox Host-Only Ethernet Adapter-QoS Packet Scheduler-0000
+Up
+
+Data Uploaded
+0
+
+Data Downloaded
+0
+
+Upload Speed
+0
+
+Download Speed
+0
+
+Network Utilization
+0
+
+VirtualBox Host-Only Ethernet Adapter-WFP 802.3 MAC Layer LightWeight Filter-0000
+Up
+
+Data Uploaded
+0
+
+Data Downloaded
+0
+
+Upload Speed
+0
+
+Download Speed
+0
+
+Network Utilization
+0
+
+VirtualBox Host-Only Ethernet Adapter-WFP Native MAC Layer LightWeight Filter-0000
+Up
+
+Data Uploaded
+0
+
+Data Downloaded
+0
+
+Upload Speed
+0
+
+Download Speed
+0
+
+Network Utilization
+0
+
+Intel(R) Ethernet Controller I226-V-QoS Packet Scheduler-0000
+Down
+
+Data Uploaded
+0
+
+Data Downloaded
+0
+
+Upload Speed
+0
+
+Download Speed
+0
+
+Network Utilization
+0
+
+Intel(R) Ethernet Controller I226-V-VirtualBox NDIS Light-Weight Filter-0000
+Down
+
+Data Uploaded
+0
+
+Data Downloaded
+0
+
+Upload Speed
+0
+
+Download Speed
+0
+
+Network Utilization
+0
+
+Intel(R) Ethernet Controller I226-V-WFP 802.3 MAC Layer LightWeight Filter-0000
+Down
+
+Data Uploaded
+0
+
+Data Downloaded
+0
+
+Upload Speed
+0
+
+Download Speed
+0
+
+Network Utilization
+0
+
+Intel(R) Ethernet Controller I226-V-WFP Native MAC Layer LightWeight Filter-0000
+Down
+
+Data Uploaded
+0
+
+Data Downloaded
+0
+
+Upload Speed
+0
+
+Download Speed
+0
+
+Network Utilization
+0
+
+Hyper-V Virtual Ethernet Adapter
+Up
+
+Data Uploaded
+0,0019773636
+
+Data Downloaded
+0
+
+Upload Speed
+0
+
+Download Speed
+0
+
+Network Utilization
+0
+
+Hyper-V Virtual Ethernet Adapter-QoS Packet Scheduler-0000
+Up
+
+Data Uploaded
+0,0019773636
+
+Data Downloaded
+0
+
+Upload Speed
+0
+
+Download Speed
+0
+
+Network Utilization
+0
+
+Hyper-V Virtual Ethernet Adapter-VirtualBox NDIS Light-Weight Filter-0000
+Up
+
+Data Uploaded
+0,0019773636
+
+Data Downloaded
+0
+
+Upload Speed
+0
+
+Download Speed
+0
+
+Network Utilization
+0
+
+Hyper-V Virtual Ethernet Adapter-WFP 802.3 MAC Layer LightWeight Filter-0000
+Up
+
+Data Uploaded
+0,0019773636
+
+Data Downloaded
+0
+
+Upload Speed
+0
+
+Download Speed
+0
+
+Network Utilization
+0
+
+Hyper-V Virtual Ethernet Adapter-WFP Native MAC Layer LightWeight Filter-0000
+Up
+
+Data Uploaded
+0,0019773636
+
+Data Downloaded
+0
+
+Upload Speed
+0
+
+Download Speed
+0
+
+Network Utilization
+0
+
+Hyper-V Virtual Ethernet Adapter #2
+Up
+
+Data Uploaded
+0,001479622
+
+Data Downloaded
+1,8641353E-05
+
+Upload Speed
+0
+
+Download Speed
+0
+
+Network Utilization
+0
+
+Hyper-V Virtual Ethernet Adapter #2-QoS Packet Scheduler-0000
+Up
+
+Data Uploaded
+0,001479622
+
+Data Downloaded
+1,8641353E-05
+
+Upload Speed
+0
+
+Download Speed
+0
+
+Network Utilization
+0
+
+Hyper-V Virtual Ethernet Adapter #2-VirtualBox NDIS Light-Weight Filter-0000
+Up
+
+Data Uploaded
+0,001479622
+
+Data Downloaded
+1,8641353E-05
+
+Upload Speed
+0
+
+Download Speed
+0
+
+Network Utilization
+0
+
+Hyper-V Virtual Ethernet Adapter #2-WFP 802.3 MAC Layer LightWeight Filter-0000
+Up
+
+Data Uploaded
+0,001479622
+
+Data Downloaded
+1,8641353E-05
+
+Upload Speed
+0
+
+Download Speed
+0
+
+Network Utilization
+0
+
+Hyper-V Virtual Ethernet Adapter #2-WFP Native MAC Layer LightWeight Filter-0000
+Up
+
+Data Uploaded
+0,001479622
+
+Data Downloaded
+1,8641353E-05
+
+Upload Speed
+0
+
+Download Speed
+0
+
+Network Utilization
+0
+
+VMware Virtual Ethernet Adapter for VMnet1
+Up
+
+Data Uploaded
+6,919727E-07
+
+Data Downloaded
+4,284084E-08
+
+Upload Speed
+0
+
+Download Speed
+0
+
+Network Utilization
+0
+
+VMware Virtual Ethernet Adapter for VMnet8
+Up
+
+Data Uploaded
+3,6628917E-06
+
+Data Downloaded
+4,284084E-08
+
+Upload Speed
+1,9876814
+
+Download Speed
+0
+
+Network Utilization
+1,590145E-05
+
+Hyper-V Virtual Switch Extension Adapter
+Up
+
+Data Uploaded
+0
+
+Data Downloaded
+0
+
+Upload Speed
+0
+
+Download Speed
+0
+
+Network Utilization
+0
+
+Hyper-V Virtual Switch Extension Adapter-Hyper-V Virtual Switch Extension Filter-0000
+Up
+
+Data Uploaded
+0
+
+Data Downloaded
+0
+
+Upload Speed
+0
+
+Download Speed
+0
+
+Network Utilization
+0
+
+Hyper-V Virtual Switch Extension Adapter #2
+Up
+
+Data Uploaded
+0
+
+Data Downloaded
+0
+
+Upload Speed
+0
+
+Download Speed
+0
+
+Network Utilization
+0
+
+Hyper-V Virtual Switch Extension Adapter #2-Hyper-V Virtual Switch Extension Filter-0000
+Up
+
+Data Uploaded
+0
+
+Data Downloaded
+0
+
+Upload Speed
+0
+
+Download Speed
+0
+
+Network Utilization
+0
+
+MediaTek Wi-Fi 6E MT7922 160MHz Wireless LAN Card
+Up
+
+Data Uploaded
+3,9011772
+
+Data Downloaded
+16,23944
+
+Upload Speed
+1192,6924
+
+Download Speed
+14619,427
+
+Network Utilization
+0,042165652
+
+MediaTek Wi-Fi 6E MT7922 160MHz Wireless LAN Card-Native WiFi Filter Driver-0000
+Up
+
+Data Uploaded
+3,9011772
+
+Data Downloaded
+16,23944
+
+Upload Speed
+1192,7557
+
+Download Speed
+14620,203
+
+Network Utilization
+0,04216789
+
+MediaTek Wi-Fi 6E MT7922 160MHz Wireless LAN Card-QoS Packet Scheduler-0000
+Up
+
+Data Uploaded
+3,9011772
+
+Data Downloaded
+16,23944
+
+Upload Speed
+1192,7875
+
+Download Speed
+14620,592
+
+Network Utilization
+0,042169012
+
+MediaTek Wi-Fi 6E MT7922 160MHz Wireless LAN Card-Virtual WiFi Filter Driver-0000
+Up
+
+Data Uploaded
+3,9011772
+
+Data Downloaded
+16,23944
+
+Upload Speed
+1192,7988
+
+Download Speed
+14620,731
+
+Network Utilization
+0,042169414
+
+MediaTek Wi-Fi 6E MT7922 160MHz Wireless LAN Card-VirtualBox NDIS Light-Weight Filter-0000
+Up
+
+Data Uploaded
+3,9011772
+
+Data Downloaded
+16,23944
+
+Upload Speed
+1192,8225
+
+Download Speed
+14621,022
+
+Network Utilization
+0,042170253
+
+MediaTek Wi-Fi 6E MT7922 160MHz Wireless LAN Card-WFP 802.3 MAC Layer LightWeight Filter-0000
+Up
+
+Data Uploaded
+3,9011772
+
+Data Downloaded
+16,23944
+
+Upload Speed
+1192,8339
+
+Download Speed
+14621,16
+
+Network Utilization
+0,04217065
+
+MediaTek Wi-Fi 6E MT7922 160MHz Wireless LAN Card-WFP Native MAC Layer LightWeight Filter-0000
+Up
+
+Data Uploaded
+3,9011772
+
+Data Downloaded
+16,23944
+
+Upload Speed
+1192,8463
+
+Download Speed
+14621,313
+
+Network Utilization
+0,04217109
+
+--------------------------------------------------------------------------------
+
+Corsair HXi/RMi series PSU Hardware
+
+--------------------------------------------------------------------------------
+
+MSI Ai series PSU Hardware
+
+No MSI PSU Hardware found.
+
