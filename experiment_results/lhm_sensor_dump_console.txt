@@ -1,0 +1,30 @@
+[OK] LHM agganciata: C:\Users\Massimo\Documents\CasualWatt\CWProject\cwEnergyModular\LibreHardwareMonitorLib\LibreHardwareMonitor\LibreHardwareMonitorLib.dll
+[OK] versione DLL rilevata: 0.9.4.0   (sorgente letto: 0.9.6 -> discordanza DA DICHIARARE nel referto)
+
+=== sensori Power/Energy esposti: 5 ===
+  [0] Power  'CPU Package'  <Cpu :: 13th Gen Intel Core i9-13900HK> idx=0
+  [1] Power  'CPU Cores'  <Cpu :: 13th Gen Intel Core i9-13900HK> idx=1
+  [2] Power  'CPU Memory'  <Cpu :: 13th Gen Intel Core i9-13900HK> idx=3
+  [3] Power  'CPU Platform'  <Cpu :: 13th Gen Intel Core i9-13900HK> idx=4
+  [4] Power  'GPU Power'  <GpuIntel :: Intel(R) Iris(R) Xe Graphics> idx=0
+[OK] EMI attivo (contatore cumulativo, nessun privilegi).
+--- fase idle (30 s, 0 processi burn) ---
+--- fase burn2 (30 s, 2 processi burn) ---
+--- fase burn8 (30 s, 8 processi burn) ---
+--- fase cool (25 s, 0 processi burn) ---
+
+=== EMI [W] per fase ===
+  package  idle=14.29  burn2=30.18  burn8=38.92  cool=13.48
+  pp0      idle=8.1  burn2=24.01  burn8=32.66  cool=7.26
+  pp1      idle=0.35  burn2=0.37  burn8=0.38  cool=0.37
+
+=== ogni sensore Power/Energy contro EMI PKG ===
+  {"i": 0, "sensore": "CPU Package", "tipo": "Power", "hardware": "Cpu :: 13th Gen Intel Core i9-13900HK", "index": 0, "W_per_fase": {"idle": 14.33, "burn2": 29.56, "burn8": 38.02, "cool": 13.67}, "offset_a_idle_vs_EMI_W": 0.04, "delta_burn2": {"sensore_W": 15.23, "EMI_W": 15.89, "rapporto_EMI_div_sensore": 1.043}, "delta_burn8": {"sensore_W": 23.69, "EMI_W": 24.63, "rapporto_EMI_div_sensore": 1.04}}
+  {"i": 1, "sensore": "CPU Cores", "tipo": "Power", "hardware": "Cpu :: 13th Gen Intel Core i9-13900HK", "index": 1, "W_per_fase": {"idle": 8.13, "burn2": 23.38, "burn8": 31.72, "cool": 7.43}, "offset_a_idle_vs_EMI_W": -6.16, "delta_burn2": {"sensore_W": 15.25, "EMI_W": 15.89, "rapporto_EMI_div_sensore": 1.042}, "delta_burn8": {"sensore_W": 23.59, "EMI_W": 24.63, "rapporto_EMI_div_sensore": 1.044}}
+  {"i": 2, "sensore": "CPU Memory", "tipo": "Power", "hardware": "Cpu :: 13th Gen Intel Core i9-13900HK", "index": 3, "W_per_fase": {"idle": 0.0, "burn2": 0.0, "burn8": 0.0, "cool": 0.0}, "offset_a_idle_vs_EMI_W": -14.29, "delta_burn2": {"sensore_W": 0.0, "EMI_W": 15.89, "rapporto_EMI_div_sensore": null}, "delta_burn8": {"sensore_W": 0.0, "EMI_W": 24.63, "rapporto_EMI_div_sensore": null}}
+  {"i": 3, "sensore": "CPU Platform", "tipo": "Power", "hardware": "Cpu :: 13th Gen Intel Core i9-13900HK", "index": 4, "W_per_fase": {"idle": 0.33, "burn2": 0.33, "burn8": 0.33, "cool": 0.33}, "offset_a_idle_vs_EMI_W": -13.96, "delta_burn2": {"sensore_W": 0.0, "EMI_W": 15.89, "rapporto_EMI_div_sensore": null}, "delta_burn8": {"sensore_W": 0.0, "EMI_W": 24.63, "rapporto_EMI_div_sensore": null}}
+  {"i": 4, "sensore": "GPU Power", "tipo": "Power", "hardware": "GpuIntel :: Intel(R) Iris(R) Xe Graphics", "index": 0, "W_per_fase": {"idle": 0.36, "burn2": 0.37, "burn8": 0.39, "cool": 0.37}, "offset_a_idle_vs_EMI_W": -13.93, "delta_burn2": {"sensore_W": 0.01, "EMI_W": 15.89, "rapporto_EMI_div_sensore": null}, "delta_burn8": {"sensore_W": 0.03, "EMI_W": 24.63, "rapporto_EMI_div_sensore": null}}
+
+[OK] C:\Users\Massimo\Documents\CasualWatt\CWProject\experiment_results\lhm_sensor_dump_20261023_124448.json
+[OK] C:\Users\Massimo\Documents\CasualWatt\CWProject\experiment_results\lhm_sensor_dump_20261023_124448.csv
+EXIT=0
