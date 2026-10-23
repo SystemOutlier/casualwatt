@@ -5,8 +5,11 @@ energy/energy_session.py — Sessione CasualWatt: campionamento continuo.
 Questa modulo espone il singleton ``SESSION`` usato da tutti gli altri moduli
 energetici. Un thread daemon campiona a intervallo fisso:
 
-* energia del package CPU (LibreHardwareMonitor via pythonnet, fallback
-  RAPL Linux, fallback stima TDP psutil);
+* energia del package CPU: su Windows il contatore cumulativo EMI
+  (``energy.emi_backend``, metodo principale dal 23/10, senza token elevato),
+  con LibreHardwareMonitor via pythonnet come fallback dichiarato quando il
+  driver EMI manca; su Linux i contatori RAPL (``energy.rapl_backend``).
+  ``CW_PRIMARY_CHANNEL=lhm`` forza l'ordine precedente per confrontare i canali;
 * tempo CPU busy di sistema (deriva dal ``cpu_times`` globale);
 * istogrammi I/O del processo Ollama (read+write bytes e cpu_times), per
   poter interpolare con precisione il delta sull'albero dei processi anche
@@ -33,6 +36,18 @@ try:  # config e' nella cartella padre: import assoluto protetto
 except Exception:  # pragma: no cover - contesto di test standalone
     MONITOR_INTERVAL_S = 0.5
     OLLAMA_PROCESS_NAMES = ("ollama.exe", "ollama_llama_server.exe", "ollama")
+
+
+#: Metodi che possono esprimere un NUMERO di energia. Sono i metodi che leggono
+#: un contatore o integrano una potenza reale; tutto il resto ("unavailable",
+#: "librehardwaremonitor" senza sensori Energy/Power) deve produrre N/A nel CSV,
+#: non uno zero. La lista sta QUI, accanto a chi quei valori li produce, perche'
+#: il 24/10 ne esisteva una copia in benchmark_unified.py:402 rimasta ferma
+#: quando il backend RAPL e' stato aggiunto: su Linux il campo judge_energy_j
+#: sarebbe stato N/A anche con un contatore funzionante (test in
+#: tests/test_energy_corrections.py).
+MEASURED_METHODS = ("emi-counter", "power-integration",
+                    "librehardwaremonitor-energy", "energy-file", "rapl")
 
 
 # ---------------------------------------------------------------------------
