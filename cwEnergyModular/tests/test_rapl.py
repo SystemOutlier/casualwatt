@@ -1,172 +1,199 @@
 # -*- coding: utf-8 -*-
 """
-tests/test_rapl.py — Test sintetico per il backend RAPL Linux.
+tests/test_rapl.py — Test del backend RAPL Linux (contatori ``energy_uj``).
 
-Esecuzione:
+Esecuzione (dalla cartella cwEnergyModular/):
+    python -m pytest tests/test_rapl.py -v
     python tests/test_rapl.py
 
-Verifica:
-  1. Disponibilità del backend RAPL (file energy_uj leggibile)
-  2. Lettura energia cumulata
-  3. Lettura potenza istantanea
-  4. Calibrazione idle (finestra di 2 secondi, non 30s per test rapido)
+Che cosa verifica, quando il contatore c'e':
+  1. inizializzazione del backend su un file energy_uj leggibile;
+  2. lettura dell'energia cumulata e sua non decrescita (il riporto del
+     contatore lo gestisce il backend, non il test);
+  3. finestra di riposo da contatore: delta, durata reale e potenza media
+     coerenti (2 s, non la procedura ufficiale da 30 s x 3);
+  4. registro di diagnostica: chiavi e tipi attesi. Vale su OGNI piattaforma,
+     percio' non e' condizionato alla disponibilita' del contatore.
+
+Forma dei test -- riscritta il 23/10/2026. La versione precedente usciva con
+``return False`` prima di qualunque asserzione quando RAPL non era disponibile,
+e ``test_rapl_diagnostics`` restituiva ``True`` senza controllare nulla: pytest
+contava quattro test "passati" su Windows che non avevano eseguito nessuna
+asserzione (con PytestReturnNotNoneWarning). Ora la non disponibilita' e' uno
+SKIP DICHIARATO: un verde che non asserisce e' una cifra sbagliata nel verbale,
+ed e' il difetto che la tesi denuncia negli strumenti che stampano un numero
+senza confine.
 """
 import sys
 import time
 from pathlib import Path
 
-# Aggiungi il parent directory al path
+# Aggiungi il parent directory al path (il file deve girare anche da script)
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
-from energy.rapl_backend import RAPLBackend
+import pytest  # noqa: E402  (importato dopo sys.path, serve allo skip dichiarato)
+
+from energy.rapl_backend import RAPLBackend  # noqa: E402
+
+
+def _backend_or_skip() -> RAPLBackend:
+    """Backend RAPL pronto all'uso, o skip con il motivo scritto nel verbale."""
+    backend = RAPLBackend()
+    if not backend.available:
+        pytest.skip(
+            "RAPL non disponibile su questo host: servono Linux, un dominio "
+            "package con energy_uj leggibile e i permessi (root o gruppo 'power')"
+        )
+    return backend
 
 
 def test_rapl_basic():
-    """Test base: inizializzazione e letture."""
+    """Test 1: il backend si inizializza su un contatore leggibile."""
     print("=" * 70)
     print("TEST 1: Inizializzazione backend RAPL")
     print("=" * 70)
 
-    backend = RAPLBackend()
-    print(f"Disponibile: {backend.available}")
+    backend = _backend_or_skip()
     print(f"Metodo: {backend.method}")
     print(f"Note: {backend.notes}")
 
-    if not backend.available:
-        print("\n❌ RAPL non disponibile su questo sistema.")
-        print("   Possibili cause:")
-        print("   - Non sei su Linux")
-        print("   - CPU Intel senza supporto RAPL (pre-Sandy Bridge)")
-        print("   - Permessi insufficienti (richiede root o gruppo 'power')")
-        print("   - Kernel senza CONFIG_INTEL_RAPL")
-        return False
-
-    print("\n✓ Backend RAPL inizializzato correttamente")
-    return True
+    assert backend.available is True
+    assert backend.method, "method vuoto su backend dichiarato disponibile"
+    e0 = backend.read_cumulative_energy_j()
+    assert e0 is not None, "prima lettura del contatore fallita"
+    assert e0 >= 0.0, f"energia cumulata negativa alla prima lettura: {e0}"
+    print(f"Prima lettura: {e0:.3f} J")
 
 
 def test_rapl_readings():
-    """Test letture energetiche."""
+    """Test 2: energia cumulata letta, non negativa e non decrescente."""
     print("\n" + "=" * 70)
     print("TEST 2: Letture energetiche")
     print("=" * 70)
 
-    backend = RAPLBackend()
-    if not backend.available:
-        print("⚠ Test saltato: RAPL non disponibile")
-        return False
+    backend = _backend_or_skip()
 
-    # Lettura energia cumulata
-    energy_j = backend.read_cumulative_energy_j()
-    print(f"Energia cumulata: {energy_j:.3f} J")
-
-    if energy_j is None:
-        print("❌ Lettura energia fallita")
-        return False
-
-    # Lettura potenza (richiede due letture)
-    power_w = backend.read_power_w()
-    print(f"Potenza istantanea (prima lettura): {power_w}")
+    e1 = backend.read_cumulative_energy_j()
+    assert e1 is not None, "lettura dell'energia cumulata fallita"
+    assert e1 >= 0.0, f"energia cumulata negativa: {e1}"
+    print(f"Energia cumulata: {e1:.3f} J")
 
     time.sleep(0.5)
+    p = backend.read_power_w()
+    assert p is None or p >= 0.0, f"potenza istantanea negativa: {p}"
+    print(f"Potenza istantanea: {p:.2f} W" if p is not None else "Potenza: None")
 
-    power_w = backend.read_power_w()
-    print(f"Potenza istantanea (dopo 0.5s): {power_w:.2f} W" if power_w else "Potenza: None")
-
-    # Seconda lettura energia
     time.sleep(0.5)
-    energy_j2 = backend.read_cumulative_energy_j()
-    print(f"Energia cumulata (dopo 1s totale): {energy_j2:.3f} J")
-
-    delta = energy_j2 - energy_j if energy_j2 and energy_j else 0
-    print(f"Delta energia: {delta:.3f} J in ~1s")
-
-    print("\n✓ Letture energetiche funzionanti")
-    return True
+    e2 = backend.read_cumulative_energy_j()
+    assert e2 is not None, "seconda lettura dell'energia cumulata fallita"
+    delta = e2 - e1
+    assert delta >= 0.0, (
+        f"contatore decresciuto di {-delta:.3f} J senza riporto dichiarato: "
+        "la gestione del wrap e' del backend (energy/rapl_backend.py)"
+    )
+    print(f"Delta energia in ~1 s: {delta:.3f} J")
 
 
 def test_rapl_idle_window():
-    """Test calibrazione idle (finestra breve per test)."""
+    """Test 3: finestra di riposo misurata sul contatore."""
     print("\n" + "=" * 70)
-    print("TEST 3: Calibrazione idle (finestra 2s)")
+    print("TEST 3: Finestra idle da contatore (2 s)")
     print("=" * 70)
 
-    backend = RAPLBackend()
-    if not backend.available:
-        print("⚠ Test saltato: RAPL non disponibile")
-        return False
-
-    print("Misuro energia idle per 2 secondi...")
+    backend = _backend_or_skip()
     result = backend.read_idle_window_j(2.0)
-
-    if result is None:
-        print("❌ Misura idle fallita")
-        return False
+    assert result is not None, "misura della finestra idle fallita"
 
     delta_j, dt_real, mode = result
-    power_idle = delta_j / dt_real if dt_real > 0 else 0
+    assert mode == "rapl-counter", f"modalita' di misura inattesa: {mode}"
+    assert delta_j >= 0.0, f"delta energia negativo: {delta_j}"
+    assert dt_real > 0.0, f"durata reale non positiva: {dt_real}"
 
-    print(f"Delta energia: {delta_j:.3f} J")
-    print(f"Durata reale: {dt_real:.3f} s")
-    print(f"Potenza media idle: {power_idle:.2f} W")
-    print(f"Modalità: {mode}")
-
-    print("\n✓ Calibrazione idle funzionante")
-    return True
+    power_idle = delta_j / dt_real
+    assert 0.0 <= power_idle < 500.0, (
+        f"potenza media idle fuori scala ({power_idle:.2f} W): plausibile per un "
+        "package, impossibile come artefatto di unita' di misura"
+    )
+    print(f"Delta {delta_j:.3f} J in {dt_real:.3f} s -> {power_idle:.2f} W "
+          f"[{mode}]")
 
 
 def test_rapl_diagnostics():
-    """Test diagnostica."""
+    """Test 4: forma del registro di diagnostica (segue anche senza RAPL)."""
     print("\n" + "=" * 70)
     print("TEST 4: Diagnostica backend")
     print("=" * 70)
 
-    backend = RAPLBackend()
-    diag = backend.diagnose()
+    diag = RAPLBackend().diagnose()
+    for chiave in ("available", "method", "path", "max_energy_uj",
+                   "wrap_count", "notes"):
+        print(f"{chiave}: {diag[chiave]}")
 
-    print(f"available: {diag['available']}")
-    print(f"method: {diag['method']}")
-    print(f"path: {diag['path']}")
-    print(f"max_energy_uj: {diag['max_energy_uj']}")
-    print(f"wrap_count: {diag['wrap_count']}")
-    print(f"notes: {diag['notes']}")
+    assert set(diag) == {"available", "method", "path", "max_energy_uj",
+                         "wrap_count", "notes"}, f"chiavi inattese: {sorted(diag)}"
+    assert isinstance(diag["available"], bool)
+    assert isinstance(diag["notes"], list), "notes deve essere una lista"
+    assert isinstance(diag["path"], str) and diag["path"], "path vuoto"
+    assert isinstance(diag["wrap_count"], int) and diag["wrap_count"] >= 0
+    # coerenza interna: il metodo dichiarato deve corrispondere alla disponibilita'
+    if diag["available"]:
+        assert diag["method"] == "rapl", (
+            f"backend disponibile ma metodo inatteso: '{diag['method']}'"
+        )
+    else:
+        assert diag["method"] == "unavailable", (
+            f"metodo '{diag['method']}' dichiarato su backend non disponibile"
+        )
+        assert diag["notes"], "backend non disponibile senza il motivo in notes"
 
-    print("\n✓ Diagnostica funzionante")
-    return True
 
-
-def main():
-    """Esecuzione completa di tutti i test."""
+def main() -> int:
+    """Esecuzione da script: rende leggibile anche lo skip dichiarato."""
     print("\n" + "=" * 70)
     print("CASUALWATT - TEST BACKEND RAPL LINUX")
     print("=" * 70)
 
-    results = []
+    tests = (
+        ("Inizializzazione", test_rapl_basic),
+        ("Letture energetiche", test_rapl_readings),
+        ("Finestra idle da contatore", test_rapl_idle_window),
+        ("Diagnostica", test_rapl_diagnostics),
+    )
 
-    results.append(("Inizializzazione", test_rapl_basic()))
-    results.append(("Letture energetiche", test_rapl_readings()))
-    results.append(("Calibrazione idle", test_rapl_idle_window()))
-    results.append(("Diagnostica", test_rapl_diagnostics()))
+    esiti = []
+    for nome, fn in tests:
+        try:
+            fn()
+            esiti.append((nome, "PASS", ""))
+        except pytest.skip.Exception as exc:  # skip dichiarato, non un verde
+            esiti.append((nome, "SKIP", str(exc)))
+        except AssertionError as exc:
+            esiti.append((nome, "FAIL", str(exc)))
 
     print("\n" + "=" * 70)
     print("RIEPILOGO TEST")
     print("=" * 70)
+    for nome, stato, motivo in esiti:
+        print(f"{stato}: {nome}" + (f" -- {motivo}" if motivo else ""))
 
-    for name, passed in results:
-        status = "✓ PASS" if passed else "❌ FAIL"
-        print(f"{status}: {name}")
+    n_pass = sum(1 for _, s, _ in esiti if s == "PASS")
+    n_skip = sum(1 for _, s, _ in esiti if s == "SKIP")
+    n_fail = sum(1 for _, s, _ in esiti if s == "FAIL")
+    # la sola diagnostica non valida nessuna misura: conta a parte
+    n_misure = sum(1 for n, s, _ in esiti if s == "PASS" and n != "Diagnostica")
+    print(f"\nTotali {len(esiti)}: {n_pass} passati, {n_skip} saltati "
+          f"(backend non disponibile), {n_fail} falliti")
 
-    total = len(results)
-    passed = sum(1 for _, p in results if p)
-
-    print(f"\nTotale: {passed}/{total} test superati")
-
-    if passed == total:
-        print("\n🎉 Tutti i test superati! Backend RAPL funzionante.")
-        return 0
-    else:
-        print("\n⚠ Alcuni test falliti. Verificare la configurazione.")
+    if n_fail:
+        print("\nALCUNI TEST FALLITI: backend RAPL non affidabile su questa "
+              "piattaforma.")
         return 1
+    if n_misure == 0:
+        print("\nNESSUN TEST DI MISURA ESEGUITO: questo host non espone RAPL. "
+              "Il backend Linux NON e' validato qui.")
+        return 2
+    print("\nBackend RAPL validato sul contatore.")
+    return 0
 
 
 if __name__ == "__main__":
