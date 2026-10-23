@@ -837,6 +837,11 @@ def run_unified_benchmark(
                     gpu_utilization_share=local.gpu_utilization_share,
                     cpu_attribution_method=local.cpu_attribution_method,
                     gpu_attribution_method=local.gpu_attribution_method,
+                    # canale del package salvato PER RIGA: i CSV di risultato
+                    # accumulano run fatti con canali diversi
+                    energy_calculation_method=(
+                        getattr(local, "energy_calculation_method", "") or ""
+                    ),
                     measurement_boundary=local.measurement_boundary,
                     # B3/A1: provenienza P_idle per riga (calibrated|session|uncalibrated)
                     idle_provenance=getattr(local, "idle_provenance", "") or "",
@@ -963,6 +968,11 @@ def run_unified_benchmark(
                         ),
                         cpu_attribution_method=client_local.cpu_attribution_method,
                         gpu_attribution_method=client_local.gpu_attribution_method,
+                        # riga cloud: il canale locale che ha misurato il
+                        # traffico in uscita dal client (non il server)
+                        energy_calculation_method=(
+                            getattr(client_local, "energy_calculation_method", "") or ""
+                        ),
                         measurement_boundary=(
                             client_local.measurement_boundary
                             + " | network: " + net_res.measurement_boundary

@@ -244,16 +244,18 @@ def test_P2_colonna_csv_accodata_senza_cambiare_ordine():
     """gpu_idle_provenance compare una volta sola e l'ordine delle colonne e' bloccato: nuove solo in coda."""
     from casualwatt_csv_export import CSV_COLUMNS
     assert CSV_COLUMNS.count("gpu_idle_provenance") == 1
-    # Colonne diagnostiche e answer_type accodate in coda (senza cambiare ordine delle precedenti)
-    # D1: keep_alive_sent e' accodata DOPO il blocco storico, che resta intatto
-    assert CSV_COLUMNS[-1] == "keep_alive_sent"
-    assert CSV_COLUMNS[-2] == "extracted_answer"
-    assert CSV_COLUMNS[-3] == "answer_type"
-    assert CSV_COLUMNS[-4] == "n_samples_in_window"
-    assert CSV_COLUMNS[-5] == "d_busy_s"
-    assert CSV_COLUMNS[-6] == "d_ollama_cpu_s"
-    assert CSV_COLUMNS[-7] == "ollama_pids_used"
-    assert CSV_COLUMNS[-8] == "gpu_idle_provenance"
+    # Il blocco storico resta intatto e ogni release accode UNA colonna. La
+    # coda e fissata come LISTA ordinata, non come indici negativi: con gli
+    # indici ogni colonna nuova obbligava a riscrivere tutte le asserzioni
+    # (e spostare un -1 di posto e' esattamente il modo in cui si scopre
+    # dopo di aver rotto l'ordine di quelle vecchie).
+    CODA = ["gpu_idle_provenance",      # Punto 2: provenienza idle GPU
+            "ollama_pids_used", "d_ollama_cpu_s", "d_busy_s",
+            "n_samples_in_window",      # diagnostica cpu-time-share
+            "answer_type", "extracted_answer",
+            "keep_alive_sent",          # D1: stato reale del motore locale
+            "energy_calculation_method"]  # 24/10: canale del package PER RIGA
+    assert CSV_COLUMNS[-len(CODA):] == CODA
     assert CSV_COLUMNS[:6] == [
         "run_id", "session_id", "timestamp_start", "timestamp_end",
         "model_name", "model_label",

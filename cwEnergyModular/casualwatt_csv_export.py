@@ -85,6 +85,14 @@ CSV_COLUMNS: List[str] = [
     # produzione due righe su nove hanno un residuo di 6,0-6,6 s (caricamento)
     # contro 0,03-1,87 s delle altre. Qui finisce il valore REALMENTE inviato.
     "keep_alive_sent",
+    # alt_lhm.DOCX (24/10), recepito: il canale che ha prodotto package_energy_j
+    # va nella riga, non solo nel file di run metadata. I CSV di risultato
+    # accumulano righe di run diversi (emi-counter / power-integration / rapl /
+    # unavailable) e il metodo storico era leggibile solo dentro le stringhe
+    # composite cpu_attribution_method e measurement_boundary. Qui c'e' il solo
+    # token del canale package CPU; per le righe cloud e' il canale del CLIENT
+    # locale (il server non e' misurato qui: vedere cloud_energy_method).
+    "energy_calculation_method",
 ]
 
 
