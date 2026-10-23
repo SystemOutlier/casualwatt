@@ -87,15 +87,68 @@ l'onestà del caso: "0 delta nulli su 634" *non* dimostra che il registro cambi 
 dimostra solo che accumula fra i nostri campioni. La prova diretta è un probe a 50 ms, non
 questa riga.
 
-**(c) "Separare prefill e decode al TTFT" con i nostri protocolli attuali è impossibile, e non
-solo perché non registriamo il TTFT.** Due blocchi indipendenti, entrambi verificati:
+**(c) "Separare prefill e decode": il tempo ce l'abbiamo gia', l'energia no.**
+> **Emendazione (23/10, ore 19:30 — la versione precedente di questo punto era
+> in parte falsa, e qui viene corretta).** Avevo scritto che lo split "e'
+> impossibile, e non solo perche' non registriamo il TTFT", portando `stream:
+> False` come primo blocco. **Non regge.** La documentazione ufficiale
+> dell'API Ollama (`docs/api.md`, consultato oggi) espone in **ogni** risposta
+> di `/api/generate`, anche non in streaming, i campi `prompt_eval_duration`
+> ("time spent in nanoseconds evaluating uncached prompt tokens") e
+> `eval_duration` ("time in nanoseconds spent generating the response"): il
+> client non deve cambiare, e il nostro codice di produzione **gia' li legge**
+> (`cwEnergyModular/benchmark_unified.py:162-163`, con commento "campi nativi
+> dell'API, in ns") e **gia' li esporta** nel CSV (`casualwatt_csv_export.py:29`,
+> colonne `prefill_duration_s` / `decoding_duration_s`). Prova nei dati reali,
+> `cwEnergyModular/results/semantic_evaluation_results.csv`, 9 righe, tutte con
+> il campo valorizzato:
+>
+> ```
+>    dur    pre     dec   in  out  ms/tok pre  ms/tok dec  ratio   non coperto
+>   12.58  0.464   5.474   35   67       13.3       81.7    6.16        6.64
+>   13.54  0.230  13.283   31  160        7.4       83.0   11.17        0.03
+>    1.87  0.272   1.545   33   21        8.3       73.6    8.92        0.05
+>   12.22  0.254   5.968   18   66       14.1       90.4    6.40        6.00
+>    1.02  0.230   0.740   14    9       16.4       82.2    5.00        0.05
+>    0.96  0.218   0.624   14    8       15.5       77.9    5.01        0.12
+>    5.74  0.176   3.697   44  160        4.0       23.1    5.78        1.87
+>    0.39  0.098   0.264   40   12        2.5       22.0    8.97        0.03
+>    0.40  0.111   0.256   40   11        2.8       23.3    8.37        0.03
+> ```
+>
+> Tre conseguenze, tutte nuove per noi:
+>
+> 1. **rapporto decode/prefill per token = 5,0-11,2 (mediana ~8,4)**. Il
+>    documento esterno asseriva "fino a 3:1" senza fonte: sui **nostri** dati
+>    reali si misura **circa un ordine di grandezza**, che e' esattamente quanto
+>    dichiarato da `horswill2026greenpixie` ("roughly an order of magnitude
+>    larger than prefill"). E' la prima validazione interna di un claim esterno
+>    che facciamo con i nostri numeri, non con quelli altrui.
+> 2. **"non coperto" = `duration_s - prefill - decoding`**: due righe hanno
+>    6,6 e 6,0 s fuori da prefill+decode (righe 1 e 4), le altre 0,03-1,9 s.
+>    Quei secondi sono **caricamento del modello**, e sono la prova misurata del
+>    buco `keep_alive` del punto (e): la prima richiesta di una sessione paga
+>    il load, e se il modello e' in residenza o meno non e' ne' controllato ne'
+>    registrato.
+> 3. **Il limite reale non e' il client, e' la cadenza**: mediana prefill
+>    **0,230 s** (range 0,098-0,464) contro intervallo PI misurato in fase load
+>    **0,3148-0,339 s** → **0,72 campioni attesi dentro il prefill**. La
+>    separazione *temporale* e' disponibile da subito; la separazione
+>    *energetica* no, perche' la finestra di prefill e' piu' corta di un
+>    campione. E' questa la ragione per cui il probe EMI a 50 ms del punto (b)
+>    passa da "curiosita'" a "prerequisito": a 50 ms il prefill diventa 5-9
+>    campioni, e la somma trapezoidale sulla fase ha un senso.
 
-1. `stream: False` è in **tutte** le chiamate Ollama del repo:
-   `cwEnergyModular/benchmark_unified.py:132`, `experiment_validate_lhm.py:112`,
-   `four_way_test.py:220`, `emi_lhm_offset_test.py:117`, `cwEnergyModular/llm_judge.py:127`.
-   Nessun timestamp di primo token esiste nei dati; servirebbe cambiare il client.
-2. Anche cambiandolo, **la nostra geometria non ha prefill da separare**. Dai CSV v3 post-fix
-   (`lhm_validation_v3_20261023_160430.csv`, 5 fasi load):
+Resta valido il nucleo della mia osservazione, ma riformulato: **la metrica
+J/token dei protocolli v2/v3 e' oggi, di fatto, un costo di decode** per due
+ragioni indipendenti — la geometria dei protocolli da esperimento (prompt da 8
+parole) e il fatto che **l'harness `experiment_validate_lhm.py` non registra i
+campi di fase**, anche se il client di produzione li ha gia'. Da dichiarare nel
+capitolo limiti, e da recuperare nell'harness (vedi #15 dei task).
+
+Per completezza, la geometria dei protocolli da esperimento (quella che vale per
+il numero 1,286 J/token committato), da `lhm_validation_v3_20261023_160430.csv`,
+5 fasi load, 75 richieste:
 
 ```
 N_in  per richiesta : 12,3 token      (925 token su 75 richieste)
@@ -105,19 +158,15 @@ intervallo PI in load: 0,3148 / 0,3224 / 0,3265 / 0,3335 / 0,339 s
 J/token per run      : 0,988 / 1,076 / 0,834 / 0,980 / 1,058
 ```
 
-Un prefill di ~12 token su llama3.2:3b in CPU è una frazione di secondo, confrontabile con
-*un solo* intervallo di campionamento. Il documento chiede una cosa che i nostri dati non
-possono dire, e la chiede a una geometria (prompt da 8 parole) dove il fenomeno è minimo.
-**La nostra metrica J/token è oggi, di fatto, un costo di decode** — e non l'abbiamo mai
-scritto. Questa è la scoperta più utile della sezione 2, ed è una limitazione da dichiarare nel
-capitolo limiti, non da nascondere.
-
-**(d) Lo sweep di geometrie (64/512/2048 token in input) è quindi la vera azione, non il TTFT.**
-E' l'unico modo di rispondere alla domanda che il documento pone male: se `E_tot ≈ a·N_in +
-b·N_out` (SweetSpot/Cavagna, che abbiamo già in bibliografia da `benchmark vari.DOCX`), allora
-il nostro 1,29 J/token vale solo per `N_in ≈ 12`. Con 2-3 geometrie a `N_out` fisso stimiamo
-`a` e `b` e il numero diventa una curva. Questo ridefinisce il protocollo v4: non solo "numero
-fisso di richieste", ma **numero fisso di richieste × geometria dichiarata**.
+**(d) Lo sweep di geometrie (64/512/2048 token in input) resta la vera azione sul protocollo;
+lo split di fase diventa un'azione sul campionamento.** Corretto dal punto (c), le due cose
+non sono in alternativa. Se `E_tot ≈ a·N_in + b·N_out` (`cavagna2026sweetspot`, arXiv:2602.05695,
+già verificato e in bibliografia), allora il nostro 1,29 J/token vale solo per `N_in ≈ 12`.
+Con 2-3 geometrie a `N_out` fisso stimiamo `a` e `b` e il numero diventa una curva. Questo
+ridefinisce il protocollo v4: non solo "numero fisso di richieste", ma **numero fisso di
+richieste × geometria dichiarata**. Nello stesso run v4 l'harness deve registrare
+`prefill_duration_s`/`decoding_duration_s` (già esposti dall'API, §c): senza di quelli la
+geometria non è nemmeno verificabile a ritroso dai CSV.
 
 **(e) Il "30-75% dell'energia è il modello tenuto in memoria" è un numero non firmato, ma il
 concetto è un buco reale nel nostro protocollo.** Nel nostro codice **non esiste** `keep_alive`
@@ -185,6 +234,9 @@ Da adottare (tutte cose che noi non facevamo):
    contatore si muove anche a 50 ms, la risoluzione del sistema è nostra, non del sensore, e il
    capitolo limiti si accorcia.
 6. "Canali EMI non additivi" (PP0+PP1 ⊂ PKG) come vincolo scritto nel capitolo metodologia.
+7. **Registrare le durate di fase nell'harness** (`prefill_duration_s`/`decoding_duration_s`,
+   già forniti dall'API non in streaming): serve a rendere la geometria verificabile a ritroso
+   e a preparare lo split energetico quando (e solo se) il sampler andrà a 50 ms.
 
 Da non adottare: NVML (niente NVIDIA), split per funzione Python, accuratezza/numeri non firmati
 del §2 del documento (3:1, 30-75%), gap statement "nessuno integra locale+cloud+rete".
@@ -206,3 +258,13 @@ convalida l'accumulatore a 251 ms.
   `Tesi-latex/qoder-bozza/DECISIONI.md:108-110`, `CWProject/LibreHardwareMonitor.Report.txt`,
   `html/_compute.html` di `mlco2/impact` via raw.githubusercontent.
 - Letto integralmente: `CWProject/ricerca_metodo.DOCX` (365 righe di testo estratte).
+- **Aggiunte dell'emendazione §2(c) (23/10 ~19:30)**: `docs/api.md` di Ollama via
+  raw.githubusercontent (campi `prompt_eval_duration` / `eval_duration` nella risposta **non**
+  in streaming, in nanosecondi); `cwEnergyModular/benchmark_unified.py:162-163`;
+  `cwEnergyModular/casualwatt_csv_export.py:29`;
+  `cwEnergyModular/results/semantic_evaluation_results.csv` (9 righe, delimiter `,`,
+  encoding `utf-8-sig`; colonne di fase valorizzate in **tutte** le righe). Nota metodologica:
+  la prima lettura di quel CSV con `delimiter=';'` restituiva `None` ovunque — il file è
+  in **virgola**, gli export degli esperimenti sono in **ponto e virgola**. I file con `None`
+  sistematico sono un artefatto di parsing, non un dato mancante: da tenere presente perché
+  è lo stesso errore che produce falsi "0,0".
