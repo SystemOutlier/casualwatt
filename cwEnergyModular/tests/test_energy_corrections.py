@@ -254,7 +254,11 @@ def test_P2_colonna_csv_accodata_senza_cambiare_ordine():
             "n_samples_in_window",      # diagnostica cpu-time-share
             "answer_type", "extracted_answer",
             "keep_alive_sent",          # D1: stato reale del motore locale
-            "energy_calculation_method"]  # 24/10: canale del package PER RIGA
+            "energy_calculation_method",  # 24/10: canale del package PER RIGA
+            # 24/10: contratto alt_lhm §3 (grezzi, unita', dominio,
+            # cadenza osservata, versione del percorso di lettura)
+            "raw_start", "raw_end", "raw_unit", "domain",
+            "sampling_interval_observed_s", "backend_version"]
     assert CSV_COLUMNS[-len(CODA):] == CODA
     assert CSV_COLUMNS[:6] == [
         "run_id", "session_id", "timestamp_start", "timestamp_end",

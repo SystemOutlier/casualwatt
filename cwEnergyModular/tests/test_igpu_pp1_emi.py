@@ -40,7 +40,8 @@ def test_read_domains_espone_quattro_domini_col_loro_timestamp(monkeypatch):
     d = b.read_domains()
     assert set(d) == {"pkg", "dram", "pp0", "pp1"}
     assert d["pkg"][0] == pytest.approx(1_000_000 * PWH)
-    assert d["dram"] == (0.0, 43)
+    assert d["pkg"][2] == 1_000_000, "il terzo campo e' il grezzo in pWh, non J"
+    assert d["dram"][:2] == (0.0, 43)
     assert d["pp0"][0] == pytest.approx(500_000 * PWH)
     assert d["pp1"][0] == pytest.approx(250_000 * PWH)
     assert d["pp1"][1] == 45, "il timestamp di PP1 e' il settimo campo, non quello del PKG"
