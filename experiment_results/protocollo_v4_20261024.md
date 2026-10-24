@@ -10,7 +10,7 @@ Data: 2026-10-24. Branch: `energy-consumption-framework-ollama-d248a`.
 |---|---|---|
 | P1 | baseline e calibrazione idle | **congelato 2026-10-24** (emendato: sensibilità post-hoc; letteratura e confronto CodeCarbon) |
 | P2 | token effettivi e terminazione | **congelato 2026-10-24** |
-| P3 | geometria, modello e stima | aperto |
+| P3 | geometria, modello e stima | **congelato 2026-10-24** |
 | P4 | incertezza e validazione | aperto |
 | P5 | campi CSV e runner | aperto |
 | P6 | esecuzione e analisi | aperto |
@@ -646,3 +646,292 @@ sono P5. P2 fissa solo la semantica dei token, la terminazione e la validità.
 Niente per P2. Il pilot di P2.9 è un cancello di esecuzione, non una decisione
 ancora aperta: se fallisce, si ferma la campagna e si corregge il client, senza
 cambiare le regole qui sopra.
+
+---
+
+## P3 — Geometria, modello e stima
+
+### P3.1 Decisione in una riga
+
+La v4 stima la superficie `E_act = E0 + a·N_in + b·N_out + c·N_in·N_out` su una
+griglia 3×3 con punto minimo e centro replicato, usando i token reali di P2 e la
+baseline di P1; l'unità del fit è il blocco, la validazione è su due punti fuori
+griglia mai usati nel fit, e la baseline non entra mai come punto del modello.
+
+| decisione | contenuto congelato |
+|---|---|
+| D1 | variabile dipendente `E_act = E_net_incremental` |
+| D2 | modello lineare nei parametri con interazione, primario |
+| D3 | unità del fit = blocco, non richiesta singola |
+| D4 | pesi conservativi da P1.6–P1.7, non inverse varianze |
+| D5 | diagnostica completa, `R²` non è criterio |
+| D6 | validazione su punti fuori griglia, mai nel fit |
+| D7 | criterio ≤ 10% e dentro l'intervallo bootstrap al 95% |
+| D8 | baseline P1 separata dal punto minimo (8,4) |
+| D9 | griglia 32/128/512 × 32/128/256 |
+| D10 | `m = 3` richieste per blocco, 3 batch temporali |
+
+### P3.2 Variabile dipendente
+
+`E_act` è un sinonimo dichiarato di `E_net_incremental` (P1.3); non è una
+seconda grandezza. Per la richiesta `i` del blocco `b`:
+
+```
+E_act,i = E_pkg_gross,i − P_pre,b · Δt_W,i
+```
+
+`P_pre,b` è la mediana delle tre finestre pre del blocco (P1.3), la stessa per
+tutte le richieste del blocco. `E_act` **non viene troncata a zero**: i valori
+negativi restano nel dataset con il flag `negative_increment` (P1.6). La
+produzione attuale tronca (`local_energy.py:310`); la v4 non lo fa, e la
+differenza è dichiarata.
+
+### P3.3 Modello
+
+La superficie è **lineare nei parametri**; il termine `c·N_in·N_out` è
+un'interazione bilineare, non un termine quadratico. Non si aggiungono `N_in²` o
+`N_out²`.
+
+```
+E_act,i = E0 + a·N_in,i + b·N_out,i + c·N_in,i·N_out,i + ε_i
+```
+
+- `E0`: overhead fisso per richiesta a modello residente;
+- `a`: J/token di prefill marginale;
+- `b`: J/token di decode marginale;
+- `c`: interazione, attesa ≥ 0 perché la KV cache cresce con `N_in` e ogni token
+  di decode legge un contesto più lungo.
+
+Il modello con interazione è il **primario** ed è congelato. Il modello ridotto
+`E0 + a·N_in + b·N_out` si riporta solo come sensibilità, con F-test sui minimi
+quadrati pesati; non sostituisce il primario dopo aver visto i dati. Non si
+introducono altri termini o stimatori in v4.
+
+`E0` è un'estrapolazione a `(0,0)`: il punto minimo `(8,4)` la vincola ma non la
+identifica. Per questo si riporta con il suo intervallo. Se l'intervallo include
+valori negativi, il punto è marcato `intercept_nonphysical` e si riporta; non si
+vincola il fit e non si cambia modello.
+
+### P3.4 Interpretazione dei coefficienti
+
+Al punto di riferimento `(N_in,ref, N_out,ref)`:
+
+```
+E_model(ref)        = E0 + a·N_in,ref + b·N_out,ref + c·N_in,ref·N_out,ref
+J/token_ref         = E_model(ref) / N_out,ref
+∂E/∂N_out (ref)     = b + c·N_in,ref
+∂E/∂N_in  (ref)     = a + c·N_out,ref
+share_E0(ref)       = E0 / E_model(ref)
+```
+
+Due riferimenti predeclarati, entrambi sulla griglia:
+
+- `(32, 32)`: punto corto, vicino alla geometria di produzione;
+- `(128, 128)`: centro della griglia.
+
+`J/token_32` e `J/token_128` sono valori **fitted**, non stime indipendenti: il
+loro intervallo include l'incertezza dei parametri, non l'errore di validazione.
+La validazione è separata (P3.10). `share_E0` dice quanto il punto corto è
+dominato dall'overhead; se è grande, un J/token a 32 token non è confrontabile
+con uno a 128.
+
+### P3.5 Disegno
+
+| punto | `N_in` target | `N_out` target | blocchi | nel fit |
+|---|---|---|---|---|
+| griglia 3×3 | 32, 128, 512 | 32, 128, 256 | 3 per cella (27) | sì |
+| centro | 128 | 128 | 6 totali (3 in griglia + 3 extra) | sì |
+| minimo | 8 | 4 | 3 | sì |
+| conferma operativa | 12 | 32 | 3 | no |
+| conferma alta | 256 | 192 | 3 | no |
+
+Totale: 39 blocchi, 117 richieste. Il fit usa 33 blocchi (10 punti: 9 celle +
+minimo, con il centro a 6); la conferma usa 6 blocchi (2 punti × 3) e non entra
+mai nella stima. La baseline P1 **non è un punto del modello**: non è una
+richiesta e non contiene `E0`. Il punto minimo `(8,4)` è una richiesta reale e
+serve ad ancorare `E0`, non si chiama "floor".
+
+Il punto di conferma `(12,32)` copre la geometria operativa reale (~12 token in,
+~32 out) e non è sulla griglia; `(256,192)` testa la regione alta. La griglia da
+sola non basta a coprire l'operatività: per questo la conferma include `(12,32)`.
+
+### P3.6 Batch temporali e ordine
+
+La campagna è divisa in **3 batch temporali**. Ogni batch contiene un blocco per
+ciascuno dei 12 punti (9 celle + minimo + 2 conferme) più un blocco centrale
+extra: 13 blocchi per batch, 39 in totale. L'ordine dei blocchi è randomizzato
+dentro ogni batch; `batch_id` e `order_index` sono registrati. Il disegno è
+bilanciato rispetto al tempo: ogni punto compare una volta per batch, così una
+deriva lenta non si concentra su un punto. L'effetto di batch si controlla nei
+residui e, come sensibilità, con un modello che aggiunge `batch` come fattore
+fisso; il modello primario resta quello di P3.3.
+
+### P3.7 Blocchi, richieste e baseline
+
+Ogni blocco contiene `m = 3` richieste della stessa cella, eseguite
+back-to-back. Ogni richiesta ha un **nonce unico all'inizio del prompt** (P2.8),
+quindi le tre richieste non sono identiche e non riusano il prefisso in cache.
+Le tre condividono `P_pre,b`; la baseline è misurata una volta per blocco.
+
+Sequenza di un blocco:
+
+```
+warm-up (escluso dal dataset)
+→ settling secondo P1.6
+→ 3 finestre idle da 30 s (pre)
+→ 3 richieste della cella
+→ 3 finestre idle da 30 s (post)
+```
+
+L'unità del fit è il **blocco**, non la richiesta. Per il blocco `b`:
+
+```
+Ē_b   = (1/m) Σ_i E_act,i
+x1_b  = (1/m) Σ_i N_in,i
+x2_b  = (1/m) Σ_i N_out,i
+x12_b = (1/m) Σ_i N_in,i · N_out,i
+```
+
+`x12_b` è la media dei prodotti, non il prodotto delle medie: così la
+linearizzazione del modello resta esatta anche con i nonce di lunghezza
+leggermente diversa.
+
+I controlli di P1.6 si applicano al blocco: `pre_unstable`,
+`baseline_unstable`, `negative_increment`, `r_A`, `r_B`. Un punto con `r_B`
+10–20% resta nel fit con il peso ridotto che deriva dal budget di P1.7; oltre
+20% è escluso dal fit primario e riportato in sensibilità. Due blocchi su tre
+marcati `baseline_unstable` invalidano la campagna, non solo il punto.
+
+### P3.8 Stima
+
+Il modello si stima sui 33 blocchi del fit con minimi quadrati pesati:
+
+```
+min_{E0,a,b,c} Σ_b w_b · (Ē_b − E0 − a·x1_b − b·x2_b − c·x12_b)²
+w_b = 1 / budget_b²
+budget_b² = u_base,b² + u_within,b²
+u_base,b   = Δt̄_W,b · budget_base_w,b          # comune alle m richieste
+u_within,b = semi-range(E_act,i)                # non diviso per √m
+```
+
+`budget_base_w,b` è quello di P1.7; `u_base,b` non si divide per `m` perché
+l'errore di baseline è comune alle tre richieste, e `u_within,b` non si divide
+per `√m` perché non si assume l'indipendenza delle tre richieste. `budget_b` è
+un **budget conservativo**, non una deviazione standard; `w_b` è un peso
+conservativo, non un peso di precisione. Se `budget_b = 0`, si usa peso uguale e
+si marca il blocco.
+
+La stima primaria è la WLS; la OLS non pesata è la sensibilità. Gli errori
+standard sono HC3; gli intervalli dei coefficienti vengono da un bootstrap
+stratificato per punto (2000 repliche, blocchi ricampionati dentro ogni punto),
+che preserva il disegno. Il bootstrap per batch non si usa: con 3 batch ha troppi
+pochi cluster.
+
+### P3.9 Diagnostica
+
+- residui vs fitted, vs `N_in`, vs `N_out`, vs `order_index`, vs `batch_id`;
+- QQ-plot e scala-locazione;
+- lack-of-fit: confronto tra la superficie e il modello a medie di cella
+  (10 punti, 33 blocchi) con F-test sui minimi quadrati pesati; se il test è
+  significativo, la superficie è inadeguata e si dichiara;
+- intervalli dei coefficienti e loro ampiezza;
+- `R²` aggiustato, errore residuo e AIC OLS come diagnostica, mai come criterio
+  di accettazione: `R² ≥ 0,9` non basta;
+- distanza di Cook: i blocchi influenti si riportano, non si eliminano senza
+  dichiararlo;
+- segno e ampiezza di `E0`, con il flag `intercept_nonphysical` se serve.
+
+### P3.10 Validazione
+
+I due punti di conferma sono misurati nella stessa campagna ma **esclusi dalla
+stima**; l'analisi li apre solo dopo che la specifica è congelata e i
+coefficienti sono stimati sui soli blocchi di fit. Per ciascun punto, con i 3
+blocchi:
+
+```
+E_meas  = media dei 3 blocchi
+E_pred  = modello ai parametri stimati
+err_rel = |E_meas − E_pred| / E_pred
+u_conf  = semi-range(E_meas,1..3)                   # non diviso per √3
+intervallo = [q2.5 − 2·u_conf, q97.5 + 2·u_conf]   # quantili bootstrap della previsione
+```
+
+La validazione passa se `err_rel ≤ 10%` **e** `E_meas` è dentro l'intervallo.
+Il 10% è la stessa scala della sensibilità della baseline (1 W ≈ 6–11% di
+J/token), non una soglia scientifica. Se fallisce, si dichiara il fallimento:
+non si rifà il fit sui punti di conferma e non si sceglie un altro modello sui
+dati di validazione. In quel caso `J/token` resta quello del modello, marcato
+`validation_failed`, e si riporta anche il rapporto descrittivo del blocco di
+produzione (P6).
+
+### P3.11 Metriche
+
+- primarie: `J/token_32` e `J/token_128` (P3.4), con intervallo bootstrap;
+- coefficienti `a`, `b`, `c`, `E0` con intervalli;
+- costi marginali `b + c·N_in,ref` e `a + c·N_out,ref`;
+- `share_E0` ai due riferimenti;
+- descrittiva: `E_act/N_out_actual` per richiesta (mediana, IQR, range), non
+  come stima primaria;
+- J per risposta corretta: fuori da P3 se `eval_mode=skip`; resta una metrica
+  della tesi da altri blocchi, non si calcola qui.
+
+### P3.12 Esecuzione dei blocchi di geometria
+
+- modello `llama3.2:3b`, stesso digest e stessa versione di Ollama della
+  campagna; digest, versione e `num_thread` registrati;
+- `keep_alive = -1` (P1.4), `num_ctx = 8192` (P2.7), `stream = false`;
+- `num_predict = N_out_target` per i blocchi di geometria: l'output è troncato
+  dal tetto, `done_reason = length` e `N_out_actual = num_predict` (P2.4);
+- ogni richiesta ha un nonce unico (P2.8); il prompt è costruito per un `N_in`
+  target con tolleranza ±5%, calibrato in un pre-pilota che non entra nel
+  dataset;
+- se una richiesta di geometria termina con EOS prima del tetto, la misura resta
+  valida per P2 ma **non è assegnabile alla cella**: è `design_deviation`, si
+  sostituisce e si registra; non si cambia il target;
+- la temperatura è quella di produzione, registrata e non trattata come fattore;
+- il blocco di produzione (prompt reali, EOS naturale) è P6 e non entra nel fit
+  della superficie: la superficie descrive il costo di decode, non la
+  distribuzione dei task.
+
+**Testo per la tesi (bozza, da adattare).**
+
+> La geometria della v4 è modellata con una regressione lineare nei parametri e
+> con un termine di interazione fra token di input e output, coerente con la
+> crescita della KV cache durante il decoding. L'unità del fit è il blocco, con
+> un solo valore di baseline per blocco, e la validazione avviene su due punti
+> fuori griglia mai usati nel fit, uno dei quali copre la geometria operativa
+> reale. La baseline di P1 non entra nel modello, perché non è una richiesta e
+> non contiene l'overhead fisso `E0`. I token sono quelli realmente contati da
+> Ollama; le richieste di geometria sono troncate al tetto per garantire
+> l'appartenenza alla cella, mentre il blocco di produzione usa la terminazione
+> naturale.
+
+### P3.13 Cosa non è deciso qui
+
+P4 fissa le regole generali di copertura e extrapolazione e il budget di
+incertezza completo; P3 fissa solo i punti e il criterio di validazione della
+superficie. P5 fissa i nomi e i tipi delle colonne CSV; qui si elencano solo i
+contenuti obbligatori: `batch_id`, `block_id`, `point_id`, target e actual dei
+token, `done_reason`, `early_stop`, `prompt_nonce`, `model_digest`,
+`ollama_version`, `temperature`, `num_ctx`, `num_predict`, `order_index`, `r_A`,
+`r_B`, `negative_increment`, `pre_unstable`, `baseline_unstable`,
+`design_deviation`. P6 esegue e analizza.
+
+### P3.14 Ancoraggi
+
+- payload e opzioni: `benchmark_unified.py:119-141`;
+- contatori e stime: `benchmark_unified.py:170-179`, `:218-232`;
+- metrica esistente: `benchmark_unified.py:509-516`
+  (`energy_per_output_token_j`);
+- formula applicata e troncamento di produzione: `local_energy.py:308-310`;
+- incertezza e pesi: P1.6–P1.7; token e terminazione: P2.3–P2.8;
+- colonne token esistenti: `casualwatt_csv_export.py:28`;
+- specifica Ollama per `num_predict`, `num_ctx`, `keep_alive`, `done_reason`:
+  `https://github.com/ollama/ollama/blob/main/docs/api.md`.
+
+### P3.15 Aperto
+
+Niente per P3. Il pre-pilota verifica solo la fattibilità dei livelli (512 input,
+256 output, prompt che sostengono la generazione): se un livello non è
+raggiungibile, P3 si riapre e si dichiara; non si cambia il livello in silenzio.
+Il fallimento della conferma è un risultato di P6, non una decisione aperta.
