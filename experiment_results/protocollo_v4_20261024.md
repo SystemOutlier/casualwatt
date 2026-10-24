@@ -9,7 +9,7 @@ Data: 2026-10-24. Branch: `energy-consumption-framework-ollama-d248a`.
 | punto | oggetto | stato |
 |---|---|---|
 | P1 | baseline e calibrazione idle | **congelato 2026-10-24** (emendato: sensibilità post-hoc) |
-| P2 | token effettivi e terminazione | aperto |
+| P2 | token effettivi e terminazione | **congelato 2026-10-24** |
 | P3 | geometria, modello e stima | aperto |
 | P4 | incertezza e validazione | aperto |
 | P5 | campi CSV e runner | aperto |
@@ -319,3 +319,165 @@ Niente per P1. I numeri 0,5 W (settling), 1,0 W (range) e 10% (drift) sono
 soglie operative dichiarate, non costanti scientifiche; restano quelle anche dopo
 i dati. La sensibilità di P1.10 si esegue in P6, non qui. Il changelog di P1.11
 riguarda il protocollo di campionamento, non l'estimatore.
+
+---
+
+## P2 — Token effettivi e terminazione
+
+### P2.1 Decisione in una riga
+
+Le coordinate della v4 sono i token **realmente contati da Ollama**
+(`prompt_eval_count`, `eval_count`); i target sono solo nominali, le stime non
+entrano nel dataset primario, e il motivo di terminazione (`done_reason`) è un
+campo obbligatorio che distingue tetto raggiunto da EOS naturale.
+
+### P2.2 Perché
+
+La produzione legge i contatori ma, se uno è zero, sostituisce in silenzio una
+stima con tiktoken o `len//4` e lascia solo una nota (`benchmark_unified.py:173-179`,
+`:226-232`). Sono due definizioni di token nella stessa colonna: una misurata e
+una stimata. La v4 non può fonderle, perché il fit attribuisce energia a un
+numero di token.
+
+I dati mostrano che target e actual non coincidono. Nel run v3 post-fix, 15
+inferenze con `num_predict=128` producono 1302–1429 token di uscita per run, cioè
+87–95 per richiesta: il tetto non è raggiunto nella maggior parte dei casi
+(`lhm_validation_v3_20261023_153604.csv`, fase `load`; md `:5`). Nel run 18:52 la
+geometria dichiarata era `N_in=64`, `N_out=128` e i valori reali sono 378 e 352
+su 3 inferenze (126 in, 117 out): 2× il target in ingresso
+(`lhm_validation_v3_20261023_185232.csv:2`, md `:6`). Il target è una richiesta
+al costruttore del prompt, non una coordinata.
+
+`done_reason` non è letto da nessuna parte nel repo (nessuna occorrenza di
+`done_reason` in `cwEnergyModular/`) e `num_ctx` non è mai impostato
+(`benchmark_unified.py:132-141`): senza il primo non si distingue una
+generazione troncata dal tetto da una conclusa dal modello, senza il secondo una
+truncazione del contesto sarebbe invisibile.
+
+### P2.3 Definizioni
+
+```
+N_in_actual,i      = prompt_eval_count_i
+N_out_actual,i     = eval_count_i
+N_total_actual,i   = N_in_actual,i + N_out_actual,i        # solo descrittivo
+num_predict,i      = n_output_tokens_target                # vincolo, non misura
+dev_in_pct,i       = 100 · (N_in_actual,i − n_input_tokens_target) / n_input_tokens_target
+dev_out_pct,i      = 100 · (N_out_actual,i − n_output_tokens_target) / n_output_tokens_target
+J/token_pkg,i      = E_net_incremental,i / N_out_actual,i   # richiede N_out_actual ≥ 1
+```
+
+`N_total_actual` non è mai un denominatore. `dev_in_pct` e `dev_out_pct` sono
+descrittivi: misurano quanto il costruttore del prompt ha centrato il target, non
+sono criteri di validità.
+
+### P2.4 Terminazione
+
+`done_reason` si registra grezzo, insieme a una classe:
+
+| `done_reason` | classe | condizione | trattamento |
+|---|---|---|---|
+| `length` | `cap_reached` | `N_out_actual = num_predict` | valido, controllato |
+| `length` | `termination_inconsistent` | `N_out_actual ≠ num_predict` | richiesta invalida |
+| `stop` | `eos` | `N_out_actual < num_predict` | valido, marcato `early_stop` |
+| `stop` | `eos_at_cap` | `N_out_actual = num_predict` | valido, non è early stop |
+| altro o assente | `termination_missing` | — | richiesta invalida |
+
+```
+early_stop = (done_reason == "stop" and N_out_actual < num_predict)
+```
+
+L'early stop **non è un errore e non si esclude**: il punto resta nel fit alle
+coordinate reali. La ragione è nei numeri di P2.2: gli stop anticipati sono la
+maggioranza, e scartarli eliminerebbe la maggior parte dei dati proprio alle
+`N_out` basse. `cap_reached` è il caso controllato; `eos` è il comportamento del
+modello e va descritto, non corretto.
+
+### P2.5 Validità e anomalie
+
+Una richiesta è valida se e solo se:
+
+- `prompt_eval_count ≥ 1` e `eval_count ≥ 1`, entrambi presenti;
+- `done_reason` presente e in `{stop, length}`, con la coerenza di P2.4;
+- `N_out_actual ≤ num_predict`;
+- `N_in_actual + N_out_actual ≤ num_ctx`;
+- nessuna stima di token usata (`tokens_estimated = false`).
+
+Flag che non invalidano: `early_stop`, `cap_reached`, `eos_at_cap`. Motivi di
+invalidità: `tokens_missing`, `termination_missing`, `termination_inconsistent`,
+`counter_inconsistent` (`N_out_actual > num_predict`), `context_boundary`. Una
+richiesta invalida resta nel CSV grezzo con il motivo; non entra nel dataset
+primario e non si sostituisce con una stima.
+
+### P2.6 Niente stime nel percorso primario
+
+La v4 non chiama `_estimate_tokens` (`benchmark_unified.py:101-116`). Se un
+contatore manca, la richiesta è invalida: non esiste un ramo "stima e prosegui".
+Il percorso legacy resta com'è; la colonna `tokens_estimated` esiste per
+dimostrare che nel dataset v4 è sempre `false`.
+
+### P2.7 Contesto dichiarato
+
+`num_ctx = 8192`, inviato esplicitamente in `options` e registrato nel run
+metadata. Il massimo del disegno è `2048 + 512`; 8192 lascia margine anche al
+caso osservato di `N_in` reale doppio del target (P2.2). La guardia
+`N_in_actual + N_out_actual ≤ num_ctx` è per riga, perché Ollama tronca l'input
+per farlo stare nel contesto e `prompt_eval_count` riporterebbe la lunghezza
+troncata senza dichiararlo (opzione `truncate` nella specifica).
+
+### P2.8 Identità del prompt e cache
+
+Ogni richiesta porta un **nonce univoco all'inizio** del prompt, a larghezza
+fissa, e si registrano `prompt_nonce` e `prompt_sha256`. Così nessuna coppia di
+richieste condivide un prefisso byte-identico e `N_in_actual` è l'intero prompt,
+non la parte non ancora in cache. La ragione è che un riuso del prefisso KV
+cambierebbe il costo attribuito a `N_in` senza cambiare `N_in_actual`: il modello
+geometrico vedrebbe un input che non è stato pagato.
+
+Il nonce è obbligatorio anche se il pilot di P2.9 mostrasse che il contatore non
+cambia: il suo costo è trascurabile e la regola non dipende da una versione del
+server. Il pilot serve a documentare l'entità dell'effetto, non a decidere se
+applicare la regola.
+
+### P2.9 Pilot obbligatorio prima della campagna
+
+Tre prove, eseguite sullo stesso host e con la stessa versione di Ollama che farà
+la campagna; non consumano richieste del disegno e non entrano nel dataset.
+
+- **A — semantica di `done_reason`**: due richieste con `num_predict` piccolo che
+  saturano il tetto (atteso `length` e `N_out_actual = num_predict`) e una con
+  prompt corto che induce EOS (atteso `stop`). Se `done_reason` manca o non
+  distingue i due casi, la campagna **non parte**.
+- **B — cache**: 3 richieste identiche contro 3 con nonce iniziale, a `N_in`
+  medio e `num_predict = 1` per isolare il prefill; si confrontano
+  `prompt_eval_count` e `prompt_eval_duration`. È descrittivo: quantifica il
+  riuso, non cambia la regola di P2.8.
+- **C — contesto**: una richiesta al massimo `N_in` del disegno, con
+  `num_ctx = 8192`; si verifica che `prompt_eval_count` corrisponda al prompt
+  costruito e che la guardia di P2.7 non scatti.
+
+### P2.10 Cosa non è deciso qui
+
+Il costruttore del prompt, la griglia `N_in × N_out` e i valori target sono P3;
+le regole di copertura e di extrapolazione sono P4; i nomi finali delle colonne
+sono P5. P2 fissa solo la semantica dei token, la terminazione e la validità.
+
+### P2.11 Ancoraggi
+
+- contatori e stima silenziosa: `benchmark_unified.py:170-179`, `:218-232`;
+  stimatore: `:101-116`;
+- payload senza `num_ctx`: `benchmark_unified.py:132-141`;
+- durate di fase: `benchmark_unified.py:187-188`, `:233-234`;
+- colonne token esistenti: `casualwatt_csv_export.py:28`
+  (`input_tokens`, `output_tokens`, `total_tokens`);
+- `done_reason` assente dal codice: grep su `cwEnergyModular/` senza occorrenze;
+- actual vs target: `lhm_validation_v3_20261023_153604.csv` fase `load` colonne
+  `tokens_in`/`tokens_out` e md `:5,12-20`; `lhm_validation_v3_20261023_185232.csv:2`
+  e md `:6`;
+- specifica Ollama: `docs/api.md`, esempio di risposta con `done_reason` e
+  opzione `truncate` (`https://github.com/ollama/ollama/blob/main/docs/api.md`).
+
+### P2.12 Aperto
+
+Niente per P2. Il pilot di P2.9 è un cancello di esecuzione, non una decisione
+ancora aperta: se fallisce, si ferma la campagna e si corregge il client, senza
+cambiare le regole qui sopra.
