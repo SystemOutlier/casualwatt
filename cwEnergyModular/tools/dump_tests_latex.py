@@ -193,13 +193,49 @@ def esegui(pytest_args: list) -> tuple[dict, dict, str]:
     return esiti, motivi, riep
 
 
+def _spezza_node_id(testo: str, sep: str = "::") -> list:
+    """Spezza su ``sep`` SOLO fuori dalle parentesi quadre del parametro.
+
+    Un node id parametrizzato puo' avere un parametro che contiene ``::`` --
+    e' il caso di un test parametrizzato con node id come input (in
+    ``tests/test_dump_node_id.py``). Con un ``split("::")`` ingenuo il frammento
+    dentro le parentesi veniva scambiato per una classe, e il nome del test
+    tornava come ``test_semplice-atteso0]``: l'AST non conosce quel nome e la
+    riga finisce in ``nomi non risolvibili``, cioe' nel rumore del verbale.
+    """
+    parti, corrente, profonadita, i = [], "", 0, 0
+    while i < len(testo):
+        car = testo[i]
+        if car == "[":
+            profonadita += 1
+        elif car == "]":
+            profonadita = max(profonadita - 1, 0)
+        if profonadita == 0 and testo.startswith(sep, i):
+            parti.append(corrente)
+            corrente = ""
+            i += len(sep)
+            continue
+        corrente += car
+        i += 1
+    parti.append(corrente)
+    return parti
+
+
 def nome_e_parametri(node_id: str) -> tuple:
     """(file, classe, nomefunzione, parametro) da un node id pytest."""
     percorso, _, resto = node_id.partition("::")
-    parti = resto.split("::")
+    parti = _spezza_node_id(resto)
     classe = parti[0] if len(parti) > 1 else ""
     ultima = parti[-1]
-    m = re.match(r"^([\w]+)\[(.+)\]$", ultima)
+    m = re.match(r"^([\w]+)\[(.*)\]$", ultima)
+    # (.*) e non (.+): un parametro vuoto e' un case reale --
+    #   @pytest.mark.parametrize("metodo", ["unavailable", ..., ""])
+    # produce il node id 'test_x[]'. Con .+ il match falliva, il nome
+    # restituiva 'test_x[]' con le parentesi, la chiave (classe, nome) non
+    # trovava la docstring e l'intestazione del verbale dichiarava
+    # '100 righe documentate su 101': una copertura sotto-stimata dal
+    # generatore, non un test senza docstring (24/10, osservato su
+    # tests/test_metodo_ammissibile.py::test_stato_non_di_misura_produce_none).
     if m:
         return percorso, classe, m.group(1), m.group(2)
     return percorso, classe, ultima, ""
