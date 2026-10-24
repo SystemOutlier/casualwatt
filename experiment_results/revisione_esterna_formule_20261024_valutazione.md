@@ -532,3 +532,40 @@ disegno di P3.5, errori di interpolazione e di disallineamento su un tick di
 33 blocchi al variare di `ρ`, lettura di `_emi_cum_at` e `_emi_field_at`
 (`energy_session.py:1103-1149`), `grep` delle occorrenze di `E_trunc` e
 `u_bias`. Nessun file di produzione è stato modificato.
+
+---
+
+## 8. Esito: tutte le voci chiuse il 2026-10-24
+
+Aggiunto a chiusura del ciclo. Le decisioni sono nel protocollo, non qui: questa
+sezione serve solo a dire **dove** è finita ciascuna voce, perché la tabella del §7
+le elencava come "decisione richiesta" e oggi non ne resta nessuna aperta. Un commit
+per punto, come da regole del repository.
+
+| voce | esito | commit |
+|---|---|---|
+| 1.3 / 4.1 `E_trunc` | chiuso: `E_net_abs,b = m · \|Ē_b\|`, nome ritirato | `faae5f1` |
+| 1.1 / 4.2 `r_A` sui controlli | chiuso: filtro assoluto `pre_range_w,c ≤ 1,0 W` e `\|dP_c\| ≤ 1,0 W`, flag `control_unstable` | `0b2626a` |
+| 1.2 / 4.3 `u_bias` | chiuso: `u_bias,b = \|bias_w\| · Δt̄_W,b` in formula, contributo di incertezza | `5951908` |
+| 1.4 / 4.4 copertura | chiuso **oltre** la raccomandazione: due inviluppi, ciascuno nella propria base | `18c08a8` |
+| 4.5 lack-of-fit pesato | chiuso: `p_lof_perm` da ricampionamento del puro errore, statistica e soglia 0,05 invariate | `71664e4` |
+| 4.6 bootstrap e leva | chiuso: copertura dichiarata nominale e non arbitrata fino a P6.4; `1/√(1 − h_b)` come sensibilità obbligatoria, fattore massimo 1,1828 | `b3eeaed` |
+| 3.4 / 4.7 potenza del gate | chiuso: sei coppie, quorum `⌈2/3 · n⌉ = 4`, `bias_jtok_pct` riportato; intervallo t e test di equivalenza non adottati, con il limite dichiarato | `9dde1d1` |
+| 2.1 / 5.3 termine di bordo | chiuso: via (b) adottata come requisito vincolante di P5, via (a) scartata; `Δt_W` dalla stessa coppia di letture | `81f4381` |
+| 5.1 audit idle | adottato come requisito vincolante (P6.3) | `81f4381` |
+| 5.2 Monte Carlo | adottato come requisito vincolante (P6.4), con precedenza: dopo P5, prima della pubblicazione degli intervalli | `81f4381` |
+| 2.2, 2.3, 2.5 | applicate come correzioni di forma in P3.10, P3.12, P3.13 | `e00de6a` |
+| 2.4, 2.7 | applicate come aggiunte redazionali in P3.3, formulario allineato in F.8 | `7066e4e`, `ba01462` |
+| 2.6 | applicata: il pre-pilota di P3.15 prova anche i livelli bassi | `7826e9f` |
+| 2.1 forma | giustificazione di `u_edge` rettificata, formula e valore invariati | `09ecdce`, `ba01462` |
+| 3.2 concentrazione dei pesi | rinviata a P6.4 punto 1: `ρ` non è misurabile prima di un blocco v4 | `481eeea`, `81f4381` |
+| 3.3 condizionamento | requisito di P5: predittori centrati e scalati | `481eeea` |
+| 6 respinte | restano respinte; la somma aritmetica dei semi-range resta rinviata ai dati del pilota P2.9 (task #43), e il rinvio è corroborato, non riaperto | — |
+
+Due avvertenze per chi legge il protocollo dopo questa tabella. La prima: P6 non è
+più una sezione senza decisioni, e il suo preambolo lo dichiara. La seconda: le
+emende ai punti congelati sono **quattro** per P4 e una per P1 e P3, tutte elencate
+nella tabella di stato in testa al protocollo; nessuna formula congelata è stata
+riscritta in silenzio. Una rettifica a questo stesso documento: il §7 scrive che la
+simulazione Monte Carlo "arbitra 4 punti"; con la copertura del bootstrap aggiunta
+in P4.8 i punti sono **cinque** (P6.4).
