@@ -1337,21 +1337,51 @@ u_edge,b   = 2 · P_peak,b · δt_edge,b ,   δt_edge,b = Δt_tick,b / 2
 predittivo: non è un emendamento. I pesi del fit restano `w_b = 1/budget_fit_b²`,
 congelati.
 
+**Difetto dichiarato nel testo congelato (registrato il 2026-10-24, non corretto
+qui perché la correzione cambia un punto congelato).** `u_bias` **non compare**
+nella formula di `budget_pred_b²` qui sopra, mentre il testo ne afferma l'ingresso
+in cinque punti: P4.4 requisito 1, P4.5 esito negativo, anello 4 di P4.9, P4.14 e
+F.12. Regola testuale e formula si contraddicono, e la formula è ciò che un
+implementatore traduce in codice. Seconda parte dello stesso difetto:
+`u_bias = |bias_w| · Δt_W` non dice **quale** `Δt_W`. `bias_w` è un watt medio di
+campagna (`Σ_c E_net,control,c / Σ_c Δt_W,c`), quindi moltiplicarlo per un `Δt_W`
+singolo o per una durata aggregata dà joule diversi di un ordine di grandezza, e
+il campo `u_bias_j` — obbligatorio in P4.12 — non è calcolabile.
+
+Due letture non equivalenti, in
+`revisione_esterna_formule_20261024_valutazione.md` §4.3:
+
+- **contributo di incertezza** (raccomandata, ed è ciò che il testo descrive già a
+  parole): `budget_pred_b² = budget_fit_b² + u_edge,b² + u_bias,b²` con
+  `u_bias,b = |bias_w| · Δt̄_W,b`, e `u_bias = 0` se il gate passa;
+- **correzione sistematica**: si sottrae `bias_w · Δt_W` da `E_net` e si propaga
+  l'incertezza della correzione. Cambia i dati, non solo gli intervalli, e
+  contraddice P4.5 ("il bias è dichiarato nella tesi con il suo segno, e **P1 non
+  si cambia**").
+
+Se si sceglie la prima, la forma di combinazione va decisa insieme a quella
+rinviata in P1.7: se `budget_base_w` passasse dalla quadratura alla somma
+aritmetica, questo termine seguirebbe la stessa sorte. Finché la scelta non è
+fatta, un implementatore che traduca la formula alla lettera produce un
+`budget_pred` **privo** del termine che cinque paragrafi dicono di includere.
+
 Il termine di bordo. `δt_edge,b` è metà dell'intervallo **misurato** del buffer EMI
 nel blocco, non dell'intervallo dichiarato da `POWER_SAMPLE_INTERVAL_S = 0.05`
 (`energy_session.py:80`): sul percorso di produzione `Δt_tick` è 0,28–0,34 s. Ogni
 bordo della finestra cade quasi sempre fra due campioni e il contatore cumulativo è
-interpolato linearmente (`_emi_cum_at`, `energy_session.py:1103-1124`), quindi
-l'errore di un bordo è al più `P_peak · δt_edge` e i bordi sono due. `P_peak,b` è la
-potenza **totale** di picco del blocco, non quella netta: ciò che viene interpolato
+letto per interpolazione lineare (`_emi_cum_at`, `energy_session.py:1103-1124`);
+l'errore di un bordo è al più `P_peak · δt_edge` e i bordi sono due — ma **per
+disallineamento, non per interpolazione**: vedi la rettifica qui sotto. `P_peak,b` è
+la potenza **totale** di picco del blocco, non quella netta: ciò che viene letto
 è un contatore che accumula potenza totale, quindi il limite deve usare la potenza
 totale — usare quella netta sottostimerebbe il termine. È un limite superiore
 conservativo, non una propagazione di varianza: la stessa regola di P1.7.
 
 **Quale errore maggiora, davvero** (rettifica del 2026-10-24: corregge la
-giustificazione, **non** la formula né il valore congelato). La frase qui sopra
-attribuisce il limite `P_peak · δt_edge` all'interpolazione lineare. Non è così, e
-la distinzione va scritta perché cambia cosa il termine copre.
+giustificazione, **non** la formula né il valore congelato). La versione precedente
+di questo paragrafo attribuiva il limite `P_peak · δt_edge` all'interpolazione
+lineare. Non è così, e la distinzione va scritta perché cambia cosa il termine
+copre.
 
 1. **Errore di interpolazione.** L'interpolazione lineare di un contatore
    cumulativo ha errore **nullo a potenza costante**, qualunque sia il livello di
@@ -2102,6 +2132,13 @@ una divisione implicita produrrebbe un `err_rel` senza significato.
 u_edge,b       = 2 · P_peak,b · δt_edge,b  =  P_peak,b · Δt_tick,b
 budget_pred_b² = budget_fit_b² + u_edge,b²
 ```
+
+**Attenzione: `u_bias` non compare**, benché P4.4 requisito 1, P4.5, l'anello 4 di
+P4.9, P4.14 e F.12 ne affermino l'ingresso in `budget_pred`, e benché `u_bias_j`
+sia un campo obbligatorio di P4.12. Vedi il difetto dichiarato in P4.6: la forma
+raccomandata è `budget_pred_b² = budget_fit_b² + u_edge,b² + u_bias,b²` con
+`u_bias,b = |bias_w| · Δt̄_W,b`, ma è una decisione aperta, non una formula
+congelata.
 
 *Applicazione.* Per blocco. Ogni numero **pubblicato** — `J/token`, previsione su
 un punto, contributo di un coefficiente — esce con `budget_pred`, mai con il solo
