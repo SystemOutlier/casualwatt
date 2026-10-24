@@ -8,7 +8,7 @@ Data: 2026-10-24. Branch: `energy-consumption-framework-ollama-d248a`.
 
 | punto | oggetto | stato |
 |---|---|---|
-| P1 | baseline e calibrazione idle | **congelato 2026-10-24** (emendato: sensibilità post-hoc; fondamento in letteratura) |
+| P1 | baseline e calibrazione idle | **congelato 2026-10-24** (emendato: sensibilità post-hoc; letteratura e confronto CodeCarbon) |
 | P2 | token effettivi e terminazione | **congelato 2026-10-24** |
 | P3 | geometria, modello e stima | aperto |
 | P4 | incertezza e validazione | aperto |
@@ -388,6 +388,102 @@ coerente e difendibile sui nostri dati, non è "lo standard".
 - CodeCarbon 3.3: https://docs.codecarbon.io/3.3/explanation/methodology/.
 
 Citazioni in originale; i testi integrali sono stati letti il 2026-10-24.
+
+### P1.15 Confronto con CodeCarbon (verificato 2026-10-24)
+
+**Decisione in una riga.** CodeCarbon 3.3 e CasualWatt v4 non applicano lo
+stesso trattamento della baseline: CodeCarbon misura l'energia della macchina e,
+in modalità process, ne attribuisce una quota al processo; non misura né
+sottrae una baseline idle. CasualWatt misura la baseline con tre finestre pre e
+tre post e la sottrae. Il confronto è fra due oggetti diversi, non fra due
+versioni dello stesso principio.
+
+| aspetto | CodeCarbon 3.3 | CasualWatt v4 |
+|---|---|---|
+| grandezza | energia della macchina da RAPL/EMI/powermetrics, o stima da TDP; in modalità process, quota attribuita per tempo CPU (documentazione) | energia del package da EMI/LHM |
+| sottrazione della baseline | non definita: "idle" e "baseline" non compaiono né nella documentazione né nel pacchetto 3.3.0 | `E_net = E_gross − P_pre·Δt` |
+| misura della baseline | non eseguita | 3 finestre da 30 s prima del blocco |
+| statistica | non applicabile | mediana delle tre repliche |
+| pre/post | non distinti | pre applicato, post diagnostico |
+| drift | non misurato | `dP = P_post − P_pre` esplicito |
+| settling e cooldown | non documentati | criteri separati e dichiarati |
+| attribuzione al processo | modalità process: stima per tempo CPU; GPU a livello device, non per processo | energia di Ollama attiva + GPU attribuita, quota CPU dichiarata |
+| confine | macchina vs processo; PUE e WUE opzionali | package + GPU attribuita; rete e cloud zero nel locale |
+| trasparenza | metodo documentato a livello generale, non la baseline | protocollo esplicito e ripetibile |
+
+**Cosa fa CodeCarbon, verificato.** La documentazione 3.3 distingue due
+modalità: `machine` misura "the total energy consumed by the whole hardware
+stack", `process` "estimates the energy attributable to your Python process ...
+by sampling their CPU time relative to total CPU capacity". La stessa pagina
+avverte che la potenza GPU "is always measured at the device level", quindi non
+è una quota del singolo processo. Nel percorso TDP la potenza di processo è
+`power = TDP · carico_normalizzato / 100` (`hardware.py:346`): è un modello
+lineare di attribuzione, non una differenza fra due misure; a carico zero vale
+zero, ma non perché sia stata misurata e sottratta una baseline. Nel percorso
+RAPL/EMI l'energia viene dai delta del contatore della macchina
+(`hardware.py:381-393`) e viene accumulata così com'è
+(`emissions_tracker.py:1180-1183`), senza applicare la quota di processo: nel
+codice 3.3.0 il percorso che calcola la quota è quello TDP.
+
+La verifica negativa è stata fatta sul pacchetto Python 3.3.0: `grep -rniE
+"\bidle\b|baseline" codecarbon --include=*.py` non restituisce alcuna
+occorrenza. Non è un silenzio della documentazione: nel codice non c'è un
+termine idle da documentare.
+
+**Perché la differenza è di oggetto.** CodeCarbon in modalità process risponde a
+"quanta energia attribuire a questo processo?", ripartendo il consumo della
+macchina in base al tempo di CPU. CasualWatt risponde a "quanta energia
+incrementale ha consumato questa richiesta rispetto a una macchina idle
+misurata?", sottraendo una baseline. Le due domande non sono annidate: una quota
+si calcola senza mai misurare l'idle; una differenza si calcola senza attribuire
+il consumo a un processo. La prima è sensibile al carico concorrente, la seconda
+alla stabilità della baseline. Per questo "entrambi sottraggono l'idle" è falso,
+e "CasualWatt è più esplicito" è vero ma insufficiente: cambia l'estimatore e
+cambia l'unità sperimentale.
+
+**Correzioni al materiale esterno.**
+
+- "CodeCarbon sottrae l'energia idle in modo implicito" → no: non la misura e
+  non la sottrae. La quota di processo può sembrare una sottrazione implicita
+  perché a carico zero la stima TDP è zero, ma è un modello di attribuzione.
+- "Misura idle dipendente dalla piattaforma" → non c'è una misura idle; ciò che
+  dipende dalla piattaforma è il canale energetico (RAPL, EMI, powermetrics,
+  TDP).
+- "Statistica non documentata come mediana" → non c'è una statistica della
+  baseline da documentare.
+- "Pre/post non distinto", "drift non misurato", "settling e cooldown non
+  documentati" → veri, ma vanno detti come "non previsti dal metodo", non come
+  omissioni di uno stesso protocollo.
+- "Attribuzione al processo sì (machine vs process)" → vero secondo la
+  documentazione, con la precisazione che la GPU resta a livello device e che il
+  percorso RAPL/EMI restituisce l'energia della macchina.
+
+**Testo per la tesi (bozza, da adattare).**
+
+> CodeCarbon 3.3 e CasualWatt v4 non adottano lo stesso trattamento della
+> baseline. CodeCarbon misura l'energia della macchina tramite RAPL, EMI o
+> powermetrics, oppure la stima dal TDP, e in modalità process attribuisce al
+> processo una quota del consumo in base al tempo di CPU; la documentazione non
+> definisce una baseline idle e il termine "idle" non compare nel pacchetto
+> 3.3.0. CasualWatt v4, invece, misura esplicitamente la potenza idle del
+> package con tre finestre da 30 s prima e dopo ogni blocco, applica la mediana
+> del pre e usa il post come diagnostica del drift. Il confronto non riguarda
+> quindi due implementazioni dello stesso principio, ma due oggetti diversi:
+> un'attribuzione di quota e una differenza fra energie misurate. La
+> trasparenza di CasualWatt consiste nel rendere ripetibile e verificabile la
+> stima della baseline, non nel rendere esplicito un passaggio che CodeCarbon
+> compirebbe in modo implicito.
+
+**Ancoraggi.**
+
+- CodeCarbon 3.3, metodologia:
+  https://docs.codecarbon.io/3.3/explanation/methodology/ (modalità machine e
+  process, canali RAPL/EMI/powermetrics/TDP, GPU a livello device);
+- pacchetto 3.3.0, `codecarbon/external/hardware.py:292-346` (attribuzione di
+  processo nel percorso TDP), `:381-393` (delta RAPL/EMI),
+  `codecarbon/emissions_tracker.py:1180-1183` (accumulo dell'energia);
+- verifica negativa: `grep -rniE "\bidle\b|baseline" codecarbon --include=*.py`
+  → 0 occorrenze nel pacchetto 3.3.0.
 
 ---
 
