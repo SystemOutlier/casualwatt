@@ -134,7 +134,7 @@ procede e si marca `cooldown_timeout`.
 - `pre_unstable` se `pre_range_w > 1,0 W`. Motivazione misurata: 1 W di errore
   sulla baseline sposta J/token del 6–11%
   (`idle_floor_sensitivity_20261023_analisi.md` §2). Il flag non invalida da
-  solo: entra in `sigma_base_rep_w`.
+  solo: entra in `half_range_pre_w`.
 - Se una finestra ha delta negativo, contatore resettato o lettura non finita:
   si ripete una volta; alla seconda si invalida il blocco. Non si corregge.
 - Drift, con somme sulle richieste valide (non sul tempo a muro del blocco):
@@ -159,18 +159,20 @@ r_B = |dP| · Σ_{i∈punto}  Δt_W,i / Σ_{i∈punto}  E_trunc,i
 ### P1.7 Incertezza di baseline
 
 ```
-sigma_base_rep_w   = pre_range_w / 2
-sigma_base_drift_w = |dP| / 2
-sigma_base_w       = sqrt(sigma_base_rep_w² + sigma_base_drift_w²)
-sigma_base_j       = Δt_W · sigma_base_w
-sigma_J_base       = sigma_base_j / N_out_actual
+half_range_pre_w = (max(P_rep) − min(P_rep)) / 2     # semi-range conservativo
+half_drift_w     = |dP| / 2                         # semi-range conservativo
+budget_base_w    = sqrt(half_range_pre_w² + half_drift_w²)
+budget_base_j    = Δt_W · budget_base_w
+budget_J_base    = budget_base_j / N_out_actual
 ```
 
-La semisomma dell'intervallo è un limite conservativo per n=3, non una
-deviazione standard. Il budget è conservativo e dichiarato come tale.
-`sigma_J_base` è **solo** il contributo di baseline; il totale aggiunge bordo
-finestra e repliche. L'esempio di 0,034 J/token a 0,3 W, 3,6 s e 32 token è solo
-questo contributo.
+Nessuna di queste grandezze è una deviazione standard: `half_range_pre_w` e
+`half_drift_w` sono **semi-range conservativi**; `budget_base_w` è la loro
+combinazione in quadratura, un budget, non una varianza. Con n=3 non si stima una
+deviazione standard, e nella tesi si usa l'espressione "semi-range conservativo",
+mai "deviazione standard". `budget_J_base` è **solo** il contributo di baseline;
+il totale aggiunge bordo finestra e repliche. L'esempio di 0,034 J/token a 0,3 W,
+3,6 s e 32 token è solo questo contributo.
 
 ### P1.8 Cosa è escluso
 
