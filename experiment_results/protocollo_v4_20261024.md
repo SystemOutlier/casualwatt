@@ -10,8 +10,8 @@ Data: 2026-10-24. Branch: `energy-consumption-framework-ollama-d248a`.
 |---|---|---|
 | P1 | baseline e calibrazione idle | **congelato 2026-10-24** (emendato: sensibilità post-hoc; letteratura e confronto CodeCarbon; terza emenda di forma — motivazione causale del pre applicato in P1.14/F.2, e forma di combinazione di `budget_base_w` dichiarata decisione operativa provvisoria con rinvio motivato ai dati del pilota P2.9: P1.7, P1.13. **Emenda sostanziale del 2026-10-24**: chiuso il difetto `E_trunc`, definito `E_net_abs,b`/`E_net_abs,p` come denominatore di `r_A`/`r_B`, P1.6 e F.3) |
 | P2 | token effettivi e terminazione | **congelato 2026-10-24** |
-| P3 | geometria, modello e stima | **congelato 2026-10-24** (emendato di forma il 2026-10-24 dopo la revisione esterna: P3.3 costi marginali qualificati a `N_out = 0` / `N_in = 0` e algebra del termine quadratico omesso; P3.10 `E_pred ≤ 0` dichiarato fallimento con `pred_nonpositive` e intervallo rinominato `intervallo_conf`; P3.12/P3.13 `design_deviation_count`; P3.15 pre-pilota esteso ai livelli bassi. **Emenda sostanziale del 2026-10-24**: P3.9, il criterio dell'anello 5 usa `p_lof_perm`, `p` della stessa statistica F pesata ottenuto dalla distribuzione nulla per ricampionamento del puro errore — il `p` asintotico non è valido con pesi conservativi. Statistica e soglia 0,05 invariate, aggiunto `lof_max_rel` descrittivo. Nessuna modifica a disegno, modello o pesi) |
-| P4 | incertezza e validazione | **congelato 2026-10-24** (emendato: inviluppo convesso per la copertura, bootstrap dei residui standardizzati, criterio monolitico di catena, `u_edge` solo nel budget predittivo; seconda emenda solo di forma: P4.1 in quattro clausole, P4.4 a otto requisiti numerati con la baseline 3 pre + 3 post obbligatoria anche sui controlli; terza emenda solo di forma: seconda ragione in P4.12 per non adottare la deviazione standard a n = 3; quarta emenda solo di forma: P4.6, rettificata la giustificazione di `u_edge` — il termine congelato maggiora il disallineamento, non l'interpolazione — con formula e valore invariati. **Emenda sostanziale del 2026-10-24**: chiuso il difetto di `r_A` sui controlli — il requisito 7 di P4.4 elenca ora solo le quantità che esistono su un blocco di controllo, e il filtro di stabilità di P4.5 è sostituito dalle soglie assolute `pre_range_w,c ≤ 1,0 W` e `|dP_c| ≤ 1,0 W` con il flag `control_unstable`; `u_bias,b = |bias_w| · Δt̄_W,b` scritto in formula in P4.6 e F.11 come contributo di incertezza, non come correzione sistematica; copertura decisa su due inviluppi — `hull_design` sui target e `hull_fit` sui token reali dei 33 blocchi di fit — prendendo la fascia più conservativa, P4.7 e F.13. **Seconda emenda sostanziale del 2026-10-24**: P4.8, la copertura del bootstrap è dichiarata *nominale e non arbitrata* finché P6.4 non la verifica per simulazione, e la correzione di leva `1/√(1 − h_b)` è resa **sensibilità obbligatoria** allo stesso seed del primario — leva massima verificata sul disegno nominale 0,2852 sui blocchi (512, 256), fattore 1,1828, media 0,121212 = 4/33. Il primario non cambia e nessuna formula congelata è modificata. **Terza emenda sostanziale del 2026-10-24**: P4.4/P4.5, il gate load-versus-control passa da tre a **sei coppie** (12 blocchi) e il quorum dei controlli utilizzabili da due a **quattro**, stessa frazione congelata `⌈2/3 · n_coppie⌉`; `bias_w` si riporta anche in unità di metrica (coppia di campi `bias_jtok_pct_lo`/`bias_jtok_pct_hi`) con la scala ancorata 1 W ≈ 6–11% di `J/token`, grandezza riportata e non soglia; intervallo t e test di equivalenza a ±3–5% valutati e **non** adottati, con il limite dichiarato che un gate passato non dimostra quell'equivalenza (0,27–0,83 W sulla stessa scala). Costo in P6.1: pavimento 2 h 15 min → **2 h 33 min**. Soglie in watt invariate. **Quarta emenda sostanziale del 2026-10-24**: P4.6, chiusa l'alternativa aperta sul termine di bordo — adottata la via (b), lettura sincrona del contatore ai bordi di finestra con `Δt_W` preso dalla stessa coppia di letture, come requisito vincolante di P5; la via (a) è scartata perché chiede un `ΔP_tick` che nessuna parte del codice misura. Formula e valore congelato di `u_edge,b` invariati: cambia solo cosa è `Δt_tick,b`, e il fattore di riduzione si misura, non si assume. **Nessun difetto dichiarato aperto, nessuna alternativa aperta**) |
+| P3 | geometria, modello e stima | **congelato 2026-10-24** (emendato di forma il 2026-10-24 dopo la revisione esterna: P3.3 costi marginali qualificati a `N_out = 0` / `N_in = 0` e algebra del termine quadratico omesso; P3.10 `E_pred ≤ 0` dichiarato fallimento con `pred_nonpositive` e intervallo rinominato `intervallo_conf`; P3.12/P3.13 `design_deviation_count`; P3.15 pre-pilota esteso ai livelli bassi. **Emenda sostanziale del 2026-10-24**: P3.9, il criterio dell'anello 5 usa `p_lof_perm`, `p` della stessa statistica F pesata ottenuto dalla distribuzione nulla per ricampionamento del puro errore — il `p` asintotico non è valido con pesi conservativi. Statistica e soglia 0,05 invariate, aggiunto `lof_max_rel` descrittivo. **Aggiunta del 2026-10-25, di sola dichiarazione**: all'elenco dei contenuti obbligatori di P3.13 si aggiungono `pre_range_w` e `dP`, grandezze già definite in F.1 e F.3 e già usate da tre flag, perché un flag i cui ingressi non sono registrati non è verificabile da un terzo (P4.12). Nessuna modifica a disegno, modello o pesi) |
+| P4 | incertezza e validazione | **congelato 2026-10-24** (emendato: inviluppo convesso per la copertura, bootstrap dei residui standardizzati, criterio monolitico di catena, `u_edge` solo nel budget predittivo; seconda emenda solo di forma: P4.1 in quattro clausole, P4.4 a otto requisiti numerati con la baseline 3 pre + 3 post obbligatoria anche sui controlli; terza emenda solo di forma: seconda ragione in P4.12 per non adottare la deviazione standard a n = 3; quarta emenda solo di forma: P4.6, rettificata la giustificazione di `u_edge` — il termine congelato maggiora il disallineamento, non l'interpolazione — con formula e valore invariati. **Emenda sostanziale del 2026-10-24**: chiuso il difetto di `r_A` sui controlli — il requisito 7 di P4.4 elenca ora solo le quantità che esistono su un blocco di controllo, e il filtro di stabilità di P4.5 è sostituito dalle soglie assolute `pre_range_w,c ≤ 1,0 W` e `|dP_c| ≤ 1,0 W` con il flag `control_unstable`; `u_bias,b = |bias_w| · Δt̄_W,b` scritto in formula in P4.6 e F.11 come contributo di incertezza, non come correzione sistematica; copertura decisa su due inviluppi — `hull_design` sui target e `hull_fit` sui token reali dei 33 blocchi di fit — prendendo la fascia più conservativa, P4.7 e F.13. **Seconda emenda sostanziale del 2026-10-24**: P4.8, la copertura del bootstrap è dichiarata *nominale e non arbitrata* finché P6.4 non la verifica per simulazione, e la correzione di leva `1/√(1 − h_b)` è resa **sensibilità obbligatoria** allo stesso seed del primario — leva massima verificata sul disegno nominale 0,2852 sui blocchi (512, 256), fattore 1,1828, media 0,121212 = 4/33. Il primario non cambia e nessuna formula congelata è modificata. **Terza emenda sostanziale del 2026-10-24**: P4.4/P4.5, il gate load-versus-control passa da tre a **sei coppie** (12 blocchi) e il quorum dei controlli utilizzabili da due a **quattro**, stessa frazione congelata `⌈2/3 · n_coppie⌉`; `bias_w` si riporta anche in unità di metrica (coppia di campi `bias_jtok_pct_lo`/`bias_jtok_pct_hi`) con la scala ancorata 1 W ≈ 6–11% di `J/token`, grandezza riportata e non soglia; intervallo t e test di equivalenza a ±3–5% valutati e **non** adottati, con il limite dichiarato che un gate passato non dimostra quell'equivalenza (0,27–0,83 W sulla stessa scala). Costo in P6.1: pavimento 2 h 15 min → **2 h 33 min**. Soglie in watt invariate. **Quarta emenda sostanziale del 2026-10-24**: P4.6, chiusa l'alternativa aperta sul termine di bordo — adottata la via (b), lettura sincrona del contatore ai bordi di finestra con `Δt_W` preso dalla stessa coppia di letture, come requisito vincolante di P5; la via (a) è scartata perché chiede un `ΔP_tick` che nessuna parte del codice misura. Formula e valore congelato di `u_edge,b` invariati: cambia solo cosa è `Δt_tick,b`, e il fattore di riduzione si misura, non si assume. **Quinta emenda, di sola dichiarazione (2026-10-25)**: specificata la metrica di `hull_margin_tok` e `hull_margin_design_tok` (distanza perpendicolare euclidea dalla retta dello spigolo più vicino, coordinate grezze, negativa se fuori) e verificata per esecuzione sui quattro margini pubblicati (1,33 / 64,0 / 21,24 / 107,7), perché con la distanza dal vertice il punto operativo (12,32) darebbe 28,28 e il flag `thin_support` si rovescerebbe; coordinate normalizzate valutate e **non** adottate, decisione metodologica distinta; `pre_range_w` e `dP` entrano nei contenuti obbligatori di P4.12, senza i quali `control_unstable` registra un esito i cui ingressi non sono leggibili; dichiarata la scala di `budget_fit_b`/`budget_pred_b` (joule sulla scala di `Ē_b`, non del totale di blocco) e scartata la lettura a durata aggregata; il passo 5 di F.0 distingue i controlli di stabilità sui blocchi di carico dal filtro assoluto di P4.5 sui blocchi di controllo. Nessuna formula cambiata, nessuna soglia spostata. **Nessun difetto dichiarato aperto, nessuna alternativa aperta**) |
 | P5 | campi CSV e runner | aperto (requisiti vincolanti trasmessi dai punti congelati: P6.5, fra cui la lettura sincrona del contatore ai bordi, `Δt_W` dalla stessa coppia di letture e il livello di aggregazione dei conteggi di token) |
 | P6 | esecuzione e analisi | aperto, ma **non più solo preparatorio**: P6.1 e P6.2 sono aritmetica dei punti congelati (P6.1 ricalcolato il 2026-10-24 per le sei coppie del gate: pavimento delle sole finestre idle 2 h 33 min); P6.3 (audit idle) e P6.4 (simulazione Monte Carlo) sono **adottate come requisiti vincolanti**; P6.5 è l'elenco dei requisiti per P5 |
 
@@ -29,16 +29,21 @@ cosa bloccava ciascuno e con quale regola è stato chiuso:
 | `r_A` non calcolabile su un blocco di controllo, che non invia richieste | P4.5, F.12 | il gate load-versus-control e l'anello 4 di P4.9 | **chiuso 2026-10-24**: filtro sostituito dalle soglie assolute `pre_range_w,c ≤ 1,0 W` e `|dP_c| ≤ 1,0 W`, flag `control_unstable` |
 | `u_bias` dichiarato nel budget, assente dalla formula, e senza `Δt_W` specificato | P4.6, F.11 | il campo obbligatorio `u_bias_j` (P4.12) | **chiuso 2026-10-24**: `budget_pred_b² = budget_fit_b² + u_edge,b² + u_bias,b²` con `u_bias,b = |bias_w| · Δt̄_W,b` (contributo di incertezza, non correzione sistematica) |
 | copertura classificata sui target, fit stimato sui token reali | P4.7, F.13 | coerenza di `coverage_tier` e `hull_margin_tok` con `x1_b`, `x2_b` | **chiuso 2026-10-24**: due inviluppi, `hull_design` (target, pre-registrato) e `hull_fit` (reali, dai 33 blocchi); il punto si classifica su `(x1_b, x2_b)` e si prende la fascia più conservativa |
+| metrica di `hull_margin_tok` non specificata: "distanza dal bordo" senza dire quale distanza | P4.7, F.13, Terminologia | il flag obbligatorio `thin_support` (soglia 2 token) e i quattro margini pubblicati | **chiuso 2026-10-25**: distanza perpendicolare euclidea dalla retta dello spigolo più vicino, coordinate grezze (token, token), negativa se fuori; ricalcolata per esecuzione (1,33 / 64,0 / 21,24 / 107,7). Con la distanza dal vertice `(12,32)` darebbe 28,28 invece di 1,33 e `thin_support` si rovescia |
 
 Valutazione completa, con le verifiche numeriche eseguite:
-`revisione_esterna_formule_20261024_valutazione.md`. Nessuno dei quattro era
-cosmetico: ognuno lasciava una formula con due letture possibili, che è esattamente
-ciò che un implementatore risolve in silenzio scegliendone una. Con tutti e quattro
-chiusi, il runner di P5 può essere scritto contro formule che ne hanno una sola.
-Due chiusure vanno oltre la raccomandazione dei revisori, e sono dichiarate dove
-stanno: il filtro dei controlli limita anche la circolarità del criterio (P4.5), e
-la copertura usa **due** inviluppi invece di spostare solo il punto sulla base reale
-(P4.7).
+`revisione_esterna_formule_20261024_valutazione.md` (primo turno) e
+`revisione_esterna_20261025_secondo_turno_valutazione.md` (secondo turno). Nessuno
+dei cinque era cosmetico: ognuno lasciava una formula o un campo con due letture
+possibili, che è esattamente ciò che un implementatore risolve in silenzio
+scegliendone una. Con tutti e cinque chiusi, il runner di P5 può essere scritto
+contro formule che ne hanno una sola. Il quinto non viene dalla revisione del
+2026-10-24: è emerso il 2026-10-25 verificando gli ancoraggi del secondo turno,
+ed è quello in cui le due letture della stessa frase danno due esiti **opposti**
+di un flag già congelato (`thin_support`), con un fattore 21,3 sul numero
+pubblicato. Due chiusure vanno oltre la raccomandazione dei revisori: il filtro
+dei controlli limita anche la circolarità (P4.5), e la copertura usa **due**
+inviluppi invece di spostare solo il punto sulla base reale (P4.7).
 
 Le formule di P1–P4 sono raccolte, con applicazione e giustificazione, nella
 sezione finale **Formulario consolidato (F.0–F.17)**: è una sezione derivata, non
@@ -1206,6 +1211,11 @@ nel CSV delle righe o in un artefatto separato. Lo stesso vale per i campi del
 lack-of-fit introdotti dall'emendamento di P3.9 (`F_lof`, `p_lof_perm`,
 `p_lof_asint`, `lof_max_rel`, per campagna; `z_pe_b`, per blocco).
 
+All'elenco si aggiungono `pre_range_w` e `dP` (P4.12, aggiunta del 2026-10-25):
+sono gli ingressi di `pre_unstable`, `baseline_unstable` e `control_unstable`, e un
+flag i cui ingressi non sono registrati non è verificabile da un terzo. Non sono
+grandezze nuove, sono già definite in F.1 e F.3.
+
 ### P3.14 Ancoraggi
 
 - payload e opzioni: `benchmark_unified.py:119-141`;
@@ -1341,7 +1351,7 @@ nessuno dei due è l'incertezza di un numero pubblicato. Mancano tre pezzi.
 | inviluppo di fit | `hull_fit` | inviluppo convesso delle 33 coppie `(x1_b, x2_b)` dei blocchi di fit, sui token **reali**; noto dopo la campagna |
 | fascia di copertura | A / B / C | dentro l'inviluppo / dentro il box ma fuori dall'inviluppo / fuori dal box; si assegna sui due inviluppi, ciascuno nella propria base, e si prende la più conservativa |
 | fascia di progetto / di fit | `coverage_tier_design`, `coverage_tier_fit` | la fascia del punto **target** rispetto a `hull_design` e del punto **reale** `(x1_b, x2_b)` rispetto a `hull_fit`; `coverage_tier` è il più conservativo dei due |
-| margine di inviluppo | `hull_margin_tok`, `hull_margin_design_tok` | distanza in token dal bordo di `hull_fit` (punto reale) e di `hull_design` (punto target), negativa se fuori |
+| margine di inviluppo | `hull_margin_tok`, `hull_margin_design_tok` | distanza **perpendicolare euclidea** in coordinate grezze (token, token) dalla retta dello spigolo più vicino di `hull_fit` (punto reale) e di `hull_design` (punto target), negativa se fuori; la metrica è dichiarata in F.13 e non è la distanza dal vertice |
 | stato della catena | `chain_status` | `validated` solo se tutti gli anelli di P4.9 passano; altrimenti l'etichetta dell'anello ceduto |
 | lack-of-fit, riferimento | `p_lof_perm` | `p` della statistica F pesata ottenuto dalla distribuzione nulla per ricampionamento del puro errore; è il criterio dell'anello 5 (P3.9) |
 | lack-of-fit, asintotico | `p_lof_asint` | `1 − F_{6,23}(F_lof)`; **indicativo**, si riporta accanto ma non decide |
@@ -1584,6 +1594,19 @@ congelati: `u_edge,b` e `u_bias,b` entrano **solo** nel predittivo e non toccano
 stima. `Δt̄_W,b` è la stessa grandezza già usata da `u_base,b` in P3.8 e qui è
 scritta per esteso perché `u_bias,b` ne dipende in modo visibile.
 
+**Scala dei due budget, dichiarata esplicitamente (aggiunta del 2026-10-25).**
+`budget_fit_b` e `budget_pred_b` sono in joule **sulla scala di `Ē_b`**, cioè della
+media per richiesta del blocco (F.7: `Ē_b = (1/m) · Σ_i E_act,i`; il fit di F.9
+stima su `Ē_b`), non sulla scala del totale di blocco. È per questo che la durata
+che compare in `u_base,b` e in `u_bias,b` è `Δt̄_W,b`, durata **media** delle
+finestre, e non `Σ_i Δt_W,i`. La lettura alternativa, cioè un `Δt_W,b` inteso come
+durata dell'intero blocco, è valutata e **non** adottata: con `m = 3` renderebbe
+quei due termini tre volte più grandi e `budget_pred_b` fino a tre volte più largo
+dove essi dominano, ed è esattamente la "durata aggregata" che il difetto chiuso qui
+sotto dichiarava non calcolabile. La regola pratica per P5: il campo durata che
+alimenta `u_base,b` e `u_bias,b` è la media per blocco di `duration_s`, la stessa
+grandezza di `Δt̄_W,b`, e non la somma delle finestre del blocco.
+
 **Difetto chiuso il 2026-10-24 (emendamento sostanziale di P4.6).** Nella versione
 congelata `u_bias` **non compariva** nella formula di `budget_pred_b²`, mentre il
 testo ne affermava l'ingresso in cinque punti: P4.4 requisito 1, P4.5 esito
@@ -1807,20 +1830,27 @@ il modello è stato stimato — cioè un'estrapolazione pubblicata in fascia A, 
 esattamente l'errore per cui questa sezione esiste. Quindi:
 
 ```
+metrica dei due margini, obbligatoria e unica (dichiarata il 2026-10-25):
+    d(P, inviluppo) = minimo, sulle rette degli spigoli dell'inviluppo, della
+                      distanza PERPENDICOLARE euclidea di P dalla retta,
+                      in coordinate grezze (token, token); negativa se P è fuori
+    non è la distanza dal vertice più vicino: per (12,32) quella dà 28,28
+    invece di 1,33, fattore 21,3, e rovescia il flag thin_support
+
 lato di progetto (pre-registrato, calcolabile prima dei dati):
     hull_design  = inviluppo convesso dei 10 punti di disegno sulle coordinate TARGET
                    vertici (8,4) (512,32) (512,256) (32,256)
     box_design   = 8 ≤ N_in ≤ 512 ,  4 ≤ N_out ≤ 256
     punto        = (N_in,target , N_out,target) del punto da classificare
     coverage_tier_design = A dentro hull_design / B dentro box_design / C fuori
-    hull_margin_design_tok = distanza del punto target dal bordo di hull_design
+    hull_margin_design_tok = d(punto target, hull_design) con la metrica qui sopra
 
 lato di fit (calcolato sui dati, noto solo dopo la campagna):
     hull_fit     = inviluppo convesso delle 33 coppie (x1_b, x2_b) dei blocchi di fit
     box_fit      = [min_b x1_b , max_b x1_b] × [min_b x2_b , max_b x2_b]
     punto        = (x1_b , x2_b) del blocco da classificare, medie dei token REALI (F.7)
     coverage_tier_fit = A dentro hull_fit / B dentro box_fit / C fuori
-    hull_margin_tok   = distanza del punto reale dal bordo di hull_fit
+    hull_margin_tok   = d(punto reale, hull_fit) con la stessa metrica
 
 esito pubblicato:
     coverage_tier = il più conservativo dei due        (A < B < C)
@@ -1853,6 +1883,28 @@ Conseguenze, dichiarate prima e non scoperte dopo:
    la media dei prodotti e non il prodotto delle medie (F.7). La fascia A resta
    quindi una condizione **necessaria non sufficiente** per l'interpolazione: la
    garanzia empirica è il punto di conferma di P3.10, non la geometria.
+
+**La metrica del margine è dichiarata e verificata (aggiunta del 2026-10-25).**
+"Distanza dal bordo" non specificava quale distanza, e la scelta non è cosmetica
+perché `thin_support` scatta sotto i 2 token: con la distanza perpendicolare alla
+retta dello spigolo il punto operativo `(12,32)` dà 1,33 ed è marcato
+`thin_support`; con la distanza euclidea dal vertice più vicino dà 28,28 e non lo
+è. Fattore 21,3 sullo stesso punto e sullo stesso inviluppo, cioè due esiti opposti
+di un flag obbligatorio. La metrica adottata è la perpendicolare, ed è quella con
+cui i quattro margini pubblicati sono stati **ricalcolati per esecuzione** il
+2026-10-25: 1,33 / 64,0 / 21,24 / 107,7, cioè i valori già scritti (il terzo è
+21,2 arrotondato). Vertici confermati `(8,4)`, `(512,32)`, `(512,256)`, `(32,256)`.
+
+**Coordinate normalizzate: non adottate, e non per dimenticanza.** `N_in` e `N_out`
+sono entrambi in token ma hanno intervalli diversi (8–512 e 4–256), quindi una
+distanza euclidea grezza pesa i due assi in modo diseguale; normalizzare renderebbe
+il margine adimensionale e più confrontabile fra gli assi. È però una decisione
+metodologica **distinta**, non una correzione da introdurre di passata: cambia il
+valore di tutti i margini pubblicati e il significato della soglia di 2 token di
+`thin_support`, che sta nel testo congelato. Si registra come sviluppo possibile,
+da prendere prima dei dati se la si vuole prendere. Finché non è presa, la metrica
+è quella grezza dichiarata qui sopra e i margini sono in token. Chi legge un
+margine pubblicato deve leggere anche questa riga.
 
 Non esiste più una penalità di extrapolazione inventata: la fascia B è descrittiva e
 la fascia C non pubblica. L'errore misurato in P3.10 resta quello che è — il test
@@ -2071,9 +2123,19 @@ fascia di copertura (P4.7) in cui cade ciascuna richiesta di produzione.
   `coverage_tier` ∈ {`A`, `B`, `C`}, `coverage_tier_design`, `coverage_tier_fit`,
   `sparse_support`, `thin_support`, `out_of_coverage`, `bootstrap_seed`,
   `validation_bias_pass`, `control_unstable` (sui blocchi di controllo, P4.5),
+  `pre_range_w`, `dP` (per blocco: P1.6, F.1, F.3),
   `chain_status`. `Δt̄_W,b` (P4.6, F.11) **non** è una colonna nuova: è la media
   per blocco della `duration_s` già prevista, e P5 lo dichiari come quantità
   derivata;
+- `pre_range_w` e `dP` entrano nell'elenco il 2026-10-25 e non sono grandezze
+  nuove: sono già definite in P1 (F.1, F.3) e già usate da tre flag. Senza di esse
+  `control_unstable` registra un esito i cui due ingressi (`pre_range_w,c ≤ 1,0 W`
+  e `|dP_c| ≤ 1,0 W`, P4.5) non sono leggibili, quindi un terzo non può verificare
+  né il filtro né che la soglia fosse fissata prima dei dati. Lo stesso vale per
+  `pre_unstable`, il cui ingresso è `pre_range_w`; per `baseline_unstable` l'ingresso
+  `r_A` era già in elenco. Regola generale, che P5 applichi a ogni campo: **un flag
+  obbligatorio porta con sé i valori da cui è stato calcolato**, altrimenti è
+  un'affermazione e non un dato;
 - P6 fissa l'ordine di esecuzione — la campagna di P4.4 sta prima della principale e
   ne è il gate — e gli script di analisi;
 - il wattometro: la scala assoluta resta non arbitrata (cap. 6, sviluppo 1);
@@ -2355,6 +2417,20 @@ registrati qui perché non si perdano.
   `hull_margin_tok`, `hull_margin_design_tok` sono per punto di
   conferma o per blocco, non per richiesta: P5 decida se stanno nel CSV delle
   righe (ripetuti) o in un artefatto separato, e lo dichiari.
+- **Tre colonne di stabilità non esistono nello schema attuale.** `pre_range_w`,
+  `dP` (entrambe elencate da P4.12 dal 2026-10-25) e `budget_base_j` (F.4) non
+  compaiono in `CSV_COLUMNS` (`casualwatt_csv_export.py:17-108`), verificato il
+  2026-10-25: senza di esse i flag `pre_unstable`, `baseline_unstable` e
+  `control_unstable` sono affermazioni non verificabili dai dati salvati e il gate
+  di P4.5 non è calcolabile da un terzo. Sono campi nuovi, da aggiungere con
+  `ensure_header` come gli altri accodati in coda.
+- **Metrica di `hull_margin_tok` da implementare, non da interpretare.** La
+  distanza dichiarata in F.13 il 2026-10-25 è la **perpendicolare euclidea dalla
+  retta dello spigolo più vicino**, in coordinate grezze e con segno negativo
+  fuori dall'inviluppo. P5 specifichi che l'implementazione calcola quella e non
+  la distanza dal vertice più vicino, che per il punto di conferma (12,32) dà
+  28,28 invece di 1,33 (fattore 21,3) e rovescia il flag congelato
+  `thin_support`.
 
 ---
 
@@ -2384,7 +2460,11 @@ Per ogni blocco `b` della campagna principale, nell'ordine:
    `N_out,i`, `done_reason` (F.6);
 3. tre finestre post → `baseline_post_w`, `dP` (F.1);
 4. `E_act,i` firmato, mai troncato (F.2);
-5. controlli `pre_range_w`, `r_A`, `r_B` e flag (F.3);
+5. controlli di stabilità di P1.6 sul blocco **di carico**: `pre_range_w`, `r_A`,
+   `r_B` e flag (F.3). Sui blocchi di **controllo** della campagna di P4.4 `r_A` e
+   `r_B` non sono calcolabili, perché il denominatore `E_net_abs` è vuoto: vale il
+   filtro assoluto di P4.5 (`pre_range_w,c ≤ 1,0 W` e `|dP_c| ≤ 1,0 W`) e il flag è
+   `control_unstable`;
 6. `budget_base_w,b`, `budget_base_j,b` (F.4);
 7. medie di blocco `Ē_b`, `x1_b`, `x2_b`, `x12_b` (F.7);
 8. `u_base,b`, `u_within,b`, `budget_fit_b`, `w_b` (F.9);
@@ -2689,7 +2769,9 @@ perché `bias_w` è un watt medio di campagna e senza di essa il campo `u_bias_j
 
 *Applicazione.* Per blocco. Ogni numero **pubblicato** — `J/token`, previsione su
 un punto, contributo di un coefficiente — esce con `budget_pred`, mai con il solo
-`u_base`.
+`u_base`. La scala di entrambi i budget è quella di `Ē_b`, media per richiesta del
+blocco (F.7), **non** il totale di blocco: è la ragione per cui la durata è
+`Δt̄_W,b` e non `Σ_i Δt_W,i` (P4.6, dichiarazione del 2026-10-25).
 
 *Giustificazione.* Ogni bordo della finestra cade quasi sempre fra due campioni e
 il contatore cumulativo è letto per interpolazione lineare (`_emi_cum_at`,
@@ -2807,6 +2889,10 @@ assoluta**, perché legge lo stesso registro di LibreHardwareMonitor.
 ### F.13 Copertura: inviluppo convesso (P4.7)
 
 ```
+metrica dei margini: distanza PERPENDICOLARE euclidea dalla retta dello spigolo
+                   più vicino, coordinate grezze (token, token), negativa se fuori;
+                   non è la distanza dal vertice (P4.7, dichiarata il 2026-10-25)
+
 lato di progetto:  hull_design, vertici (8,4) (512,32) (512,256) (32,256)
                    box_design = 8 ≤ N_in ≤ 512 ,  4 ≤ N_out ≤ 256
                    punto = coordinate TARGET del punto
@@ -3040,17 +3126,22 @@ Contenuti obbligatori già elencati dai punti congelati. P3.13: `batch_id`,
 `hull_margin_tok`, `hull_margin_design_tok`, `coverage_tier`,
 `coverage_tier_design`, `coverage_tier_fit`, `sparse_support`, `thin_support`,
 `out_of_coverage`, `bootstrap_seed`, `validation_bias_pass`, `control_unstable`,
-`chain_status`.
+`chain_status`; dal 2026-10-25 anche `pre_range_w` e `dP` per blocco (P4.12,
+F.3), che sono gli ingressi dei flag `pre_unstable`, `baseline_unstable` e
+`control_unstable`.
 
 Grandezze che compaiono in questo formulario e che **nessun punto ha ancora
 messo in elenco**: le tre repliche pre e le tre post di F.1 (oggi il CSV salva
-una sola cifra in `idle_power_w`), `baseline_post_w`, `dP`, `pre_range_w` di F.3,
+una sola cifra in `idle_power_w`), `baseline_post_w` di F.3 (il suo differenziale
+`dP` e il range `pre_range_w` sono invece elencati da P4.12 dal 2026-10-25),
 `half_range_pre_w`, `half_drift_w`, `budget_base_w`, `budget_base_j` di F.4,
 `Δ_sens` di F.5, `share_E0` di F.8. Sono il lavoro principale di P5, insieme a
-nomi, tipi e unità di tutto il resto: tre di queste — `budget_base_j`,
-`pre_range_w` e `dP` — sono la soglia e il filtro di stabilità del test di F.12,
-quindi se non diventano colonne il gate di P4.5 non è calcolabile dai dati
-salvati. `Δt̄_W,b` di F.11 fa caso a sé: è la media per blocco della `duration_s`
+nomi, tipi e unità di tutto il resto. Di queste, `budget_base_j` resta la sola
+fra gli ingressi del test di F.12 a non essere ancora elencata da nessun punto:
+è la soglia del gate di P4.5, quindi se non diventa colonna il gate non è
+calcolabile dai dati salvati. `pre_range_w` e `dP` sono elencate ma non sono
+colonne esistenti (`CSV_COLUMNS`, `:17-108`): P5 le aggiunga come campi nuovi.
+`Δt̄_W,b` di F.11 fa caso a sé: è la media per blocco della `duration_s`
 già mappata qui sopra, quindi non è una colonna nuova, ma P5 dichiari che è una
 quantità derivata e da dove si calcola — `u_bias,b` ne dipende e senza quella
 dichiarazione torna ambiguo.
