@@ -21,11 +21,15 @@ generatore, non del test -- e il numero sbagliato finisce in una pagina di tesi.
 
 Che cosa verifica: la forma del node id (con/senza parametro, vuoto o no, in
 classe o no) e il fatto che, per il case reale, la chiave di indice trovi la
-docstring nell'AST.
+docstring nell'AST. Verifica anche che un'etichetta parametrizzata lunga e
+col trattino (``librehardwaremonitor-energy``) riceva un punto di capo: senza,
+la cella non si spezza e il file generato va in overfull nel PDF.
 
-Che cosa NON verifica: che la tabella LaTeX generata sia impaginata bene; quella
-e' una verifica visiva sul PDF (e un ``\\endfirsthead`` mancante non produce
-overfull box).
+Che cosa NON verifica: che la tabella LaTeX generata sia impaginata bene --
+il test qui sotto prova che i punti di capo \\emph{esistono}, non che la colonna
+li usi e che nessuna riga sfori il margine; quella resta una verifica sul
+``main.log`` dopo la compilazione (un ``\\endfirsthead`` mancante, ad esempio,
+non produce overfull box).
 """
 import os
 import sys
@@ -122,6 +126,49 @@ def test_tutti_i_node_id_raccolti_hanno_un_nome_trovabile_nell_ast():
         if fname not in {k[1] for k in cache[percorso]}:
             orfani.append((nid, fname))
     assert not orfani, f"nomi non risolvibili nell'AST: {orfani[:5]}"
+
+
+# ------------------------------------------------------------ punti di capo
+# Il 24/10 il PDF dell'Appendice D usciva con sei overfull box, uno da 66 pt.
+# Nessuna delle righe segnalate era un test senza docstring: erano le righe
+# parametrizzate sulle etichette di canale. Il generatore spezzava gli
+# identificatori solo dopo l'underscore -- ma 'emi-counter' e
+# 'librehardwaremonitor-energy' di underscore non ne hanno, e in \texttt il
+# trattino NON e' un punto di capo. Il risultato e' che la cella
+#   test\_\allowbreak{}...|numero\,(\texttt{librehardwaremonitor-energy})
+# non aveva alcun punto dove andare a capo, e sfondava la colonna da
+# 0,30\textwidth. Un difetto di impaginazione generato dal generatore: il
+# numero dei test era giusto, la pagina no.
+@pytest.mark.parametrize("etichetta,segmenti", [
+    ("emi-counter", ["emi-", "counter"]),
+    ("power-integration", ["power-", "integration"]),
+    ("librehardwaremonitor-energy", ["librehardwaremonitor-", "energy"]),
+    ("librehardwaremonitor", ["librehardwaremonitor"]),
+    ("energy_calculation_method", ["energy_", "calculation_", "method"]),
+])
+def test_le_etichette_di_canale_hanno_un_punto_di_capo(etichetta, segmenti):
+    """Ogni trattino e ogni underscore e' seguito da \\allowbreak: il separatore resta nel frammento prima del capo."""
+    tex = gen._spezza_identificatore(gen.tex_escape(etichetta))
+    if len(segmenti) > 1:
+        assert tex.count("\\allowbreak{}") == len(segmenti) - 1, tex
+    assert gen.frammenti_inseguibili(tex) == segmenti
+
+
+def test_il_frammento_piu_lunguo_del_verbale_sta_in_un_segmento():
+    """Sulle 116 righe reali: nessuna cella della prima colonna ha un frammento inseguibile oltre 26 caratteri."""
+    peggio = ("", 0)
+    for nid in gen.raccogli(["--collect-only", "-q"]):
+        _percorso, classe, fname, param = gen.nome_e_parametri(nid)
+        for frammento in gen.frammenti_inseguibili(gen.cella_test(fname, classe, param)):
+            if len(frammento) > peggio[1]:
+                peggio = (frammento, len(frammento))
+    # 26 perche' 'librehardwaremonitor-' (20) e' il segmento che il 24/10
+    # sfondava la colonna da 0,30\textwidth in \footnotesize \texttt: con i punti
+    # di capo la riga si spezza li', senza non si spezza da nessuna parte.
+    assert peggio[1] <= 26, (
+        "frammento inseguibile di %d caratteri (%r): la prima colonna "
+        "dell'Appendice D non lo contiene e il PDF va in overfull box"
+        % (peggio[1], peggio[0]))
 
 
 if __name__ == "__main__":
