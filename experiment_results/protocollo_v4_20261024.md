@@ -163,6 +163,29 @@ r_B = |dP| · Σ_{i∈punto}  Δt_W,i / Σ_{i∈punto}  E_trunc,i
 - Se il denominatore di `r_A` o `r_B` è zero, il blocco o il punto è invalido
   per costruzione.
 
+**Difetto dichiarato nel testo congelato (registrato il 2026-10-24, non
+corretto qui perché la correzione cambia un punto congelato).** Il simbolo
+`E_trunc` usato nelle due formule qui sopra **non è definito in nessuna parte del
+protocollo**: quattro occorrenze, tutte d'uso (P1.6 e F.3), nessuna di definizione,
+e il simbolo non compare nella sezione Terminologia. Il nome viene dalla
+produzione, che tronca due volte (`local_energy.py:300` e `:309-310`); la v4 non
+tronca (P1.3, P3.2, F.2), quindi è l'eredità di un metodo che il protocollo ha
+abbandonato. Tre letture possibili danno comportamenti diversi:
+
+| candidato | denominatore | conseguenza se `Σ E_net < 0` |
+|---|---|---|
+| `Σ E_net_incremental,i` firmato | può essere ≤ 0 | `r_A ≤ 0` passa sempre: il filtro è cieco |
+| `|Σ E_net_incremental,i|` | ≥ 0 | `r_A` esplode quando il blocco non ha segnale |
+| `Σ |E_net_incremental,i|` | > 0 | confronta il drift con una grandezza che non entra nel fit |
+
+Finché la scelta non è fatta, `r_A` e `r_B` **non sono calcolabili** e quindi non
+lo sono neppure i flag `baseline_unstable` e le regole di esclusione di P1.6,
+l'aggregato `bias_w` di P4.5 e l'anello 4 di P4.9. È la prima cosa da chiudere
+prima di scrivere il runner (P5). Raccomandazione registrata in
+`revisione_esterna_formule_20261024_valutazione.md` §4.1:
+`|Σ_{i∈blocco} E_net_incremental,i| = m · |Ē_b|`, con simbolo rinominato e voce
+aggiunta alla Terminologia.
+
 ### P1.7 Incertezza di baseline
 
 ```
@@ -1853,6 +1876,10 @@ blocco: il blocco include warm-up e finestre idle, che non hanno energia netta
 attribuibile e gonfierebbero il numeratore. Se il denominatore è zero, blocco o
 punto è invalido per costruzione. I flag non invalidano da soli: entrano nel
 budget di F.4.
+
+**Attenzione: `E_trunc` non è definito** in nessuna parte del protocollo — vedi il
+difetto dichiarato in P1.6, con le tre letture possibili e le loro conseguenze.
+Fino alla scelta, `r_A` e `r_B` non sono calcolabili.
 
 ### F.4 Incertezza di baseline (P1.7)
 
