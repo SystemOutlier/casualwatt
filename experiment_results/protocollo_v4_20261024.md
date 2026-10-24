@@ -8,25 +8,27 @@ Data: 2026-10-24. Branch: `energy-consumption-framework-ollama-d248a`.
 
 | punto | oggetto | stato |
 |---|---|---|
-| P1 | baseline e calibrazione idle | **congelato 2026-10-24** (emendato: sensibilità post-hoc; letteratura e confronto CodeCarbon; terza emenda di forma — motivazione causale del pre applicato in P1.14/F.2, e forma di combinazione di `budget_base_w` dichiarata decisione operativa provvisoria con rinvio motivato ai dati del pilota P2.9: P1.7, P1.13. **Un difetto dichiarato**: `E_trunc` usato in `r_A`/`r_B` e mai definito, P1.6) |
+| P1 | baseline e calibrazione idle | **congelato 2026-10-24** (emendato: sensibilità post-hoc; letteratura e confronto CodeCarbon; terza emenda di forma — motivazione causale del pre applicato in P1.14/F.2, e forma di combinazione di `budget_base_w` dichiarata decisione operativa provvisoria con rinvio motivato ai dati del pilota P2.9: P1.7, P1.13. **Emenda sostanziale del 2026-10-24**: chiuso il difetto `E_trunc`, definito `E_net_abs,b`/`E_net_abs,p` come denominatore di `r_A`/`r_B`, P1.6 e F.3) |
 | P2 | token effettivi e terminazione | **congelato 2026-10-24** |
 | P3 | geometria, modello e stima | **congelato 2026-10-24** (emendato solo di forma il 2026-10-24 dopo la revisione esterna: P3.3 costi marginali qualificati a `N_out = 0` / `N_in = 0` e algebra del termine quadratico omesso; P3.10 `E_pred ≤ 0` dichiarato fallimento con `pred_nonpositive` e intervallo rinominato `intervallo_conf`; P3.12/P3.13 `design_deviation_count`; P3.15 pre-pilota esteso ai livelli bassi. Nessuna formula, soglia o disegno modificato) |
-| P4 | incertezza e validazione | **congelato 2026-10-24** (emendato: inviluppo convesso per la copertura, bootstrap dei residui standardizzati, criterio monolitico di catena, `u_edge` solo nel budget predittivo; seconda emenda solo di forma: P4.1 in quattro clausole, P4.4 a otto requisiti numerati con la baseline 3 pre + 3 post obbligatoria anche sui controlli; terza emenda solo di forma: seconda ragione in P4.12 per non adottare la deviazione standard a n = 3; quarta emenda solo di forma: P4.6, rettificata la giustificazione di `u_edge` — il termine congelato maggiora il disallineamento, non l'interpolazione — con formula e valore invariati. **Tre difetti dichiarati**: `r_A` non calcolabile sui controlli, P4.5; `u_bias` assente dalla formula di `budget_pred`, P4.6; copertura classificata sui target mentre il fit usa i reali, P4.7) |
+| P4 | incertezza e validazione | **congelato 2026-10-24** (emendato: inviluppo convesso per la copertura, bootstrap dei residui standardizzati, criterio monolitico di catena, `u_edge` solo nel budget predittivo; seconda emenda solo di forma: P4.1 in quattro clausole, P4.4 a otto requisiti numerati con la baseline 3 pre + 3 post obbligatoria anche sui controlli; terza emenda solo di forma: seconda ragione in P4.12 per non adottare la deviazione standard a n = 3; quarta emenda solo di forma: P4.6, rettificata la giustificazione di `u_edge` — il termine congelato maggiora il disallineamento, non l'interpolazione — con formula e valore invariati. **Emenda sostanziale del 2026-10-24**: chiuso il difetto di `r_A` sui controlli — il requisito 7 di P4.4 elenca ora solo le quantità che esistono su un blocco di controllo, e il filtro di stabilità di P4.5 è sostituito dalle soglie assolute `pre_range_w,c ≤ 1,0 W` e `|dP_c| ≤ 1,0 W` con il flag `control_unstable`. **Due difetti ancora dichiarati**: `u_bias` assente dalla formula di `budget_pred`, P4.6; copertura classificata sui target mentre il fit usa i reali, P4.7) |
 | P5 | campi CSV e runner | aperto (requisiti trasmessi dai punti congelati: P6.5) |
 | P6 | esecuzione e analisi | aperto (sezione preparatoria P6.1–P6.5: vincoli derivati dai punti congelati e proposte della revisione esterna, nessuna decisione) |
 
 **Quattro difetti dichiarati nel testo congelato (2026-10-24).** Trovati leggendo
 il protocollo contro se stesso e contro il codice, su segnalazione di due revisori
-esterni. Sono registrati **nel punto in cui stanno**, con le opzioni e la
-raccomandazione, e non sono corretti perché correggerli cambia una decisione
-congelata. Finché non sono chiusi, le parti elencate **non sono eseguibili**:
+esterni. Sono stati registrati **nel punto in cui stanno**, con le opzioni e la
+raccomandazione, prima di essere corretti, perché correggerli cambia una decisione
+congelata: la correzione è un emendamento dichiarato, non una riscrittura
+silenziosa. Due sono chiusi, due restano aperti e le parti elencate **non sono
+eseguibili** finché non si chiudono:
 
-| difetto | dove | cosa blocca |
-|---|---|---|
-| `E_trunc` usato e mai definito | P1.6, F.3 | `r_A`, `r_B`, `baseline_unstable`, `bias_w`, anello 4 di P4.9 |
-| `r_A` non calcolabile su un blocco di controllo, che non invia richieste | P4.5, F.12 | il gate load-versus-control e l'anello 4 di P4.9 |
-| `u_bias` dichiarato nel budget, assente dalla formula, e senza `Δt_W` specificato | P4.6, F.11 | il campo obbligatorio `u_bias_j` (P4.12) |
-| copertura classificata sui target, fit stimato sui token reali | P4.7, F.13 | coerenza di `coverage_tier` e `hull_margin_tok` con `x1_b`, `x2_b` |
+| difetto | dove | cosa bloccava | stato |
+|---|---|---|---|
+| `E_trunc` usato e mai definito | P1.6, F.3 | `r_A`, `r_B`, `baseline_unstable`, `bias_w`, anello 4 di P4.9 | **chiuso 2026-10-24**: definito `E_net_abs,b = m · |Ē_b|`, il nome `E_trunc` è ritirato |
+| `r_A` non calcolabile su un blocco di controllo, che non invia richieste | P4.5, F.12 | il gate load-versus-control e l'anello 4 di P4.9 | **chiuso 2026-10-24**: filtro sostituito dalle soglie assolute `pre_range_w,c ≤ 1,0 W` e `|dP_c| ≤ 1,0 W`, flag `control_unstable` |
+| `u_bias` dichiarato nel budget, assente dalla formula, e senza `Δt_W` specificato | P4.6, F.11 | il campo obbligatorio `u_bias_j` (P4.12) | aperto |
+| copertura classificata sui target, fit stimato sui token reali | P4.7, F.13 | coerenza di `coverage_tier` e `hull_margin_tok` con `x1_b`, `x2_b` | aperto |
 
 Valutazione completa, con le verifiche numeriche eseguite:
 `revisione_esterna_formule_20261024_valutazione.md`. I quattro vanno chiusi
@@ -1279,65 +1281,93 @@ test calcolabile.
 7. **Struttura di baseline identica su entrambi i tipi di blocco.** Tre finestre
    pre da 30 s e tre post da 30 s, come in P1.5, **anche** sul blocco di
    controllo. Non è una simmetria formale: è ciò che rende calcolabili su quel
-   blocco `baseline_pre_w`, `baseline_post_w` e quindi `dP`, `budget_base_w`,
-   `budget_base_j`, `r_A` e `r_B` (P1.5, P1.6, P1.7), e sono esattamente le
-   quantità che il criterio di P4.5 usa — filtro sui blocchi con `r_A ≤ 10%`,
-   confronto per blocco con `budget_base_j,c`, confronto aggregato con
+   blocco `baseline_pre_w`, `baseline_post_w` e quindi `dP`, `pre_range_w`,
+   `budget_base_w` e `budget_base_j` (P1.5, P1.6, P1.7), e sono esattamente le
+   quantità che il criterio di P4.5 usa — filtro di stabilità sui blocchi con
+   `pre_range_w,c ≤ 1,0 W` e `|dP_c| ≤ 1,0 W`, confronto per blocco con
+   `budget_base_j,c`, confronto aggregato con
    `mediana_c(budget_base_w,c)`. Un blocco di controllo senza struttura pre/post
    produrrebbe un `E_net` privo di `P_pre` e non confrontabile con nessun budget,
    cioè inutilizzabile. Il requisito vale per costruzione anche sul blocco di
    carico della coppia, che è un blocco di produzione a tutti gli effetti.
+
+   **`r_A` e `r_B` su un blocco di controllo non esistono** (emendamento del
+   2026-10-24; prima il requisito le elencava fra le quantità calcolabili ed era
+   un difetto dichiarato). Le due grandezze hanno al denominatore
+   `E_net_abs,b` = `|Σ_{i∈blocco} E_net_incremental,i|` (P1.6), somma sulle
+   **richieste valide**: un blocco di controllo non invia richieste per
+   costruzione (requisito 5), quindi la somma è vuota, il denominatore è zero e
+   P1.6 dichiara il blocco invalido. Applicando il protocollo alla lettera, ogni
+   controllo era invalido e il gate non era eseguibile. La ragione è strutturale:
+   `r_A` è una grandezza **relativa**, confronta l'errore di drift con l'energia
+   misurata, e senza energia misurata non ha denominatore — non esiste un modo di
+   definirla su un blocco vuoto che non sia circolare. Serve una metrica di
+   stabilità specifica, ed è quella assoluta qui sopra.
 8. **Stessa procedura di produzione.** Per ciascun blocco di controllo si calcola
    `E_net,control = E_pkg_gross − P_pre · Δt_W`, con lo stesso codice di
    produzione e senza troncamento.
 
 ### P4.5 Criterio del test
 
-Il criterio è calcolabile solo in virtù del requisito 7 di P4.4: `r_A`,
-`budget_base_j,c` e `budget_base_w,c` esistono su un blocco di controllo perché
-quel blocco esegue la stessa struttura di baseline 3 pre + 3 post dei blocchi di
-carico.
+Il criterio è calcolabile in virtù del requisito 7 di P4.4: `pre_range_w,c`,
+`dP_c`, `budget_base_j,c` e `budget_base_w,c` esistono su un blocco di controllo
+perché quel blocco esegue la stessa struttura di baseline 3 pre + 3 post dei
+blocchi di carico. **`r_A` e `r_B` no**, e non sono usati qui (emendamento del
+2026-10-24).
 
-**Difetto dichiarato nel testo congelato (registrato il 2026-10-24, non corretto
-qui perché la correzione cambia un punto congelato).** L'affermazione qui sopra è
-vera per le quantità di baseline e **falsa per `r_A` e `r_B`**. Il requisito 7 di
-P4.4 le elenca fra ciò che la struttura pre/post rende calcolabili, ma
-`r_A = |dP| · Σ Δt_W,i / Σ E_trunc,i` con somme sulle **richieste valide** (P1.6),
-e un blocco di controllo **non invia richieste** per costruzione (P4.4
-requisito 5: "attende quella durata senza inviare richieste"). Il denominatore è
-una somma vuota, e P1.6 chiude il caso: "Se il denominatore di `r_A` o `r_B` è
-zero, il blocco o il punto è invalido per costruzione". Applicando il protocollo
-alla lettera, **ogni blocco di controllo è invalido**, il filtro `r_A ≤ 10%` non
-seleziona nulla, `bias_w` non è calcolabile e l'anello 4 di P4.9 non è eseguibile.
+**Perché il filtro di stabilità dei controlli non è `r_A ≤ 10%`.** La versione
+congelata filtrava `bias_w` "sui soli blocchi con `r_A ≤ 10%`". Non è eseguibile:
+`r_A` ha al denominatore `E_net_abs,b`, somma sulle richieste valide (P1.6), e un
+blocco di controllo non invia richieste (P4.4 requisito 5), quindi il denominatore
+è zero e P1.6 dichiara il blocco invalido per costruzione. Alla lettera, ogni
+controllo era invalido, il filtro non selezionava nulla e l'anello 4 di P4.9 non
+era eseguibile. La ragione è strutturale: `r_A` è una grandezza **relativa**,
+confronta l'errore di drift con l'energia misurata, e senza energia misurata non ha
+denominatore.
 
-La ragione è strutturale, non di scrittura: `r_A` è una grandezza **relativa**,
-confronta l'errore di drift con l'energia misurata, e senza energia misurata non
-ha denominatore. Non esiste un modo di definirla su un blocco vuoto che non sia
-circolare. Serve una metrica di stabilità **specifica** per i controlli, con un
-altro nome. Tre vie, in
-`revisione_esterna_formule_20261024_valutazione.md` §4.2:
+Il filtro è sostituito dalle soglie **assolute già congelate** di P1.6, applicate al
+blocco di controllo:
 
-- **A** (raccomandata): sostituire il filtro `r_A ≤ 10%` sui controlli con le
-  soglie **assolute** già congelate, `pre_range_w,c ≤ 1,0 W` e `|dP_c| ≤ 1,0 W`,
-  cioè i due flag di P1.6. Nessun numero nuovo, nessuna metrica nuova, e il
-  criterio per blocco `|E_net,control,c| ≤ budget_base_j,c` resta invariato. Il
-  requisito 7 di P4.4 va corretto elencando solo le quantità che esistono davvero
-  su un controllo;
-- **B**: definire `r_ctrl = |dP_c| · Δt_W,c / E_rif,c` con `E_rif,c` preso dal
-  blocco di carico della stessa coppia. Non è circolare ma accoppia i due blocchi e
-  introduce un simbolo e una soglia nuovi;
-- **C**: eliminare il filtro e dichiarare che tutti e tre i controlli entrano in
-  `bias_w`. Il più semplice, ma perde la protezione contro un controllo con
-  baseline impazzita.
+```
+controllo utilizzabile se   pre_range_w,c ≤ 1,0 W   e   |dP_c| ≤ 1,0 W
+```
 
-Il gate resta non eseguibile finché la scelta non è fatta.
+Nessun numero nuovo e nessuna metrica nuova: sono la soglia di `pre_unstable` e la
+stessa scala di 1,0 W la cui motivazione è misurata (1 W di errore sulla baseline
+sposta J/token del 6–11%, `idle_floor_sensitivity_20261023_analisi.md` §2). Le due
+vie alternative valutate e scartate sono in
+`revisione_esterna_formule_20261024_valutazione.md` §4.2: una metrica nuova
+`r_ctrl = |dP_c| · Δt_W,c / E_rif,c` con `E_rif,c` preso dal blocco di carico della
+stessa coppia (non circolare, ma accoppia i due blocchi e introduce un simbolo e
+una soglia nuovi), e l'eliminazione del filtro (perde la protezione contro un
+controllo con baseline impazzita).
+
+Un controllo che non supera il filtro **non entra** in `bias_w` ed è registrato con
+il flag `control_unstable`; se i controlli utilizzabili sono meno di due, il gate
+non è eseguibile e `chain_status` scende a `bias_declared` con la ragione scritta —
+non si pubblica un bias medio su un solo blocco dichiarandolo test.
 
 ```
 per blocco:  passa se  |E_net,control,c| ≤ budget_base_j,c              (P1.7)
 aggregato:   bias_w = Σ_c E_net,control,c / Σ_c Δt_W,c
-             sui soli blocchi con r_A ≤ 10%                              (P1.6)
+             sui soli controlli utilizzabili (filtro qui sopra)          (P4.4 req. 7)
              passa se  |bias_w| ≤ mediana_c(budget_base_w,c)
 ```
+
+**Il filtro assoluto limita anche la circolarità del criterio per blocco.** Il
+criterio per blocco confronta `|E_net,control,c|` con `budget_base_j,c`, e i due
+termini non sono indipendenti: `budget_base_j,c = Δt_W,c · budget_base_w,c` contiene
+`half_drift_c = |dP_c|/2` misurato **su quello stesso blocco** (P1.7), mentre
+`E_net,control,c ≈ (P̄_c − P_pre,c) · Δt_W,c` è prodotto in gran parte da quello
+stesso drift. Un blocco con deriva grande si costruisce quindi sia l'errore sia la
+soglia che lo assolve: il criterio è debole proprio dove servirebbe forte
+(diagnosi in `revisione_esterna_formule_20261024_valutazione.md` §3.4). Il filtro
+`|dP_c| ≤ 1,0 W` lo taglia alla radice, perché ammette al criterio solo blocchi la
+cui deriva è piccola in assoluto e non solo piccola rispetto al proprio budget: con
+`|dP_c| ≤ 1,0 W` il termine di drift dentro `budget_base_w,c` è al più 0,5 W, e la
+parte restante della soglia (`half_range_pre_w,c`) è misurata sulle finestre pre,
+non sulla deriva. La circolarità non è eliminata — il budget resta in parte
+autocostruito — ma è confinata sotto una soglia assoluta congelata prima dei dati.
 
 - **Se passa**: la sottrazione di P1 è validata su questa macchina nel senso
   dichiarato in P4.9–P4.10 — anello 4 della catena, non scala assoluta — e
@@ -1695,7 +1725,8 @@ fascia di copertura (P4.7) in cui cade ciascuna richiesta di produzione.
   `dt_tick_s`, `p_peak_w`, `u_edge_j`, `budget_fit_j`, `budget_pred_j`, `u_bias_j`,
   `bias_w`, `z_resid`, `hull_margin_tok`, `coverage_tier` ∈ {`A`, `B`, `C`},
   `sparse_support`, `thin_support`, `out_of_coverage`, `bootstrap_seed`,
-  `validation_bias_pass`, `chain_status`;
+  `validation_bias_pass`, `control_unstable` (sui blocchi di controllo, P4.5),
+  `chain_status`;
 - P6 fissa l'ordine di esecuzione — la campagna di P4.4 sta prima della principale e
   ne è il gate — e gli script di analisi;
 - il wattometro: la scala assoluta resta non arbitrata (cap. 6, sviluppo 1);
@@ -2259,10 +2290,16 @@ quella cadenza, quindi `Δt_tick` è riducibile di un fattore ~6 per via softwar
 ### F.12 Test di sottrazione load-versus-control (P4.4, P4.5)
 
 ```
+filtro di stabilità (P4.4 req. 7):  controllo utilizzabile se
+                                    pre_range_w,c ≤ 1,0 W  e  |dP_c| ≤ 1,0 W
+                                    altrimenti flag control_unstable = true
+
 per blocco di controllo c:  passa se |E_net,control,c| ≤ budget_base_j,c
 
-bias_w = Σ_c E_net,control,c / Σ_c Δt_W,c     sui soli blocchi con r_A ≤ 10%
+bias_w = Σ_c E_net,control,c / Σ_c Δt_W,c     sui soli controlli utilizzabili
 passa se |bias_w| ≤ mediana_c(budget_base_w,c)
+
+meno di due controlli utilizzabili:  gate non eseguibile, chain_status = bias_declared
 
 se non passa:  u_bias = |bias_w| · Δt_W   → entra in budget_pred
 ```
@@ -2271,19 +2308,27 @@ se non passa:  u_bias = |bias_w| · Δt_W   → entra in budget_pred
 geometria del punto di conferma `(12,32)`, stessa durata, ordine randomizzato con
 seed registrato; è un gate prima della campagna principale.
 
-*Giustificazione.* Il criterio è calcolabile solo in virtù del requisito 7 di
-P4.4: `r_A`, `budget_base_j,c` e `budget_base_w,c` esistono su un blocco di
-controllo perché quel blocco esegue la stessa struttura 3 pre + 3 post dei
-blocchi di carico. **Attenzione: questa affermazione è falsa per `r_A` e `r_B`** —
-un blocco di controllo non invia richieste, quindi le somme di P1.6 sono vuote e,
-alla lettera, ogni controllo è invalido. Vedi il difetto dichiarato in P4.5, con
-le tre vie di correzione. `bias_w` è atteso zero per costruzione — il blocco di
+*Giustificazione.* Il criterio è calcolabile in virtù del requisito 7 di P4.4:
+`pre_range_w,c`, `dP_c`, `budget_base_j,c` e `budget_base_w,c` esistono su un blocco
+di controllo perché quel blocco esegue la stessa struttura di baseline 3 pre + 3 post
+dei blocchi di carico. **`r_A` e `r_B` non esistono su un controllo** e non sono
+usati qui (emendamento del 2026-10-24): hanno al denominatore `E_net_abs`, somma
+sulle richieste valide (P1.6), e un blocco di controllo non invia richieste (P4.4
+requisito 5). La versione congelata filtrava `bias_w` "sui soli blocchi con
+`r_A ≤ 10%`", che alla lettera rendeva invalido ogni controllo e non eseguibile
+l'anello 4: il filtro è sostituito dalle soglie assolute già congelate di P1.6,
+senza numeri nuovi. `bias_w` è atteso zero per costruzione — il blocco di
 controllo è identico per struttura, stato macchina e durata, senza alcuna
 richiesta — quindi il test è falsificabile, a differenza di un confronto fra due
 letture dello stesso registro. Se il test fallisce, `u_bias` si dichiara con il
 suo segno e **P1 non cambia**: sostituire l'estimatore sulla base di un solo test
 sarebbe cambiare metodo senza evidenza. Una sola ripetizione, per distinguere un
 transitorio da un bias sistematico. Soglie congelate prima dei dati.
+
+Il filtro `|dP_c| ≤ 1,0 W` ha un secondo effetto, non solo di stabilità: limita la
+circolarità del criterio per blocco, la cui soglia `budget_base_j,c` contiene
+`half_drift_c = |dP_c|/2` misurato sullo stesso blocco che produce
+`E_net,control,c`. Vedi P4.5 e §3.4 della valutazione.
 
 Due limiti da scrivere insieme al risultato: il controllo valida lo **zero**
 dell'estimatore, non l'assenza di effetti termici sotto carico (un aumento reale
@@ -2423,13 +2468,15 @@ Contenuti obbligatori già elencati dai punti congelati. P3.13: `batch_id`,
 `pair_id`, `order_seed`, `dt_nominal_s`, `dt_tick_s`, `p_peak_w`, `u_edge_j`,
 `budget_fit_j`, `budget_pred_j`, `u_bias_j`, `bias_w`, `z_resid`,
 `hull_margin_tok`, `coverage_tier`, `sparse_support`, `thin_support`,
-`out_of_coverage`, `bootstrap_seed`, `validation_bias_pass`, `chain_status`.
+`out_of_coverage`, `bootstrap_seed`, `validation_bias_pass`, `control_unstable`,
+`chain_status`.
 
 Grandezze che compaiono in questo formulario e che **nessun punto ha ancora
 messo in elenco**: le tre repliche pre e le tre post di F.1 (oggi il CSV salva
 una sola cifra in `idle_power_w`), `baseline_post_w`, `dP`, `pre_range_w` di F.3,
 `half_range_pre_w`, `half_drift_w`, `budget_base_w`, `budget_base_j` di F.4,
 `Δ_sens` di F.5, `share_E0` di F.8. Sono il lavoro principale di P5, insieme a
-nomi, tipi e unità di tutto il resto: due di queste — `budget_base_j` e
-`r_A` — sono la soglia e il filtro del test di F.12, quindi se non diventano
-colonne il gate di P4.5 non è calcolabile dai dati salvati.
+nomi, tipi e unità di tutto il resto: tre di queste — `budget_base_j`,
+`pre_range_w` e `dP` — sono la soglia e il filtro di stabilità del test di F.12,
+quindi se non diventano colonne il gate di P4.5 non è calcolabile dai dati
+salvati.
