@@ -1663,9 +1663,14 @@ lineare. Non è così, e la distinzione va scritta perché cambia cosa il termin
 copre.
 
 1. **Errore di interpolazione.** L'interpolazione lineare di un contatore
-   cumulativo ha errore **nullo a potenza costante**, qualunque sia il livello di
-   `P_peak`: verificato numericamente il 2026-10-24 integrando `P = 35 W` su un
-   tick di 0,30 s, errore massimo 3,0e-11 J. Dipende dalla **variazione** di
+   cumulativo ha errore **identicamente nullo a potenza costante**, per ogni
+   livello di `P_peak` e per ogni griglia. Numeri rigenerati dall'harness
+   tracciato `u_edge_interpolazione_probe.py` (5/5 verifiche, 2026-10-25) a
+   `P = 35 W`, `Δt_tick = 0,30 s`, `n = 2 000 001`: residuo **relativo** alla
+   grandezza del contatore 7,0e-12, invariante in `P` (70 W e 140 W danno lo
+   stesso relativo); l'assoluto è proporzionale a `P` e cresce con `n`, quindi il
+   `3,0e-11 J` scritto qui in precedenza è **ritirato**: era l'assoluto di una
+   griglia non dichiarata e non è riproducibile. Dipende dalla **variazione** di
    potenza dentro il tick, non dal suo livello. Per un gradino `ΔP_tick` posto a
    frazione `f` del tick:
 
@@ -1673,9 +1678,11 @@ copre.
    max_t |E(t) − interpolante(t)| = ΔP_tick · f · (1 − f) · Δt_tick  ≤  ΔP_tick · Δt_tick / 4
    ```
 
-   verificato numericamente: `ΔP_tick = 25 W`, `Δt_tick = 0,30 s` → 1,4062 J a
+   dallo stesso harness: `ΔP_tick = 25 W`, `Δt_tick = 0,30 s` → 1,4062 J a
    `f = 0,25`, 1,8750 J a `f = 0,5`, 1,4063 J a `f = 0,75`. Per una rampa lineare
-   il limite si dimezza (0,9375 J). Il livello di potenza non compare.
+   il limite si dimezza (0,9375 J); scarto dall'analitico al più il passo di
+   griglia (1,7e-6 J per il gradino, 3,0e-15 J per la rampa). Il livello di
+   potenza non compare nel termine esatto.
 2. **Errore di disallineamento.** Se l'istante di bordo usato da Python e il
    timestamp del campione EMI non coincidono, un'energia `P · δt` è attribuita al
    lato sbagliato del bordo. **Questo** è maggiorato da `P_peak · δt_edge`, ed è

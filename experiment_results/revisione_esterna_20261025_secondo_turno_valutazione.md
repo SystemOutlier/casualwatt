@@ -18,9 +18,9 @@ segnalati dal revisore: tutti di dichiarazione, nessuno di formula.
 | # | rilievo del revisore | stato nel protocollo | esito |
 |---|---|---|---|
 | 1 | `r_A` non è calcolabile sui blocchi di controllo | **chiuso 2026-10-24**, P4.5 `:1429-1573` | proposta del revisore già valutata e scartata (`:1457-1462`); resta un difetto di schema, corretto |
-| 2 | `u_bias`: unità, durata e formula del budget predittivo | **chiuso 2026-10-24**, P4.6 `:1575-1762` | formula proposta identica a quella in vigore tranne il simbolo di durata; la variante del revisore è respinta, la scala è ora dichiarata |
+| 2 | `u_bias`: unità, durata e formula del budget predittivo | **chiuso 2026-10-24**, P4.6 `:1575-1769` | formula proposta identica a quella in vigore tranne il simbolo di durata; la variante del revisore è respinta, la scala è ora dichiarata |
 | 3 | eliminare `E_trunc` e rendere esplicita la validità del denominatore | **chiuso 2026-10-24**, P1.6 `:210-245` | la forma proposta è il candidato 1 già scartato a `:219-221`; avrebbe reintrodotto il troncamento |
-| 4 | copertura sulle coordinate effettive e metrica di `hull_margin_tok` | **chiuso 2026-10-24** per la copertura (P4.7 `:1824-1885`), **aperto** per la metrica | avvertenza sulla metrica **accolta**: è la quinta emenda, di sola dichiarazione |
+| 4 | copertura sulle coordinate effettive e metrica di `hull_margin_tok` | **chiuso 2026-10-24** per la copertura (P4.7 `:1831-1892`), **aperto** per la metrica | avvertenza sulla metrica **accolta**: è la quinta emenda, di sola dichiarazione |
 
 ---
 
@@ -50,8 +50,8 @@ coppie (`:1466-1472`). Il numero di controlli utilizzabili va in
 **Perché le due proposte del revisore non sono adottate.**
 
 - *Un nome nuovo per l'indicatore.* `control_drift_w` non aggiunge informazione:
-  la grandezza esiste già ed è definita in F.1 (`dP`, `:2495`) insieme a
-  `pre_range_w` (F.3, `:2538`), e il suo valore assoluto è già uno dei due
+  la grandezza esiste già ed è definita in F.1 (`dP`, `:2502`) insieme a
+  `pre_range_w` (F.3, `:2545`), e il suo valore assoluto è già uno dei due
   ingressi del filtro. Aggiungere un secondo nome per la stessa
   quantità è il difetto che AGENTS.md vieta esplicitamente ("Terminologia unica").
   Il protocollo ha già un nome per l'**esito** (`control_unstable`), ed è quello
@@ -76,9 +76,9 @@ conteneva, e lo schema di F.17 li elencava come grandezze "che nessun punto ha
 ancora messo in elenco". Un flag obbligatorio i cui due ingressi non sono salvati
 è un'affermazione, non un dato: nessun terzo potrebbe verificare
 `control_unstable` dai CSV. **Corretto**: `pre_range_w` e `dP` entrano
-nell'elenco di P4.12 (`:2126`), con la regola generale scritta a `:2130-2138`;
-F.17 è aggiornato di conseguenza (`:3133-3144`); P6.5 registra il requisito per
-P5 `:2420-2426`, perché nessuna delle due è una colonna esistente
+nell'elenco di P4.12 (`:2133`), con la regola generale scritta a `:2137-2145`;
+F.17 è aggiornato di conseguenza (`:3140-3151`); P6.5 registra il requisito per
+P5 `:2427-2433`, perché nessuna delle due è una colonna esistente
 (`casualwatt_csv_export.py:17-108`, verificato per esecuzione il 2026-10-25:
 0 occorrenze di `pre_range_w`, `dP`, `budget_base*`, `baseline_pre_w`).
 
@@ -101,10 +101,10 @@ revisore chiede sono già scritte:
   `:1348` e P4.6 `:1633`: "contributo di incertezza, **non** correzione sottratta dai dati".
   Il valore assoluto sta dentro `u_bias,b` proprio perché un contributo di
   incertezza è non negativo, mentre il segno del bias è informazione che resta
-  nel campo `bias_w` firmato. Nessun dato viene corretto: P1 non cambia (`:2043`).
+  nel campo `bias_w` firmato. Nessun dato viene corretto: P1 non cambia (`:2050`).
 - **(b) La durata è `Δt̄_W,b`, media per blocco.** La formula in vigore è
   `u_bias,b = |bias_w| · Δt̄_W,b` con
-  `Δt̄_W,b = (1/m) · Σ_{i∈blocco b} Δt_W,i` (`:1586-1588`, F.11 `:2755-2756`).
+  `Δt̄_W,b = (1/m) · Σ_{i∈blocco b} Δt_W,i` (`:1586-1588`, F.11 `:2762-2763`).
   È **la stessa grandezza già usata da `u_base,b`** in P3.8 (`:1594-1595`, `:992`), quindi
   non introduce un simbolo nuovo.
 
@@ -116,7 +116,7 @@ del 2026-10-24 ha chiuso (`:1615-1618`). La lettura aggregata è stata valutata 
 crescerebbero di un fattore 3 e `budget_pred_b` fino a tre volte, su un budget che
 deve accompagnare `Ē_b`, media per richiesta (F.7 `:963`, F.9 `:984`). La formula
 del revisore per `budget_pred_b²` è invece **identica** a quella in vigore
-(`:1581`, `:1349`, `:2757`): nessuna divergenza.
+(`:1581`, `:1349`, `:2764`): nessuna divergenza.
 
 **Difetto reale trovato verificando.** La scala dei due budget
 (`budget_fit_b`, `budget_pred_b`) non era dichiarata in nessun punto: entrambi
@@ -124,7 +124,7 @@ sono in joule **sulla scala di `Ē_b`**, media per richiesta del blocco, non sul
 totale di blocco. È la ragione per cui la durata che li collega ai watt è
 `Δt̄_W,b` e non `Σ_i Δt_W,i`, ma finché non è scritta la coerenza è
 un'inferenza del lettore. **Corretto**: dichiarazione esplicita in P4.6
-(`:1597-1608`) e in F.11 *Applicazione* (`:2772-2774`).
+(`:1597-1608`) e in F.11 *Applicazione* (`:2779-2781`).
 
 ---
 
@@ -185,17 +185,17 @@ lati, (5) avvertenza che un `hull_margin_tok` euclideo grezzo dipende dalla scal
 degli assi e che coordinate normalizzate sarebbero una decisione metodologica
 separata.
 
-**Verifica sui passi 1–4: tutti già in vigore** (P4.7 `:1832-1858`), e il
+**Verifica sui passi 1–4: tutti già in vigore** (P4.7 `:1839-1865`), e il
 protocollo va **un passo oltre** la raccomandazione: non sposta solo il punto sui
 reali tenendo l'inviluppo sui target, ma costruisce **due inviluppi nella stessa
-base del punto classificato** (`:1824-1830`, `:1860-1862`), perché con reali
+base del punto classificato** (`:1831-1837`, `:1867-1869`), perché con reali
 sistematicamente spostati un punto può cadere dentro l'inviluppo di progetto ed
 essere fuori da quello dei dati su cui il modello è stimato — un'estrapolazione
 pubblicata in fascia A. Il passo 4 è la regola
-`coverage_tier = il più conservativo dei due` (`:1856`). I quattro margini
-pubblicati sono etichettati come **margini di progetto** (`:1866-1870`), e la
+`coverage_tier = il più conservativo dei due` (`:1863`). I quattro margini
+pubblicati sono etichettati come **margini di progetto** (`:1873-1877`), e la
 possibilità che la fascia cambi dopo la misura è dichiarata come conseguenza, non
-come eccezione (`:1871-1875`).
+come eccezione (`:1878-1882`).
 
 **Il passo 5 è accolto, ed è l'unica correzione sostanziale di questo turno.**
 "Distanza dal bordo" non specificava **quale** distanza, e la scelta non è
@@ -227,10 +227,10 @@ flag congelato avrebbe cambiato segno in silenzio.
 È il quinto difetto dichiarato in testa al protocollo, ed è quello in cui le due
 letture della stessa frase danno due esiti opposti di un flag già congelato.
 Chiuso il 2026-10-25 in **cinque** punti, perché una dichiarazione sola in un
-documento di 3148 righe non vincola l'implementazione: P4.3 Definizioni
-(`:1354`), blocco di calcolo di P4.7 (`:1833-1838` e `:1846`, `:1853`),
-paragrafo di verifica di P4.7 (`:1887-1896`), blocco di F.13 (`:2892-2894`), e il
-requisito per P5 in P6.5 (`:2427-2432`), che vincola l'implementazione e non solo
+documento di 3155 righe non vincola l'implementazione: P4.3 Definizioni
+(`:1354`), blocco di calcolo di P4.7 (`:1840-1845` e `:1853`, `:1860`),
+paragrafo di verifica di P4.7 (`:1894-1903`), blocco di F.13 (`:2899-2901`), e il
+requisito per P5 in P6.5 (`:2434-2439`), che vincola l'implementazione e non solo
 l'interpretazione.
 
 **Coordinate normalizzate: dichiarate, non adottate.** L'avvertenza del revisore
@@ -242,7 +242,7 @@ valore di tutti i margini pubblicati e il **significato** della soglia di 2 toke
 di `thin_support`, che sta nel testo congelato. Per AGENTS.md le soglie si
 congelano prima dei dati e non si spostano dopo; applicarla in silenzio sarebbe
 esattamente lo spostamento vietato. Registrata come sviluppo possibile, da
-prendere **prima** dei dati se la si vuole prendere (`:1898-1907`). Finché non è
+prendere **prima** dei dati se la si vuole prendere (`:1905-1914`). Finché non è
 presa, la metrica è quella grezza dichiarata e i margini sono in token — e chi
 legge un margine pubblicato deve leggere anche quella riga.
 
@@ -281,27 +281,27 @@ dei dati, richiami nelle sezioni successive.
 
 | simbolo | occorrenze | esito |
 |---|---|---|
-| `hull_margin_tok`, `hull_margin_design_tok` | P4.3 `:1350-1354`, P4.7 `:1832-1858`, P4.8 `:2173`, F.0 passo 13 `:2480-2482`, F.13 `:2889-2912`, P4.12 `:2122`, F.17 `:3126`, P6.5 `:2427-2432` | coerenti; metrica dichiarata in tutti e cinque i punti normativi |
-| `thin_support` | P4.7 `:1857`, P4.3 `:1354`, P4.12 `:2124`, F.13 `:2911` | soglia 2 token invariata; il flag ora ha una metrica sola |
-| `pre_range_w`, `dP` | P1.6 `:181-182`, F.1 `:2495`, F.3 `:2538`, `:2549`, P4.5 `:1403-1494`, P4.12 `:2126-2138`, F.0 `:2463-2467`, F.12 `:2820`, F.17 `:3133-3144`, P3.13 `:1214-1217` | coerenti dopo la correzione; F.17 non li elenca più come "nessun punto li ha messi in elenco" |
-| `control_unstable` | tabella difetti `:29`, P4.5 `:1464`, P4.12 `:2125-2133`, F.0 `:2449`, `:2467`, F.12 `:2822`, F.17 `:3128` | coerenti; i due ingressi sono ora entrambi campi obbligatori |
-| `Δt̄_W,b` | P3.8 `:992`, P4.3 `:1346`, P4.6 `:1583-1608`, F.11 `:2755-2774`, F.0 `:2471`, P4.12 `:2127`, F.17 `:3141-3144` | definizione unica `(1/m)·Σ Δt_W,i`, usata da `u_base,b` e `u_bias,b`; nessuna occorrenza con durata aggregata |
-| `u_bias,b`, `u_bias_j` | P4.3 `:1348`, `:1349`, P4.5 `:1496-1499`, P4.6 `:1581-1637`, P4.9 `:2043`, P4.12 `:2119`, F.0 `:2450-2453`, F.10 `:2742`, F.11 `:2756-2767`, F.12 `:2838-2860` | compare nella formula di `budget_pred_b²` in tutti e tre i punti in cui la formula è scritta |
-| `bias_jtok_pct_lo` / `_hi` | P4.3 `:1343`, P4.5 `:1517`, `:1526`, F.0 `:2449`, F.12 `:2832`, intestazione P4 `:14` | armonizzati al primo turno (commit `0e53a67`); nessuna occorrenza residua del nome singolo |
+| `hull_margin_tok`, `hull_margin_design_tok` | P4.3 `:1350-1354`, P4.7 `:1839-1865`, P4.8 `:2180`, F.0 passo 13 `:2487-2489`, F.13 `:2896-2919`, P4.12 `:2129`, F.17 `:3133`, P6.5 `:2434-2439` | coerenti; metrica dichiarata in tutti e cinque i punti normativi |
+| `thin_support` | P4.7 `:1864`, P4.3 `:1354`, P4.12 `:2131`, F.13 `:2918` | soglia 2 token invariata; il flag ora ha una metrica sola |
+| `pre_range_w`, `dP` | P1.6 `:181-182`, F.1 `:2502`, F.3 `:2545`, `:2556`, P4.5 `:1403-1494`, P4.12 `:2133-2145`, F.0 `:2470-2474`, F.12 `:2827`, F.17 `:3140-3151`, P3.13 `:1214-1217` | coerenti dopo la correzione; F.17 non li elenca più come "nessun punto li ha messi in elenco" |
+| `control_unstable` | tabella difetti `:29`, P4.5 `:1464`, P4.12 `:2132-2140`, F.0 `:2456`, `:2474`, F.12 `:2829`, F.17 `:3135` | coerenti; i due ingressi sono ora entrambi campi obbligatori |
+| `Δt̄_W,b` | P3.8 `:992`, P4.3 `:1346`, P4.6 `:1583-1608`, F.11 `:2762-2781`, F.0 `:2478`, P4.12 `:2134`, F.17 `:3148-3151` | definizione unica `(1/m)·Σ Δt_W,i`, usata da `u_base,b` e `u_bias,b`; nessuna occorrenza con durata aggregata |
+| `u_bias,b`, `u_bias_j` | P4.3 `:1348`, `:1349`, P4.5 `:1496-1499`, P4.6 `:1581-1637`, P4.9 `:2050`, P4.12 `:2126`, F.0 `:2457-2460`, F.10 `:2749`, F.11 `:2763-2774`, F.12 `:2845-2867` | compare nella formula di `budget_pred_b²` in tutti e tre i punti in cui la formula è scritta |
+| `bias_jtok_pct_lo` / `_hi` | P4.3 `:1343`, P4.5 `:1517`, `:1526`, F.0 `:2456`, F.12 `:2839`, intestazione P4 `:14` | armonizzati al primo turno (commit `0e53a67`); nessuna occorrenza residua del nome singolo |
 | `E_trunc` | 6 occorrenze, tutte frasi di ritiro | simbolo ritirato; nessuna formula lo usa |
-| `E_net_abs` | Terminologia `:68-69` e ritiro di `E_trunc` `:74-77`, P1.6 `:191-195`, `:225-226`, P4.4 `:1416`, P4.5 `:1439`, F.0 `:2465`, F.3 `:2540-2544`, `:2557`, F.12 `:2851` | unico denominatore di `r_A`/`r_B`; nessuna occorrenza residua di `E_trunc` come simbolo vivo |
+| `E_net_abs` | Terminologia `:68-69` e ritiro di `E_trunc` `:74-77`, P1.6 `:191-195`, `:225-226`, P4.4 `:1416`, P4.5 `:1439`, F.0 `:2472`, F.3 `:2547-2551`, `:2564`, F.12 `:2858` | unico denominatore di `r_A`/`r_B`; nessuna occorrenza residua di `E_trunc` come simbolo vivo |
 
 Due incoerenze residue trovate dal controllo incrociato e corrette nello stesso
-turno: F.17 `:3133-3144` (che elencava `pre_range_w` e `dP` come grandezze non
+turno: F.17 `:3140-3151` (che elencava `pre_range_w` e `dP` come grandezze non
 ancora elencate da nessun punto, falso dopo la correzione di P4.12) e l'elenco
-P4.12 riportato in F.17 `:3123-3129` (che non includeva i due campi nuovi).
+P4.12 riportato in F.17 `:3130-3136` (che non includeva i due campi nuovi).
 
 ---
 
 ## 7. Eseguibilità del gate P4.9 dopo le modifiche
 
 Verifica richiesta perché un emendamento che rende un anello non calcolabile è
-peggio del difetto che corregge. Letti i sei anelli (`:2040-2047`) e per ciascuno
+peggio del difetto che corregge. Letti i sei anelli (`:2047-2054`) e per ciascuno
 gli ingressi, cercandoli nello schema dei dati.
 
 | anello | criterio | ingressi | presenti come campi obbligatori |
@@ -309,13 +309,13 @@ gli ingressi, cercandoli nello schema dei dati.
 | 1 | pilota P2.9 A/B/C superato | esito del pilota | sì, artefatto di P2.9, non colonna |
 | 2 | nessun blocco con delta negativo, reset o lettura non finita | `raw_start`, `raw_end`, `negative_increment` | sì (`CSV_COLUMNS` esistenti + P4.12) |
 | 3 | `r_A ≤ 10%` in almeno 2 blocchi su 3 per punto | `dP`, `E_net_abs,b` (da `active_energy_j`), `Σ Δt_W,i` (da `duration_s`) | sì: `dP` **dal 2026-10-25**; `budget_base_j` resta da aggiungere in P5 |
-| 4 | test load-versus-control dentro il budget | `pre_range_w,c`, `|dP_c|`, `budget_base_j,c`, `budget_base_w,c`, quorum 4 su 6, `controls_usable_n` | sì: i primi due **dal 2026-10-25**; `budget_base_j,c` è il requisito P6.5 aperto `:2420-2426` |
+| 4 | test load-versus-control dentro il budget | `pre_range_w,c`, `|dP_c|`, `budget_base_j,c`, `budget_base_w,c`, quorum 4 su 6, `controls_usable_n` | sì: i primi due **dal 2026-10-25**; `budget_base_j,c` è il requisito P6.5 aperto `:2427-2433` |
 | 5 | lack-of-fit non significativo, `p_lof_perm ≥ 0,05` | `F_lof`, `p_lof_perm`, `p_lof_asint`, `lof_max_rel` (per campagna), `z_pe_b` (per blocco) | sì, emendamento P3.9; collocazione decisa da P5 |
-| 6 | entrambi i punti di conferma con `err_rel ≤ 10%` e dentro `intervallo_conf` | `err_rel`, `intervallo_conf`, `pred_nonpositive`, `budget_pred_b` (con `u_bias_j`, `u_edge_j`, `hull_margin_tok`, `coverage_tier`) | sì; `budget_pred_b` calcolabile perché `Δt̄_W,b` è derivato da `duration_s` (P4.12 `:2127`) |
+| 6 | entrambi i punti di conferma con `err_rel ≤ 10%` e dentro `intervallo_conf` | `err_rel`, `intervallo_conf`, `pred_nonpositive`, `budget_pred_b` (con `u_bias_j`, `u_edge_j`, `hull_margin_tok`, `coverage_tier`) | sì; `budget_pred_b` calcolabile perché `Δt̄_W,b` è derivato da `duration_s` (P4.12 `:2134`) |
 
 Esito: la catena resta eseguibile. L'unico ingresso non ancora garantito da un
 campo obbligatorio è `budget_base_j`, e per questo è scritto come requisito di
-P5 in P6.5 `:2420-2426` e in F.17 `:3139-3143`: senza di esso l'anello 4 confronta un errore
+P5 in P6.5 `:2427-2433` e in F.17 `:3146-3150`: senza di esso l'anello 4 confronta un errore
 con una soglia non salvata. Non è un difetto introdotto da questo turno — è il
 lavoro principale di P5, che è aperto.
 
@@ -325,7 +325,7 @@ rango 4, condizionamento grezzo 1,023e5 (valori singolari
 2,653e5 / 8,792e2 / 6,062e2 / 2,594e0), centrato e scalato 3,761, leva media
 0,121212 = 4/33, leva massima 0,2852 sui tre blocchi (512,256) con fattore
 `1/√(1−h)` = 1,1828, sei blocchi sopra `2p/n = 0,2424`. Tutti i numeri di
-`:1994-2008` e `:2402-2412` tornano.
+`:2001-2015` e `:2409-2419` tornano.
 
 ---
 
