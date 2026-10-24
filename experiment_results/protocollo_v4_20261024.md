@@ -11,7 +11,7 @@ Data: 2026-10-24. Branch: `energy-consumption-framework-ollama-d248a`.
 | P1 | baseline e calibrazione idle | **congelato 2026-10-24** (emendato: sensibilità post-hoc; letteratura e confronto CodeCarbon; terza emenda di forma — motivazione causale del pre applicato in P1.14/F.2, e forma di combinazione di `budget_base_w` dichiarata decisione operativa provvisoria con rinvio motivato ai dati del pilota P2.9: P1.7, P1.13. **Emenda sostanziale del 2026-10-24**: chiuso il difetto `E_trunc`, definito `E_net_abs,b`/`E_net_abs,p` come denominatore di `r_A`/`r_B`, P1.6 e F.3) |
 | P2 | token effettivi e terminazione | **congelato 2026-10-24** |
 | P3 | geometria, modello e stima | **congelato 2026-10-24** (emendato di forma il 2026-10-24 dopo la revisione esterna: P3.3 costi marginali qualificati a `N_out = 0` / `N_in = 0` e algebra del termine quadratico omesso; P3.10 `E_pred ≤ 0` dichiarato fallimento con `pred_nonpositive` e intervallo rinominato `intervallo_conf`; P3.12/P3.13 `design_deviation_count`; P3.15 pre-pilota esteso ai livelli bassi. **Emenda sostanziale del 2026-10-24**: P3.9, il criterio dell'anello 5 usa `p_lof_perm`, `p` della stessa statistica F pesata ottenuto dalla distribuzione nulla per ricampionamento del puro errore — il `p` asintotico non è valido con pesi conservativi. Statistica e soglia 0,05 invariate, aggiunto `lof_max_rel` descrittivo. Nessuna modifica a disegno, modello o pesi) |
-| P4 | incertezza e validazione | **congelato 2026-10-24** (emendato: inviluppo convesso per la copertura, bootstrap dei residui standardizzati, criterio monolitico di catena, `u_edge` solo nel budget predittivo; seconda emenda solo di forma: P4.1 in quattro clausole, P4.4 a otto requisiti numerati con la baseline 3 pre + 3 post obbligatoria anche sui controlli; terza emenda solo di forma: seconda ragione in P4.12 per non adottare la deviazione standard a n = 3; quarta emenda solo di forma: P4.6, rettificata la giustificazione di `u_edge` — il termine congelato maggiora il disallineamento, non l'interpolazione — con formula e valore invariati. **Emenda sostanziale del 2026-10-24**: chiuso il difetto di `r_A` sui controlli — il requisito 7 di P4.4 elenca ora solo le quantità che esistono su un blocco di controllo, e il filtro di stabilità di P4.5 è sostituito dalle soglie assolute `pre_range_w,c ≤ 1,0 W` e `|dP_c| ≤ 1,0 W` con il flag `control_unstable`; `u_bias,b = |bias_w| · Δt̄_W,b` scritto in formula in P4.6 e F.11 come contributo di incertezza, non come correzione sistematica; copertura decisa su due inviluppi — `hull_design` sui target e `hull_fit` sui token reali dei 33 blocchi di fit — prendendo la fascia più conservativa, P4.7 e F.13. **Nessun difetto dichiarato aperto**) |
+| P4 | incertezza e validazione | **congelato 2026-10-24** (emendato: inviluppo convesso per la copertura, bootstrap dei residui standardizzati, criterio monolitico di catena, `u_edge` solo nel budget predittivo; seconda emenda solo di forma: P4.1 in quattro clausole, P4.4 a otto requisiti numerati con la baseline 3 pre + 3 post obbligatoria anche sui controlli; terza emenda solo di forma: seconda ragione in P4.12 per non adottare la deviazione standard a n = 3; quarta emenda solo di forma: P4.6, rettificata la giustificazione di `u_edge` — il termine congelato maggiora il disallineamento, non l'interpolazione — con formula e valore invariati. **Emenda sostanziale del 2026-10-24**: chiuso il difetto di `r_A` sui controlli — il requisito 7 di P4.4 elenca ora solo le quantità che esistono su un blocco di controllo, e il filtro di stabilità di P4.5 è sostituito dalle soglie assolute `pre_range_w,c ≤ 1,0 W` e `|dP_c| ≤ 1,0 W` con il flag `control_unstable`; `u_bias,b = |bias_w| · Δt̄_W,b` scritto in formula in P4.6 e F.11 come contributo di incertezza, non come correzione sistematica; copertura decisa su due inviluppi — `hull_design` sui target e `hull_fit` sui token reali dei 33 blocchi di fit — prendendo la fascia più conservativa, P4.7 e F.13. **Seconda emenda sostanziale del 2026-10-24**: P4.8, la copertura del bootstrap è dichiarata *nominale e non arbitrata* finché P6.4 non la verifica per simulazione, e la correzione di leva `1/√(1 − h_b)` è resa **sensibilità obbligatoria** allo stesso seed del primario — leva massima verificata sul disegno nominale 0,2852 sui blocchi (512, 256), fattore 1,1828, media 0,121212 = 4/33. Il primario non cambia e nessuna formula congelata è modificata. **Nessun difetto dichiarato aperto**) |
 | P5 | campi CSV e runner | aperto (requisiti trasmessi dai punti congelati: P6.5) |
 | P6 | esecuzione e analisi | aperto (sezione preparatoria P6.1–P6.5: vincoli derivati dai punti congelati e proposte della revisione esterna, nessuna decisione) |
 
@@ -1337,6 +1337,9 @@ nessuno dei due è l'incertezza di un numero pubblicato. Mancano tre pezzi.
 | lack-of-fit, riferimento | `p_lof_perm` | `p` della statistica F pesata ottenuto dalla distribuzione nulla per ricampionamento del puro errore; è il criterio dell'anello 5 (P3.9) |
 | lack-of-fit, asintotico | `p_lof_asint` | `1 − F_{6,23}(F_lof)`; **indicativo**, si riporta accanto ma non decide |
 | grandezza del lack-of-fit | `lof_max_rel` | scarto relativo massimo fra media di cella e superficie; descrittivo, senza soglia |
+| leva del blocco | `h_b` | `w_b · x_bᵀ (XᵀWX)⁻¹ x_b`, elemento diagonale della matrice cappello agli stessi pesi del fit; `Σ_b h_b = 4` per l'identità della traccia (P4.8) |
+| residuo corretto per la leva | `z_b^leva` | `r_b / (budget_fit_b · √(1 − h_b))`; alimenta la **sensibilità obbligatoria** del bootstrap, non il primario (P4.8) |
+| copertura nominale | — | livello dichiarato dall'intervallo bootstrap (95%) senza che la copertura reale sia arbitrata; si scrive *copertura non arbitrata* finché P6.4 non la verifica per simulazione |
 
 ### P4.4 Campagna di validazione load-versus-control
 
@@ -1791,6 +1794,78 @@ superficie mal condizionata o di un blocco influente (P3.9). Il bootstrap non
 sostituisce il lack-of-fit: un modello inadeguato ha un intervallo stretto e
 sbagliato.
 
+**Emendamento del 2026-10-24 (revisione esterna §4.6): copertura nominale e
+correzione di leva.**
+
+Il bootstrap produce un intervallo al 95% **nominale**. Nominale non è sinonimo di
+garantito: la copertura reale è una proprietà congiunta della procedura e dei
+dati, e qui poggia su tre condizioni oggi non verificate. Che i `budget_fit_b`
+siano proporzionali alle varianze vere dei residui — P3.8 dichiara il contrario,
+sono limiti superiori conservativi. Che il modello sia adeguato — P3.9 può fallire
+e l'intervallo resta stretto. Che il ricampionamento stratificato per punto
+approssimi bene la legge dei residui con 33 blocchi su 10 strati, di cui otto da
+tre. La copertura **va verificata per simulazione** in P6.4 prima di scrivere
+"95%" nella tesi; finché la simulazione non è eseguita, l'intervallo si riporta
+come *bootstrap, livello nominale 95%, copertura non arbitrata*, con la stessa
+disciplina lessicale della scala assoluta (P4.11). Non è una formula: è la
+condizione perché la formula si possa citare.
+
+Sensibilità **obbligatoria**, non sostituzione del primario. Il ricampionamento
+degli `z_b` li tratta come omoschedastici; non lo sono esattamente, perché un
+blocco con leva alta ha un residuo contratto dal fit e il suo `z_b` sottostima lo
+scarto che un blocco nuovo alla stessa geometria avrebbe. La correzione è
+moltiplicare per `1/√(1 − h_b)`, con `h_b` elemento diagonale della matrice
+cappello agli stessi pesi del fit:
+
+```
+h_b      = w_b · x_bᵀ (Xᵀ W X)⁻¹ x_b ,   x_b = (1, x1_b, x2_b, x12_b)
+z_b^leva = r_b / (budget_fit_b · √(1 − h_b))
+Σ_b h_b  = 4 = numero di parametri, qualunque siano i pesi (identità della traccia)
+```
+
+Sul disegno nominale di P3.5, calcolata a pesi uguali — cioè nel caso
+omoschedastico, il più informativo perché è l'unico in cui la leva dipende solo
+dalla geometria — e verificata per esecuzione il 2026-10-24:
+
+| punto di disegno | blocchi | `h_b` | `1/√(1 − h_b)` |
+|---|---|---|---|
+| (512, 256) | 3 | 0,2852 | 1,1828 |
+| (512, 32) | 3 | 0,2505 | 1,1551 |
+| (32, 256) | 3 | 0,1669 | 1,0956 |
+| (8, 4) | 3 | 0,1370 | 1,0765 |
+| (128, 256) | 3 | 0,1094 | 1,0596 |
+| (512, 128) | 3 | 0,1086 | 1,0592 |
+| (32, 32) | 3 | 0,0906 | 1,0487 |
+| (128, 32) | 3 | 0,0643 | 1,0338 |
+| (32, 128) | 3 | 0,0519 | 1,0270 |
+| (128, 128) | 6 | 0,0345 | 1,0177 |
+| media | — | 0,121212 = 4/33 | — |
+
+Il fattore correttivo più grande è 1,18. Per questo la correzione è una
+sensibilità e non il primario: la leva non è il termine dominante di un budget
+costruito per essere conservativo. Si eseguono entrambi i bootstrap, **allo
+stesso seed**, e si riportano entrambe le ampiezze; se i quantili delle quantità
+derivate differiscono di più del 10%, la differenza si dichiara e si adotta
+l'intervallo più largo. Se la correzione cambiasse materialmente il risultato, il
+segnale non è statistico ma di disegno: la leva alta sta sui quattro vertici
+dell'inviluppo (P4.7), cioè la superficie è sostenuta dai blocchi estremi e non
+dal centro, e il centro ha sei blocchi proprio per evitarlo.
+
+Due limiti dichiarati. La leva della tabella è sulle **coordinate nominali**; dopo
+la campagna va ricalcolata sulle medie effettive `(x1_b, x2_b, x12_b)` dei token
+misurati, perché i target non sono coordinate (P2.2) e quindi nemmeno la leva sui
+target è la leva vera. E la soglia operativa è una sola: se la leva massima
+effettiva supera 0,40, cioè `1/√(1 − h) > 1,29`, la sensibilità diventa primaria
+e lo si dichiara — a quel punto la correzione non è più trascurabile rispetto ai
+termini conservativi del budget. Nessun'altra soglia si aggiunge.
+
+Campi che la rendono verificabile (P4.12): `h_leverage` per blocco;
+`boot_leva_rel_diff`, massima differenza relativa fra i quantili delle quantità
+derivate del primario e della variante; `boot_leva_adopted`, vero se l'intervallo
+pubblicato è quello della variante. Con questi tre campi un lettore può
+ricostruire quale dei due intervalli è uscito e perché, senza ripetere il
+bootstrap.
+
 ### P4.9 Catena di validazione: criterio monolitico
 
 "Validata" è una parola sola e si assegna solo se **tutti** gli anelli passano. Non
@@ -1878,7 +1953,8 @@ fascia di copertura (P4.7) in cui cade ciascuna richiesta di produzione.
 - P5 fissa nomi e tipi delle colonne. P4 elenca i contenuti nuovi obbligatori:
   `block_kind` ∈ {`load`, `control`}, `pair_id`, `order_seed`, `dt_nominal_s`,
   `dt_tick_s`, `p_peak_w`, `u_edge_j`, `budget_fit_j`, `budget_pred_j`, `u_bias_j`,
-  `bias_w`, `z_resid`, `hull_margin_tok`, `hull_margin_design_tok`,
+  `bias_w`, `z_resid`, `h_leverage`, `boot_leva_rel_diff`, `boot_leva_adopted`,
+  `hull_margin_tok`, `hull_margin_design_tok`,
   `coverage_tier` ∈ {`A`, `B`, `C`}, `coverage_tier_design`, `coverage_tier_fit`,
   `sparse_support`, `thin_support`, `out_of_coverage`, `bootstrap_seed`,
   `validation_bias_pass`, `control_unstable` (sui blocchi di controllo, P4.5),
@@ -2050,7 +2126,7 @@ geometria di P3.5, e si osservano: bias dei coefficienti stimati, copertura real
 degli intervalli, probabilità che i gate falliscano quando il protocollo è
 corretto (falso fallimento) e che passino quando non lo è.
 
-Arbitra **quattro** punti aperti in una volta sola, tutti oggi privi di dati:
+Arbitra **cinque** punti aperti in una volta sola, tutti oggi privi di dati:
 
 1. la concentrazione dei pesi `w_b = 1/budget_fit_b²`: la simulazione mostra quanta
    quota del peso totale prende il blocco con il semi-range più piccolo al variare
@@ -2063,7 +2139,13 @@ Arbitra **quattro** punti aperti in una volta sola, tutti oggi privi di dati:
 3. il fattore 2 nell'intervallo di conferma di P3.10, di cui oggi non si conosce la
    copertura nominale;
 4. la forma di combinazione di `budget_base_w` rinviata in P1.7 (task aperto):
-   quadratura contro somma aritmetica, con l'effetto su pesi, bootstrap e gate.
+   quadratura contro somma aritmetica, con l'effetto su pesi, bootstrap e gate;
+5. la copertura reale degli intervalli bootstrap di P4.8, che il punto congelato
+   dichiara **nominale e non arbitrata** e rimanda a questa simulazione. La
+   simulazione misura la copertura del parametrico e del predittivo sui quantili
+   delle quantità derivate, con e senza la correzione di leva `1/√(1 − h_b)`, e
+   verifica se la soglia operativa del 10% sulla differenza fra i due sia
+   coerente con lo scarto che effettivamente introducono.
 
 Vincolo di metodo: la simulazione **non** può validare la scala assoluta, perché
 genera essa stessa l'energia. Serve a controllare la procedura statistica, non la
@@ -2136,8 +2218,10 @@ Per ogni blocco `b` della campagna principale, nell'ordine:
 9. `Δt_tick,b`, `P_peak,b`, `Δt̄_W,b`, `u_edge,b`, `u_bias,b` (dal passo 0),
    `budget_pred_b` (F.11);
 10. fit WLS sui 33 blocchi → `θ̂ = (E0, a, b, c)` (F.9);
-11. residui, `z_b`, `z_pe,b`, bootstrap a 2000 repliche → intervallo parametrico e
-    predittivo, `F_lof`, `p_lof_perm`, `lof_max_rel` (F.14);
+11. residui, `z_b`, `z_pe,b`, `h_b`, bootstrap a 2000 repliche → intervallo
+    parametrico e predittivo, stessa procedura ripetuta su `z_b^leva` come
+    sensibilità obbligatoria e allo stesso seed, `F_lof`, `p_lof_perm`,
+    `lof_max_rel` (F.14);
 12. conferma sui 6 blocchi esclusi dal fit → `err_rel`, `intervallo_conf`,
     `pred_nonpositive` (F.10);
 13. copertura → `hull_design` (noto da prima), `hull_fit` (dai 33 blocchi del
@@ -2593,6 +2677,31 @@ parametrico: q2,5 e q97,5 di b + c·N_in,ref ; a + c·N_out,ref ; J/token_32 ; J
 predittivo : spread parametrico di f(x; θ*) allargato con il budget_pred del blocco nuovo
 ```
 
+Stesso ciclo di repliche, seconda variante (emendamento del 2026-10-24, P4.8):
+sensibilità obbligatoria alla leva, allo stesso seed del primario.
+
+```
+h_b      = w_b · x_bᵀ (Xᵀ W X)⁻¹ x_b ,   x_b = (1, x1_b, x2_b, x12_b)
+z_b^leva = r_b / (budget_fit_b · √(1 − h_b))
+Σ_b h_b  = 4 = p, qualunque siano i pesi
+
+sul disegno nominale di P3.5, a pesi uguali (verificato per esecuzione 2026-10-24):
+  h_b max 0,2852 sui 3 blocchi (512, 256) → fattore 1,1828 ; poi 0,2505 su (512, 32)
+  0,1669 su (32, 256) ; 0,1370 su (8, 4) ; 0,0345 sui 6 blocchi (128, 128)
+  media 0,121212 = 4/33
+
+se i quantili delle quantità derivate differiscono dal primario di più del 10%
+  → si dichiara e si adotta l'intervallo più largo
+se la leva massima effettiva (sui token misurati, non sui target) supera 0,40
+  → la sensibilità diventa primaria e lo si dichiara (1/√(1 − 0,40) = 1,29)
+```
+
+La copertura del 95% è **nominale**: poggia sulla proporzionalità dei budget alle
+varianze vere (P3.8 dichiara il contrario), sull'adeguatezza del modello (P3.9) e
+sull'approssimazione del ricampionamento stratificato con otto strati da tre. Va
+verificata per simulazione in P6.4; finché non lo è, si scrive *livello nominale
+95%, copertura non arbitrata*.
+
 Stesso ciclo di repliche, secondo uso (emendamento del 2026-10-24, P3.9): la
 distribuzione nulla della statistica F di lack-of-fit.
 
@@ -2632,6 +2741,21 @@ gli errori standard HC3 si riportano accanto come approssimazione lineare; se le
 due ampiezze differiscono di più di un fattore 2, il bootstrap resta primario e
 la discrepanza si dichiara. Il bootstrap non sostituisce il lack-of-fit: un
 modello inadeguato ha un intervallo stretto e sbagliato.
+
+*Giustificazione della sensibilità di leva.* `z_b` tratta i residui standardizzati
+come omoschedastici; un blocco con leva alta ha invece un residuo contratto dal
+fit, quindi sottostima lo scarto di un blocco nuovo alla stessa geometria. Il
+fattore correttivo massimo sul disegno nominale è 1,18, piccolo rispetto a termini
+di budget costruiti per essere conservativi: per questo la correzione è una
+sensibilità obbligatoria e **non** il primario, e si esegue allo stesso seed per
+non confondere l'effetto della correzione con quello del rumore di
+ricampionamento. La leva alta sta sui quattro vertici dell'inviluppo (F.13): se la
+correzione cambiasse materialmente l'intervallo, il segnale è di disegno — la
+superficie è sostenuta dai blocchi estremi e non dal centro — e non statistico. I
+valori della tabella sono a pesi uguali, l'unico caso in cui la leva dipende solo
+dalla geometria; con i `w_b` reali va ricalcolata, e `Σ_b h_b = 4` resta valida per
+l'identità della traccia. La leva va inoltre ricalcolata sui token effettivi,
+perché i target non sono coordinate (P2.2).
 
 *Giustificazione del riferimento di lack-of-fit.* La F asintotica con `(6, 23)`
 gradi di libertà è esatta solo se `w_b` è l'inverso della varianza. P3.8 dichiara
