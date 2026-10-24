@@ -28,11 +28,15 @@ RECORD DELLO SLOT (8 uint64 little-endian, 64 byte)
   * NON ADDITIVITA' (Beyer & Wendler 2020, LNCS 12079, e dati nostri):
     PP0 + PP1 != PKG e PKG + DRAM != "tutto"; PP0/PP1 sono SOTTOINSIEMI di
     PKG. I campi si riportano per confronto, MAI si sommano fra loro.
-  * l'assegnazione offset->dominio e' ASSUNTA dall'ordine dei record
-    (corroborata da: offset DRAM = 0 su questo host, LHM chiama "CPU Memory"
-    il terzo sensore, anch'esso a 0); un carico grafico dedicato la arbitrera
-    (azione in backlog). Finche' non e' arbitrata, PP0/PP1 si usano solo
-    come campi informativi etichettati.
+  * l'assegnazione offset->dominio, fin qui ASSUNTA dall'ordine dei record,
+    il 24/10 e' stata confermata dal metadato del driver: le interrogazioni
+    EMI dei canali (stessa GUID, IOCTL dei metadati) restituiscono i nomi
+    ``RAPL_Package0_PKG``, ``_DRAM``, ``_PP0``, ``_PP1`` nell'ordine esatto
+    di ``DOMAIN_NAMES``, su i9-13900HK. Resta una conferma su UNA macchina,
+    non una garanzia del formato: per questo ``read_domains`` espone il
+    timestamp PER DOMINIO, che e' l'unico modo di accorgersi che un canale
+    non viene aggiornato. PP1 (involto grafico) e' letto ai bordi di
+    finestra da ``energy_session`` e resta campo INFORMATIVO.
 
 Il device path NON e' hardcodato: viene enumerato via SetupAPI dal GUID di
 interfaccia, quindi il backend funziona su qualsiasi macchina dove il driver
@@ -257,14 +261,33 @@ class EMICounterBackend:
         return v[0] * PWH_TO_J
 
     def read_fields_j(self) -> Optional[Dict[str, float]]:
-        """Tutti e quattro i domini [J] + timestamp del record. Campi
+        """Tutti e quattro i domini [J] + timestamp del record PKG. Campi
         informativi etichettati: NON sommare PP0+PP1 ne' PKG+DRAM."""
+        d = self.read_domains()
+        if d is None:
+            return None
+        out = {name: d[name][0] for name in DOMAIN_NAMES}
+        out["ts_100ns"] = d["pkg"][1]
+        return out
+
+    def read_domains(self) -> Optional[Dict[str, tuple]]:
+        """Una sola IOCTL -> ``dominio -> (cumulata [J], timestamp 100 ns)``.
+
+        Il timestamp e' PER DOMINIO (offset dispari di ogni coppia del
+        record), non uno solo: e' cio' che distingue un dominio che ha
+        misurato zero da un dominio il cui registro non viene aggiornato
+        dal driver. ``read_fields_j`` porta solo il timestamp del PKG
+        (``ts_100ns``), quindi chi interrogava PP1 non aveva modo di sapere
+        se quel valore fosse vecchio o fosse davvero zero.
+
+        Nessuna conversione ne' scelta di canale qui: la politica (quale
+        dominio, con quale regola di freschezza) sta nel chiamante.
+        """
         v = self.read_raw()
         if v is None:
             return None
-        out = {name: v[2 * i] * PWH_TO_J for i, name in enumerate(DOMAIN_NAMES)}
-        out["ts_100ns"] = v[1]
-        return out
+        return {name: (v[2 * i] * PWH_TO_J, v[2 * i + 1])
+                for i, name in enumerate(DOMAIN_NAMES)}
 
     # --------------------------------------------------------------- close
     def _close_handle(self) -> None:

@@ -411,17 +411,26 @@ class CasualWattLocalEnergyProfiler:
                 except Exception:
                     res.igpu_energy_j = None
             if res.igpu_energy_j is not None:
-                notes.append(
-                    "iGPU: sensore 'CPU Graphics' integrato trapezoidalmente sui "
-                    "campioni della finestra come campo INFORMATIVO igpu_energy_j "
-                    "(gia' incluso nel package, NON sommato)"
-                )
-            else:
                 if method == "emi-counter":
                     notes.append(
-                        "iGPU: metodo emi-counter — il campo PP1 del record EMI "
-                        "(involto grafico) esiste ma NON e' ancora letto ai bordi "
-                        "di finestra; energia iGPU inclusa nel package "
+                        "iGPU: contatore PP1 del record EMI, delta letto ai bordi "
+                        "di finestra (stessa IOCTL del package, nessuna "
+                        "integrazione) come campo INFORMATIVO igpu_energy_j "
+                        "(gia' incluso nel package, NON sommato)"
+                    )
+                else:
+                    notes.append(
+                        "iGPU: sensore 'CPU Graphics' integrato trapezoidalmente sui "
+                        "campioni della finestra come campo INFORMATIVO igpu_energy_j "
+                        "(gia' incluso nel package, NON sommato)"
+                    )
+            else:
+                if method == "emi-counter":
+                    why = getattr(self.session, "igpu_unavailable_reason", None)
+                    notes.append(
+                        "iGPU: metodo emi-counter, dominio PP1 non espresso"
+                        + (f" ({why})" if why else "")
+                        + "; energia iGPU inclusa nel package "
                         "(dichiarato, nessuna quota inventata)"
                     )
                 else:
