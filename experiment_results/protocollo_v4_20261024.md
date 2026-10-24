@@ -17,6 +17,36 @@ Data: 2026-10-24. Branch: `energy-consumption-framework-ollama-d248a`.
 
 ---
 
+## Terminologia (vincolante per il protocollo e per la tesi)
+
+Un solo termine primario: **baseline**. Indica la stima della potenza idle del
+package, in watt.
+
+| termine | simbolo | unità | definizione |
+|---|---|---|---|
+| baseline | `P_pre` | W | mediana delle tre repliche idle pre |
+| energia di baseline | `E_base` | J | `P_pre · Δt_W` |
+| incremento netto | `E_net_incremental` | J | `E_pkg_gross − E_base` |
+| drift | `dP` | W | `P_post − P_pre` |
+
+- **Idle floor** è un sinonimo operativo di baseline. Compare una sola volta,
+  qui, e poi non si usa più. Non è una seconda grandezza e non indica l'energia.
+- **Fondo** non si usa come sostantivo tecnico: al suo posto, baseline.
+- "Baseline" da sola non indica mai l'energia. Se serve l'energia, si dice
+  *energia di baseline* (`E_base`).
+- La formula, già in P1.3, è:
+
+```
+E_net_incremental = E_pkg_gross − P_pre · Δt_W
+P_pre = baseline_pre_w = mediana(P_rep,1, P_rep,2, P_rep,3)
+```
+
+Questa terminologia si applica anche alla tesi: nei capitoli 3 e 5 si sostituisce
+"fondo di idle" con "baseline", e "idle floor" resta solo come sinonimo
+dichiarato alla prima occorrenza.
+
+---
+
 ## P1 — Baseline e calibrazione idle
 
 ### P1.1 Decisione in una riga
@@ -102,7 +132,7 @@ procede e si marca `cooldown_timeout`.
 
 - `pre_range_w = max(P_rep) − min(P_rep)`.
 - `pre_unstable` se `pre_range_w > 1,0 W`. Motivazione misurata: 1 W di errore
-  sul fondo sposta J/token del 6–11%
+  sulla baseline sposta J/token del 6–11%
   (`idle_floor_sensitivity_20261023_analisi.md` §2). Il flag non invalida da
   solo: entra in `sigma_base_rep_w`.
 - Se una finestra ha delta negativo, contatore resettato o lettura non finita:
@@ -162,10 +192,10 @@ direttamente.
 
 - è l'estimatore di produzione, quindi la v4 non introduce due cambi insieme;
 - tre repliche danno un controllo di stabilità che una finestra unica non dà;
-- l'analisi di sensibilità mostra che la stima del fondo è la parte rumorosa: con
-  un fondo unico il CV scende da 8,99% a 2,20%
-  (`idle_floor_sensitivity_20261023_analisi.md` §4), quindi la variabilità del
-  fondo va misurata, non assunta;
+- l'analisi di sensibilità mostra che la stima della baseline è la parte
+  rumorosa: con una baseline unica il CV scende da 8,99% a 2,20%
+  (`idle_floor_sensitivity_20261023_analisi.md` §4), quindi la variabilità della
+  baseline va misurata, non assunta;
 - la scelta della finestra sposta la media di ±4,0–4,8% (§4): la finestra va
   fissata e dichiarata, non decisa a runtime.
 
