@@ -104,8 +104,9 @@ contraddirsi.**
 
 `:585` scrive, dei dati v3: "Il target è una richiesta al costruttore del
 prompt, **non una coordinata**", con l'evidenza che a `N_in = 64` dichiarato
-corrispondevano 126 token reali (`lhm_validation_v3_20261023_185232.csv:2`, md
-`:6`). Il modello però è stimato sui token reali (P2.3, F.6:
+corrispondevano **126** token reali per inferenza — la riga citata riporta il
+totale di run `tokens_in=378` su 3 inferenze (`lhm_validation_v3_20261023_185232.csv:2`,
+md `:6`, `:13`). Il modello però è stimato sui token reali (P2.3, F.6:
 `N_in_actual,i = prompt_eval_count_i`), mentre l'inviluppo di P4.7 "si calcola
 dai 10 **punti di disegno**" e i margini pubblicati (1,33 / 64,0 / 21,2 / 107,7)
 sono calcolati sulle coordinate target. Se `N_in_actual` è sistematicamente
