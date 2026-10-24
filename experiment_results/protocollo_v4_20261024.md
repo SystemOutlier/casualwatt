@@ -8,7 +8,7 @@ Data: 2026-10-24. Branch: `energy-consumption-framework-ollama-d248a`.
 
 | punto | oggetto | stato |
 |---|---|---|
-| P1 | baseline e calibrazione idle | **congelato 2026-10-24** (emendato: sensibilità post-hoc) |
+| P1 | baseline e calibrazione idle | **congelato 2026-10-24** (emendato: sensibilità post-hoc; fondamento in letteratura) |
 | P2 | token effettivi e terminazione | **congelato 2026-10-24** |
 | P3 | geometria, modello e stima | aperto |
 | P4 | incertezza e validazione | aperto |
@@ -318,7 +318,76 @@ Testo per la tesi (bozza, da adattare):
 Niente per P1. I numeri 0,5 W (settling), 1,0 W (range) e 10% (drift) sono
 soglie operative dichiarate, non costanti scientifiche; restano quelle anche dopo
 i dati. La sensibilità di P1.10 si esegue in P6, non qui. Il changelog di P1.11
-riguarda il protocollo di campionamento, non l'estimatore.
+riguarda il protocollo di campionamento, non l'estimatore. Il riferimento MDPI
+non leggibile (HTTP 403) resta escluso e non è un punto aperto: è materiale non
+citabile finché non verificato.
+
+### P1.14 Fondamento nella letteratura (verificato 2026-10-24)
+
+**Decisione in una riga.** La sottrazione della baseline, l'uso di più finestre
+con controllo degli outlier e la dichiarazione esplicita del termine idle sono
+scelte documentate in letteratura; la variante 3 × 30 s con mediana, applicata
+solo al pre, è la nostra variante dichiarata, giustificata dai nostri dati e non
+da una prescrizione esterna.
+
+| elemento della v4 | fonte verificata | cosa dice davvero | rapporto con la v4 |
+|---|---|---|---|
+| `E_net = E_gross − P_base·Δt` | Alizadeh & Castor 2024, *Green AI*, arXiv:2402.13640v2, §3 | idle 10 min, media, sottratta per CPU e GPU: "record the GPU power in idle mode for 10 minutes and subtract the average" | conferma il principio della sottrazione; non il numero di finestre né la statistica |
+| idem | Vibhoothi et al. 2025, AV1, arXiv:2510.12380, §V | "Active power is calculated by subtracting the idle power of the system from the total power drawn"; la misura dell'idle non è descritta | conferma il principio; non fornisce un protocollo |
+| repliche e scarto delle finestre anomale | Panigrahy et al. 2026, arXiv:2605.22883v1, §4.2 | media su più finestre non sovrapposte, campioni oltre 2σ esclusi prima della media | conferma repliche e controllo anomalie; la statistica è la media, non la mediana |
+| baseline come termine separato e tracciabile | West et al. 2026, Ichnos+, arXiv:2607.10586v1, §III-C | termine idle aggiunto una sola volta per nodo nei periodi attivi | conferma una baseline esplicita e non annegata; è un'aggiunta al modello, non una sottrazione dal misurato |
+| confine di misura | Tschand et al. 2024, MLPerf Power, arXiv:2410.12032 | misura la potenza dell'intero sistema; non prescrive la sottrazione dell'idle | conferma l'obbligo di dichiarare il confine; non supporta la sottrazione |
+| controesempio | CodeCarbon 3.3, docs | nessuna sottrazione di idle; canali RAPL/EMI/powermetrics | strumento affermato che non sottrae la baseline: la nostra scelta non è imposta dallo standard di fatto |
+| mediana e split pre/post | dati del repo, P1.10–P1.11 | pre 9,35–18,78 W, `dP` −9,31…+5,80 W, CV 22,5% | è la motivazione empirica, non una prescrizione della letteratura |
+
+**Cosa è nostro.** Nessuna delle fonti prescrive tre finestre da 30 s, la
+mediana, l'applicazione al solo pre e il post diagnostico. La mediana è preferita
+alla media perché con n = 3 una finestra contaminata sposta la media ma non la
+mediana; il pre è applicato perché interpolare su un `dP` non stazionario non è
+arbitrario (P1.10); il post resta diagnostico per non tarare retroattivamente la
+sottrazione. L'estimatore resta quello di produzione
+(`energy_session.py:2363-2396`), così la catena di misura non cambia insieme al
+protocollo.
+
+**Correzioni al materiale esterno.** Il riferimento citato come "Khan et al."
+non compare in queste fonti: il lavoro è Alizadeh & Castor 2024. CodeCarbon non
+sottrae idle e va citato come contrasto, non come supporto. MLPerf Power non
+prescrive un trattamento dell'idle. Ichnos+ aggiunge l'idle una volta, non lo
+sottrae. A-LEMS usa la media dopo esclusione a 2σ, non la mediana. AV1 sottrae
+l'idle senza descriverne la misura. Il riferimento MDPI 2410-387x/10/4/55
+("baseline di 5 min a 50 campioni/s") non è leggibile (HTTP 403) e resta
+escluso. La variante 3 × 30 s con mediana, pre applicato e post diagnostico è
+coerente e difendibile sui nostri dati, non è "lo standard".
+
+**Testo per la tesi (bozza, da adattare).**
+
+> La sottrazione della potenza idle è una pratica documentata: Alizadeh e Castor
+> misurano l'idle per dieci minuti e ne sottraggono la media, per CPU e GPU
+> [arXiv:2402.13640v2], e Vibhoothi et al. calcolano la potenza attiva
+> sottraendo l'idle dal totale [arXiv:2510.12380]. L'uso di più finestre con
+> esclusione degli outlier è adottato da Panigrahy et al., che stimano la
+> baseline come media su finestre non sovrapposte scartando i campioni oltre
+> due deviazioni standard [arXiv:2605.22883v1]; Ichnos+ tratta l'energia idle
+> come termine esplicito aggiunto una volta per nodo [arXiv:2607.10586v1],
+> mentre MLPerf Power misura la potenza dell'intero sistema senza prescrivere la
+> sottrazione [arXiv:2410.12032] e CodeCarbon non la applica [CodeCarbon 3.3].
+> Nessuna di queste fonti prescrive la variante adottata nella v4 — tre finestre
+> da 30 s, mediana applicata al solo pre, post diagnostico — che è una scelta
+> dichiarata, motivata dalla non stazionarietà misurata nella v3 post-fix
+> (baseline pre 9,35–18,78 W, CV 22,5%) e dalla continuità con l'estimatore di
+> produzione.
+
+**Ancoraggi letteratura.**
+
+- Alizadeh & Castor 2024: https://arxiv.org/html/2402.13640v2 §3;
+- Vibhoothi et al. 2025: https://arxiv.org/html/2510.12380 §V;
+- Panigrahy et al. 2026: https://arxiv.org/html/2605.22883v1 §4.2;
+- West et al. 2026: https://arxiv.org/html/2607.10586v1 §III-C;
+- Tschand et al. 2024: https://arxiv.org/html/2410.12032v1 e
+  https://docs.mlcommons.org/mlperf-power/;
+- CodeCarbon 3.3: https://docs.codecarbon.io/3.3/explanation/methodology/.
+
+Citazioni in originale; i testi integrali sono stati letti il 2026-10-24.
 
 ---
 
