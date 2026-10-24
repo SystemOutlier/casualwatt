@@ -739,7 +739,7 @@ griglia mai usati nel fit, e la baseline non entra mai come punto del modello.
 | D4 | pesi conservativi da P1.6–P1.7, non inverse varianze |
 | D5 | diagnostica completa, `R²` non è criterio |
 | D6 | validazione su punti fuori griglia, mai nel fit |
-| D7 | criterio ≤ 10% e dentro l'intervallo bootstrap al 95% |
+| D7 | criterio ≤ 10% e dentro l'intervallo operativo di conferma (P3.10) |
 | D8 | baseline P1 separata dal punto minimo (8,4) |
 | D9 | griglia 32/128/512 × 32/128/256 |
 | D10 | `m = 3` richieste per blocco, 3 batch temporali |
@@ -949,18 +949,44 @@ blocchi:
 ```
 E_meas  = media dei 3 blocchi
 E_pred  = modello ai parametri stimati
-err_rel = |E_meas − E_pred| / E_pred
-u_conf  = semi-range(E_meas,1..3)                   # non diviso per √3
-intervallo = [q2.5 − 2·u_conf, q97.5 + 2·u_conf]   # quantili bootstrap della previsione
+err_rel = |E_meas − E_pred| / E_pred                  # solo se E_pred > 0
+u_conf  = semi-range(E_meas,1..3)                     # non diviso per √3
+intervallo_conf = [q2.5 − 2·u_conf, q97.5 + 2·u_conf] # quantili bootstrap della previsione
 ```
 
-La validazione passa se `err_rel ≤ 10%` **e** `E_meas` è dentro l'intervallo.
-Il 10% è la stessa scala della sensibilità della baseline (1 W ≈ 6–11% di
-J/token), non una soglia scientifica. Se fallisce, si dichiara il fallimento:
-non si rifà il fit sui punti di conferma e non si sceglie un altro modello sui
-dati di validazione. In quel caso `J/token` resta quello del modello, marcato
-`validation_failed`, e si riporta anche il rapporto descrittivo del blocco di
-produzione (P6).
+La validazione passa se `err_rel ≤ 10%` **e** `E_meas` è dentro
+`intervallo_conf`. Il 10% è la stessa scala della sensibilità della baseline
+(1 W ≈ 6–11% di J/token), non una soglia scientifica. Se fallisce, si dichiara il
+fallimento: non si rifà il fit sui punti di conferma e non si sceglie un altro
+modello sui dati di validazione. In quel caso `J/token` resta quello del modello,
+marcato `validation_failed`, e si riporta anche il rapporto descrittivo del blocco
+di produzione (P6).
+
+**Denominatore non positivo** (aggiunta il 2026-10-24, redazionale: chiude una
+lacuna, non cambia il criterio). `err_rel` richiede `E_pred > 0`. `E0` è libero
+di essere negativo e P3.3 prevede esplicitamente `intercept_nonphysical`, quindi
+a geometrie piccole una previsione nulla o negativa è possibile. In quel caso:
+
+```
+E_pred ≤ 0  →  err_rel non definito (None, non 0, non +inf aritmetico)
+               flag pred_nonpositive = true
+               il punto NON passa la validazione
+```
+
+Il punto è dichiarato **fallimento della previsione**, non escluso dal criterio e
+non salvato da una divisione implicita. Si riportano comunque `E_meas`,
+`E_pred`, `intervallo_conf` e l'esito dell'appartenenza all'intervallo, che resta
+informativo: un `E_meas` dentro l'intervallo con `E_pred ≤ 0` dice che il modello
+non ha segno coerente in quella regione, e questo va scritto nel testo, non
+nascosto in un campo.
+
+**Nome dell'intervallo.** `intervallo_conf` **non è un intervallo al 95%**: i
+quantili bootstrap sono al 95%, poi vengono allargati di due semi-range
+`u_conf`, quindi la copertura nominale non è il 95% e non è quantificata. Si
+chiama *intervallo operativo di conferma costruito dal protocollo*. È la stessa
+regola che il protocollo applica altrove: la copertura è un campo, non un
+aggettivo nel testo. La forma è congelata e non cambia; cambia solo come la si
+nomina.
 
 ### P3.11 Metriche
 
@@ -986,6 +1012,17 @@ produzione (P6).
 - se una richiesta di geometria termina con EOS prima del tetto, la misura resta
   valida per P2 ma **non è assegnabile alla cella**: è `design_deviation`, si
   sostituisce e si registra; non si cambia il target;
+- **conteggio delle sostituzioni per cella** (aggiunta il 2026-10-24,
+  redazionale: obbliga a registrare un numero, non cambia la regola). Ogni cella
+  registra `design_deviation_count`, il numero di sostituzioni eseguite per
+  arrivare alle `m = 3` richieste assegnabili, e per ogni sostituzione il prompt
+  scartato e quello che lo sostituisce. La ragione non è amministrativa:
+  sostituire le richieste che terminano presto **seleziona** prompt che generano
+  a lungo, quindi una cella con molte sostituzioni non contiene un campione
+  casuale di prompt ma una popolazione selezionata dal criterio di sostituzione.
+  Il conteggio non corregge l'effetto: lo rende visibile, e se una cella arriva a
+  un numero di sostituzioni paragonabile a `m` la cella va discussa nel testo,
+  non pubblicata come le altre;
 - la temperatura è quella di produzione, registrata e non trattata come fattore;
 - il blocco di produzione (prompt reali, EOS naturale) è P6 e non entra nel fit
   della superficie: la superficie descrive il costo di decode, non la
@@ -1013,7 +1050,10 @@ contenuti obbligatori: `batch_id`, `block_id`, `point_id`, target e actual dei
 token, `done_reason`, `early_stop`, `prompt_nonce`, `model_digest`,
 `ollama_version`, `temperature`, `num_ctx`, `num_predict`, `order_index`, `r_A`,
 `r_B`, `negative_increment`, `pre_unstable`, `baseline_unstable`,
-`design_deviation`. P6 esegue e analizza.
+`design_deviation`, `design_deviation_count` (per blocco, P3.12). P6 esegue e
+analizza. I campi dell'analisi di conferma (`err_rel`, `pred_nonpositive`,
+`intervallo_conf`, F.10) sono per **punto**, non per riga: P5 decide se stanno
+nel CSV delle righe o in un artefatto separato.
 
 ### P3.14 Ancoraggi
 
@@ -1358,7 +1398,7 @@ esiste validazione parziale: un anello rotto rompe la parola, non il dato.
 | 3 | baseline | `r_A ≤ 10%` in almeno 2 blocchi su 3 per punto (P1.6) | `baseline_unstable`; con due punti su tre, campagna invalida |
 | 4 | sottrazione | test load-versus-control dentro il budget (P4.5) | `bias_declared`: `u_bias` entra in `budget_pred`, P1 non cambia |
 | 5 | adeguatezza del modello | lack-of-fit **non** significativo, `p ≥ 0,05` (P3.9) | `model_inadequate`: la superficie si riporta come descrizione, non come legge |
-| 6 | conferma | entrambi i punti di P3.10 con `err_rel ≤ 10%` e dentro l'intervallo | `validation_failed`: nessun rifit sui punti di conferma |
+| 6 | conferma | entrambi i punti di P3.10 con `err_rel ≤ 10%` e dentro `intervallo_conf`; un `E_pred ≤ 0` è fallimento (`pred_nonpositive`) | `validation_failed`: nessun rifit sui punti di conferma |
 
 Regole di fallimento, congelate:
 
@@ -1581,7 +1621,8 @@ Per ogni blocco `b`, nell'ordine:
 10. fit WLS sui 33 blocchi → `θ̂ = (E0, a, b, c)` (F.9);
 11. residui, `z_b`, bootstrap a 2000 repliche → intervallo parametrico e
     predittivo (F.14);
-12. conferma sui 6 blocchi esclusi dal fit → `err_rel`, `intervallo` (F.10);
+12. conferma sui 6 blocchi esclusi dal fit → `err_rel`, `intervallo_conf`,
+    `pred_nonpositive` (F.10);
 13. copertura → `hull_margin_tok`, `coverage_tier` (F.13);
 14. campagna separata load-versus-control → `bias_w`, `u_bias`,
     `validation_bias_pass` (F.12);
@@ -1805,12 +1846,14 @@ predittivo — non è un emendamento e i pesi restano congelati.
 ### F.10 Validazione della superficie (P3.10)
 
 ```
-E_meas     = media dei 3 blocchi del punto di conferma
-E_pred     = modello ai parametri stimati sui soli blocchi di fit
-err_rel    = |E_meas − E_pred| / E_pred
-u_conf     = semi-range(E_meas,1..3)                    # non diviso per √3
-intervallo = [q2.5 − 2·u_conf , q97.5 + 2·u_conf]       # quantili bootstrap della previsione
-passa se   err_rel ≤ 10%  e  E_meas ∈ intervallo
+E_meas          = media dei 3 blocchi del punto di conferma
+E_pred          = modello ai parametri stimati sui soli blocchi di fit
+err_rel         = |E_meas − E_pred| / E_pred         # solo se E_pred > 0
+u_conf          = semi-range(E_meas,1..3)             # non diviso per √3
+intervallo_conf = [q2.5 − 2·u_conf , q97.5 + 2·u_conf] # quantili bootstrap della previsione
+passa se        err_rel ≤ 10%  e  E_meas ∈ intervallo_conf
+
+E_pred ≤ 0  →  err_rel = None, pred_nonpositive = true, il punto non passa
 ```
 
 *Applicazione.* Sui due punti `(12,32)` e `(256,192)`, misurati nella stessa
@@ -1823,7 +1866,11 @@ Se fallisce si dichiara il fallimento: nessun rifit sui punti di conferma, nessu
 scelta di un altro modello sui dati di validazione, `J/token` resta quello del
 modello marcato `validation_failed`. La forma dell'intervallo è congelata; P4 non
 la riapre, e la sostituzione di `u_conf` con `budget_pred` si riporta solo come
-sensibilità (P4.6).
+sensibilità (P4.6). `intervallo_conf` non è un intervallo al 95%: i quantili lo
+sono, l'allargamento di due semi-range no, e la copertura risultante non è
+quantificata (P3.10). Il caso `E_pred ≤ 0` è dichiarato come fallimento della
+previsione perché `E0` non è vincolato positivo (P3.3, `intercept_nonphysical`):
+una divisione implicita produrrebbe un `err_rel` senza significato.
 
 ### F.11 Termine di bordo e budget predittivo (P4.3, P4.6)
 
