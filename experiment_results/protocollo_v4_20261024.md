@@ -11,7 +11,7 @@ Data: 2026-10-24. Branch: `energy-consumption-framework-ollama-d248a`.
 | P1 | baseline e calibrazione idle | **congelato 2026-10-24** (emendato: sensibilità post-hoc; letteratura e confronto CodeCarbon; terza emenda di forma — motivazione causale del pre applicato in P1.14/F.2, e forma di combinazione di `budget_base_w` dichiarata decisione operativa provvisoria con rinvio motivato ai dati del pilota P2.9: P1.7, P1.13. **Emenda sostanziale del 2026-10-24**: chiuso il difetto `E_trunc`, definito `E_net_abs,b`/`E_net_abs,p` come denominatore di `r_A`/`r_B`, P1.6 e F.3) |
 | P2 | token effettivi e terminazione | **congelato 2026-10-24** |
 | P3 | geometria, modello e stima | **congelato 2026-10-24** (emendato di forma il 2026-10-24 dopo la revisione esterna: P3.3 costi marginali qualificati a `N_out = 0` / `N_in = 0` e algebra del termine quadratico omesso; P3.10 `E_pred ≤ 0` dichiarato fallimento con `pred_nonpositive` e intervallo rinominato `intervallo_conf`; P3.12/P3.13 `design_deviation_count`; P3.15 pre-pilota esteso ai livelli bassi. **Emenda sostanziale del 2026-10-24**: P3.9, il criterio dell'anello 5 usa `p_lof_perm`, `p` della stessa statistica F pesata ottenuto dalla distribuzione nulla per ricampionamento del puro errore — il `p` asintotico non è valido con pesi conservativi. Statistica e soglia 0,05 invariate, aggiunto `lof_max_rel` descrittivo. Nessuna modifica a disegno, modello o pesi) |
-| P4 | incertezza e validazione | **congelato 2026-10-24** (emendato: inviluppo convesso per la copertura, bootstrap dei residui standardizzati, criterio monolitico di catena, `u_edge` solo nel budget predittivo; seconda emenda solo di forma: P4.1 in quattro clausole, P4.4 a otto requisiti numerati con la baseline 3 pre + 3 post obbligatoria anche sui controlli; terza emenda solo di forma: seconda ragione in P4.12 per non adottare la deviazione standard a n = 3; quarta emenda solo di forma: P4.6, rettificata la giustificazione di `u_edge` — il termine congelato maggiora il disallineamento, non l'interpolazione — con formula e valore invariati. **Emenda sostanziale del 2026-10-24**: chiuso il difetto di `r_A` sui controlli — il requisito 7 di P4.4 elenca ora solo le quantità che esistono su un blocco di controllo, e il filtro di stabilità di P4.5 è sostituito dalle soglie assolute `pre_range_w,c ≤ 1,0 W` e `|dP_c| ≤ 1,0 W` con il flag `control_unstable`; `u_bias,b = |bias_w| · Δt̄_W,b` scritto in formula in P4.6 e F.11 come contributo di incertezza, non come correzione sistematica; copertura decisa su due inviluppi — `hull_design` sui target e `hull_fit` sui token reali dei 33 blocchi di fit — prendendo la fascia più conservativa, P4.7 e F.13. **Seconda emenda sostanziale del 2026-10-24**: P4.8, la copertura del bootstrap è dichiarata *nominale e non arbitrata* finché P6.4 non la verifica per simulazione, e la correzione di leva `1/√(1 − h_b)` è resa **sensibilità obbligatoria** allo stesso seed del primario — leva massima verificata sul disegno nominale 0,2852 sui blocchi (512, 256), fattore 1,1828, media 0,121212 = 4/33. Il primario non cambia e nessuna formula congelata è modificata. **Terza emenda sostanziale del 2026-10-24**: P4.4/P4.5, il gate load-versus-control passa da tre a **sei coppie** (12 blocchi) e il quorum dei controlli utilizzabili da due a **quattro**, stessa frazione congelata `⌈2/3 · n_coppie⌉`; `bias_w` si riporta anche come `bias_jtok_pct` con la scala ancorata 1 W ≈ 6–11% di `J/token`, grandezza riportata e non soglia; intervallo t e test di equivalenza a ±3–5% valutati e **non** adottati, con il limite dichiarato che un gate passato non dimostra quell'equivalenza (0,27–0,83 W sulla stessa scala). Costo in P6.1: pavimento 2 h 15 min → **2 h 33 min**. Soglie in watt invariate. **Quarta emenda sostanziale del 2026-10-24**: P4.6, chiusa l'alternativa aperta sul termine di bordo — adottata la via (b), lettura sincrona del contatore ai bordi di finestra con `Δt_W` preso dalla stessa coppia di letture, come requisito vincolante di P5; la via (a) è scartata perché chiede un `ΔP_tick` che nessuna parte del codice misura. Formula e valore congelato di `u_edge,b` invariati: cambia solo cosa è `Δt_tick,b`, e il fattore di riduzione si misura, non si assume. **Nessun difetto dichiarato aperto, nessuna alternativa aperta**) |
+| P4 | incertezza e validazione | **congelato 2026-10-24** (emendato: inviluppo convesso per la copertura, bootstrap dei residui standardizzati, criterio monolitico di catena, `u_edge` solo nel budget predittivo; seconda emenda solo di forma: P4.1 in quattro clausole, P4.4 a otto requisiti numerati con la baseline 3 pre + 3 post obbligatoria anche sui controlli; terza emenda solo di forma: seconda ragione in P4.12 per non adottare la deviazione standard a n = 3; quarta emenda solo di forma: P4.6, rettificata la giustificazione di `u_edge` — il termine congelato maggiora il disallineamento, non l'interpolazione — con formula e valore invariati. **Emenda sostanziale del 2026-10-24**: chiuso il difetto di `r_A` sui controlli — il requisito 7 di P4.4 elenca ora solo le quantità che esistono su un blocco di controllo, e il filtro di stabilità di P4.5 è sostituito dalle soglie assolute `pre_range_w,c ≤ 1,0 W` e `|dP_c| ≤ 1,0 W` con il flag `control_unstable`; `u_bias,b = |bias_w| · Δt̄_W,b` scritto in formula in P4.6 e F.11 come contributo di incertezza, non come correzione sistematica; copertura decisa su due inviluppi — `hull_design` sui target e `hull_fit` sui token reali dei 33 blocchi di fit — prendendo la fascia più conservativa, P4.7 e F.13. **Seconda emenda sostanziale del 2026-10-24**: P4.8, la copertura del bootstrap è dichiarata *nominale e non arbitrata* finché P6.4 non la verifica per simulazione, e la correzione di leva `1/√(1 − h_b)` è resa **sensibilità obbligatoria** allo stesso seed del primario — leva massima verificata sul disegno nominale 0,2852 sui blocchi (512, 256), fattore 1,1828, media 0,121212 = 4/33. Il primario non cambia e nessuna formula congelata è modificata. **Terza emenda sostanziale del 2026-10-24**: P4.4/P4.5, il gate load-versus-control passa da tre a **sei coppie** (12 blocchi) e il quorum dei controlli utilizzabili da due a **quattro**, stessa frazione congelata `⌈2/3 · n_coppie⌉`; `bias_w` si riporta anche in unità di metrica (coppia di campi `bias_jtok_pct_lo`/`bias_jtok_pct_hi`) con la scala ancorata 1 W ≈ 6–11% di `J/token`, grandezza riportata e non soglia; intervallo t e test di equivalenza a ±3–5% valutati e **non** adottati, con il limite dichiarato che un gate passato non dimostra quell'equivalenza (0,27–0,83 W sulla stessa scala). Costo in P6.1: pavimento 2 h 15 min → **2 h 33 min**. Soglie in watt invariate. **Quarta emenda sostanziale del 2026-10-24**: P4.6, chiusa l'alternativa aperta sul termine di bordo — adottata la via (b), lettura sincrona del contatore ai bordi di finestra con `Δt_W` preso dalla stessa coppia di letture, come requisito vincolante di P5; la via (a) è scartata perché chiede un `ΔP_tick` che nessuna parte del codice misura. Formula e valore congelato di `u_edge,b` invariati: cambia solo cosa è `Δt_tick,b`, e il fattore di riduzione si misura, non si assume. **Nessun difetto dichiarato aperto, nessuna alternativa aperta**) |
 | P5 | campi CSV e runner | aperto (requisiti vincolanti trasmessi dai punti congelati: P6.5, fra cui la lettura sincrona del contatore ai bordi, `Δt_W` dalla stessa coppia di letture e il livello di aggregazione dei conteggi di token) |
 | P6 | esecuzione e analisi | aperto, ma **non più solo preparatorio**: P6.1 e P6.2 sono aritmetica dei punti congelati (P6.1 ricalcolato il 2026-10-24 per le sei coppie del gate: pavimento delle sole finestre idle 2 h 33 min); P6.3 (audit idle) e P6.4 (simulazione Monte Carlo) sono **adottate come requisiti vincolanti**; P6.5 è l'elenco dei requisiti per P5 |
 
@@ -1330,7 +1330,7 @@ nessuno dei due è l'incertezza di un numero pubblicato. Mancano tre pezzi.
 | blocco di carico | — | blocco con le `m = 3` richieste di inferenza (P3.7) |
 | blocco di controllo | — | blocco identico per struttura, stato macchina e durata, **senza alcuna richiesta** |
 | bias di sottrazione | `bias_w` | incremento netto medio dei blocchi di controllo, in watt; atteso zero per costruzione |
-| bias in unità di metrica | `bias_jtok_pct` | intervallo `[|bias_w| · 6 , |bias_w| · 11]` % di `J/token`, traduzione del primo ordine con la scala ancorata a 1 W; **grandezza riportata, non soglia** (P4.5) |
+| bias in unità di metrica | `bias_jtok_pct_lo`, `bias_jtok_pct_hi` | i due estremi dell'intervallo `[|bias_w| · 6 , |bias_w| · 11]` % di `J/token`, traduzione del primo ordine con la scala ancorata a 1 W; **grandezza riportata, non soglia**; esportata come coppia perché un intervallo non sta in un campo solo (P4.5) |
 | controlli utilizzabili | `controls_usable_n` | numero di blocchi di controllo che superano il filtro di stabilità; il gate è eseguibile se `≥ ⌈2/3 · n_coppie⌉` (P4.5) |
 | termine di bordo | `u_edge,b` | `2 · P_peak,b · δt_edge,b`, incertezza di **disallineamento** ai due bordi della finestra, in joule; non maggiora l'interpolazione (P4.6) |
 | durata media di finestra | `Δt̄_W,b` | `(1/m) · Σ_{i∈blocco b} Δt_W,i`; grandezza già usata da `u_base,b` (P3.8) |
@@ -1504,12 +1504,20 @@ alla geometria operativa (`idle_floor_sensitivity_20261023_analisi.md` §2) — 
 una **grandezza riportata, non una soglia**:
 
 ```
-bias_jtok_pct ∈ [ |bias_w| · 6 , |bias_w| · 11 ]   % di J/token
+bias_jtok_pct_lo = |bias_w| · 6    % di J/token
+bias_jtok_pct_hi = |bias_w| · 11   % di J/token
 ```
 
 Lineare in `|bias_w|` perché ancorata a 1 W: la sensibilità è misurata a quella
 scala e non è verificata altrove, quindi la traduzione è del primo ordine e va
 scritta come tale. Non sostituisce il criterio in watt, che resta quello congelato.
+
+**Nomi dei campi (armonizzati il 2026-10-24).** Un intervallo non sta in un campo
+solo, quindi la grandezza è esportata come **coppia**: `bias_jtok_pct_lo` e
+`bias_jtok_pct_hi` (P4.12, F.12). La forma senza suffisso, `bias_jtok_pct`, indica
+l'intervallo nel testo e non è un nome di campo; chi scrive il CSV o il codice usa
+la coppia. Prima di questa armonizzazione P4.5 definiva un nome e P4.12 ne
+elencava due per la stessa grandezza.
 
 Tre proposte della revisione esterna su questo punto, valutate e **non** adottate:
 
@@ -2362,7 +2370,7 @@ forma è esattamente il punto in cui si introducono errori silenziosi.
 
 Passo 0, una volta sola **prima** della campagna principale: la campagna gate
 load-versus-control di P4.4, sei coppie → `controls_usable_n`, `bias_w`,
-`bias_jtok_pct`, `control_unstable`, `validation_bias_pass`
+`bias_jtok_pct_lo`, `bias_jtok_pct_hi`, `control_unstable`, `validation_bias_pass`
 e quindi `u_bias,b = |bias_w| · Δt̄_W,b` (F.12). È il passo 0 perché
 `budget_pred_b` del passo 9 ne dipende: con `u_bias,b` scritto in formula
 (emendamento del 2026-10-24, P4.6) il budget predittivo non è calcolabile prima
@@ -2739,8 +2747,10 @@ passa se |bias_w| ≤ mediana_c(budget_base_w,c)
 meno di quattro controlli utilizzabili su sei coppie:  gate non eseguibile,
   chain_status = bias_declared          # quorum = ⌈2/3 · n_coppie⌉, frazione congelata
 
-bias_jtok_pct ∈ [ |bias_w| · 6 , |bias_w| · 11 ]   # % di J/token, grandezza riportata
-                                                   # non una soglia; scala ancorata a 1 W
+bias_jtok_pct_lo = |bias_w| · 6    # % di J/token, grandezza riportata,
+bias_jtok_pct_hi = |bias_w| · 11   # non una soglia; scala ancorata a 1 W.
+                                   # Il campo e' la coppia: un intervallo non
+                                   # sta in un campo solo (P4.5)
 
 Δt̄_W,b = (1/m) · Σ_{i∈blocco b} Δt_W,i    # blocchi della campagna principale, non del gate
 se non passa:  u_bias,b = |bias_w| · Δt̄_W,b   → in quadratura in budget_pred_b
