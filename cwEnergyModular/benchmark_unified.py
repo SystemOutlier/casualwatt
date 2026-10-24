@@ -486,7 +486,7 @@ def _basic_record(run_id, session_id, model_name, model_label, provider, mode,
         # PUNTO TESI (23/10): l'etichetta di metodo cloud NON va scritta dal
         # template. Il dataset pubblicato 19/10 porta "ecologits gwp (...)" in
         # 9/9 righe locali, cioe' un metodo dichiarato da un percorso che non e'
-        # mai stato invocato (benchmark_unified.py:900-902 fa SKIP senza chiave).
+        # mai stato invocato (benchmark_unified.py:928-930 fa SKIP senza chiave).
         # La riga che produce davvero la stima la scrive nel blocco cloud
         # (~riga 1002, qui sotto), insieme al valore.
         "cloud_emissions_method": "",
