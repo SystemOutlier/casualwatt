@@ -10,7 +10,7 @@ Data: 2026-10-24. Branch: `energy-consumption-framework-ollama-d248a`.
 |---|---|---|
 | P1 | baseline e calibrazione idle | **congelato 2026-10-24** (emendato: sensibilità post-hoc; letteratura e confronto CodeCarbon; terza emenda di forma — motivazione causale del pre applicato in P1.14/F.2, e forma di combinazione di `budget_base_w` dichiarata decisione operativa provvisoria con rinvio motivato ai dati del pilota P2.9: P1.7, P1.13. **Emenda sostanziale del 2026-10-24**: chiuso il difetto `E_trunc`, definito `E_net_abs,b`/`E_net_abs,p` come denominatore di `r_A`/`r_B`, P1.6 e F.3) |
 | P2 | token effettivi e terminazione | **congelato 2026-10-24** |
-| P3 | geometria, modello e stima | **congelato 2026-10-24** (emendato solo di forma il 2026-10-24 dopo la revisione esterna: P3.3 costi marginali qualificati a `N_out = 0` / `N_in = 0` e algebra del termine quadratico omesso; P3.10 `E_pred ≤ 0` dichiarato fallimento con `pred_nonpositive` e intervallo rinominato `intervallo_conf`; P3.12/P3.13 `design_deviation_count`; P3.15 pre-pilota esteso ai livelli bassi. Nessuna formula, soglia o disegno modificato) |
+| P3 | geometria, modello e stima | **congelato 2026-10-24** (emendato di forma il 2026-10-24 dopo la revisione esterna: P3.3 costi marginali qualificati a `N_out = 0` / `N_in = 0` e algebra del termine quadratico omesso; P3.10 `E_pred ≤ 0` dichiarato fallimento con `pred_nonpositive` e intervallo rinominato `intervallo_conf`; P3.12/P3.13 `design_deviation_count`; P3.15 pre-pilota esteso ai livelli bassi. **Emenda sostanziale del 2026-10-24**: P3.9, il criterio dell'anello 5 usa `p_lof_perm`, `p` della stessa statistica F pesata ottenuto dalla distribuzione nulla per ricampionamento del puro errore — il `p` asintotico non è valido con pesi conservativi. Statistica e soglia 0,05 invariate, aggiunto `lof_max_rel` descrittivo. Nessuna modifica a disegno, modello o pesi) |
 | P4 | incertezza e validazione | **congelato 2026-10-24** (emendato: inviluppo convesso per la copertura, bootstrap dei residui standardizzati, criterio monolitico di catena, `u_edge` solo nel budget predittivo; seconda emenda solo di forma: P4.1 in quattro clausole, P4.4 a otto requisiti numerati con la baseline 3 pre + 3 post obbligatoria anche sui controlli; terza emenda solo di forma: seconda ragione in P4.12 per non adottare la deviazione standard a n = 3; quarta emenda solo di forma: P4.6, rettificata la giustificazione di `u_edge` — il termine congelato maggiora il disallineamento, non l'interpolazione — con formula e valore invariati. **Emenda sostanziale del 2026-10-24**: chiuso il difetto di `r_A` sui controlli — il requisito 7 di P4.4 elenca ora solo le quantità che esistono su un blocco di controllo, e il filtro di stabilità di P4.5 è sostituito dalle soglie assolute `pre_range_w,c ≤ 1,0 W` e `|dP_c| ≤ 1,0 W` con il flag `control_unstable`; `u_bias,b = |bias_w| · Δt̄_W,b` scritto in formula in P4.6 e F.11 come contributo di incertezza, non come correzione sistematica; copertura decisa su due inviluppi — `hull_design` sui target e `hull_fit` sui token reali dei 33 blocchi di fit — prendendo la fascia più conservativa, P4.7 e F.13. **Nessun difetto dichiarato aperto**) |
 | P5 | campi CSV e runner | aperto (requisiti trasmessi dai punti congelati: P6.5) |
 | P6 | esecuzione e analisi | aperto (sezione preparatoria P6.1–P6.5: vincoli derivati dai punti congelati e proposte della revisione esterna, nessuna decisione) |
@@ -1008,12 +1008,85 @@ pochi cluster.
 - lack-of-fit: confronto tra la superficie e il modello a medie di cella
   (10 punti, 33 blocchi) con F-test sui minimi quadrati pesati; se il test è
   significativo, la superficie è inadeguata e si dichiara;
+- **riferimento del lack-of-fit** (emendamento del 2026-10-24): il `p` usato
+  dall'anello 5 di P4.9 è `p_lof_perm`, ottenuto dalla distribuzione nulla della
+  stessa statistica F pesata per ricampionamento, non dal quantile della F
+  asintotica. Il `p` asintotico si riporta accanto come `p_lof_asint` ed è
+  **indicativo**. Regola e motivazione qui sotto;
+- grandezza dell'effetto di lack-of-fit: `lof_max_rel`, scarto relativo massimo fra
+  la media di cella e la superficie. È descrittivo, non ha soglia e non è un
+  criterio: serve perché un test poco potente può "passare" con uno scarto grande,
+  e il lettore deve poterlo vedere;
 - intervalli dei coefficienti e loro ampiezza;
 - `R²` aggiustato, errore residuo e AIC OLS come diagnostica, mai come criterio
   di accettazione: `R² ≥ 0,9` non basta;
 - distanza di Cook: i blocchi influenti si riportano, non si eliminano senza
   dichiararlo;
 - segno e ampiezza di `E0`, con il flag `intercept_nonphysical` se serve.
+
+**Perché il `p` del lack-of-fit non è quello asintotico** (emendamento del
+2026-10-24, su osservazione della revisione esterna §4.5 — l'osservazione è
+corretta, la cura è diversa da quella proposta). L'F-test pesato presume che i pesi
+siano l'inverso della varianza. P3.8 dichiara esplicitamente che `w_b = 1/budget_fit_b²`
+è "un peso conservativo, non un peso di precisione": i `budget_fit_b` sono limiti
+superiori, non stime di σ, e non sono proporzionali fra loro come lo sarebbero delle
+varianze. Con pesi che non sono di precisione la statistica non segue la F con
+`(6, 23)` gradi di libertà — 6 = punti − parametri = 10 − 4, 23 = Σ_punti (n_p − 1) =
+8·2 + 5 + 2, verificato sul disegno di P3.5 — e il `p` asintotico non ha il
+significato nominale. L'effetto è asimmetrico e va nella direzione sbagliata: un
+`p` troppo grande premia la bassa potenza, e `p ≥ 0,05` è il criterio di
+**accettazione** dell'anello 5.
+
+La correzione non cambia né la statistica né la soglia: cambia il riferimento.
+
+```
+statistica (invariata):  F_lof = (SS_lof / 6) / (SS_pe / 23)   pesata con w_b
+
+residui di puro errore:  z_pe,b = (r_b − r̄*_{punto(b)}) / budget_fit_b
+                          # media zero dentro ogni punto per costruzione: 23 gdl
+                          # r̄*_p = Σ_{b∈p} w_b r_b / Σ_{b∈p} w_b , media di cella PESATA
+                          # come le medie di cella di SS_lof: stessa base, stessi pesi
+
+replica nulla k = 1..2000:
+    Ȳ*_b = f(x_b ; θ̂) + budget_fit_b · z*_b
+    z*_b estratto con reintroduzione dal pool GLOBALE dei 23 valori {z_pe,b};
+    ciò che la stratificazione preserva è la numerosità del disegno — 3 blocchi per
+    punto, 6 al centro — non la provenienza del residuo
+    rifit WLS con gli stessi pesi w_b  → θ*_k ,  superficie*_k
+    F*_k = (SS_lof(Ȳ* , superficie*_k) / 6) / (SS_pe(Ȳ*) / 23)
+
+p_lof_perm = #{k : F*_k ≥ F_lof} / 2000
+p_lof_asint = 1 − F_{6,23}(F_lof)                       # indicativo, si riporta
+
+anello 5 di P4.9:  passa se  p_lof_perm ≥ 0,05
+```
+
+Tre ragioni per questa forma e non per un test di permutazione classico:
+
+1. il null è imposto **rigenerando i dati dalla superficie stimata**, non
+   permutando i residui fra i blocchi. Permutare `r_b` fra blocchi con
+   `budget_fit_b` diversi mescolerebbe scale diverse e distruggerebbe la struttura
+   eteroschedastica che il disegno ha;
+2. la scala del rumore è quella **osservata**, non il budget: `budget_fit_b · z*_b`
+   riproduce lo scatter dentro il punto misurato, quindi la conservativezza dei
+   budget si elide e non entra nel riferimento. È la ragione per cui si
+   ricampionano i residui di puro errore e non i residui standardizzati di P4.8 —
+   questi ultimi contengono anche l'eventuale lack-of-fit reale e gonfierebbero il
+   null, rendendo il test conservativo proprio dove deve essere potente;
+3. costa zero: le 2000 repliche, la stratificazione per punto, il rifit a pesi
+   fissi e il seed registrato sono **gli stessi** di P4.8. Si aggiunge una
+   grandezza per blocco (`z_pe,b`) e una statistica per replica (`F*_k`).
+
+Limite dichiarato: il null rigenerato da `f(x_b; θ̂)` presume che la forma
+funzionale stimata sia il punto di partenza giusto; con un modello molto sbagliato
+i `z_pe,b` restano l'unica fonte di rumore e il riferimento è approssimato. È lo
+stesso limite del bootstrap di P4.8, e come quello si dichiara invece di
+nasconderlo. Le tre vie alternative valutate e scartate — permutazione sulla
+statistica F, scarto massimo relativo con soglia predeclarata, mantenimento
+dell'F-test dichiarando il `p` indicativo — sono in
+`revisione_esterna_formule_20261024_valutazione.md` §4.5: la seconda introduce una
+soglia nuova dopo aver visto il disegno, la terza lascia l'anello 5 senza un
+riferimento valido.
 
 ### P3.10 Validazione
 
@@ -1129,7 +1202,9 @@ token, `done_reason`, `early_stop`, `prompt_nonce`, `model_digest`,
 `design_deviation`, `design_deviation_count` (per blocco, P3.12). P6 esegue e
 analizza. I campi dell'analisi di conferma (`err_rel`, `pred_nonpositive`,
 `intervallo_conf`, F.10) sono per **punto**, non per riga: P5 decide se stanno
-nel CSV delle righe o in un artefatto separato.
+nel CSV delle righe o in un artefatto separato. Lo stesso vale per i campi del
+lack-of-fit introdotti dall'emendamento di P3.9 (`F_lof`, `p_lof_perm`,
+`p_lof_asint`, `lof_max_rel`, per campagna; `z_pe_b`, per blocco).
 
 ### P3.14 Ancoraggi
 
@@ -1259,6 +1334,9 @@ nessuno dei due è l'incertezza di un numero pubblicato. Mancano tre pezzi.
 | fascia di progetto / di fit | `coverage_tier_design`, `coverage_tier_fit` | la fascia del punto **target** rispetto a `hull_design` e del punto **reale** `(x1_b, x2_b)` rispetto a `hull_fit`; `coverage_tier` è il più conservativo dei due |
 | margine di inviluppo | `hull_margin_tok`, `hull_margin_design_tok` | distanza in token dal bordo di `hull_fit` (punto reale) e di `hull_design` (punto target), negativa se fuori |
 | stato della catena | `chain_status` | `validated` solo se tutti gli anelli di P4.9 passano; altrimenti l'etichetta dell'anello ceduto |
+| lack-of-fit, riferimento | `p_lof_perm` | `p` della statistica F pesata ottenuto dalla distribuzione nulla per ricampionamento del puro errore; è il criterio dell'anello 5 (P3.9) |
+| lack-of-fit, asintotico | `p_lof_asint` | `1 − F_{6,23}(F_lof)`; **indicativo**, si riporta accanto ma non decide |
+| grandezza del lack-of-fit | `lof_max_rel` | scarto relativo massimo fra media di cella e superficie; descrittivo, senza soglia |
 
 ### P4.4 Campagna di validazione load-versus-control
 
@@ -1724,7 +1802,7 @@ esiste validazione parziale: un anello rotto rompe la parola, non il dato.
 | 2 | contatore | nessun blocco con delta negativo, reset o lettura non finita (P1.6) | `counter_invalid`: il blocco si ripete una volta, poi si scarta e si dichiara |
 | 3 | baseline | `r_A ≤ 10%` in almeno 2 blocchi su 3 per punto (P1.6) | `baseline_unstable`; con due punti su tre, campagna invalida |
 | 4 | sottrazione | test load-versus-control dentro il budget (P4.5) | `bias_declared`: `u_bias` entra in `budget_pred`, P1 non cambia |
-| 5 | adeguatezza del modello | lack-of-fit **non** significativo, `p ≥ 0,05` (P3.9) | `model_inadequate`: la superficie si riporta come descrizione, non come legge |
+| 5 | adeguatezza del modello | lack-of-fit **non** significativo, `p_lof_perm ≥ 0,05` (P3.9) | `model_inadequate`: la superficie si riporta come descrizione, non come legge |
 | 6 | conferma | entrambi i punti di P3.10 con `err_rel ≤ 10%` e dentro `intervallo_conf`; un `E_pred ≤ 0` è fallimento (`pred_nonpositive`) | `validation_failed`: nessun rifit sui punti di conferma |
 
 Regole di fallimento, congelate:
@@ -2058,8 +2136,8 @@ Per ogni blocco `b` della campagna principale, nell'ordine:
 9. `Δt_tick,b`, `P_peak,b`, `Δt̄_W,b`, `u_edge,b`, `u_bias,b` (dal passo 0),
    `budget_pred_b` (F.11);
 10. fit WLS sui 33 blocchi → `θ̂ = (E0, a, b, c)` (F.9);
-11. residui, `z_b`, bootstrap a 2000 repliche → intervallo parametrico e
-    predittivo (F.14);
+11. residui, `z_b`, `z_pe,b`, bootstrap a 2000 repliche → intervallo parametrico e
+    predittivo, `F_lof`, `p_lof_perm`, `lof_max_rel` (F.14);
 12. conferma sui 6 blocchi esclusi dal fit → `err_rel`, `intervallo_conf`,
     `pred_nonpositive` (F.10);
 13. copertura → `hull_design` (noto da prima), `hull_fit` (dai 33 blocchi del
@@ -2499,7 +2577,7 @@ condizione necessaria non sufficiente per l'interpolazione. Non esiste una
 penalità di estrapolazione inventata: la fascia B è descrittiva e la fascia C non
 pubblica.
 
-### F.14 Bootstrap dei residui standardizzati (P4.8)
+### F.14 Bootstrap dei residui standardizzati e riferimento del lack-of-fit (P4.8, P3.9)
 
 ```
 r_b = Ē_b − f(x_b; θ̂)
@@ -2513,6 +2591,30 @@ per ciascuna replica:
 
 parametrico: q2,5 e q97,5 di b + c·N_in,ref ; a + c·N_out,ref ; J/token_32 ; J/token_128
 predittivo : spread parametrico di f(x; θ*) allargato con il budget_pred del blocco nuovo
+```
+
+Stesso ciclo di repliche, secondo uso (emendamento del 2026-10-24, P3.9): la
+distribuzione nulla della statistica F di lack-of-fit.
+
+```
+F_lof  = (SS_lof / 6) / (SS_pe / 23)     # pesata con w_b; 6 = 10 punti − 4 parametri,
+                                         # 23 = Σ_punti (n_p − 1) = 8·2 + 5 + 2
+z_pe,b = (r_b − r̄*_{punto(b)}) / budget_fit_b          # puro errore, 23 gdl
+         r̄*_p = Σ_{b∈p} w_b r_b / Σ_{b∈p} w_b           # media di cella pesata
+
+per ciascuna replica k:
+    z*_b dal pool globale dei 23 z_pe,b, con reintroduzione, a numerosità di disegno
+    preservata
+    Ȳ*_b = f(x_b; θ̂) + budget_fit_b · z*_b
+    rifit WLS agli stessi pesi  → superficie*_k
+    F*_k = (SS_lof(Ȳ*, superficie*_k) / 6) / (SS_pe(Ȳ*) / 23)
+
+p_lof_perm  = #{k : F*_k ≥ F_lof} / 2000      # criterio dell'anello 5 di P4.9
+p_lof_asint = 1 − F_{6,23}(F_lof)             # indicativo, si riporta accanto
+
+lof_max_rel = max_p |Ē*_p − f(x̄_p; θ̂)| / |f(x̄_p; θ̂)|     # descrittivo, senza soglia
+              Ē*_p = media pesata dei Ē_b del punto p,  x̄_p = media dei (x1_b, x2_b) di p
+              il valore assoluto al denominatore è d'obbligo: f può essere ≤ 0 (P3.10)
 ```
 
 *Giustificazione.* Ricampiona **residui** e non blocchi: con 33 blocchi il case
@@ -2530,6 +2632,22 @@ gli errori standard HC3 si riportano accanto come approssimazione lineare; se le
 due ampiezze differiscono di più di un fattore 2, il bootstrap resta primario e
 la discrepanza si dichiara. Il bootstrap non sostituisce il lack-of-fit: un
 modello inadeguato ha un intervallo stretto e sbagliato.
+
+*Giustificazione del riferimento di lack-of-fit.* La F asintotica con `(6, 23)`
+gradi di libertà è esatta solo se `w_b` è l'inverso della varianza. P3.8 dichiara
+che è un peso **conservativo**, non di precisione: i `budget_fit_b` sono limiti
+superiori non proporzionali alle varianze vere, quindi il quantile nominale non ha
+il significato che l'anello 5 gli attribuisce, e l'errore va nella direzione
+sbagliata perché `p ≥ 0,05` è un criterio di accettazione. Rigenerare i dati dalla
+superficie stimata con il solo rumore di puro errore osservato impone il null in
+modo esatto rispetto ai pesi realmente usati, e la conservativezza dei budget si
+elide perché `z_pe,b` è già diviso per `budget_fit_b`. Si ricampionano i residui di
+**puro errore** e non gli `z_b` del bootstrap parametrico perché questi contengono
+anche l'eventuale lack-of-fit reale: usarli gonfierebbe il null e renderebbe il test
+conservativo proprio dove deve essere potente. Il costo è nullo: repliche,
+stratificazione, rifit a pesi fissi e seed sono gli stessi. Limite dichiarato: il
+null parte da `f(x_b; θ̂)`, quindi con un modello molto sbagliato il riferimento è
+approssimato — lo stesso limite del bootstrap, dichiarato allo stesso modo.
 
 ### F.15 Confronto con la produzione reale (P4.11)
 
