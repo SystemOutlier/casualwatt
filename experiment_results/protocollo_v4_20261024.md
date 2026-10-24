@@ -11,29 +11,34 @@ Data: 2026-10-24. Branch: `energy-consumption-framework-ollama-d248a`.
 | P1 | baseline e calibrazione idle | **congelato 2026-10-24** (emendato: sensibilità post-hoc; letteratura e confronto CodeCarbon; terza emenda di forma — motivazione causale del pre applicato in P1.14/F.2, e forma di combinazione di `budget_base_w` dichiarata decisione operativa provvisoria con rinvio motivato ai dati del pilota P2.9: P1.7, P1.13. **Emenda sostanziale del 2026-10-24**: chiuso il difetto `E_trunc`, definito `E_net_abs,b`/`E_net_abs,p` come denominatore di `r_A`/`r_B`, P1.6 e F.3) |
 | P2 | token effettivi e terminazione | **congelato 2026-10-24** |
 | P3 | geometria, modello e stima | **congelato 2026-10-24** (emendato solo di forma il 2026-10-24 dopo la revisione esterna: P3.3 costi marginali qualificati a `N_out = 0` / `N_in = 0` e algebra del termine quadratico omesso; P3.10 `E_pred ≤ 0` dichiarato fallimento con `pred_nonpositive` e intervallo rinominato `intervallo_conf`; P3.12/P3.13 `design_deviation_count`; P3.15 pre-pilota esteso ai livelli bassi. Nessuna formula, soglia o disegno modificato) |
-| P4 | incertezza e validazione | **congelato 2026-10-24** (emendato: inviluppo convesso per la copertura, bootstrap dei residui standardizzati, criterio monolitico di catena, `u_edge` solo nel budget predittivo; seconda emenda solo di forma: P4.1 in quattro clausole, P4.4 a otto requisiti numerati con la baseline 3 pre + 3 post obbligatoria anche sui controlli; terza emenda solo di forma: seconda ragione in P4.12 per non adottare la deviazione standard a n = 3; quarta emenda solo di forma: P4.6, rettificata la giustificazione di `u_edge` — il termine congelato maggiora il disallineamento, non l'interpolazione — con formula e valore invariati. **Emenda sostanziale del 2026-10-24**: chiuso il difetto di `r_A` sui controlli — il requisito 7 di P4.4 elenca ora solo le quantità che esistono su un blocco di controllo, e il filtro di stabilità di P4.5 è sostituito dalle soglie assolute `pre_range_w,c ≤ 1,0 W` e `|dP_c| ≤ 1,0 W` con il flag `control_unstable`; `u_bias,b = |bias_w| · Δt̄_W,b` scritto in formula in P4.6 e F.11 come contributo di incertezza, non come correzione sistematica. **Un difetto ancora dichiarato**: copertura classificata sui target mentre il fit usa i reali, P4.7) |
+| P4 | incertezza e validazione | **congelato 2026-10-24** (emendato: inviluppo convesso per la copertura, bootstrap dei residui standardizzati, criterio monolitico di catena, `u_edge` solo nel budget predittivo; seconda emenda solo di forma: P4.1 in quattro clausole, P4.4 a otto requisiti numerati con la baseline 3 pre + 3 post obbligatoria anche sui controlli; terza emenda solo di forma: seconda ragione in P4.12 per non adottare la deviazione standard a n = 3; quarta emenda solo di forma: P4.6, rettificata la giustificazione di `u_edge` — il termine congelato maggiora il disallineamento, non l'interpolazione — con formula e valore invariati. **Emenda sostanziale del 2026-10-24**: chiuso il difetto di `r_A` sui controlli — il requisito 7 di P4.4 elenca ora solo le quantità che esistono su un blocco di controllo, e il filtro di stabilità di P4.5 è sostituito dalle soglie assolute `pre_range_w,c ≤ 1,0 W` e `|dP_c| ≤ 1,0 W` con il flag `control_unstable`; `u_bias,b = |bias_w| · Δt̄_W,b` scritto in formula in P4.6 e F.11 come contributo di incertezza, non come correzione sistematica; copertura decisa su due inviluppi — `hull_design` sui target e `hull_fit` sui token reali dei 33 blocchi di fit — prendendo la fascia più conservativa, P4.7 e F.13. **Nessun difetto dichiarato aperto**) |
 | P5 | campi CSV e runner | aperto (requisiti trasmessi dai punti congelati: P6.5) |
 | P6 | esecuzione e analisi | aperto (sezione preparatoria P6.1–P6.5: vincoli derivati dai punti congelati e proposte della revisione esterna, nessuna decisione) |
 
-**Quattro difetti dichiarati nel testo congelato (2026-10-24).** Trovati leggendo
-il protocollo contro se stesso e contro il codice, su segnalazione di due revisori
-esterni. Sono stati registrati **nel punto in cui stanno**, con le opzioni e la
-raccomandazione, prima di essere corretti, perché correggerli cambia una decisione
-congelata: la correzione è un emendamento dichiarato, non una riscrittura
-silenziosa. Tre sono chiusi, uno resta aperto e le parti elencate **non sono
-eseguibili** finché non si chiude:
+**Quattro difetti dichiarati nel testo congelato (2026-10-24), tutti chiusi lo
+stesso giorno.** Trovati leggendo il protocollo contro se stesso e contro il codice,
+su segnalazione di due revisori esterni. Sono stati registrati **nel punto in cui
+stavano**, con le opzioni e la raccomandazione, prima di essere corretti, perché
+correggerli cambia una decisione congelata: la correzione è un emendamento
+dichiarato, non una riscrittura silenziosa. La tabella resta come registro — dice
+cosa bloccava ciascuno e con quale regola è stato chiuso:
 
 | difetto | dove | cosa bloccava | stato |
 |---|---|---|---|
 | `E_trunc` usato e mai definito | P1.6, F.3 | `r_A`, `r_B`, `baseline_unstable`, `bias_w`, anello 4 di P4.9 | **chiuso 2026-10-24**: definito `E_net_abs,b = m · |Ē_b|`, il nome `E_trunc` è ritirato |
 | `r_A` non calcolabile su un blocco di controllo, che non invia richieste | P4.5, F.12 | il gate load-versus-control e l'anello 4 di P4.9 | **chiuso 2026-10-24**: filtro sostituito dalle soglie assolute `pre_range_w,c ≤ 1,0 W` e `|dP_c| ≤ 1,0 W`, flag `control_unstable` |
 | `u_bias` dichiarato nel budget, assente dalla formula, e senza `Δt_W` specificato | P4.6, F.11 | il campo obbligatorio `u_bias_j` (P4.12) | **chiuso 2026-10-24**: `budget_pred_b² = budget_fit_b² + u_edge,b² + u_bias,b²` con `u_bias,b = |bias_w| · Δt̄_W,b` (contributo di incertezza, non correzione sistematica) |
-| copertura classificata sui target, fit stimato sui token reali | P4.7, F.13 | coerenza di `coverage_tier` e `hull_margin_tok` con `x1_b`, `x2_b` | aperto |
+| copertura classificata sui target, fit stimato sui token reali | P4.7, F.13 | coerenza di `coverage_tier` e `hull_margin_tok` con `x1_b`, `x2_b` | **chiuso 2026-10-24**: due inviluppi, `hull_design` (target, pre-registrato) e `hull_fit` (reali, dai 33 blocchi); il punto si classifica su `(x1_b, x2_b)` e si prende la fascia più conservativa |
 
 Valutazione completa, con le verifiche numeriche eseguite:
-`revisione_esterna_formule_20261024_valutazione.md`. I quattro vanno chiusi
-**prima** di scrivere il runner di P5: sono esattamente il tipo di ambiguità che un
-implementatore risolve in silenzio scegliendo una delle letture possibili.
+`revisione_esterna_formule_20261024_valutazione.md`. Nessuno dei quattro era
+cosmetico: ognuno lasciava una formula con due letture possibili, che è esattamente
+ciò che un implementatore risolve in silenzio scegliendone una. Con tutti e quattro
+chiusi, il runner di P5 può essere scritto contro formule che ne hanno una sola.
+Due chiusure vanno oltre la raccomandazione dei revisori, e sono dichiarate dove
+stanno: il filtro dei controlli limita anche la circolarità del criterio (P4.5), e
+la copertura usa **due** inviluppi invece di spostare solo il punto sulla base reale
+(P4.7).
 
 Le formule di P1–P4 sono raccolte, con applicazione e giustificazione, nella
 sezione finale **Formulario consolidato (F.0–F.17)**: è una sezione derivata, non
@@ -1148,16 +1153,17 @@ bassi, e il protocollo oggi li dà per raggiungibili senza averlo misurato:
 
 - `(8, 4)` è un **vertice dell'inviluppo convesso** (P4.7). Se 8 token di input o
   4 di output non sono raggiungibili dentro la tolleranza ±5% di P3.12, il vertice
-  non esiste nelle coordinate dichiarate e l'inviluppo è costruito su un punto
-  fittizio: `hull_margin_tok` di tutti gli altri punti sarebbe calcolato contro un
-  bordo che non c'è;
-- `(12, 32)` è il **punto operativo di conferma**, con `hull_margin_tok = 1,33`
-  (misurato il 2026-10-24, P4.7). Il margine è più piccolo della tolleranza del
-  prompt, quindi la sua fascia di copertura dipende dal token reale e non dal
-  target;
+  non esiste nelle coordinate dichiarate e `hull_design` è costruito su un punto
+  fittizio: `hull_margin_design_tok` di tutti gli altri punti sarebbe calcolato
+  contro un bordo che non c'è;
+- `(12, 32)` è il **punto operativo di conferma**, con `hull_margin_design_tok =
+  1,33` (misurato il 2026-10-24, P4.7). Il margine è più piccolo della tolleranza
+  del prompt, quindi la sua fascia di copertura dipende dal token reale e non dal
+  target — ed è esattamente perché P4.7 classifica su **due** inviluppi, di progetto
+  e di fit, prendendo il più conservativo;
 - la tolleranza ±5% è incompatibile con lo scarto misurato fra target e actual:
   nel run 18:52 della v3 il target `N_in = 64` ha prodotto 126 token reali, cioè
-  circa il doppio (`:585`, `lhm_validation_v3_20261023_185232.csv:2`). Su
+  circa il doppio (P2.2, `lhm_validation_v3_20261023_185232.csv:2`). Su
   `N_in = 8` uno scarto di quella taglia non è riducibile a una tolleranza del 5%:
   va misurato nel pre-pilota, non assunto.
 
@@ -1208,8 +1214,9 @@ intervallo accompagnano ogni numero — la copertura come campo
 — e non come aggettivo nel testo.
 
 Nel dettaglio: ogni numero pubblicato della v4 esce con tre cose: il budget
-predittivo `budget_pred = sqrt(u_base² + u_within² + u_edge²)`, la fascia di
-copertura A/B/C decisa sull'inviluppo convesso del disegno, e — per la differenza
+predittivo `budget_pred = sqrt(u_base² + u_within² + u_edge² + u_bias²)`, la fascia
+di copertura A/B/C decisa sul più conservativo fra l'inviluppo convesso del disegno
+(sui target) e quello dei blocchi di fit (sui token reali), e — per la differenza
 incrementale — l'esito del test load-versus-control. La sottrazione di baseline è
 validata su questa macchina se il bias misurato a incremento nullo sta dentro il
 budget; se non ci sta, il bias si dichiara, si aggiunge al budget, e P1 non cambia
@@ -1241,11 +1248,16 @@ nessuno dei due è l'incertezza di un numero pubblicato. Mancano tre pezzi.
 | blocco di carico | — | blocco con le `m = 3` richieste di inferenza (P3.7) |
 | blocco di controllo | — | blocco identico per struttura, stato macchina e durata, **senza alcuna richiesta** |
 | bias di sottrazione | `bias_w` | incremento netto medio dei blocchi di controllo, in watt; atteso zero per costruzione |
-| termine di bordo | `u_edge,b` | `2 · P_peak,b · δt_edge,b`, incertezza dell'interpolazione lineare ai due bordi della finestra, in joule |
+| termine di bordo | `u_edge,b` | `2 · P_peak,b · δt_edge,b`, incertezza di **disallineamento** ai due bordi della finestra, in joule; non maggiora l'interpolazione (P4.6) |
+| durata media di finestra | `Δt̄_W,b` | `(1/m) · Σ_{i∈blocco b} Δt_W,i`; grandezza già usata da `u_base,b` (P3.8) |
 | budget di fit | `budget_fit,b` | il `budget_b` di P3.8, rinominato: è ciò che pesa i blocchi nel fit |
-| budget predittivo | `budget_pred,b` | `sqrt(budget_fit_b² + u_edge,b²)`: accompagna ogni numero pubblicato |
-| fascia di copertura | A / B / C | dentro l'inviluppo convesso del disegno / dentro il box ma fuori dall'inviluppo / fuori dal box |
-| margine di inviluppo | `hull_margin_tok` | distanza in token dal bordo dell'inviluppo, negativa se fuori |
+| contributo del bias | `u_bias,b` | `|bias_w| · Δt̄_W,b`, zero se il gate di P4.5 passa; contributo di incertezza, **non** correzione sottratta dai dati |
+| budget predittivo | `budget_pred,b` | `sqrt(budget_fit_b² + u_edge,b² + u_bias,b²)`: accompagna ogni numero pubblicato |
+| inviluppo di progetto | `hull_design` | inviluppo convesso dei 10 punti di disegno sulle coordinate **target**; noto prima dei dati |
+| inviluppo di fit | `hull_fit` | inviluppo convesso delle 33 coppie `(x1_b, x2_b)` dei blocchi di fit, sui token **reali**; noto dopo la campagna |
+| fascia di copertura | A / B / C | dentro l'inviluppo / dentro il box ma fuori dall'inviluppo / fuori dal box; si assegna sui due inviluppi, ciascuno nella propria base, e si prende la più conservativa |
+| fascia di progetto / di fit | `coverage_tier_design`, `coverage_tier_fit` | la fascia del punto **target** rispetto a `hull_design` e del punto **reale** `(x1_b, x2_b)` rispetto a `hull_fit`; `coverage_tier` è il più conservativo dei due |
+| margine di inviluppo | `hull_margin_tok`, `hull_margin_design_tok` | distanza in token dal bordo di `hull_fit` (punto reale) e di `hull_design` (punto target), negativa se fuori |
 | stato della catena | `chain_status` | `validated` solo se tutti gli anelli di P4.9 passano; altrimenti l'etichetta dell'anello ceduto |
 
 ### P4.4 Campagna di validazione load-versus-control
@@ -1541,8 +1553,9 @@ Le celle del disegno non riempiono un rettangolo. Con il punto minimo `(8,4)` e 
 griglia `32/128/512 × 32/128/256` (P3.5), la regione `N_in > 32, N_out < 32` è
 coperta dal disegno e la regione `N_in < 32, N_out > 32` no. Prendere il rettangolo
 avrebbe spacciato per interpolazione bilineare un'estrapolazione mascherata. La
-fascia si decide quindi sull'**inviluppo convesso dei 10 punti di disegno**,
-calcolato dai punti e non scritto a mano.
+fascia si decide quindi sull'**inviluppo convesso** dei punti, calcolato dai punti e
+non scritto a mano — nell'emendamento del 2026-10-24, su **due** inviluppi: quello
+dei 10 punti di disegno e quello dei 33 blocchi di fit.
 
 I vertici dell'inviluppo sono quattro:
 
@@ -1563,41 +1576,90 @@ retta che unisce quei due punti.
 - **Fascia C — fuori dal box.** Nessuna stima, nessun modello applicato. Si
   registrano solo le misure grezze del blocco, marcato `out_of_coverage`.
 
+Le tre definizioni valgono identiche per i due inviluppi introdotti più sotto
+(`hull_design` e `hull_fit`): cambia la base, non il criterio.
+
 Due conseguenze da dichiarare, non da nascondere.
 
 1. Il punto di conferma `(12,32)` — la geometria operativa reale, e quindi il
-   `J/token` di produzione — cade **in fascia A**, con un margine di `1,33` token
-   dal lato `(8,4)–(32,256)`. L'appartenenza è geometricamente sottile. Per questo
-   `hull_margin_tok` è una colonna obbligatoria, e ogni punto pubblicato con margine
-   inferiore a 2 token esce anche con il flag `thin_support`. Il flag non cambia
-   l'intervallo: dichiara che la classificazione A si regge su un supporto di
-   progetto di misura, e che a sostenerla è il punto di conferma empirico di P3.10,
-   non la geometria.
-2. `(256,192)` sta dentro con margine 64 token: la conferma alta è in fascia A
-   piena.
+   `J/token` di produzione — cade **in fascia A di progetto**, con un margine di
+   `1,33` token dal lato `(8,4)–(32,256)`. L'appartenenza è geometricamente
+   sottile. Per questo `hull_margin_tok` è una colonna obbligatoria, e ogni punto
+   pubblicato con margine inferiore a 2 token esce anche con il flag
+   `thin_support`. Il flag non cambia l'intervallo: dichiara che la
+   classificazione A si regge su un supporto di progetto di misura, e che a
+   sostenerla è il punto di conferma empirico di P3.10, non la geometria.
+2. `(256,192)` sta dentro con margine 64 token: la conferma alta è in fascia A di
+   progetto piena.
 
-**Difetto dichiarato nel testo congelato (registrato il 2026-10-24, non corretto
-qui perché la correzione cambia un punto congelato).** Le fasce sono decise
-sull'inviluppo dei **10 punti di disegno**, cioè sulle coordinate **target**, e i
-margini pubblicati qui sopra (1,33 / 64,0 / 21,2 / 107,7) sono calcolati su quelle.
-Il modello però è stimato sui token **reali** (P2.3, F.6:
-`N_in_actual,i = prompt_eval_count_i`), e il protocollo stesso scrive dei dati v3:
-"Il target è una richiesta al costruttore del prompt, **non una coordinata**"
-(`:585`), con l'evidenza che a `N_in = 64` dichiarato corrispondevano 126 token
-reali. Classificare la copertura in una base e stimare il modello in un'altra rende
-`coverage_tier` e `hull_margin_tok` non coerenti con `x1_b`, `x2_b` di F.7: se
-`N_in_actual` è sistematicamente circa il doppio del target ai livelli bassi, il
-punto operativo `(12,32)` non sta dove la classificazione dice che sta, e il suo
-margine di 1,33 token — già sottile — non è il margine reale.
+**Difetto chiuso il 2026-10-24 (emendamento sostanziale di P4.7).** Nella versione
+congelata le fasce erano decise sull'inviluppo dei **10 punti di disegno**, cioè
+sulle coordinate **target**, e i margini pubblicati qui sopra (1,33 / 64,0 / 21,2 /
+107,7) erano calcolati su quelle. Il modello però è stimato sui token **reali**
+(P2.3, F.6: `N_in_actual,i = prompt_eval_count_i`), e il protocollo stesso scrive
+dei dati v3: "Il target è una richiesta al costruttore del prompt, **non una
+coordinata**" (P2.2), con l'evidenza che a `N_in = 64` dichiarato corrispondevano
+126 token reali. Classificare la copertura in una base e stimare il modello in
+un'altra rende `coverage_tier` e `hull_margin_tok` non coerenti con `x1_b`, `x2_b`
+di F.7: se `N_in_actual` è sistematicamente circa il doppio del target ai livelli
+bassi, il punto operativo `(12,32)` non sta dove la classificazione dice che sta, e
+il suo margine di 1,33 token — già sottile — non è il margine reale.
 
-Raccomandazione registrata in
-`revisione_esterna_formule_20261024_valutazione.md` §4.4: `coverage_tier` e
-`hull_margin_tok` si calcolano su `(x1_b, x2_b)` di F.7, cioè le medie di blocco dei
-token reali; l'**inviluppo** resta quello dei punti di disegno, perché è il disegno
-a definire il supporto. I margini già pubblicati restano validi come **margini di
-progetto**, etichettati come tali, e vanno ricalcolati sui reali a dati raccolti.
-La conseguenza da accettare prima, non da scoprire dopo: la fascia di un punto può
-cambiare in seguito alla misura.
+**Regola corretta: due inviluppi, nella stessa base del punto classificato.** La
+raccomandazione della valutazione esterna (§4.4) teneva l'inviluppo sui target e
+spostava solo il punto sui reali. Non basta, e qui si va un passo oltre: se i reali
+sono sistematicamente spostati rispetto ai target, un punto può cadere dentro
+l'inviluppo di progetto ed essere comunque **fuori** dall'inviluppo dei dati su cui
+il modello è stato stimato — cioè un'estrapolazione pubblicata in fascia A, che è
+esattamente l'errore per cui questa sezione esiste. Quindi:
+
+```
+lato di progetto (pre-registrato, calcolabile prima dei dati):
+    hull_design  = inviluppo convesso dei 10 punti di disegno sulle coordinate TARGET
+                   vertici (8,4) (512,32) (512,256) (32,256)
+    box_design   = 8 ≤ N_in ≤ 512 ,  4 ≤ N_out ≤ 256
+    punto        = (N_in,target , N_out,target) del punto da classificare
+    coverage_tier_design = A dentro hull_design / B dentro box_design / C fuori
+    hull_margin_design_tok = distanza del punto target dal bordo di hull_design
+
+lato di fit (calcolato sui dati, noto solo dopo la campagna):
+    hull_fit     = inviluppo convesso delle 33 coppie (x1_b, x2_b) dei blocchi di fit
+    box_fit      = [min_b x1_b , max_b x1_b] × [min_b x2_b , max_b x2_b]
+    punto        = (x1_b , x2_b) del blocco da classificare, medie dei token REALI (F.7)
+    coverage_tier_fit = A dentro hull_fit / B dentro box_fit / C fuori
+    hull_margin_tok   = distanza del punto reale dal bordo di hull_fit
+
+esito pubblicato:
+    coverage_tier = il più conservativo dei due        (A < B < C)
+    thin_support  = true se uno dei due margini è < 2 token
+```
+
+Ciascun lato confronta coordinate della **stessa base** con un inviluppo costruito
+in quella base: target contro `hull_design`, reali contro `hull_fit`. Confrontare un
+punto reale con l'inviluppo dei target ripeterebbe in altra forma lo stesso difetto.
+
+Conseguenze, dichiarate prima e non scoperte dopo:
+
+1. i quattro margini pubblicati in questo punto (1,33 / 64,0 / 21,2 / 107,7) sono
+   **margini di progetto**, etichettati come tali: valgono per `hull_design` e per
+   le coordinate target, e restano l'oggetto pre-registrato con cui si confronta la
+   campagna. I margini reali si calcolano a dati raccolti e possono essere più
+   piccoli;
+2. **la fascia di un punto può cambiare in seguito alla misura.** Un punto
+   classificato A in progetto può uscire B o C sui reali, e in quel caso i suoi
+   claim si declassano. Non si sposta l'inviluppo per farlo rientrare: la regola
+   "le soglie sono congelate prima dei dati" vale anche per la geometria del
+   supporto;
+3. `hull_fit` è calcolato dai dati, non scritto a mano, come già valeva per
+   `hull_design`. Se il pre-pilota di P3.15 cambia i punti di disegno, cambiano
+   entrambi gli inviluppi (P4.14);
+4. **limite ulteriore, da scrivere insieme al risultato.** La classificazione usa la
+   proiezione su `(x1_b, x2_b)`, mentre il fit vive in
+   `(x1_b, x2_b, x12_b)`: essere dentro l'inviluppo proiettato **non** garantisce
+   di essere dentro l'inviluppo del disegno a quattro dimensioni, perché `x12_b` è
+   la media dei prodotti e non il prodotto delle medie (F.7). La fascia A resta
+   quindi una condizione **necessaria non sufficiente** per l'interpolazione: la
+   garanzia empirica è il punto di conferma di P3.10, non la geometria.
 
 Non esiste più una penalità di extrapolazione inventata: la fascia B è descrittiva e
 la fascia C non pubblica. L'errore misurato in P3.10 resta quello che è — il test
@@ -1738,10 +1800,13 @@ fascia di copertura (P4.7) in cui cade ciascuna richiesta di produzione.
 - P5 fissa nomi e tipi delle colonne. P4 elenca i contenuti nuovi obbligatori:
   `block_kind` ∈ {`load`, `control`}, `pair_id`, `order_seed`, `dt_nominal_s`,
   `dt_tick_s`, `p_peak_w`, `u_edge_j`, `budget_fit_j`, `budget_pred_j`, `u_bias_j`,
-  `bias_w`, `z_resid`, `hull_margin_tok`, `coverage_tier` ∈ {`A`, `B`, `C`},
+  `bias_w`, `z_resid`, `hull_margin_tok`, `hull_margin_design_tok`,
+  `coverage_tier` ∈ {`A`, `B`, `C`}, `coverage_tier_design`, `coverage_tier_fit`,
   `sparse_support`, `thin_support`, `out_of_coverage`, `bootstrap_seed`,
   `validation_bias_pass`, `control_unstable` (sui blocchi di controllo, P4.5),
-  `chain_status`;
+  `chain_status`. `Δt̄_W,b` (P4.6, F.11) **non** è una colonna nuova: è la media
+  per blocco della `duration_s` già prevista, e P5 lo dichiari come quantità
+  derivata;
 - P6 fissa l'ordine di esecuzione — la campagna di P4.4 sta prima della principale e
   ne è il gate — e gli script di analisi;
 - il wattometro: la scala assoluta resta non arbitrata (cap. 6, sviluppo 1);
@@ -1772,10 +1837,14 @@ fascia di copertura (P4.7) in cui cade ciascuna richiesta di produzione.
   (`pi_window_energy_j`); lettura finestra idle: `:1576`;
 - bug del sensore omonimo e fix: guard sul tipo a `energy_session.py:951-955`,
   selezione del sensore package a `:855-915`, commit `1422d1b`;
-- inviluppo convesso: calcolato sui 10 punti di disegno di P3.5; vertici `(8,4)`,
-  `(512,32)`, `(512,256)`, `(32,256)`; margini verificati numericamente il
-  24-10-2026 — `(12,32)` → 1,33 token, `(256,192)` → 64,0, `(32,32)` → 21,2,
-  `(128,128)` → 107,7;
+- inviluppo di progetto `hull_design`: calcolato sui 10 punti di disegno di P3.5;
+  vertici `(8,4)`, `(512,32)`, `(512,256)`, `(32,256)`; margini di progetto
+  verificati numericamente il 24-10-2026 — `(12,32)` → 1,33 token, `(256,192)` →
+  64,0, `(32,32)` → 21,2, `(128,128)` → 107,7;
+- motivo dell'inviluppo di fit `hull_fit`: il target non è una coordinata, a
+  `N_in = 64` dichiarato corrispondevano 126 token reali (P2.2,
+  `lhm_validation_v3_20261023_185232.csv:2`); i token reali sono
+  `prompt_eval_count` / `eval_count` (P2.3, F.6);
 - budget e pesi: P1.7, P3.8; validazione della superficie: P3.10; diagnostica e
   lack-of-fit: P3.9; sensibilità post-hoc: P1.10; controlli di drift: P1.6;
 - artefatti della catena: `four_way_finestra_uguale_20261023_analisi.md`,
@@ -1790,10 +1859,13 @@ fascia di copertura (P4.7) in cui cade ciascuna richiesta di produzione.
 Niente per P4. Tre esiti possono riaprirlo, e sono risultati di P6, non decisioni
 aperte:
 
-- se il test di P4.5 fallisce anche nella ripetizione, `u_bias` entra nel budget e
-  la tesi dichiara che la sottrazione non è validata su questa macchina;
+- se il test di P4.5 fallisce anche nella ripetizione, `u_bias,b` entra nel budget
+  predittivo e la tesi dichiara che la sottrazione non è validata su questa
+  macchina;
 - se il pre-pilota di P3.15 mostra che un livello della griglia non è raggiungibile,
-  cambiano i punti di disegno e con essi l'inviluppo di P4.7;
+  cambiano i punti di disegno e con essi **entrambi** gli inviluppi di P4.7 —
+  `hull_design` subito, `hull_fit` per conseguenza, perché cambia l'insieme dei
+  blocchi di fit;
 - se il lack-of-fit di P3.9 è significativo, `chain_status` scende a
   `model_inadequate` e la superficie si riporta come descrizione.
 
@@ -1947,7 +2019,8 @@ registrati qui perché non si perdano.
 - **Nome del campo del settling post.** P6.1 chiede la durata reale di entrambi i
   settling; `settle_pre_s` è già previsto da P1.5, quello del post non ha nome.
 - **Collocazione dei campi per punto.** `err_rel`, `intervallo_conf`,
-  `pred_nonpositive`, `coverage_tier`, `hull_margin_tok` sono per punto di
+  `pred_nonpositive`, `coverage_tier`, `coverage_tier_design`, `coverage_tier_fit`,
+  `hull_margin_tok`, `hull_margin_design_tok` sono per punto di
   conferma o per blocco, non per richiesta: P5 decida se stanno nel CSV delle
   righe (ripetuti) o in un artefatto separato, e lo dichiari.
 
@@ -1963,7 +2036,15 @@ forma è esattamente il punto in cui si introducono errori silenziosi.
 
 ### F.0 Ordine di calcolo
 
-Per ogni blocco `b`, nell'ordine:
+Passo 0, una volta sola **prima** della campagna principale: la campagna gate
+load-versus-control di P4.4 → `bias_w`, `control_unstable`, `validation_bias_pass`
+e quindi `u_bias,b = |bias_w| · Δt̄_W,b` (F.12). È il passo 0 perché
+`budget_pred_b` del passo 9 ne dipende: con `u_bias,b` scritto in formula
+(emendamento del 2026-10-24, P4.6) il budget predittivo non è calcolabile prima
+che il gate sia eseguito. Se il gate passa, `u_bias,b = 0` e il passo 9 resta
+quello di prima.
+
+Per ogni blocco `b` della campagna principale, nell'ordine:
 
 1. tre finestre pre → `P_rep,1..3`, `baseline_pre_w` (F.1);
 2. `m = 3` richieste → per ciascuna `E_pkg_gross,i`, `Δt_W,i`, `N_in,i`,
@@ -1974,19 +2055,21 @@ Per ogni blocco `b`, nell'ordine:
 6. `budget_base_w,b`, `budget_base_j,b` (F.4);
 7. medie di blocco `Ē_b`, `x1_b`, `x2_b`, `x12_b` (F.7);
 8. `u_base,b`, `u_within,b`, `budget_fit_b`, `w_b` (F.9);
-9. `Δt_tick,b`, `P_peak,b`, `u_edge,b`, `budget_pred_b` (F.11);
+9. `Δt_tick,b`, `P_peak,b`, `Δt̄_W,b`, `u_edge,b`, `u_bias,b` (dal passo 0),
+   `budget_pred_b` (F.11);
 10. fit WLS sui 33 blocchi → `θ̂ = (E0, a, b, c)` (F.9);
 11. residui, `z_b`, bootstrap a 2000 repliche → intervallo parametrico e
     predittivo (F.14);
 12. conferma sui 6 blocchi esclusi dal fit → `err_rel`, `intervallo_conf`,
     `pred_nonpositive` (F.10);
-13. copertura → `hull_margin_tok`, `coverage_tier` (F.13);
-14. campagna separata load-versus-control → `bias_w`, `u_bias`,
-    `validation_bias_pass` (F.12);
-15. `chain_status` dai sei anelli (P4.9).
+13. copertura → `hull_design` (noto da prima), `hull_fit` (dai 33 blocchi del
+    passo 7), `hull_margin_tok`, `hull_margin_design_tok`, `coverage_tier` come
+    più conservativo fra `coverage_tier_design` e `coverage_tier_fit` (F.13);
+14. `chain_status` dai sei anelli (P4.9), con l'anello 4 già deciso dal passo 0.
 
-I passi 1–9 sono per blocco e vivono nel CSV riga per riga; i passi 10–15 sono
-analisi e vivono nel verbale. Quali dei primi diventino colonne lo decide P5.
+I passi 1–9 sono per blocco e vivono nel CSV riga per riga; il passo 0 e i passi
+10–14 sono analisi e vivono nel verbale. Quali dei primi diventino colonne lo
+decide P5.
 
 ### F.1 Baseline (P1.1, P1.3)
 
@@ -2367,33 +2450,54 @@ assoluta**, perché legge lo stesso registro di LibreHardwareMonitor.
 ### F.13 Copertura: inviluppo convesso (P4.7)
 
 ```
-vertici = (8,4)   (512,32)   (512,256)   (32,256)
-box     = 8 ≤ N_in ≤ 512 ,  4 ≤ N_out ≤ 256
+lato di progetto:  hull_design, vertici (8,4) (512,32) (512,256) (32,256)
+                   box_design = 8 ≤ N_in ≤ 512 ,  4 ≤ N_out ≤ 256
+                   punto = coordinate TARGET del punto
+                   → coverage_tier_design, hull_margin_design_tok
+
+lato di fit:       hull_fit = inviluppo delle 33 coppie (x1_b, x2_b) dei blocchi di fit
+                   box_fit  = [min x1_b, max x1_b] × [min x2_b, max x2_b]
+                   punto = (x1_b, x2_b), medie di blocco dei token REALI (F.7)
+                   → coverage_tier_fit, hull_margin_tok
 
 A = dentro l'inviluppo                    → claim primari
 B = dentro il box, fuori dall'inviluppo   → previsione descrittiva, sparse_support
 C = fuori dal box                         → nessuna stima, out_of_coverage
-hull_margin_tok < 2                       → thin_support
+
+coverage_tier = il più conservativo dei due (A < B < C)
+thin_support  = true se uno dei due margini < 2 token
 ```
 
-*Applicazione.* Ogni punto pubblicato esce con `coverage_tier` e
-`hull_margin_tok`; l'inviluppo si calcola dai 10 punti di disegno, non si scrive
-a mano. **Attenzione:** i margini qui sotto sono calcolati sulle coordinate
-**target** del disegno, mentre il fit usa i token **reali** (F.6, F.7): vedi il
-difetto dichiarato in P4.7.
+*Applicazione.* Ogni punto pubblicato esce con `coverage_tier` e con i due margini.
+Nessuno dei due inviluppi si scrive a mano: `hull_design` si calcola dai 10 punti di
+disegno ed è noto prima dei dati, `hull_fit` si calcola dai 33 blocchi di fit ed è
+noto solo dopo la campagna. Ogni lato confronta coordinate della stessa base con un
+inviluppo costruito in quella base.
 
 *Giustificazione.* Le celle del disegno non riempiono un rettangolo: la regione
 `N_in > 32, N_out < 32` è coperta, la regione `N_in < 32, N_out > 32` no, e
 prendere il box avrebbe spacciato per interpolazione bilineare
 un'estrapolazione mascherata. I vertici sono **quattro**, non cinque: `(32,32)`
 sta dentro con margine 21,2 token e il poligono che lo includesse fra `(8,4)` e
-`(512,32)` non sarebbe convesso. Margini verificati numericamente il 24-10-2026:
-`(12,32)` → 1,33 token, `(256,192)` → 64,0, `(32,32)` → 21,2, `(128,128)` →
-107,7. Il punto operativo `(12,32)` è quindi in fascia A per 1,33 token:
+`(512,32)` non sarebbe convesso. Margini di progetto verificati numericamente il
+24-10-2026 sulle coordinate **target**: `(12,32)` → 1,33 token, `(256,192)` →
+64,0, `(32,32)` → 21,2, `(128,128)` → 107,7.
+
+Il secondo inviluppo esiste perché il fit è stimato sui token **reali** (F.6, F.7)
+e il target non è una coordinata: a `N_in = 64` dichiarato corrispondevano 126
+token reali (P2.2, `lhm_validation_v3_20261023_185232.csv:2`). Classificare sulla base di progetto e stimare su quella reale
+può mettere in fascia A un punto che è fuori dall'inviluppo dei dati usati dal fit.
+Prendere il più conservativo dei due è la sola regola che non sposti una soglia
+dopo aver visto i numeri: la fascia può peggiorare a misura fatta, e si dichiara.
+
+Il punto operativo `(12,32)` è in fascia A di progetto per 1,33 token:
 `thin_support` non cambia l'intervallo, dichiara che la classificazione A si
-regge su un supporto di progetto sottile e che a sostenerla è la conferma
-empirica di F.10, non la geometria. Non esiste una penalità di estrapolazione
-inventata: la fascia B è descrittiva e la fascia C non pubblica.
+regge su un supporto sottile e che a sostenerla è la conferma empirica di F.10,
+non la geometria. Limite ulteriore: la classificazione è sulla proiezione
+`(x1_b, x2_b)`, il fit vive in `(x1_b, x2_b, x12_b)`, quindi la fascia A è
+condizione necessaria non sufficiente per l'interpolazione. Non esiste una
+penalità di estrapolazione inventata: la fascia B è descrittiva e la fascia C non
+pubblica.
 
 ### F.14 Bootstrap dei residui standardizzati (P4.8)
 
@@ -2495,7 +2599,8 @@ Contenuti obbligatori già elencati dai punti congelati. P3.13: `batch_id`,
 `pre_unstable`, `baseline_unstable`, `design_deviation`. P4.12: `block_kind`,
 `pair_id`, `order_seed`, `dt_nominal_s`, `dt_tick_s`, `p_peak_w`, `u_edge_j`,
 `budget_fit_j`, `budget_pred_j`, `u_bias_j`, `bias_w`, `z_resid`,
-`hull_margin_tok`, `coverage_tier`, `sparse_support`, `thin_support`,
+`hull_margin_tok`, `hull_margin_design_tok`, `coverage_tier`,
+`coverage_tier_design`, `coverage_tier_fit`, `sparse_support`, `thin_support`,
 `out_of_coverage`, `bootstrap_seed`, `validation_bias_pass`, `control_unstable`,
 `chain_status`.
 
@@ -2507,4 +2612,7 @@ una sola cifra in `idle_power_w`), `baseline_post_w`, `dP`, `pre_range_w` di F.3
 nomi, tipi e unità di tutto il resto: tre di queste — `budget_base_j`,
 `pre_range_w` e `dP` — sono la soglia e il filtro di stabilità del test di F.12,
 quindi se non diventano colonne il gate di P4.5 non è calcolabile dai dati
-salvati.
+salvati. `Δt̄_W,b` di F.11 fa caso a sé: è la media per blocco della `duration_s`
+già mappata qui sopra, quindi non è una colonna nuova, ma P5 dichiari che è una
+quantità derivata e da dove si calcola — `u_bias,b` ne dipende e senza quella
+dichiarazione torna ambiguo.
