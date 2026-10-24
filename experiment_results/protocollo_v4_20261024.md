@@ -8,7 +8,7 @@ Data: 2026-10-24. Branch: `energy-consumption-framework-ollama-d248a`.
 
 | punto | oggetto | stato |
 |---|---|---|
-| P1 | baseline e calibrazione idle | **congelato 2026-10-24** |
+| P1 | baseline e calibrazione idle | **congelato 2026-10-24** (emendato: sensibilità post-hoc) |
 | P2 | token effettivi e terminazione | aperto |
 | P3 | geometria, modello e stima | aperto |
 | P4 | incertezza e validazione | aperto |
@@ -201,7 +201,48 @@ direttamente.
 - la scelta della finestra sposta la media di ±4,0–4,8% (§4): la finestra va
   fissata e dichiarata, non decisa a runtime.
 
-### P1.10 Ancoraggi
+### P1.10 Analisi di sensibilità (post-hoc, secondaria)
+
+L'estimatore primario resta quello di P1.1: mediana di tre finestre da 30 s,
+`P_pre` applicato, `P_post` diagnostico. Non si introducono come primari
+interpolazione, regressione, Kalman, media mobile o modelli per processo:
+cambierebbero stimatore e protocollo insieme, e la differenza fra v4 e
+produzione non sarebbe più attribuibile al protocollo.
+
+Aggiunta ammessa, dichiarata secondaria e calcolata **dopo** la chiusura dei dati
+primari:
+
+```
+t_pre_mid    = centro temporale delle tre finestre pre
+t_post_mid   = centro temporale delle tre finestre post
+P_lin(t)     = P_pre + (P_post − P_pre) · (t − t_pre_mid) / (t_post_mid − t_pre_mid)
+E_base_lin,i = Δt_W,i · P_lin(t_mid,W,i)
+E_net_lin,i  = E_pkg_gross,i − E_base_lin,i
+Δ_sens,i     = E_net_lin,i − E_net_incremental,i
+```
+
+Regole:
+
+- `Δ_sens` si riporta in J e in J/token, per punto e per blocco; non sostituisce
+  mai il valore primario e non entra nel fit primario;
+- se `|Δ_sens| ≤ budget_base_j` del blocco, l'interpolazione non aggiunge
+  informazione: il primario è sufficiente. Altrimenti si dichiara la differenza
+  e resta il primario;
+- l'interpolazione assume drift lineare fra pre e post. Il drift misurato non è
+  necessariamente lineare: nel run v3 la baseline va da 13,28 a 12,82 W, con
+  `dP = −0,461 W` (`lhm_validation_v3_20261023_185232.md:13,24`), e fra run è
+  passata da 13,39 a 12,19 W (`idee_implementative_20261024.md:67`). Per questo
+  la sensibilità non arbitra;
+- i numeri di drift citati in bozze esterne (+1,2 / −1,5 / +1,8 W) non provengono
+  da questo repository e non entrano nella tesi: i riferimenti citabili sono
+  quelli ancorati qui sopra.
+
+Stimatori più complessi (regressione su tutta la finestra, Kalman, media mobile,
+modello per processo) sono rinviati a una **v5** con validazione dedicata. Senza
+misura dell'errore sul nostro hardware sarebbero complessità aggiuntiva, non
+miglioramento.
+
+### P1.11 Ancoraggi
 
 - estimatore: `energy_session.py:2229-2409`, in particolare `:2363-2396`; floor
   `:2252-2257`; delta negativo `:2383-2387`;
@@ -210,11 +251,13 @@ direttamente.
 - sensibilità: `experiment_results/idle_floor_sensitivity_20261023_analisi.md`
   §1–4;
 - osservatore: `experiment_results/observer_cost_20261023_analisi.md` §2;
+- drift v3: `experiment_results/lhm_validation_v3_20261023_185232.md:13,24` e
+  `.json:27-28`; baseline fra run: `experiment_results/idee_implementative_20261024.md:67`;
 - incoerenza nota: `config.py:319` default 10 s contro floor 30 s; la v4 passa
   30 s espliciti e non tocca il default in questo punto.
 
-### P1.11 Aperto
+### P1.12 Aperto
 
 Niente per P1. I numeri 0,5 W (settling), 1,0 W (range) e 10% (drift) sono
 soglie operative dichiarate, non costanti scientifiche; restano quelle anche dopo
-i dati.
+i dati. La sensibilità di P1.10 si esegue in P6, non qui.
