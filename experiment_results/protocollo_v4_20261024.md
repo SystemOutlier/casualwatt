@@ -2841,8 +2841,9 @@ sta dentro con margine 21,2 token e il poligono che lo includesse fra `(8,4)` e
 64,0, `(32,32)` → 21,2, `(128,128)` → 107,7.
 
 Il secondo inviluppo esiste perché il fit è stimato sui token **reali** (F.6, F.7)
-e il target non è una coordinata: a `N_in = 64` dichiarato corrispondevano 126
-token reali (P2.2, `lhm_validation_v3_20261023_185232.csv:2`). Classificare sulla base di progetto e stimare su quella reale
+e il target non è una coordinata: a `N_in = 64` dichiarato corrispondevano **126**
+token reali per inferenza, `tokens_in=378` su 3 inferenze (P2.2,
+`lhm_validation_v3_20261023_185232.csv:2`). Classificare sulla base di progetto e stimare su quella reale
 può mettere in fascia A un punto che è fuori dall'inviluppo dei dati usati dal fit.
 Prendere il più conservativo dei due è la sola regola che non sposti una soglia
 dopo aver visto i numeri: la fascia può peggiorare a misura fatta, e si dichiara.
