@@ -101,7 +101,15 @@ class _CPUJouleSource:
         self._emi_thread: Optional[threading.Thread] = None
         self._emi_stop = threading.Event()
         self._emi_lock = threading.Lock()
-        self._emi_samples: List[tuple] = []     # (t_monotono, cum_j)
+        self._emi_samples: List[tuple] = []     # (t_monotono, cum_j) del PKG
+        # PP1 (involto grafico) nella STESSA IOCTL del PKG: (t, cum_j, ts_j)
+        # dove ts_j e' il timestamp del record PP1 in unita' da 100 ns. Il
+        # timestamp per dominio esiste per un solo motivo: distinguere "il
+        # dominio ha consumato zero" da "il driver non aggiorna quel canale".
+        self._emi_pp1_samples: List[tuple] = []
+        #: Perche' l'ultima lettura del dominio PP1 ha risposto None (note
+        #: del CSV): un'assenza senza motivazione e' ambigua.
+        self._pp1_read_reason: Optional[str] = None
         self._local_disabled_msg = (
             "Local CPU energy measurement is available on Windows (LibreHardwareMonitor) "
             "and Linux (RAPL via /sys/class/powercap/)."
@@ -984,13 +992,28 @@ class _CPUJouleSource:
         NON integra nulla: il contatore e' gia' energia. Il buffer (t, J)
         serve solo a poter collocare i bordi di una finestra trascorsa fra
         due campioni (lettura esatta ai bordi, come per il thread PI).
+
+        UNA sola IOCTL per tick alimenta sia il PKG sia il PP1: leggere i
+        due domini con due chiamate avrebbe significato due record diversi
+        nella stessa riga di CSV, e il delta PP1 non sarebbe piu' sullo
+        stesso istante del delta PKG.
         """
         while not self._emi_stop.is_set():
             t = time.monotonic()
+            cum = None
+            pp1 = None
             try:
-                cum = self._emi.read_cumulative_energy_j() if self._emi else None
+                if self._emi is not None:
+                    domains = self._emi.read_domains() if hasattr(
+                        self._emi, "read_domains") else None
+                    if domains is not None:
+                        cum = domains["pkg"][0]
+                        pp1 = (domains["pp1"][0], domains["pp1"][1])
+                    else:
+                        cum = self._emi.read_cumulative_energy_j()
             except Exception:
                 cum = None
+                pp1 = None
             if cum is not None:
                 with self._emi_lock:
                     if self._emi_samples and cum < self._emi_samples[-1][1]:
@@ -1000,6 +1023,14 @@ class _CPUJouleSource:
                     self._emi_samples.append((t, cum))
                     if len(self._emi_samples) > 4000:
                         del self._emi_samples[:2000]
+            if pp1 is not None:
+                with self._emi_lock:
+                    if (self._emi_pp1_samples
+                            and pp1[0] < self._emi_pp1_samples[-1][1]):
+                        self._emi_pp1_samples.clear()
+                    self._emi_pp1_samples.append((t, pp1[0], pp1[1]))
+                    if len(self._emi_pp1_samples) > 4000:
+                        del self._emi_pp1_samples[:2000]
             self._emi_stop.wait(self.POWER_SAMPLE_INTERVAL_S)
 
     def _start_emi_sampling(self) -> None:
@@ -1021,7 +1052,11 @@ class _CPUJouleSource:
         self._emi_thread = None
 
     def _emi_cum_at(self, buf: List[tuple], t: float) -> Optional[float]:
-        """Contatore interpolato linearmente all'istante t (None fuori copertura)."""
+        """Contatore interpolato linearmente all'istante t (None fuori copertura).
+
+        Funziona sia sui buffer a due campi ``(t, cum_j)`` del PKG sia su
+        quelli a tre ``(t, cum_j, ts_j)`` di PP1: indicizza, non spacchetta.
+        """
         if not buf:
             return None
         if t <= buf[0][0]:
@@ -1033,28 +1068,77 @@ class _CPUJouleSource:
         import bisect
         ts = [p[0] for p in buf]
         i = bisect.bisect_left(ts, t)
-        (t0, e0), (t1, e1) = buf[i - 1], buf[i]
+        t0, e0 = buf[i - 1][0], buf[i - 1][1]
+        t1, e1 = buf[i][0], buf[i][1]
         if t1 == t0:
             return e1
         return e0 + (e1 - e0) * (t - t0) / (t1 - t0)
 
+    def _emi_pp1_frozen(self, buf: List[tuple], t_start: float,
+                        t_end: float) -> bool:
+        """True se il registro PP1 NON e' stato aggiornato nella finestra.
+
+        Il record EMI porta un timestamp PER dominio: se i timestamp dei
+        campioni interni alla finestra sono tutti identici, il canale non
+        viene popolato dal driver e il suo valore e' vecchio, non zero.
+        Riportarlo come 0,000 J vorrebbe dire dichiarare una misura che non
+        c'e'. Con meno di due campioni in finestra la domanda non e'
+        decidibile e si lascia rispondere alla copertura del buffer.
+        """
+        inside = [p for p in buf if t_start <= p[0] <= t_end and len(p) > 2]
+        if len(inside) < 2:
+            return False
+        return len({p[2] for p in inside}) == 1
+
     def emi_window_energy_j(self, t_start: float, t_end: float,
-                            exclude_windows: Optional[List[tuple]] = None
-                            ) -> Optional[float]:
+                            exclude_windows: Optional[List[tuple]] = None,
+                            domain: str = "pkg") -> Optional[float]:
         """Delta del CONTATORE cumulativo sulla finestra, letti i bordi dal
         buffer a 0,05 s (nessuna integrazione trapezoidale: il cumulativo
         NON la richiede). Le sottofinestre escluse (LLM Judge) sono rimosse
         alla fonte: si somma solo la differenza sui segmenti tenuti.
 
+        ``domain`` seleziona il dominio del record: "pkg" (come il package
+        e' sempre stato letto) o "pp1" (involto grafico, campo informativo
+        che NON si somma al package). Altri domini non sono campionati dal
+        sampler e rispondono None con la ragione dichiarata.
+
         Ritorna None se il metodo non e' 'emi-counter', se il backend non ha
-        letture, o se il buffer non copre la finestra (il chiamante degrada
-        al fallback dichiarato sui campioni).
+        letture, se il buffer non copre la finestra (il chiamante degrada
+        al fallback dichiarato sui campioni) o se il dominio e' fermo.
+        La ragione del None finisce in ``pp1_read_reason`` per le note del
+        CSV: un'assenza muta e' ambigua quanto un numero sbagliato.
         """
+        if domain == "pp1":
+            # la ragione e' lo slot DELL'ultima lettura PP1: una lettura del
+            # package non la deve cancellare (il profiler le fa entrambe)
+            self._pp1_read_reason = None
         if self.method != "emi-counter":
             return None
-        with self._emi_lock:
-            buf = list(self._emi_samples)
+        if domain == "pkg":
+            with self._emi_lock:
+                buf = list(self._emi_samples)
+        elif domain == "pp1":
+            with self._emi_lock:
+                buf = list(self._emi_pp1_samples)
+        else:
+            self._pp1_read_reason = (
+                f"dominio {domain!r} non campionato dal sampler EMI "
+                "(solo pkg e pp1)"
+            )
+            return None
         if len(buf) < 2:
+            if domain == "pp1":
+                self._pp1_read_reason = (
+                    "nessun campione PP1 nel buffer (dominio non esposto "
+                    "dal driver o letture fallite)"
+                )
+            return None
+        if domain == "pp1" and self._emi_pp1_frozen(buf, t_start, t_end):
+            self._pp1_read_reason = (
+                "registro PP1 fermo nella finestra: il timestamp del dominio "
+                "non avanza, quindi il valore sarebbe vecchio, non zero"
+            )
             return None
         segments = [(max(t_start, a), min(t_end, b)) for a, b in
                     _free_subintervals((t_start, t_end),
@@ -1063,6 +1147,11 @@ class _CPUJouleSource:
         for (a, b) in segments:
             ca, cb = self._emi_cum_at(buf, a), self._emi_cum_at(buf, b)
             if ca is None or cb is None or cb < ca:
+                if domain == "pp1" and self._pp1_read_reason is None:
+                    self._pp1_read_reason = (
+                        "buffer PP1 non copre la finestra richiesta "
+                        "(nessuna estrapolazione del cumulativo)"
+                    )
                 return None
             total += cb - ca
         return round(max(total, 0.0), 6)
@@ -1262,6 +1351,16 @@ class _CPUJouleSource:
     def last_read_error(self) -> Optional[str]:
         """Messione d'errore dell'ultima lettura fallita (per GUI/log)."""
         return getattr(self, "_last_read_error", None)
+
+    @property
+    def pp1_read_reason(self) -> Optional[str]:
+        """Ragione dichiarata dell'ultimo None su una lettura di dominio EMI.
+
+        Lo slot riguarda le letture di dominio (PP1 e i domini non
+        campionati); una lettura del package non lo tocca, perche' il
+        profiler le esegue entrambe nella stessa finestra.
+        """
+        return getattr(self, "_pp1_read_reason", None)
 
     def _record_read_error(self, exc: BaseException, ctx: str) -> None:
         msg = f"{ctx}: {type(exc).__name__}: {exc}"
@@ -1522,6 +1621,10 @@ class EnergySession:
         self.idle_provenance: Optional[str] = None
         self.calibrated_at: Optional[float] = None
         self.last_error: Optional[str] = None
+        # Perche' l'ultima lettura del dominio grafico ha risposto None: la
+        # nota finisce nel CSV, perche' un campo informativo assente senza
+        # motivazione e' indistinguibile da un dominio che non esiste.
+        self._igpu_none_reason: Optional[str] = None
 
     # ------------------------------------------------------------------ util
     @staticmethod
@@ -1846,26 +1949,50 @@ class EnergySession:
     def read_igpu_energy_j(self, t_start: float, t_end: float,
                            exclude_windows: Optional[List[tuple]] = None
                            ) -> Optional[float]:
-        """Energia del sensore 'CPU Graphics' [W] integrata sulla finestra.
+        """Energia del dominio grafico INTEGRATO sulla finestra [J].
 
-        Integrale TRAPEZOIDALE dei campioni ``igpu_power_w`` dentro
-        [t_start, t_end] (bordi interpolati da ``samples_between``), con le
-        sottofinestre ``exclude_windows`` (es. chiamata LLM Judge) rimosse:
-        i segmenti che le intersecano vengono troncati ai bordi dell'esclusione
-        e la potenza interpolata linearmente, quindi si integra solo la parte
-        tenuta (nessuno scaling per frazione temporale).
+        Due percorsi reali, entrambi senza stima e senza termine sommato:
+
+        * ``emi-counter``: delta del contatore PP1 del record EMI, letto ai
+          BORDI della finestra dal buffer a 0,05 s (``emi_window_energy_j``
+          con ``domain='pp1'``) e con le sottofinestre escluse sottratte alla
+          fonte. Niente integrazione: PP1 e' gia' energia, ed e' lo stesso
+          record da cui viene il package, quindi il campione e' lo stesso
+          istante del PKG.
+        * ``power-integration``: integrale TRAPEZOIDALE dei campioni
+          ``igpu_power_w`` del sensore 'CPU Graphics' (bordi interpolati da
+          ``samples_between``), con le sottofinestre ``exclude_windows`` (es.
+          chiamata LLM Judge) rimosse: i segmenti che le intersecano vengono
+          troncati ai bordi dell'esclusione e la potenza interpolata
+          linearmente, quindi si integra solo la parte tenuta (nessuno
+          scaling per frazione temporale).
 
         CAMPO INFORMATIVO: su Intel/AMD il package include gia' la grafica,
         quindi il valore NON viene mai sommato a local_energy_j. Ritorna None
-        (N/A dichiarato) se il sensore non esiste/non e' leggibile o se la
-        finestra contiene meno di 2 campioni con potenza iGPU valida.
+        (N/A dichiarato, con la ragione in ``igpu_unavailable_reason``) se il
+        dominio non e' esposto, se il suo registro e' fermo nella finestra,
+        se il sensore LHM non c'e' o se la finestra ha meno di 2 campioni
+        validi.
         """
+        if self._source.method == "emi-counter":
+            v = self._source.emi_window_energy_j(
+                t_start, t_end, exclude_windows, domain="pp1")
+            self._igpu_none_reason = None if v is not None else (
+                self._source.pp1_read_reason)
+            return v
         if self._source.method != "power-integration" or not self._source._lhm_opened:
+            self._igpu_none_reason = (
+                "metodo " + str(self._source.method) + ": nessun sensore "
+                "'CPU Graphics' da integrare"
+            )
             return None
         pts = [(s.t, s.igpu_power_w)
                for s in self.samples_between(t_start, t_end)
                if s.igpu_power_w is not None]
         if len(pts) < 2:
+            self._igpu_none_reason = (
+                f"meno di 2 campioni iGPU validi nella finestra ({len(pts)})"
+            )
             return None
         excl = sorted(
             [(max(a, t_start), min(b, t_end)) for a, b in (exclude_windows or [])
@@ -1886,6 +2013,12 @@ class EnergySession:
     @property
     def source_notes(self) -> List[str]:
         return self._source.notes
+
+    @property
+    def igpu_unavailable_reason(self) -> Optional[str]:
+        """Ragione dichiarata dell'ultimo ``igpu_energy_j = None`` (o None se
+        l'ultima lettura ha prodotto un valore)."""
+        return getattr(self, "_igpu_none_reason", None)
 
     def latest(self) -> Optional[SystemSample]:
         with self._lock:

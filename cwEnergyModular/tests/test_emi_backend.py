@@ -18,7 +18,15 @@ from energy import energy_session as es
 
 
 class FakeEMI:
-    """Stessa superficie di EMICounterBackend usata dal sorgente."""
+    """Stessa superficie di EMICounterBackend usata dal sorgente.
+
+    ``read_domains`` NON e' riscritto qui: e' il metodo VERO del backend,
+    applicato al record finto. Falsa resta solo la IOCTL, che e' il confine
+    con l'hardware; la conversione pWh->J e la mappa offset->dominio sono
+    le stesse che passano in produzione.
+    """
+
+    read_domains = eb.EMICounterBackend.read_domains
 
     def __init__(self, auto_open=True, available=True):
         self.notes = []
@@ -26,9 +34,11 @@ class FakeEMI:
         self.device_path = "\\\\?\\fake#device" if available else None
         self.last_error = None if available else "no device (fake)"
         self.closed = False
+        self.raw_calls = 0
 
     def read_raw(self):
         # PKG=1_000_000 pWh, ts, DRAM=0, ts, PP0=500_000, ts, PP1=250_000, ts
+        self.raw_calls += 1
         return (1_000_000, 42, 0, 0, 500_000, 43, 250_000, 44)
 
     def read_cumulative_energy_j(self):
