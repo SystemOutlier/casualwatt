@@ -11,8 +11,9 @@ ancoraggio non torna, il file e' stantio: va corretto, non ignorato.
 
 Fonti primarie, in ordine di autorita':
 
-1. `experiment_results/protocollo_v4_20261024.md` — decisioni congelate P1-P4 e
-   formulario consolidato F.0-F.17;
+1. `experiment_results/protocollo_v4_20261024.md` — decisioni congelate P1-P4,
+   formulario consolidato F.0-F.17 e sezione preparatoria P6 (derivata, senza
+   decisioni);
 2. il codice in `cwEnergyModular/`;
 3. gli artefatti tracciati in `experiment_results/`;
 4. questo file.
@@ -45,7 +46,15 @@ Fonti primarie, in ordine di autorita':
 
 P1 (baseline), P2 (token e terminazione), P3 (geometria e modello), P4
 (incertezza e validazione) sono **congelati**. P5 (schema CSV e runner) e P6
-(esecuzione e analisi) sono **aperti**.
+(esecuzione e analisi) sono **aperti**; di P6 esiste solo una sezione
+preparatoria (P6.1 pavimento di tempo a muro, P6.2 obblighi di esecuzione del
+pilota) che e' derivata e non contiene decisioni.
+
+C'e' una sola eccezione dichiarata al congelamento: la **forma di combinazione**
+di `budget_base_w` (quadratura o somma aritmetica) e' una decisione operativa
+provvisoria, rinviata ai dati del pilota P2.9 e da chiudere **prima** della
+campagna principale (protocollo P1.7, P1.13). La formula non si tocca nel
+frattempo.
 
 **Il codice sorgente di produzione resta bloccato fino al congelamento di P5.**
 Si puo' leggere, verificare e analizzare; non si implementa la v4 prima che P5
@@ -80,7 +89,10 @@ stanno solo le regole che un agente puo' violare senza accorgersene.
 - **Baseline = mediana, non media.**
   `baseline_pre_w = mediana(P_rep,1..3)` su tre finestre da 30 s (P1.3). Con
   `n = 3` una finestra contaminata sposta la media ma non la mediana (P1.14).
-  Si applica `P_pre`; `P_post` e' diagnostica (`dP`), mai applicata.
+  Si applica `P_pre`; `P_post` e' diagnostica (`dP`), mai applicata. La ragione e'
+  causale: la richiesta e' l'intervento, quindi il post e' una grandezza
+  post-trattamento e condizionarvi l'estimatore renderebbe la correzione
+  dipendente dall'esito che deve correggere (P1.14, motivazione causale).
 - **Nessun troncamento.** Gli incrementi negativi si conservano con il flag
   `negative_increment`. La produzione attuale tronca due volte
   (`energy/local_energy.py:300` e `:309-310`); la v4 non lo fa e la differenza
@@ -98,6 +110,19 @@ stanno solo le regole che un agente puo' violare senza accorgersene.
   budget conservativi. Ogni numero pubblicato esce con il suo `budget_pred` e con
   la sua fascia di copertura; la copertura e' un campo (`coverage_tier`,
   `hull_margin_tok`), non un aggettivo nel testo.
+- **La quadratura non e' un limite conservativo garantito.** Per due termini non
+  negativi, `sqrt(a^2+b^2)/(a+b)` sta fra `1/sqrt(2)` e `1`: la somma aritmetica
+  e' fra 1,00 e 1,41 volte la quadratura, qualunque siano i valori. La forma scelta e'
+  provvisoria (P1.7): si scrive "budget", non "limite superiore garantito", e non
+  si presenta la quadratura come se fosse la scelta scientificamente obbligata. La
+  scelta dipende da cosa rappresenta il budget — incertezze standard combinabili
+  sotto un'ipotesi probabilistica, oppure limiti assoluti senza compensazione — e
+  non da quanto e' grande il numero.
+- **Nessuna colonna di deviazione standard a `n = 3`** (P4.12). Non e' una stima
+  utilizzabile di varianza ed e' ridondante: la terna `(min, med, max)` **e'** la
+  terna delle osservazioni riordinata, quindi `sd` ne e' una funzione
+  deterministica. Si registrano i tre valori, la mediana, il minimo, il massimo e
+  il range. Un indicatore ridondante suggerisce che esista una sigma stimata.
 - **Un accordo fra due letture dello stesso registro NON e' una validazione
   indipendente.** EMI, LibreHardwareMonitor e SRUM leggono tutti
   `MSR_PKG_ENERGY_STATUS` (0x611): concordano per costruzione anche se la scala
