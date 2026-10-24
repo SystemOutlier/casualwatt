@@ -8,16 +8,19 @@ Data: 2026-10-24. Branch: `energy-consumption-framework-ollama-d248a`.
 
 | punto | oggetto | stato |
 |---|---|---|
-| P1 | baseline e calibrazione idle | **congelato 2026-10-24** (emendato: sensibilità post-hoc; letteratura e confronto CodeCarbon) |
+| P1 | baseline e calibrazione idle | **congelato 2026-10-24** (emendato: sensibilità post-hoc; letteratura e confronto CodeCarbon; terza emenda di forma — motivazione causale del pre applicato in P1.14/F.2, e forma di combinazione di `budget_base_w` dichiarata decisione operativa provvisoria con rinvio motivato ai dati del pilota P2.9: P1.7, P1.13) |
 | P2 | token effettivi e terminazione | **congelato 2026-10-24** |
 | P3 | geometria, modello e stima | **congelato 2026-10-24** |
-| P4 | incertezza e validazione | **congelato 2026-10-24** (emendato: inviluppo convesso per la copertura, bootstrap dei residui standardizzati, criterio monolitico di catena, `u_edge` solo nel budget predittivo; seconda emenda solo di forma: P4.1 in quattro clausole, P4.4 a otto requisiti numerati con la baseline 3 pre + 3 post obbligatoria anche sui controlli) |
+| P4 | incertezza e validazione | **congelato 2026-10-24** (emendato: inviluppo convesso per la copertura, bootstrap dei residui standardizzati, criterio monolitico di catena, `u_edge` solo nel budget predittivo; seconda emenda solo di forma: P4.1 in quattro clausole, P4.4 a otto requisiti numerati con la baseline 3 pre + 3 post obbligatoria anche sui controlli; terza emenda solo di forma: seconda ragione in P4.12 per non adottare la deviazione standard a n = 3) |
 | P5 | campi CSV e runner | aperto |
-| P6 | esecuzione e analisi | aperto |
+| P6 | esecuzione e analisi | aperto (sezione preparatoria P6.1–P6.2: vincoli derivati dai punti congelati, nessuna decisione) |
 
 Le formule di P1–P4 sono raccolte, con applicazione e giustificazione, nella
 sezione finale **Formulario consolidato (F.0–F.17)**: è una sezione derivata, non
-introduce decisioni e in caso di divergenza vince il punto congelato.
+introduce decisioni e in caso di divergenza vince il punto congelato. La sezione
+**P6 — Esecuzione e analisi** che la precede è anch'essa derivata e dichiarata
+aperta: contiene solo vincoli che P1–P4 già impongono all'esecuzione, e in caso di
+divergenza vincono i punti congelati.
 
 ---
 
@@ -1462,6 +1465,69 @@ aperte:
   cambiano i punti di disegno e con essi l'inviluppo di P4.7;
 - se il lack-of-fit di P3.9 è significativo, `chain_status` scende a
   `model_inadequate` e la superficie si riporta come descrizione.
+
+---
+
+## P6 — Esecuzione e analisi (aperto)
+
+P6 non è congelato e questa sezione **non contiene decisioni**: raccoglie i
+vincoli che i punti già congelati impongono all'esecuzione, e che altrimenti
+resterebbero impliciti fino al giorno della campagna. Ogni numero qui sotto è
+aritmetica dei punti congelati, non una stima.
+
+### P6.1 Pavimento di tempo a muro delle finestre idle
+
+- ogni blocco misura la baseline una volta sola, con tre finestre pre da 30 s e
+  tre post da 30 s (P1.5, P3.7): 6 × 30 s = **180 s per blocco**;
+- la campagna principale ha **39 blocchi** (P3.5: 33 di fit su 10 punti, con il
+  centro a 6, più 6 di conferma su 2 punti): 39 × 180 s = **7.020 s = 1 h 57 min**;
+- la campagna di gate di P4.4 aggiunge 6 blocchi (3 coppie × carico + controllo):
+  6 × 180 s = **1.080 s = 18 min**;
+- pavimento complessivo delle sole finestre idle: **8.100 s = 2 h 15 min**;
+- a questo si aggiungono due attese per blocco, ognuna con tetto 120 s: il
+  settling prima del pre e il settling prima del post (P1.5). Nel caso peggiore,
+  se entrambi raggiungono il tetto: 39 × 240 s = **9.360 s = 2 h 36 min**.
+
+**Come vanno letti questi numeri.** 2 h 15 min è il **pavimento delle sole
+finestre idle**: esclude le 117 richieste, i warm-up, il cooldown fra i punti
+(P1.5, criterio distinto dal settling), i ritentativi di P1.6 e ogni
+interruzione. 2 h 36 min è il **massimo** dei due settling, non il loro valore
+tipico: la durata tipica del settling non è mai stata misurata su questa macchina
+con la struttura v4, quindi non esiste una stima di durata totale affidabile.
+Sommare pavimento e massimo produrrebbe un numero senza stato — uno è un limite
+inferiore certo, l'altro un limite superiore di una sola componente — e non va
+fatto.
+
+**Cosa ne segue.** La durata totale diventa stimabile solo dopo che il pilota ha
+prodotto due grandezze: la mediana della durata di richiesta (che P4.4 requisito 5
+usa già per fissare `dt_nominal_s`) e la durata reale dei settling. Registrare
+`settle_pre_s` — già previsto da P1.5 — e il valore corrispondente del post, il
+cui nome è compito di P5, sui primi blocchi del pilota, e stimare la durata
+totale **prima** di pianificare la campagna principale. La conseguenza operativa
+è che la campagna non è pianificabile a calendario senza quella stima, e che una
+sua interruzione rompe la continuità dello stato macchina richiesta da P1.4
+(`keep_alive = -1`, modello residente e caldo), producendo blocchi non
+confrontabili.
+
+### P6.2 Il pilota deve eseguire la sequenza di baseline di P1.5
+
+Conseguenza del rinvio approvato in P1.7, non una modifica di P2.9.
+
+La forma di combinazione di `budget_base_w` si decide sui dati del pilota, e il
+dato che manca è `half_range_pre_w`, cioè l'escursione fra le tre repliche pre.
+Le tre prove di P2.9 (A semantica di `done_reason`, B cache, C contesto) non lo
+producono da sole: nessuna delle tre prescrive finestre di baseline. I run v3,
+che sono gli unici dati di baseline esistenti, usavano una finestra da 10 s per
+fase (`lhm_validation_v3_20261023_185232.md:6`), quindi non esiste ancora una
+terna.
+
+Il requisito di esecuzione è quindi: **il pilota gira con lo stesso runner della
+campagna, e ogni suo blocco esegue la sequenza completa di P1.5** — settling, tre
+finestre pre da 30 s, tre post da 30 s — così che le prove A, B e C producano
+anche le prime terne reali. P2.9 resta congelato com'è: cambia come il pilota
+viene eseguito (P6), non che cosa verifica (P2). Se il pilota fosse eseguito con
+un harness diverso dal runner di campagna, la decisione rinviata in P1.7 non
+avrebbe dati su cui chiudersi e andrebbe presa senza evidenza.
 
 ---
 
