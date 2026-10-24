@@ -93,6 +93,14 @@ CSV_COLUMNS: List[str] = [
     # token del canale package CPU; per le righe cloud e' il canale del CLIENT
     # locale (il server non e' misurato qui: vedere cloud_energy_method).
     "energy_calculation_method",
+    # alt_lhm.DOCX (24/10), contratto §3: la riga porta anche i valori GREZZI
+    # del contatore agli estremi di finestra, l'unita' nativa, il dominio, la
+    # cadenza REALMENTE osservata (non quella richiesta) e la versione del
+    # percorso di lettura. Senza questi campi package_energy_j e' un numero
+    # che richiede di fidarsi del buffer; con questi e' revisionabile.
+    # Accodate in coda: i CSV storici si migrano con ensure_header.
+    "raw_start", "raw_end", "raw_unit", "domain",
+    "sampling_interval_observed_s", "backend_version",
 ]
 
 

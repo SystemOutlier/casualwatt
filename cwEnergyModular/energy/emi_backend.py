@@ -76,6 +76,13 @@ DOMAIN_NAMES = ("pkg", "dram", "pp0", "pp1")
 #: quello attivo (il campo per riga resta l'unico arbitro di comparabilita').
 METHOD_LABEL = "emi-counter"
 
+#: Versione del PERCORSO DI LETTURA (non del driver): cambia quando cambia il
+#: contratto di lettura (record, unita', IOCTL). Finisce in ``backend_version``
+#: accanto ai valori grezzi, perche' una riga di CSV senza la versione del
+#: lettore non e' riproducibile.
+READER_VERSION = "emi-reader/1"
+BACKEND_VERSION = f"{READER_VERSION} (IOCTL 0x{IOCTL_ENERGY_READ:08X})"
+
 
 class EMICounterBackend:
     """Lettore del contatore cumulativo EMI (pkg in Joule).
@@ -271,7 +278,7 @@ class EMICounterBackend:
         return out
 
     def read_domains(self) -> Optional[Dict[str, tuple]]:
-        """Una sola IOCTL -> ``dominio -> (cumulata [J], timestamp 100 ns)``.
+        """Una sola IOCTL -> ``dominio -> (cumulata [J], timestamp 100 ns, pWh)``.
 
         Il timestamp e' PER DOMINIO (offset dispari di ogni coppia del
         record), non uno solo: e' cio' che distingue un dominio che ha
@@ -280,13 +287,18 @@ class EMICounterBackend:
         (``ts_100ns``), quindi chi interrogava PP1 non aveva modo di sapere
         se quel valore fosse vecchio o fosse davvero zero.
 
+        Il terzo elemento e' il valore GREZZO in pWh, non ricostruito da J:
+        serve al campo ``raw_start``/``raw_end`` del CSV (contratto di
+        ``alt_lhm`` §3). I chiamanti storici usano ``[0]`` e ``[1]`` e non
+        vengono toccati; chi vuole il grezzo legge ``[2]``.
+
         Nessuna conversione ne' scelta di canale qui: la politica (quale
         dominio, con quale regola di freschezza) sta nel chiamante.
         """
         v = self.read_raw()
         if v is None:
             return None
-        return {name: (v[2 * i] * PWH_TO_J, v[2 * i + 1])
+        return {name: (v[2 * i] * PWH_TO_J, v[2 * i + 1], v[2 * i])
                 for i, name in enumerate(DOMAIN_NAMES)}
 
     # --------------------------------------------------------------- close

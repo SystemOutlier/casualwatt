@@ -50,6 +50,26 @@ MEASURED_METHODS = ("emi-counter", "power-integration",
                     "librehardwaremonitor-energy", "energy-file", "rapl")
 
 
+def _median_sampling_interval(points: List[tuple], t_start: float,
+                              t_end: float) -> Optional[float]:
+    """Cadenza OSSERVATA (mediana dei delta) dei campioni nella finestra.
+
+    La media e' trascinata dalle pause del thread (misurato: 0,0506 s ->
+    0,0770 s sotto spin); la mediana descrive il passo tipico. Meno di due
+    campioni in finestra: cadenza non stimabile, quindi None.
+    """
+    ts = sorted(p[0] for p in points if t_start <= p[0] <= t_end)
+    if len(ts) < 2:
+        return None
+    deltas = sorted(b - a for a, b in zip(ts, ts[1:]) if b > a)
+    if not deltas:
+        return None
+    n = len(deltas)
+    mid = n // 2
+    med = deltas[mid] if n % 2 else 0.5 * (deltas[mid - 1] + deltas[mid])
+    return round(med, 6)
+
+
 # ---------------------------------------------------------------------------
 # Sorgente energia package CPU
 # ---------------------------------------------------------------------------
@@ -69,6 +89,10 @@ class _CPUJouleSource:
     def __init__(self) -> None:
         self.method = "unavailable"
         self._lhm = None
+        #: Versione dell'assembly LHM effettivamente caricato ("" se non nota).
+        #: Serve a ``backend_version``: il sorgente letto puo' essere 0.9.6 e
+        #: il runtime 0.9.4, e una riga di CSV non deve confonderli.
+        self._lhm_version: str = ""
         self._emi = None   # backend Windows EMI (energy.emi_backend.EMICounterBackend)
         self._rapl = None  # backend Linux RAPL (rapl_backend.RAPLBackend)
         # True solo DOPO Computer().Open() riuscito (spec §6: apertura unica).
@@ -552,6 +576,13 @@ class _CPUJouleSource:
             from LibreHardwareMonitor.Hardware import Computer  # type: ignore
 
             comp = Computer()
+            try:
+                # versione dell'assembly CARICATO, non del sorgente letto:
+                # e' l'unica che descrive il comportamento a runtime.
+                self._lhm_version = str(
+                    comp.GetType().Assembly.GetName().Version)
+            except Exception:
+                self._lhm_version = ""
             comp.IsCpuEnabled = True
             comp.IsGpuEnabled = True
             # Il computer NON viene aperto qui: l'apertura e' delegata a
@@ -1001,13 +1032,18 @@ class _CPUJouleSource:
         while not self._emi_stop.is_set():
             t = time.monotonic()
             cum = None
+            cum_pwh = None
             pp1 = None
             try:
                 if self._emi is not None:
                     domains = self._emi.read_domains() if hasattr(
                         self._emi, "read_domains") else None
                     if domains is not None:
+                        # (J, ts, pWh): il pWh e' il grezzo del contatore,
+                        # persistito accanto alla finestra per rendere la
+                        # misura revisionabile (alt_lhm §3).
                         cum = domains["pkg"][0]
+                        cum_pwh = domains["pkg"][2]
                         pp1 = (domains["pp1"][0], domains["pp1"][1])
                     else:
                         cum = self._emi.read_cumulative_energy_j()
@@ -1020,7 +1056,7 @@ class _CPUJouleSource:
                         # contatore decresciuto (reset del driver/riapertura):
                         # si riparte il buffer, niente estrapolazioni false
                         self._emi_samples.clear()
-                    self._emi_samples.append((t, cum))
+                    self._emi_samples.append((t, cum, cum_pwh))
                     if len(self._emi_samples) > 4000:
                         del self._emi_samples[:2000]
             if pp1 is not None:
@@ -1073,6 +1109,58 @@ class _CPUJouleSource:
         if t1 == t0:
             return e1
         return e0 + (e1 - e0) * (t - t0) / (t1 - t0)
+
+    def _emi_field_at(self, buf: List[tuple], t: float,
+                      idx: int) -> Optional[float]:
+        """Campo ``idx`` del record interpolato a t, con le stesse regole dei
+        bordi di ``_emi_cum_at`` (nessuna estrapolazione oltre 1 s).
+
+        Serve ai valori GREZZI (pWh) di ``raw_start``/``raw_end``: il buffer
+        campiona a 0,05 s, quindi un bordo di finestra cade quasi sempre fra
+        due letture. Il valore e' interpolato, non inventato, e la colonna
+        ``raw_unit`` dice l'unita' nativa.
+        """
+        if not buf or len(buf[0]) <= idx or len(buf[-1]) <= idx:
+            return None
+        if t <= buf[0][0]:
+            return float(buf[0][idx]) if buf[0][0] - t <= 1.0 else None
+        if t >= buf[-1][0]:
+            return float(buf[-1][idx]) if t - buf[-1][0] <= 1.0 else None
+        import bisect
+        ts = [p[0] for p in buf]
+        i = bisect.bisect_left(ts, t)
+        t0, v0 = buf[i - 1][0], buf[i - 1][idx]
+        t1, v1 = buf[i][0], buf[i][idx]
+        if t1 == t0:
+            return float(v1)
+        return v0 + (v1 - v0) * (t - t0) / (t1 - t0)
+
+    @staticmethod
+    def _observed_interval_s(points: List[tuple], t_start: float,
+                             t_end: float) -> Optional[float]:
+        """Cadenza OSSERVATA (mediana dei delta) del buffer nella finestra."""
+        return _median_sampling_interval(points, t_start, t_end)
+
+    def version_label(self) -> str:
+        """Versione del percorso di lettura attivo (per ``backend_version``).
+
+        Non e' la versione del driver hardware: e' cio' che possiamo
+        dichiarare con certezza. Per LHM e' l'assembly effettivamente caricato
+        (non il sorgente letto), per RAPL la release del kernel, per EMI il
+        contratto del reader e l'IOCTL.
+        """
+        if self.method == "emi-counter":
+            from energy import emi_backend
+            return emi_backend.BACKEND_VERSION
+        if self.method in ("power-integration", "librehardwaremonitor-energy",
+                           "energy-file"):
+            return (f"LibreHardwareMonitorLib {self._lhm_version}"
+                    if self._lhm_version
+                    else "LibreHardwareMonitorLib (versione non leggibile)")
+        if self.method == "rapl":
+            import platform
+            return f"linux-rapl (kernel {platform.release()})"
+        return ""
 
     def _emi_pp1_frozen(self, buf: List[tuple], t_start: float,
                         t_end: float) -> bool:
@@ -1895,6 +1983,65 @@ class EnergySession:
     @property
     def source_method(self) -> str:
         return self._source.method
+
+    # ---- provenienza del contatore sulla finestra (contratto alt_lhm) -----
+    def window_counter_provenance(self, t_start: float, t_end: float,
+                                  domain: str = "pkg") -> dict:
+        """Valori grezzi e cadenza REALE agli estremi della finestra.
+
+        Non produce energia: produce cio' che rende l'energia revisionabile
+        (contratto di ``alt_lhm`` §3): con quale valore del contatore sono
+        stati letti i bordi, in quale unita', su quale dominio, con quale
+        passo effettivo e con quale versione del percorso di lettura.
+
+        * EMI: pWh, interpolati dal buffer a 0,05 s (``_emi_field_at``);
+        * power-integration: nessun contatore (si integra una potenza),
+          quindi i grezzi restano vuoti e la cadenza e' quella del buffer PI;
+        * RAPL: microjoule cumulati (unwrapped) dai campioni di sessione.
+
+        Ogni campo non ottenibile resta ``None``/vuoto: un'assenza muta e'
+        ambigua, un numero inventato e' peggio.
+        """
+        src = self._source
+        out = {
+            "raw_start": None,
+            "raw_end": None,
+            "raw_unit": "",
+            "domain": "",
+            "sampling_interval_observed_s": None,
+            "backend_version": src.version_label(),
+        }
+        if src.method == "emi-counter":
+            with src._emi_lock:
+                buf = list(src._emi_samples if domain == "pkg"
+                           else src._emi_pp1_samples)
+            if len(buf) >= 2:
+                out["domain"] = "PKG" if domain == "pkg" else "PP1"
+                out["sampling_interval_observed_s"] = _median_sampling_interval(
+                    buf, t_start, t_end)
+                if domain == "pkg":
+                    out["raw_unit"] = "pWh"
+                    out["raw_start"] = src._emi_field_at(buf, t_start, 2)
+                    out["raw_end"] = src._emi_field_at(buf, t_end, 2)
+        elif src.method == "power-integration":
+            with src._pi_lock:
+                buf = list(src._pi_samples)
+            out["domain"] = "PKG"
+            out["sampling_interval_observed_s"] = _median_sampling_interval(
+                buf, t_start, t_end)
+        elif src.method == "rapl":
+            with self._lock:
+                pts = [(s.t, s.package_energy_j) for s in self._samples
+                       if t_start <= s.t <= t_end
+                       and s.package_energy_j is not None]
+            out["domain"] = "PKG"
+            out["sampling_interval_observed_s"] = _median_sampling_interval(
+                pts, t_start, t_end)
+            if pts:
+                out["raw_unit"] = "uJ (unwrapped)"
+                out["raw_start"] = round(pts[0][1] * 1e6, 3)
+                out["raw_end"] = round(pts[-1][1] * 1e6, 3)
+        return out
 
     # ---- B1: energia della finestra letta ESATTA dal contatore -----------
     def package_energy_exact_between(self, t_start: float, t_end: float,

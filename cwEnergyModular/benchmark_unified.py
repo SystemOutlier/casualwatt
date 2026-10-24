@@ -842,6 +842,15 @@ def run_unified_benchmark(
                     energy_calculation_method=(
                         getattr(local, "energy_calculation_method", "") or ""
                     ),
+                    # provenienza del contatore (alt_lhm §3): grezzi, unita',
+                    # dominio, cadenza osservata, versione del lettore
+                    raw_start=_na_or(getattr(local, "raw_start", None)),
+                    raw_end=_na_or(getattr(local, "raw_end", None)),
+                    raw_unit=getattr(local, "raw_unit", "") or "",
+                    domain=getattr(local, "domain", "") or "",
+                    sampling_interval_observed_s=_na_or(
+                        getattr(local, "sampling_interval_observed_s", None)),
+                    backend_version=getattr(local, "backend_version", "") or "",
                     measurement_boundary=local.measurement_boundary,
                     # B3/A1: provenienza P_idle per riga (calibrated|session|uncalibrated)
                     idle_provenance=getattr(local, "idle_provenance", "") or "",
@@ -972,6 +981,17 @@ def run_unified_benchmark(
                         # traffico in uscita dal client (non il server)
                         energy_calculation_method=(
                             getattr(client_local, "energy_calculation_method", "") or ""
+                        ),
+                        # provenienza del contatore del CLIENT (il server non
+                        # e' misurato qui: cloud_energy_method lo dichiara)
+                        raw_start=_na_or(getattr(client_local, "raw_start", None)),
+                        raw_end=_na_or(getattr(client_local, "raw_end", None)),
+                        raw_unit=getattr(client_local, "raw_unit", "") or "",
+                        domain=getattr(client_local, "domain", "") or "",
+                        sampling_interval_observed_s=_na_or(
+                            getattr(client_local, "sampling_interval_observed_s", None)),
+                        backend_version=(
+                            getattr(client_local, "backend_version", "") or ""
                         ),
                         measurement_boundary=(
                             client_local.measurement_boundary

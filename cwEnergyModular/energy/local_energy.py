@@ -96,6 +96,22 @@ class LocalEnergyResult:
     # power-integration | rapl | unavailable | ...): identico a
     # SESSION.source_method al momento della misura, salvato PER RIGA
     energy_calculation_method: str = ""
+    # ---- provenienza del contatore (contratto alt_lhm §3) ----------------
+    # Valori GREZZI agli estremi della finestra, nell'unita' nativa del canale:
+    # pWh per EMI, uJ per RAPL, vuoti per power-integration (che integra una
+    # potenza e non ha un contatore da citare). Un campo vuoto dichiara
+    # l'assenza; un numero inventato no.
+    raw_start: Optional[float] = None
+    raw_end: Optional[float] = None
+    raw_unit: str = ""
+    # Dominio del contatore: PKG per l'energia package, PP1 per l'iGPU.
+    domain: str = ""
+    # Cadenza REALE (mediana dei delta) del buffer nella finestra, non quella
+    # richiesta in config (0,5 s) ne' quella dichiarata dal thread (0,05 s):
+    # il thread power-integration misurato va a 0,2803 s.
+    sampling_interval_observed_s: Optional[float] = None
+    # Versione del percorso di lettura (emi-reader/..., assembly LHM, kernel).
+    backend_version: str = ""
     notes: List[str] = field(default_factory=list)
     # Diagnostica cpu-time-share (per riga)
     ollama_pids_used: str = ""          # lista PID usati, separati da virgola
@@ -186,6 +202,27 @@ class CasualWattLocalEnergyProfiler:
         # diversi -- emi-counter, power-integration, rapl -- non era
         # auto-descrittivo senza il file di run metadata.
         res.energy_calculation_method = method
+
+        # ---- provenienza del contatore (raw + cadenza reale + versione) ---
+        # Contratto di alt_lhm §3: senza i valori grezzi e la cadenza
+        # osservata, package_energy_j richiede di fidarsi del buffer. Qui si
+        # persiste cio' che si puo' dichiarare; i canali senza contatore
+        # (power-integration) lasciano i grezzi vuoti, non a zero.
+        prov_fn = getattr(self.session, "window_counter_provenance", None)
+        if callable(prov_fn):
+            try:
+                prov = prov_fn(t_start, t_end, "pkg") or {}
+            except Exception as exc:  # mai un crash: campo assente + nota
+                prov = {}
+                notes.append(
+                    f"provenienza contatore non disponibile ({type(exc).__name__})")
+            res.raw_start = prov.get("raw_start")
+            res.raw_end = prov.get("raw_end")
+            res.raw_unit = prov.get("raw_unit", "") or ""
+            res.domain = prov.get("domain", "") or ""
+            res.sampling_interval_observed_s = prov.get(
+                "sampling_interval_observed_s")
+            res.backend_version = prov.get("backend_version", "") or ""
 
         # ---- B1: energia package ESATTA ai bordi della finestra -----------
         # Con backend attivo si legge il contatore integrato a 0,05 s (stesso

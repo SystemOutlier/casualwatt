@@ -92,11 +92,16 @@ def _profile(method, n_samples=3, con_energia=True):
 
 # ------------------------------------------------------------------ 1
 def test_colonna_esiste_una_sola_volta_ed_e_in_coda():
-    """energy_calculation_method e' l'ultima colonna e non compare due volte: le precedenti restano intatte."""
+    """energy_calculation_method compare una volta e apre il blocco di provenienza accodato il 24/10."""
     assert CSV_COLUMNS.count("energy_calculation_method") == 1
-    assert CSV_COLUMNS[-1] == "energy_calculation_method"
+    # 24/10: il contratto alt_lhm §3 accoda i grezzi dopo il canale. La coda
+    # si verifica come LISTA (stessa lezione del test in test_energy_corrections).
+    CODA = ["energy_calculation_method",
+            "raw_start", "raw_end", "raw_unit", "domain",
+            "sampling_interval_observed_s", "backend_version"]
+    assert CSV_COLUMNS[-len(CODA):] == CODA
     # il blocco storico non si e' mosso: keep_alive_sent era la coda del 23/10
-    assert CSV_COLUMNS[-2] == "keep_alive_sent"
+    assert CSV_COLUMNS[-len(CODA) - 1] == "keep_alive_sent"
 
 
 # ------------------------------------------------------------------ 2
@@ -134,9 +139,9 @@ def test_nessun_campione_non_cancella_il_canale():
 
 # ------------------------------------------------------------------ 4
 def test_ensure_header_migra_un_csv_storico(tmp_path):
-    """Un CSV scritto con lo schema vecchio (senza la colonna nuova) viene migrato: celle conservate, nuova vuota."""
+    """Un CSV scritto con lo schema vecchio (senza il blocco nuovo) viene migrato: celle conservate, nuove vuote."""
     path = tmp_path / "risultati_storici.csv"
-    vecchio = CSV_COLUMNS[:-1]          # lo schema di ieri: tutto tranne la coda nuova
+    vecchio = CSV_COLUMNS[:-6]          # lo schema di ieri: tutto tranne le 6 colonne di provenienza
     riga = {c: f"v:{c}" for c in vecchio}
     with open(path, "w", newline="", encoding="utf-8-sig") as fh:
         w = csv.DictWriter(fh, fieldnames=vecchio)
@@ -151,7 +156,8 @@ def test_ensure_header_migra_un_csv_storico(tmp_path):
     assert len(rows) == 2, "la riga storica non deve sparire ne' raddoppiare"
     assert rows[1][vecchio.index("run_id")] == "v:run_id"
     assert rows[1][vecchio.index("local_energy_j")] == "v:local_energy_j"
-    assert rows[1][CSV_COLUMNS.index("energy_calculation_method")] == ""
+    assert rows[1][CSV_COLUMNS.index("raw_start")] == ""
+    assert rows[1][CSV_COLUMNS.index("backend_version")] == ""
     assert len(rows[1]) == len(CSV_COLUMNS), "riga disallineata rispetto all'header"
 
 
