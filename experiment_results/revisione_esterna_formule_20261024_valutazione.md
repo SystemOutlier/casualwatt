@@ -570,3 +570,59 @@ nella tabella di stato in testa al protocollo; nessuna formula congelata è stat
 riscritta in silenzio. Una rettifica a questo stesso documento: il §7 scrive che la
 simulazione Monte Carlo "arbitra 4 punti"; con la copertura del bootstrap aggiunta
 in P4.8 i punti sono **cinque** (P6.4).
+
+---
+
+## 9. Tre difetti interni trovati verificando gli ancoraggi (2026-10-24)
+
+Non vengono dalla revisione esterna: sono emersi applicando la regola di AGENTS.md
+"se un ancoraggio non torna, il file è stantio: va corretto, non ignorato" mentre
+si controllavano le citazioni di questo documento e del protocollo.
+
+**9.1 Citazione incompleta (commit `5063af3`).** Il protocollo e il §4.4 qui sopra
+citavano `lhm_validation_v3_20261023_185232.csv:2` a sostegno di "126 token reali",
+ma la riga 2 di quel file riporta `tokens_in=378`. Il numero era corretto e la
+citazione no: 378 e 352 sono i totali di run su 3 inferenze, cioè 126 in e 117 out
+per inferenza, come P2.2 (`:660-663`) già diceva nel modo giusto. La lettura è
+corroborata dagli stessi campi della riga, `prefill_s=0.3289` = 0,87 ms/token ×
+378 e `decoding_s=33.6428` = 95,58 ms/token × 352. Aggiunto il caveat di
+sorgente: quel run è `method=power-integration` con
+`window_source=counter-delta-fallback`, non `emi-counter`, quindi è evidenza sulla
+geometria del prompt e non sulla scala energetica.
+
+I punti corretti sono **cinque**, non quattro: protocollo `:1245` (P3.15), `:1794`
+(conseguenza di P4.7), `:2116` (ancoraggi di P4.13), `:2844` (giustificazione di
+F.13) e questo documento `:107`. La quarta occorrenza del protocollo era invisibile
+a un `grep "126 token reali"` perché il testo va a capo fra il numero e "token": la
+ricerca di un ancoraggio ripetuto va fatta sul **numero**, non sulla frase, o in
+modalità multilinea. È la ragione per cui questa sezione esiste: la prima
+correzione ne aveva trovate quattro e ne mancava una.
+
+**9.2 Artefatti citati ma non tracciati (commit `3025e06`).** Il file di 9.1 e i
+suoi `.json` e `.md` erano citati in 16 punti del protocollo senza essere nel
+repository: un ancoraggio a un file non tracciato non è verificabile da un terzo.
+Tracciati per percorso esplicito, insieme a `srum_emi_scale.py`, che `.gitignore:48-50`
+dichiara già di non ignorare perché citato da `srum.py:44` e
+`srum_emi_cross.py:25,181,366`. Non tracciati `srum_emi_cross_20261023_121718.*`,
+per decisione già dichiarata in `srum_emi_cross_20261023_analisi.md:192`.
+
+**9.3 Livello di aggregazione non dichiarato (commit `aaab940`, requisito di P5 in
+P6.5).** È la causa a monte di 9.1: l'export v3 mette tre inferenze in una riga di
+finestra e il campo JSON si chiama `tokens_in_mean`
+(`experiment_validate_lhm.py:698`) pur contenendo un totale di finestra (378 con
+`n_runs=1`), che il report chiama "378 token di input medi"
+(`lhm_validation_v3_20261023_185232.md:25`). Verificato che non è un difetto
+numerico: `J/token` è invariante rispetto all'aggregazione, 430,7375/352 =
+1,223686 = 143,579/117,33. È un difetto di dichiarazione, e P5 deve fissare il
+livello per riga perché la v4 stima il modello su `prompt_eval_count_i` della
+singola richiesta (P2.3, F.6).
+
+**9.4 Nomi di campo in conflitto (commit `0e53a67`).** `bias_jtok_pct` era definito
+con un nome solo (P4.3, P4.5, F.0, F.12) ed esportato con due
+(`bias_jtok_pct_lo`/`bias_jtok_pct_hi`, P4.12): P5 avrebbe ricevuto due specifiche
+in contrasto per la stessa grandezza. Deciso che il campo è la coppia, perché un
+intervallo non sta in un campo solo; la forma senza suffisso resta nel testo a
+indicare l'intervallo, ed è dichiarato in P4.5. Solo nomi: intervallo, scala
+ancorata, status di grandezza riportata e soglie in watt invariati.
+
+Nessuna delle quattro voci tocca una formula congelata né sposta una soglia.
