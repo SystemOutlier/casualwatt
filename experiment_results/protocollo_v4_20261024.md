@@ -1291,6 +1291,50 @@ potenza **totale** di picco del blocco, non quella netta: ciò che viene interpo
 totale — usare quella netta sottostimerebbe il termine. È un limite superiore
 conservativo, non una propagazione di varianza: la stessa regola di P1.7.
 
+**Quale errore maggiora, davvero** (rettifica del 2026-10-24: corregge la
+giustificazione, **non** la formula né il valore congelato). La frase qui sopra
+attribuisce il limite `P_peak · δt_edge` all'interpolazione lineare. Non è così, e
+la distinzione va scritta perché cambia cosa il termine copre.
+
+1. **Errore di interpolazione.** L'interpolazione lineare di un contatore
+   cumulativo ha errore **nullo a potenza costante**, qualunque sia il livello di
+   `P_peak`: verificato numericamente il 2026-10-24 integrando `P = 35 W` su un
+   tick di 0,30 s, errore massimo 3,0e-11 J. Dipende dalla **variazione** di
+   potenza dentro il tick, non dal suo livello. Per un gradino `ΔP_tick` posto a
+   frazione `f` del tick:
+
+   ```
+   max_t |E(t) − interpolante(t)| = ΔP_tick · f · (1 − f) · Δt_tick  ≤  ΔP_tick · Δt_tick / 4
+   ```
+
+   verificato numericamente: `ΔP_tick = 25 W`, `Δt_tick = 0,30 s` → 1,4062 J a
+   `f = 0,25`, 1,8750 J a `f = 0,5`, 1,4063 J a `f = 0,75`. Per una rampa lineare
+   il limite si dimezza (0,9375 J). Il livello di potenza non compare.
+2. **Errore di disallineamento.** Se l'istante di bordo usato da Python e il
+   timestamp del campione EMI non coincidono, un'energia `P · δt` è attribuita al
+   lato sbagliato del bordo. **Questo** è maggiorato da `P_peak · δt_edge`, ed è
+   esattamente la forma congelata: `2 × 35 W × 0,15 s = 10,5 J` per due bordi. La
+   formula resta quella, il valore resta quello; cambia solo il nome dell'errore
+   che copre.
+3. **Errore di copertura (non nominato prima).** `_emi_cum_at` non estrapola:
+   fuori copertura ma entro 1 s restituisce il valore estremo
+   (`energy_session.py:1111-1116`), cioè attribuisce energia **zero** a quel
+   tratto. È un terzo modo di sbagliare il bordo, fino a `P_peak · 1 s`, più
+   grande degli altri due. Non è coperto dal valore congelato.
+
+I tre termini sono concordi in segno e indipendenti in origine, quindi il limite
+della somma è superiore a 10,5 J; il valore congelato **non** li maggiora tutti e
+tre. Cosa si fa è una decisione aperta, non una rettifica: la formula di
+`budget_pred_b` è congelata e qui non cambia. Le due vie sono (a) aggiungere a
+`budget_pred` un termine di interpolazione stimato sul `ΔP_tick` **misurato** nel
+bloco — oggi `ΔP_tick` non è misurato da nessuna parte, quindi il termine non è
+calcolabile — oppure (b) eliminare alla radice i termini 2 e 3 leggendo il
+contatore in modo sincrono ai bordi di finestra, con il suo timestamp, che è
+materiale di P5. La via (b) è quella che il probe a 50 ms rende disponibile; la
+via (a) richiede una misura nuova. Fino alla decisione, ogni numero pubblicato
+esce con `budget_pred` nella forma congelata e con la dichiarazione che il termine
+copre il disallineamento, non l'interpolazione né la copertura.
+
 Ordine di grandezza, dichiarato come esempio e non come misura: con
 `Δt_tick = 0,30 s` e `P_peak = 35 W` il termine vale `10,5 J`, confrontabile con
 l'energia netta di una richiesta breve alla geometria operativa. Quindi `u_edge` si
