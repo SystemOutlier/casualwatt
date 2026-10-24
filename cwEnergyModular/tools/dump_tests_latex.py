@@ -206,8 +206,14 @@ def docstring_da_ast(percorso: str) -> tuple:
 
 def raccogli(pytest_args: list) -> list:
     """Node id raccolti da `pytest --collect-only -q` (vuoti se la raccolta fallisce)."""
+    # stdin=DEVNULL: su Windows il figlio eredita il pipe dello stdin del
+    # processo padre; se il padre e' a sua volta un pytest con l'output
+    # rediretto, DuplicateHandle fallisce con WinError 50 e la raccolta
+    # dentro il test esplode. Il generatore non legge stdin, quindi chiuderlo
+    # e' la correzione, non un workaround.
     proc = subprocess.run([sys.executable, "-m", "pytest", *pytest_args],
-                          cwd=MODULE_DIR, capture_output=True, text=True, encoding="utf-8")
+                          cwd=MODULE_DIR, stdin=subprocess.DEVNULL,
+                          capture_output=True, text=True, encoding="utf-8")
     righe = []
     for ln in (proc.stdout or "").splitlines():
         ln = ln.strip()
@@ -218,8 +224,14 @@ def raccogli(pytest_args: list) -> list:
 
 def esegui(pytest_args: list) -> tuple[dict, dict, str]:
     """(esito per node id, motivi di skip, riga di riepilogo)."""
+    # stdin=DEVNULL: su Windows il figlio eredita il pipe dello stdin del
+    # processo padre; se il padre e' a sua volta un pytest con l'output
+    # rediretto, DuplicateHandle fallisce con WinError 50 e la raccolta
+    # dentro il test esplode. Il generatore non legge stdin, quindi chiuderlo
+    # e' la correzione, non un workaround.
     proc = subprocess.run([sys.executable, "-m", "pytest", *pytest_args],
-                          cwd=MODULE_DIR, capture_output=True, text=True, encoding="utf-8")
+                          cwd=MODULE_DIR, stdin=subprocess.DEVNULL,
+                          capture_output=True, text=True, encoding="utf-8")
     esiti, motivi = {}, {}
     for ln in (proc.stdout or "").splitlines():
         m = re.match(r"^(\S+::\S+)\s+(PASSED|FAILED|SKIPPED|XFAIL|XPASS|ERROR)", ln.strip())
