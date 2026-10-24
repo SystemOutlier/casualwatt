@@ -118,6 +118,14 @@ class LocalEnergyResult:
     d_ollama_cpu_s: float = 0.0         # delta CPU-time Ollama nella finestra
     d_busy_s: float = 0.0               # delta CPU busy nella finestra
     n_samples_in_window: int = 0        # campioni nella finestra [t_start, t_end]
+    # ---- denominatore dello share dichiarato (rev_metodo §2b) ------------
+    # La quota e' d_ollama/d_busy, ma il rapporto ha senso solo se si dice su
+    # QUALE intervallo e' calcolato e quale capacita' era disponibile:
+    # d_busy_s <= cpu_busy_capacity_cores * cpu_share_window_s e' la
+    # disuguaglianza verificabile a posteriori. La finestra e' quella
+    # dell'energia, gia' ridotta delle sottofinestre escluse.
+    cpu_share_window_s: float = 0.0
+    cpu_busy_capacity_cores: int = 0    # core LOGICI (psutil percpu)
 
 
 class CasualWattLocalEnergyProfiler:
@@ -331,6 +339,11 @@ class CasualWattLocalEnergyProfiler:
         if d_ollama is None:
             d_ollama = 0.0
             notes.append("cpu-time Ollama non osservabile: share = 0 (conservativo)")
+        # Il denominatore si dichiara: intervallo del rapporto = finestra
+        # energetica (dt, gia' ridotto delle esclusioni) e capacita' = core
+        # logici su cui e' aggregato cpu_busy_seconds.
+        res.cpu_share_window_s = round(dt, 6)
+        res.cpu_busy_capacity_cores = int(psutil.cpu_count(logical=True) or 0)
         share = 0.0
         if dt_cpu_busy > 0:
             share = min(max(d_ollama / dt_cpu_busy, 0.0), 1.0)

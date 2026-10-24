@@ -868,6 +868,10 @@ def run_unified_benchmark(
                     d_ollama_cpu_s=getattr(local, "d_ollama_cpu_s", 0.0),
                     d_busy_s=getattr(local, "d_busy_s", 0.0),
                     n_samples_in_window=getattr(local, "n_samples_in_window", 0),
+                    # rev_metodo §2(b): intervallo e capacita' del denominatore
+                    cpu_share_window_s=getattr(local, "cpu_share_window_s", 0.0),
+                    cpu_busy_capacity_cores=getattr(
+                        local, "cpu_busy_capacity_cores", 0),
                 )
                 # riscrive qualita' con valutazione reale (N/A se saltata)
                 rec.update(
@@ -967,6 +971,11 @@ def run_unified_benchmark(
                         active_energy_j=client_local.active_energy_j,
                         ollama_active_energy_j=client_local.ollama_active_energy_j,
                         cpu_time_share=client_local.cpu_time_share,
+                        # rev_metodo §2(b): denominatore dichiarato anche qui
+                        cpu_share_window_s=getattr(
+                            client_local, "cpu_share_window_s", 0.0),
+                        cpu_busy_capacity_cores=getattr(
+                            client_local, "cpu_busy_capacity_cores", 0),
                         gpu_available=client_local.gpu_available,
                         gpu_board_energy_j=client_local.gpu_board_energy_j,
                         gpu_energy_attributed_j=client_local.gpu_energy_attributed_j,
