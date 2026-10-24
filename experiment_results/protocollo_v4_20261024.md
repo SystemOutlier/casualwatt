@@ -11,7 +11,7 @@ Data: 2026-10-24. Branch: `energy-consumption-framework-ollama-d248a`.
 | P1 | baseline e calibrazione idle | **congelato 2026-10-24** (emendato: sensibilità post-hoc; letteratura e confronto CodeCarbon; terza emenda di forma — motivazione causale del pre applicato in P1.14/F.2, e forma di combinazione di `budget_base_w` dichiarata decisione operativa provvisoria con rinvio motivato ai dati del pilota P2.9: P1.7, P1.13. **Emenda sostanziale del 2026-10-24**: chiuso il difetto `E_trunc`, definito `E_net_abs,b`/`E_net_abs,p` come denominatore di `r_A`/`r_B`, P1.6 e F.3) |
 | P2 | token effettivi e terminazione | **congelato 2026-10-24** |
 | P3 | geometria, modello e stima | **congelato 2026-10-24** (emendato solo di forma il 2026-10-24 dopo la revisione esterna: P3.3 costi marginali qualificati a `N_out = 0` / `N_in = 0` e algebra del termine quadratico omesso; P3.10 `E_pred ≤ 0` dichiarato fallimento con `pred_nonpositive` e intervallo rinominato `intervallo_conf`; P3.12/P3.13 `design_deviation_count`; P3.15 pre-pilota esteso ai livelli bassi. Nessuna formula, soglia o disegno modificato) |
-| P4 | incertezza e validazione | **congelato 2026-10-24** (emendato: inviluppo convesso per la copertura, bootstrap dei residui standardizzati, criterio monolitico di catena, `u_edge` solo nel budget predittivo; seconda emenda solo di forma: P4.1 in quattro clausole, P4.4 a otto requisiti numerati con la baseline 3 pre + 3 post obbligatoria anche sui controlli; terza emenda solo di forma: seconda ragione in P4.12 per non adottare la deviazione standard a n = 3; quarta emenda solo di forma: P4.6, rettificata la giustificazione di `u_edge` — il termine congelato maggiora il disallineamento, non l'interpolazione — con formula e valore invariati. **Emenda sostanziale del 2026-10-24**: chiuso il difetto di `r_A` sui controlli — il requisito 7 di P4.4 elenca ora solo le quantità che esistono su un blocco di controllo, e il filtro di stabilità di P4.5 è sostituito dalle soglie assolute `pre_range_w,c ≤ 1,0 W` e `|dP_c| ≤ 1,0 W` con il flag `control_unstable`. **Due difetti ancora dichiarati**: `u_bias` assente dalla formula di `budget_pred`, P4.6; copertura classificata sui target mentre il fit usa i reali, P4.7) |
+| P4 | incertezza e validazione | **congelato 2026-10-24** (emendato: inviluppo convesso per la copertura, bootstrap dei residui standardizzati, criterio monolitico di catena, `u_edge` solo nel budget predittivo; seconda emenda solo di forma: P4.1 in quattro clausole, P4.4 a otto requisiti numerati con la baseline 3 pre + 3 post obbligatoria anche sui controlli; terza emenda solo di forma: seconda ragione in P4.12 per non adottare la deviazione standard a n = 3; quarta emenda solo di forma: P4.6, rettificata la giustificazione di `u_edge` — il termine congelato maggiora il disallineamento, non l'interpolazione — con formula e valore invariati. **Emenda sostanziale del 2026-10-24**: chiuso il difetto di `r_A` sui controlli — il requisito 7 di P4.4 elenca ora solo le quantità che esistono su un blocco di controllo, e il filtro di stabilità di P4.5 è sostituito dalle soglie assolute `pre_range_w,c ≤ 1,0 W` e `|dP_c| ≤ 1,0 W` con il flag `control_unstable`; `u_bias,b = |bias_w| · Δt̄_W,b` scritto in formula in P4.6 e F.11 come contributo di incertezza, non come correzione sistematica. **Un difetto ancora dichiarato**: copertura classificata sui target mentre il fit usa i reali, P4.7) |
 | P5 | campi CSV e runner | aperto (requisiti trasmessi dai punti congelati: P6.5) |
 | P6 | esecuzione e analisi | aperto (sezione preparatoria P6.1–P6.5: vincoli derivati dai punti congelati e proposte della revisione esterna, nessuna decisione) |
 
@@ -20,14 +20,14 @@ il protocollo contro se stesso e contro il codice, su segnalazione di due reviso
 esterni. Sono stati registrati **nel punto in cui stanno**, con le opzioni e la
 raccomandazione, prima di essere corretti, perché correggerli cambia una decisione
 congelata: la correzione è un emendamento dichiarato, non una riscrittura
-silenziosa. Due sono chiusi, due restano aperti e le parti elencate **non sono
-eseguibili** finché non si chiudono:
+silenziosa. Tre sono chiusi, uno resta aperto e le parti elencate **non sono
+eseguibili** finché non si chiude:
 
 | difetto | dove | cosa bloccava | stato |
 |---|---|---|---|
 | `E_trunc` usato e mai definito | P1.6, F.3 | `r_A`, `r_B`, `baseline_unstable`, `bias_w`, anello 4 di P4.9 | **chiuso 2026-10-24**: definito `E_net_abs,b = m · |Ē_b|`, il nome `E_trunc` è ritirato |
 | `r_A` non calcolabile su un blocco di controllo, che non invia richieste | P4.5, F.12 | il gate load-versus-control e l'anello 4 di P4.9 | **chiuso 2026-10-24**: filtro sostituito dalle soglie assolute `pre_range_w,c ≤ 1,0 W` e `|dP_c| ≤ 1,0 W`, flag `control_unstable` |
-| `u_bias` dichiarato nel budget, assente dalla formula, e senza `Δt_W` specificato | P4.6, F.11 | il campo obbligatorio `u_bias_j` (P4.12) | aperto |
+| `u_bias` dichiarato nel budget, assente dalla formula, e senza `Δt_W` specificato | P4.6, F.11 | il campo obbligatorio `u_bias_j` (P4.12) | **chiuso 2026-10-24**: `budget_pred_b² = budget_fit_b² + u_edge,b² + u_bias,b²` con `u_bias,b = |bias_w| · Δt̄_W,b` (contributo di incertezza, non correzione sistematica) |
 | copertura classificata sui target, fit stimato sui token reali | P4.7, F.13 | coerenza di `coverage_tier` e `hull_margin_tok` con `x1_b`, `x2_b` | aperto |
 
 Valutazione completa, con le verifiche numeriche eseguite:
@@ -1371,8 +1371,9 @@ autocostruito — ma è confinata sotto una soglia assoluta congelata prima dei 
 
 - **Se passa**: la sottrazione di P1 è validata su questa macchina nel senso
   dichiarato in P4.9–P4.10 — anello 4 della catena, non scala assoluta — e
-  `u_bias = 0`.
-- **Se non passa**: `u_bias = |bias_w| · Δt_W` entra in `budget_pred` (P4.6), il bias è
+  `u_bias,b = 0` per ogni blocco.
+- **Se non passa**: `u_bias,b = |bias_w| · Δt̄_W,b` entra in quadratura in
+  `budget_pred_b` (P4.6, F.11), il bias è
   dichiarato nella tesi con il suo segno, e **P1 non si cambia**: sostituire
   l'estimatore sulla base di un solo test sarebbe cambiare metodo senza
   evidenza. La campagna si ripete una sola volta, per distinguere un transitorio
@@ -1401,45 +1402,59 @@ principale. È un confronto descrittivo, non un gate.
 Due budget, nomi distinti, nessun cambiamento ai pesi congelati.
 
 ```
-budget_fit_b²  = u_base,b² + u_within,b²         # ≡ budget_b di P3.8, stesso oggetto
-budget_pred_b² = budget_fit_b² + u_edge,b²       # per ogni numero pubblicato
+budget_fit_b²  = u_base,b² + u_within,b²                  # ≡ budget_b di P3.8, stesso oggetto
+budget_pred_b² = budget_fit_b² + u_edge,b² + u_bias,b²    # per ogni numero pubblicato
 
 u_base,b   = Δt̄_W,b · budget_base_w,b                        # P1.7, P3.8
 u_within,b = semi-range(E_act,i nel blocco)                  # P3.8, non diviso per √m
 u_edge,b   = 2 · P_peak,b · δt_edge,b ,   δt_edge,b = Δt_tick,b / 2
+u_bias,b   = |bias_w| · Δt̄_W,b ,          u_bias,b = 0 se il gate di P4.5 passa
+
+Δt̄_W,b     = (1/m) · Σ_{i∈blocco b} Δt_W,i                   # durata media delle finestre del blocco
 ```
 
 `budget_fit_b` **è** il `budget_b` di P3.8, rinominato solo per distinguerlo dal
 predittivo: non è un emendamento. I pesi del fit restano `w_b = 1/budget_fit_b²`,
-congelati.
+congelati: `u_edge,b` e `u_bias,b` entrano **solo** nel predittivo e non toccano la
+stima. `Δt̄_W,b` è la stessa grandezza già usata da `u_base,b` in P3.8 e qui è
+scritta per esteso perché `u_bias,b` ne dipende in modo visibile.
 
-**Difetto dichiarato nel testo congelato (registrato il 2026-10-24, non corretto
-qui perché la correzione cambia un punto congelato).** `u_bias` **non compare**
-nella formula di `budget_pred_b²` qui sopra, mentre il testo ne afferma l'ingresso
-in cinque punti: P4.4 requisito 1, P4.5 esito negativo, anello 4 di P4.9, P4.14 e
-F.12. Regola testuale e formula si contraddicono, e la formula è ciò che un
-implementatore traduce in codice. Seconda parte dello stesso difetto:
-`u_bias = |bias_w| · Δt_W` non dice **quale** `Δt_W`. `bias_w` è un watt medio di
-campagna (`Σ_c E_net,control,c / Σ_c Δt_W,c`), quindi moltiplicarlo per un `Δt_W`
-singolo o per una durata aggregata dà joule diversi di un ordine di grandezza, e
-il campo `u_bias_j` — obbligatorio in P4.12 — non è calcolabile.
+**Difetto chiuso il 2026-10-24 (emendamento sostanziale di P4.6).** Nella versione
+congelata `u_bias` **non compariva** nella formula di `budget_pred_b²`, mentre il
+testo ne affermava l'ingresso in cinque punti: P4.4 requisito 1, P4.5 esito
+negativo, anello 4 di P4.9, P4.14 e F.12. Regola testuale e formula si
+contraddicevano, e la formula è ciò che un implementatore traduce in codice.
+Seconda parte dello stesso difetto: `u_bias = |bias_w| · Δt_W` non diceva **quale**
+`Δt_W`, e poiché `bias_w` è un watt medio di campagna
+(`Σ_c E_net,control,c / Σ_c Δt_W,c`), moltiplicarlo per un `Δt_W` singolo o per una
+durata aggregata dà joule diversi di un ordine di grandezza: il campo `u_bias_j`,
+obbligatorio in P4.12, non era calcolabile.
 
-Due letture non equivalenti, in
-`revisione_esterna_formule_20261024_valutazione.md` §4.3:
+La correzione adotta la lettura a **contributo di incertezza**, che è ciò che il
+testo descriveva già a parole (valutazione esterna §4.3):
 
-- **contributo di incertezza** (raccomandata, ed è ciò che il testo descrive già a
-  parole): `budget_pred_b² = budget_fit_b² + u_edge,b² + u_bias,b²` con
-  `u_bias,b = |bias_w| · Δt̄_W,b`, e `u_bias = 0` se il gate passa;
-- **correzione sistematica**: si sottrae `bias_w · Δt_W` da `E_net` e si propaga
-  l'incertezza della correzione. Cambia i dati, non solo gli intervalli, e
-  contraddice P4.5 ("il bias è dichiarato nella tesi con il suo segno, e **P1 non
-  si cambia**").
+- `u_bias,b = |bias_w| · Δt̄_W,b` entra in quadratura in `budget_pred_b`, e vale
+  **zero** se il gate di P4.5 passa. `bias_w` è un watt medio di campagna, `Δt̄_W,b`
+  è la durata media delle finestre del blocco: il prodotto è l'energia che il bias
+  sposta su quel blocco, nella stessa unità degli altri tre termini;
+- **non** è una correzione sistematica. L'alternativa — sottrarre `bias_w · Δt_W`
+  da `E_net` e propagare l'incertezza della correzione — cambia i dati, non solo
+  gli intervalli, e contraddice P4.5: "il bias è dichiarato nella tesi con il suo
+  segno, e **P1 non si cambia**". Il segno di `bias_w` si riporta nel verbale e
+  nella tesi, e non si applica ai dati;
+- il valore assoluto sta dentro `u_bias,b` perché un contributo di incertezza è non
+  negativo per costruzione; il segno resta solo nella quantità dichiarata.
 
-Se si sceglie la prima, la forma di combinazione va decisa insieme a quella
-rinviata in P1.7: se `budget_base_w` passasse dalla quadratura alla somma
-aritmetica, questo termine seguirebbe la stessa sorte. Finché la scelta non è
-fatta, un implementatore che traduca la formula alla lettera produce un
-`budget_pred` **privo** del termine che cinque paragrafi dicono di includere.
+`u_bias,b` è **comune a tutti i blocchi della campagna** attraverso `bias_w`, e
+varia da blocco a blocco solo per `Δt̄_W,b`. È l'unico termine di `budget_pred` con
+questa struttura: gli altri tre sono misurati sul blocco. Va dichiarato, perché
+sposta tutti i numeri pubblicati nella stessa direzione e non si media via.
+
+La forma di combinazione — quadratura — è la stessa già adottata per gli altri
+termini e resta **provvisoria** insieme a quella di `budget_base_w` (P1.7, P1.13):
+se quella passasse alla somma aritmetica, anche questo termine seguirebbe la stessa
+sorte. Le due decisioni vanno chiuse insieme, prima della campagna principale, sui
+dati del pilota P2.9.
 
 Il termine di bordo. `δt_edge,b` è metà dell'intervallo **misurato** del buffer EMI
 nel blocco, non dell'intervallo dichiarato da `POWER_SAMPLE_INTERVAL_S = 0.05`
@@ -2225,7 +2240,10 @@ Se fallisce si dichiara il fallimento: nessun rifit sui punti di conferma, nessu
 scelta di un altro modello sui dati di validazione, `J/token` resta quello del
 modello marcato `validation_failed`. La forma dell'intervallo è congelata; P4 non
 la riapre, e la sostituzione di `u_conf` con `budget_pred` si riporta solo come
-sensibilità (P4.6). `intervallo_conf` non è un intervallo al 95%: i quantili lo
+sensibilità (P4.6). Poiché i quantili predittivi sono già allargati con il
+`budget_pred` del blocco nuovo (P4.8), `u_bias,b` — se il gate di P4.5 non passa —
+entra in `intervallo_conf` attraverso quella via: non va aggiunto una seconda volta.
+`intervallo_conf` non è un intervallo al 95%: i quantili lo
 sono, l'allargamento di due semi-range no, e la copertura risultante non è
 quantificata (P3.10). Il caso `E_pred ≤ 0` è dichiarato come fallimento della
 previsione perché `E0` non è vincolato positivo (P3.3, `intercept_nonphysical`):
@@ -2236,15 +2254,20 @@ una divisione implicita produrrebbe un `err_rel` senza significato.
 ```
 δt_edge,b      = Δt_tick,b / 2
 u_edge,b       = 2 · P_peak,b · δt_edge,b  =  P_peak,b · Δt_tick,b
-budget_pred_b² = budget_fit_b² + u_edge,b²
+Δt̄_W,b         = (1/m) · Σ_{i∈blocco b} Δt_W,i
+u_bias,b       = |bias_w| · Δt̄_W,b        # 0 se il gate di P4.5 passa
+budget_pred_b² = budget_fit_b² + u_edge,b² + u_bias,b²
 ```
 
-**Attenzione: `u_bias` non compare**, benché P4.4 requisito 1, P4.5, l'anello 4 di
-P4.9, P4.14 e F.12 ne affermino l'ingresso in `budget_pred`, e benché `u_bias_j`
-sia un campo obbligatorio di P4.12. Vedi il difetto dichiarato in P4.6: la forma
-raccomandata è `budget_pred_b² = budget_fit_b² + u_edge,b² + u_bias,b²` con
-`u_bias,b = |bias_w| · Δt̄_W,b`, ma è una decisione aperta, non una formula
-congelata.
+**`u_bias` compare** (emendamento del 2026-10-24: nella versione congelata era
+assente dalla formula benché P4.4 requisito 1, P4.5, l'anello 4 di P4.9, P4.14 e
+F.12 ne affermassero l'ingresso in `budget_pred`, e benché `u_bias_j` fosse già un
+campo obbligatorio di P4.12). La lettura adottata è il **contributo di incertezza**,
+non la correzione sistematica: `bias_w` si dichiara con il suo segno nel verbale e
+nella tesi, non si sottrae dai dati, e P1 non cambia. La grandezza che moltiplica
+`bias_w` è `Δt̄_W,b`, durata media delle finestre del blocco, scritta per esteso
+perché `bias_w` è un watt medio di campagna e senza di essa il campo `u_bias_j` non
+è calcolabile. Motivi e alternativa scartata in P4.6.
 
 *Applicazione.* Per blocco. Ogni numero **pubblicato** — `J/token`, previsione su
 un punto, contributo di un coefficiente — esce con `budget_pred`, mai con il solo
@@ -2301,7 +2324,9 @@ passa se |bias_w| ≤ mediana_c(budget_base_w,c)
 
 meno di due controlli utilizzabili:  gate non eseguibile, chain_status = bias_declared
 
-se non passa:  u_bias = |bias_w| · Δt_W   → entra in budget_pred
+Δt̄_W,b = (1/m) · Σ_{i∈blocco b} Δt_W,i    # blocchi della campagna principale, non del gate
+se non passa:  u_bias,b = |bias_w| · Δt̄_W,b   → in quadratura in budget_pred_b
+se passa:      u_bias,b = 0
 ```
 
 *Applicazione.* Campagna separata, 3 blocchi di carico + 3 di controllo, stessa
@@ -2320,10 +2345,13 @@ l'anello 4: il filtro è sostituito dalle soglie assolute già congelate di P1.6
 senza numeri nuovi. `bias_w` è atteso zero per costruzione — il blocco di
 controllo è identico per struttura, stato macchina e durata, senza alcuna
 richiesta — quindi il test è falsificabile, a differenza di un confronto fra due
-letture dello stesso registro. Se il test fallisce, `u_bias` si dichiara con il
-suo segno e **P1 non cambia**: sostituire l'estimatore sulla base di un solo test
-sarebbe cambiare metodo senza evidenza. Una sola ripetizione, per distinguere un
-transitorio da un bias sistematico. Soglie congelate prima dei dati.
+letture dello stesso registro. Se il test fallisce, `bias_w` si dichiara con il suo
+segno, `u_bias,b = |bias_w| · Δt̄_W,b` entra in quadratura in `budget_pred_b` dei
+blocchi della campagna principale (F.11), e **P1 non cambia**: sostituire
+l'estimatore sulla base di un solo test sarebbe cambiare metodo senza evidenza. Il
+bias non si sottrae dai dati — è un contributo di incertezza, non una correzione
+sistematica (P4.6). Una sola ripetizione, per distinguere un transitorio da un bias
+sistematico. Soglie congelate prima dei dati.
 
 Il filtro `|dP_c| ≤ 1,0 W` ha un secondo effetto, non solo di stabilità: limita la
 circolarità del criterio per blocco, la cui soglia `budget_base_j,c` contiene
