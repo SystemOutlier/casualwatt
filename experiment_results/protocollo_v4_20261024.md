@@ -1252,6 +1252,40 @@ Il criterio è calcolabile solo in virtù del requisito 7 di P4.4: `r_A`,
 quel blocco esegue la stessa struttura di baseline 3 pre + 3 post dei blocchi di
 carico.
 
+**Difetto dichiarato nel testo congelato (registrato il 2026-10-24, non corretto
+qui perché la correzione cambia un punto congelato).** L'affermazione qui sopra è
+vera per le quantità di baseline e **falsa per `r_A` e `r_B`**. Il requisito 7 di
+P4.4 le elenca fra ciò che la struttura pre/post rende calcolabili, ma
+`r_A = |dP| · Σ Δt_W,i / Σ E_trunc,i` con somme sulle **richieste valide** (P1.6),
+e un blocco di controllo **non invia richieste** per costruzione (P4.4
+requisito 5: "attende quella durata senza inviare richieste"). Il denominatore è
+una somma vuota, e P1.6 chiude il caso: "Se il denominatore di `r_A` o `r_B` è
+zero, il blocco o il punto è invalido per costruzione". Applicando il protocollo
+alla lettera, **ogni blocco di controllo è invalido**, il filtro `r_A ≤ 10%` non
+seleziona nulla, `bias_w` non è calcolabile e l'anello 4 di P4.9 non è eseguibile.
+
+La ragione è strutturale, non di scrittura: `r_A` è una grandezza **relativa**,
+confronta l'errore di drift con l'energia misurata, e senza energia misurata non
+ha denominatore. Non esiste un modo di definirla su un blocco vuoto che non sia
+circolare. Serve una metrica di stabilità **specifica** per i controlli, con un
+altro nome. Tre vie, in
+`revisione_esterna_formule_20261024_valutazione.md` §4.2:
+
+- **A** (raccomandata): sostituire il filtro `r_A ≤ 10%` sui controlli con le
+  soglie **assolute** già congelate, `pre_range_w,c ≤ 1,0 W` e `|dP_c| ≤ 1,0 W`,
+  cioè i due flag di P1.6. Nessun numero nuovo, nessuna metrica nuova, e il
+  criterio per blocco `|E_net,control,c| ≤ budget_base_j,c` resta invariato. Il
+  requisito 7 di P4.4 va corretto elencando solo le quantità che esistono davvero
+  su un controllo;
+- **B**: definire `r_ctrl = |dP_c| · Δt_W,c / E_rif,c` con `E_rif,c` preso dal
+  blocco di carico della stessa coppia. Non è circolare ma accoppia i due blocchi e
+  introduce un simbolo e una soglia nuovi;
+- **C**: eliminare il filtro e dichiarare che tutti e tre i controlli entrano in
+  `bias_w`. Il più semplice, ma perde la protezione contro un controllo con
+  baseline impazzita.
+
+Il gate resta non eseguibile finché la scelta non è fatta.
+
 ```
 per blocco:  passa se  |E_net,control,c| ≤ budget_base_j,c              (P1.7)
 aggregato:   bias_w = Σ_c E_net,control,c / Σ_c Δt_W,c
@@ -2128,7 +2162,10 @@ seed registrato; è un gate prima della campagna principale.
 *Giustificazione.* Il criterio è calcolabile solo in virtù del requisito 7 di
 P4.4: `r_A`, `budget_base_j,c` e `budget_base_w,c` esistono su un blocco di
 controllo perché quel blocco esegue la stessa struttura 3 pre + 3 post dei
-blocchi di carico. `bias_w` è atteso zero per costruzione — il blocco di
+blocchi di carico. **Attenzione: questa affermazione è falsa per `r_A` e `r_B`** —
+un blocco di controllo non invia richieste, quindi le somme di P1.6 sono vuote e,
+alla lettera, ogni controllo è invalido. Vedi il difetto dichiarato in P4.5, con
+le tre vie di correzione. `bias_w` è atteso zero per costruzione — il blocco di
 controllo è identico per struttura, stato macchina e durata, senza alcuna
 richiesta — quindi il test è falsificabile, a differenza di un confronto fra due
 letture dello stesso registro. Se il test fallisce, `u_bias` si dichiara con il
