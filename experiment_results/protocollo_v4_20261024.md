@@ -1865,12 +1865,19 @@ share_E0(ref)   = E0 / E_model(ref)
 
 *Applicazione.* Riferimenti predeclarati `(32,32)` e `(128,128)`, entrambi sulla
 griglia. `E0` overhead fisso per richiesta a modello residente, `a` J/token di
-prefill marginale, `b` J/token di decode marginale, `c` interazione.
+prefill marginale **a `N_out = 0`**, `b` J/token di decode marginale **a
+`N_in = 0`**, `c` interazione. Con l'interazione presente i costi marginali sono
+`a + c·N_out` e `b + c·N_in`, quindi `a` e `b` da soli non lo sono in generale.
 
 *Giustificazione.* La superficie è lineare **nei parametri**; `c·N_in·N_out` è
 un'interazione bilineare, non un termine quadratico, e non si aggiungono `N_in²`
 o `N_out²`. `c ≥ 0` è atteso perché la KV cache cresce con `N_in` e ogni token di
-decode legge un contesto più lungo. Il modello ridotto
+decode legge un contesto più lungo — la stessa giustificazione implica però un
+termine in `N_out²` che il modello non ha: se il costo del contesto al passo `j`
+cresce come `N_in + j`, la somma esatta è `N_in·N_out + N_out·(N_out+1)/2`. `c`
+assorbe parte di un effetto con componente quadratica, e il modello primario è
+un'**approssimazione dichiarata**, non la forma fisica della superficie (P3.3).
+Il modello ridotto
 `E0 + a·N_in + b·N_out` si riporta solo come sensibilità con F-test sui minimi
 quadrati pesati e non sostituisce il primario dopo aver visto i dati. `E0` è
 un'estrapolazione a `(0,0)`: il punto minimo `(8,4)` la vincola ma non la
@@ -1949,13 +1956,25 @@ un punto, contributo di un coefficiente — esce con `budget_pred`, mai con il s
 `u_base`.
 
 *Giustificazione.* Ogni bordo della finestra cade quasi sempre fra due campioni e
-il contatore cumulativo è interpolato linearmente (`_emi_cum_at`,
-`energy_session.py:1103-1124`), quindi l'errore di un bordo è al più
-`P_peak · δt_edge` e i bordi sono due. Tre dettagli che cambiano il numero:
+il contatore cumulativo è letto per interpolazione lineare (`_emi_cum_at`,
+`energy_session.py:1103-1124`). L'errore di un bordo è al più `P_peak · δt_edge`,
+e i bordi sono due, **per disallineamento**: se l'istante di bordo usato da Python
+e il timestamp del campione EMI non coincidono, un'energia `P · δt` finisce dal
+lato sbagliato del bordo. Non è invece un limite dell'**interpolazione**, che a
+potenza costante ha errore nullo — verificato numericamente il 2026-10-24:
+`P = 35 W` su un tick di 0,30 s, errore massimo 3,0e-11 J — e dipende dalla
+variazione di potenza dentro il tick, con limite `ΔP_tick · Δt_tick / 4` per bordo
+(1,875 J con `ΔP_tick = 25 W`). Un terzo modo non è coperto: fuori copertura ma
+entro 1 s `_emi_cum_at` restituisce il valore estremo (`:1111-1116`), cioè
+attribuisce energia zero al tratto, fino a `P_peak · 1 s`. I tre termini sono
+concordi in segno, quindi 10,5 J non li maggiora tutti: la formula è congelata e
+non cambia, la scelta fra aggiungere il termine di interpolazione (che richiede un
+`ΔP_tick` misurato, oggi inesistente) ed eliminarli con una lettura sincrona ai
+bordi (materiale di P5) è una decisione aperta. Dettagli che cambiano il numero:
 `Δt_tick,b` è l'intervallo **misurato** del buffer EMI nel blocco, non il
 dichiarato `POWER_SAMPLE_INTERVAL_S = 0.05` (`energy_session.py:80`) — in
 produzione è 0,28–0,34 s; `P_peak,b` è la potenza **totale** di picco, non la
-netta, perché ciò che si interpola è un contatore che accumula potenza totale e
+netta, perché ciò che si legge è un contatore che accumula potenza totale e
 usare la netta sottostimerebbe il termine; e il risultato non è trascurabile,
 con `Δt_tick = 0,30 s` e `P_peak = 35 W` vale 10,5 J, confrontabile con l'energia
 netta di una richiesta breve alla geometria operativa (ordine di grandezza
