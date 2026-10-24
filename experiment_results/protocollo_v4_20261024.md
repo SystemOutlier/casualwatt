@@ -11,7 +11,7 @@ Data: 2026-10-24. Branch: `energy-consumption-framework-ollama-d248a`.
 | P1 | baseline e calibrazione idle | **congelato 2026-10-24** (emendato: sensibilità post-hoc; letteratura e confronto CodeCarbon) |
 | P2 | token effettivi e terminazione | **congelato 2026-10-24** |
 | P3 | geometria, modello e stima | **congelato 2026-10-24** |
-| P4 | incertezza e validazione | aperto |
+| P4 | incertezza e validazione | **congelato 2026-10-24** (budget completo con termine di bordo; campagna load-versus-control; fasce A/B/C; bootstrap stratificato) |
 | P5 | campi CSV e runner | aperto |
 | P6 | esecuzione e analisi | aperto |
 
@@ -935,3 +935,289 @@ Niente per P3. Il pre-pilota verifica solo la fattibilità dei livelli (512 inpu
 256 output, prompt che sostengono la generazione): se un livello non è
 raggiungibile, P3 si riapre e si dichiara; non si cambia il livello in silenzio.
 Il fallimento della conferma è un risultato di P6, non una decisione aperta.
+
+---
+
+## P4 — Incertezza e validazione
+
+**Congelato 2026-10-24.** P4 completa P1 e P3: fissa il budget di incertezza di
+un numero pubblicato, le fasce di copertura della superficie, la costruzione
+dell'intervallo di previsione e il test della sottrazione di baseline. Non cambia
+l'estimatore di baseline (P1.1), né il modello (P3.3), né il disegno (P3.5), né
+i pesi del fit (P3.8).
+
+### P4.1 Decisione in una riga
+
+> Ogni numero pubblicato della v4 esce con tre cose: il budget completo
+> `u_tot = sqrt(u_base² + u_within² + u_edge²)`, la fascia di copertura A/B/C, e
+> — per la differenza incrementale — l'esito del test load-versus-control. La
+> sottrazione di baseline è validata su questa macchina se il bias misurato a
+> incremento nullo sta dentro il budget; se non ci sta, il bias si dichiara, si
+> aggiunge al budget, e P1 non cambia senza nuova evidenza.
+
+### P4.2 Perché serve un punto separato
+
+P1.7 dichiara il solo contributo di baseline e P3.8 dichiara i pesi del fit:
+nessuno dei due è l'incertezza di un numero pubblicato. Mancano tre pezzi.
+
+1. **Il bordo della finestra.** I bordi cadono quasi sempre fra due campioni e
+   il contatore cumulativo è interpolato linearmente
+   (`energy_session.py:1103-1124`). Su finestre di pochi secondi, con una cadenza
+   reale di 0,28–0,34 s, questo termine non è trascurabile e finora non era
+   scritto da nessuna parte.
+2. **La copertura.** La superficie è fittata su un rettangolo (P3.5) e il punto
+   operativo reale sta sotto quel rettangolo. P3.13 rimandava qui le regole di
+   extrapolazione.
+3. **Il bias della sottrazione.** Nessun confronto fra due letture dello stesso
+   registro può arbitrarlo: LHM, EMI e SRUM leggono tutti
+   `MSR_PKG_ENERGY_STATUS`. Serve un test a incremento nullo per costruzione.
+
+### P4.3 Definizioni
+
+| termine | simbolo | definizione |
+|---|---|---|
+| blocco di carico | — | blocco con le `m = 3` richieste di inferenza (P3.7) |
+| blocco di controllo | — | blocco identico per struttura, stato macchina e durata, **senza alcuna richiesta** |
+| bias di sottrazione | `bias_w` | incremento netto medio dei blocchi di controllo, in watt; atteso zero per costruzione |
+| termine di bordo | `u_edge,b` | incertezza dell'interpolazione lineare ai due bordi della finestra, in joule |
+| budget completo | `u_tot,b` | combinazione conservativa dei tre termini, in joule |
+| fascia di copertura | A / B / C | regime in cui cade un punto di valutazione rispetto al disegno misurato |
+| penalità di extrapolazione | `u_extrap` | errore relativo misurato in validazione (P3.10), riusato come allargamento dell'intervallo in fascia B |
+
+### P4.4 Campagna di validazione load-versus-control
+
+Provenienza: `baseline miglioramenti.DOCX` §3, "Livello 2" — materiale utente,
+valutato contro P1. Le sue raccomandazioni sulla nomenclatura del semi-range,
+sulla registrazione delle tre repliche e sulla separazione dei tre valori erano
+già congelate (P1.7, P1.5 passo 3, P1.3); la campagna di controllo invece è
+nuova ed è l'unico test **diretto** della sottrazione.
+
+Disegno:
+
+- campagna separata, eseguita **prima** della campagna principale, come gate;
+- 3 coppie; ogni coppia = 1 blocco di carico + 1 blocco di controllo;
+- ordine dentro la coppia e ordine delle coppie randomizzati, seed registrato
+  (`order_seed`);
+- geometria: il punto di conferma `(12,32)` di P3.5, cioè la geometria operativa
+  reale, con terminazione naturale come nel blocco di produzione;
+- durata: `dt_nominal_s` fissato **prima** della campagna come 3 × la mediana
+  della durata di richiesta misurata nel pilota di P2. Il blocco di controllo
+  attende quella durata senza inviare richieste. Lo scarto fra nominale e
+  misurato non crea bias: ciascun blocco sottrae `P_pre · Δt_W` con il **proprio**
+  `Δt_W` misurato, quindi l'atteso del controllo è zero per ogni durata;
+- stato macchina: identico a P1.4 (`keep_alive = -1`, modello residente e caldo,
+  GUI di LibreHardwareMonitor chiusa, processi concorrenti dichiarati);
+- struttura di baseline: identica a P1.5, tre finestre pre da 30 s e tre post da
+  30 s, **anche** sul blocco di controllo;
+- per ciascun blocco di controllo si calcola
+  `E_net,control = E_pkg_gross − P_pre · Δt_W`, con lo stesso codice di
+  produzione e senza troncamento.
+
+### P4.5 Criterio del test
+
+```
+per blocco:  passa se  |E_net,control,c| ≤ budget_base_j,c              (P1.7)
+aggregato:   bias_w = Σ_c E_net,control,c / Σ_c Δt_W,c
+             sui soli blocchi con r_A ≤ 10%                              (P1.6)
+             passa se  |bias_w| ≤ mediana_c(budget_base_w,c)
+```
+
+- **Se passa**: la sottrazione di P1 è validata su questa macchina nel senso
+  dichiarato in P4.9, e `u_bias = 0`.
+- **Se non passa**: `u_bias = |bias_w| · Δt_W` entra in `u_tot` (P4.6), il bias è
+  dichiarato nella tesi con il suo segno, e **P1 non si cambia**: sostituire
+  l'estimatore sulla base di un solo test sarebbe cambiare metodo senza
+  evidenza. La campagna si ripete una sola volta, per distinguere un transitorio
+  da un bias sistematico; se anche la ripetizione fallisce, il bias è sistematico
+  e si riporta come tale.
+- Le soglie sono congelate prima dei dati. Non si sceglie la soglia dopo aver
+  visto il bias.
+
+Due limiti del test, da scrivere insieme al risultato:
+
+1. il controllo valida lo **zero** dell'estimatore, non l'assenza di effetti
+   termici sotto carico. Un aumento reale del fondo durante l'inferenza
+   (ventole, frequenza, temperatura) è un effetto fisico che nessun blocco di
+   controllo rimuove: P1 lo tratta come drift diagnostico (`dP`, `r_A`, `r_B`),
+   non come errore di stima;
+2. il controllo non arbitra la **scala assoluta**: legge lo stesso registro di
+   LibreHardwareMonitor. Lo strumento che manca resta il wattometro (cap. 6,
+   sviluppo 1).
+
+I blocchi di carico della campagna danno anche una seconda stima di `E_net` alla
+geometria `(12,32)`, da confrontare con il punto di conferma della campagna
+principale. È un confronto descrittivo, non un gate.
+
+### P4.6 Budget di incertezza completo
+
+```
+u_tot,b²  = u_base,b² + u_within,b² + u_edge,b²            # per blocco, in joule
+u_base,b  = Δt̄_W,b · budget_base_w,b                        # P1.7, P3.8
+u_within,b = semi-range(E_act,i nel blocco)                  # P3.8, non diviso per √m
+u_edge,b  = Δt_tick,b · P̄_net,b                             # due bordi, mezzo tick ciascuno
+```
+
+`Δt_tick,b` è l'intervallo **misurato** del buffer EMI nel blocco, non quello
+dichiarato da `POWER_SAMPLE_INTERVAL_S = 0.05` (`energy_session.py:80`): sul
+percorso di produzione è 0,28–0,34 s. `P̄_net,b` è la potenza netta media del
+blocco. Ciascun bordo cade fra due campioni e il cumulativo è interpolato
+linearmente, quindi l'errore di un bordo è al più metà dell'energia netta di un
+tick; due bordi danno un tick intero. È un limite superiore conservativo, non una
+propagazione di varianza — la stessa regola di P1.7.
+
+Regole:
+
+- i **pesi del fit restano quelli congelati in P3.8** (`w_b = 1/budget_b²` con
+  `budget_b² = u_base,b² + u_within,b²`). P4 non riapre P3. Come sensibilità si
+  rifà il fit con `w_b = 1/u_tot,b²` e si riporta lo spostamento dei coefficienti:
+  se resta dentro l'intervallo bootstrap, la scelta dei pesi è dichiarata non
+  influente;
+- ogni numero **pubblicato** — `J/token`, previsione su un punto, contributo di un
+  coefficiente — esce con `u_tot`, mai con il solo `u_base`;
+- per le finestre idle da 30 s il termine di bordo si trascura e si dichiara:
+  0,3 s su 30 s è l'1% della finestra e la potenza netta in idle è per
+  costruzione prossima a zero;
+- `u_edge` è anche l'argomento quantitativo dello sviluppo 3 del cap. 6: il probe
+  a 50 ms mostra che il registro si aggiorna a quella cadenza, quindi `Δt_tick` è
+  riducibile di un fattore ~6 per via software, e questo termine con esso.
+
+### P4.7 Fasce di copertura
+
+Il rettangolo del fit è `32 ≤ N_in ≤ 512`, `32 ≤ N_out ≤ 256` (P3.5). Il
+rettangolo **esteso** è quello coperto dai punti effettivamente misurati, griglia
+più i due punti di conferma `(12,32)` e `(256,192)`: `12 ≤ N_in ≤ 512`,
+`32 ≤ N_out ≤ 256`.
+
+- **Fascia A — interpolazione.** Il punto è dentro il rettangolo del fit. Si
+  riporta `E_pred` con l'intervallo di P4.8. Verificata dal punto di conferma
+  `(256,192)`, che sta dentro il rettangolo ma non è un nodo della griglia.
+- **Fascia B — estrapolazione coperta.** Il punto è fuori dal rettangolo del fit
+  ma dentro il rettangolo esteso, cioè `12 ≤ N_in < 32` con
+  `32 ≤ N_out ≤ 256`. Si riporta `E_pred` con il flag `extrapolated`,
+  l'intervallo allargato di `u_extrap`, e l'avvertenza che in questa fascia il
+  valore è dominato da `E0 + a·N_in`, i termini che il disegno vincola meno.
+  **Il punto operativo reale e il blocco di produzione cadono in fascia B**, e il
+  `J/token` di produzione va pubblicato con quel flag.
+- **Fascia C — fuori copertura.** Tutto il resto, inclusa qualsiasi richiesta con
+  `N_in > 512` o `N_out > 256`. Il modello è lineare nei parametri e
+  extrapolerebbe senza protesta: non si pubblica nessun numero del modello. Si
+  riporta solo il rapporto descrittivo `E_act/N_out_actual` del blocco misurato,
+  marcato `out_of_coverage`.
+
+La penalità non è inventata: è l'errore relativo misurato in validazione.
+
+```
+u_extrap = E_pred · max(err_rel dei due punti di conferma)          # P3.10
+intervallo_B = [q2.5 − u_extrap, q97.5 + u_extrap]
+```
+
+Quindi `u_extrap` esiste solo dopo P3.10. Se un punto di conferma fallisce la
+validazione, `u_extrap` non è definito e la fascia B non pubblica previsioni: si
+riporta il fallimento.
+
+Conseguenza dichiarata: la v4 non pubblica un `J/token` per prompt lunghi, che è
+esattamente ciò che la letteratura analitica chiede
+(`cavagna2026sweetspot`). Estendere la griglia verso l'alto è lavoro della v5,
+non una regola di extrapolazione.
+
+### P4.8 Intervallo di previsione: bootstrap stratificato
+
+```
+unità di ricampionamento : il blocco, non la richiesta — l'errore di baseline è
+                           comune alle m richieste del blocco (P3.8)
+strati                   : i 10 punti di disegno; dentro ogni strato si
+                           ricampionano i blocchi con reintroduzione, mantenendo
+                           la numerosità del punto (3; 6 per il centro)
+repliche                 : 2000, congelate
+per ciascuna replica     : rifit WLS con gli stessi pesi w_b di P3.8 — i pesi non
+                           si ricalcolano dentro il bootstrap, altrimenti
+                           l'intervallo dipenderebbe dal rumore del budget e non
+                           da quello dei dati
+previsione               : E_pred*(x) al punto di valutazione; q2.5 e q97.5 dei
+                           2000 valori
+seed                     : fissato e registrato (bootstrap_seed)
+```
+
+Cosa è e cosa non è:
+
+- i quantili bootstrap descrivono la variabilità della **superficie stimata**; la
+  dispersione delle tre misure del punto di conferma entra a parte, come `2·u_conf`
+  in P3.10, con `u_conf` = semi-range non diviso per `√3`;
+- il bootstrap per batch non si usa: 3 batch sono troppo pochi cluster (già in
+  P3.8);
+- gli errori standard HC3 si riportano accanto come approssimazione lineare e si
+  confrontano con l'ampiezza bootstrap: se differiscono di più di un fattore 2, il
+  bootstrap resta primario e la discrepanza si dichiara — è il sintomo di una
+  superficie mal condizionata o di un blocco influente (P3.9);
+- il bootstrap non sostituisce il lack-of-fit di P3.9: un modello inadeguato ha un
+  intervallo stretto e sbagliato.
+
+### P4.9 La catena è validata anello per anello
+
+Nessun anello, da solo, è validazione. La catena è forte quanto il suo anello più
+debole, che su questa macchina è l'assenza del wattometro.
+
+| anello | prova | cosa arbitra | cosa **non** arbitra |
+|---|---|---|---|
+| contatore EMI ↔ potenza LHM | confronto a finestra identica, 5 run (`four_way_finestra_uguale_20261023_analisi.md`) | che il nostro software non distorce: rapporti 0,9947–1,0082, offset +0,21/+0,27 W | la scala: entrambe le letture stanno su `MSR_PKG_ENERGY_STATUS` 0x611 |
+| parser EMI ↔ decodifica Microsoft | SRUM sulla stessa finestra di 7 minuti (`srum_emi_cross_20261023_analisi.md`) | che il parser ctypes decodifica il formato giusto: 0,9946, deviazione massima 3,77% | la scala, e non è un contatore indipendente |
+| quota di tempo CPU ↔ quota di energia | albero dei processi del motore contro il modello EPI | la **procedura** di attribuzione: 0,7339 contro 0,7361 | l'equivalenza tempo ↔ energia, che resta assunzione dichiarata |
+| cadenza e geometria dei domini | probe a 50 ms e 10 ms con LHM assente (`emi_50ms_probe_20261023_*`) | che il registro si aggiorna anche a 10 ms, che il pavimento di 0,3 s è del nostro thread, il residuo di package 5,59 W, `ΔPP0/ΔPKG ≈ 1` | la scala assoluta |
+| baseline e sottrazione | campagna load-versus-control (P4.4) | che lo zero dell'estimatore sta dentro il budget | gli effetti termici sotto carico; la scala |
+| superficie e attribuzione | punti di conferma esclusi dal fit (P3.10) | che il modello prevede geometrie mai usate nella stima | che il modello sia la forma vera |
+| `J/token` | sensibilità post-hoc (P1.10) e geometria reale (P3.4) | che il numero dipende da baseline (1 W ≈ 6–11%) e da `N_in` | che sia confrontabile fra geometrie diverse |
+
+Un A–B–A fra due letture dello stesso registro **nasconde** un canale sbagliato
+invece di correggerlo: è successo. Prima di `1422d1b` la selezione per nome del
+sensore (allora `energy_session.py:819`) integrava i gradi Celsius di un sensore
+Temperature omonimo, e lo stesso confronto dava rapporti 2,47–4,42 con offset
++53,52 W. Oggi il guard sul tipo sta a `energy_session.py:951-955`. L'unico
+controllo che ha salvato il metodo è stato leggere il tipo di sensore, non
+confrontare due misure.
+
+### P4.10 Cosa non è deciso qui
+
+- P5 fissa nomi e tipi delle colonne. P4 elenca i contenuti nuovi obbligatori:
+  `block_kind` ∈ {`load`, `control`}, `pair_id`, `order_seed`, `dt_nominal_s`,
+  `dt_tick_s`, `p_net_mean_w`, `u_edge_j`, `u_bias_j`, `u_tot_j`, `bias_w`,
+  `extrapolation_tier` ∈ {`A`, `B`, `C`}, `u_extrap_j`, `coverage_flag`,
+  `bootstrap_seed`, `validation_bias_pass`;
+- P6 fissa l'ordine di esecuzione — la campagna di P4.4 sta prima della principale
+  e ne è il gate — e gli script di analisi;
+- il wattometro: la scala assoluta resta non arbitrata (cap. 6, sviluppo 1);
+- Linux/RAPL: il disegno di P4.4 è indipendente dal backend e si applica a RAPL
+  con gli stessi criteri, ma in v4 non è eseguito. Il backend Linux è
+  implementato, non validato su questa campagna;
+- la deviazione standard campionaria con n = 3 **non si adotta**: con tre repliche
+  non è una stima utilizzabile di varianza, e affiancarla al semi-range invita a
+  trattarla come tale. Restano registrati i tre valori, la mediana, il minimo, il
+  massimo e il range (già in P1.5 e P1.7).
+
+### P4.11 Ancoraggi
+
+- interpolazione ai bordi: `energy_session.py:1103-1124` (`_emi_cum_at`),
+  `:1126-1148` (`_emi_field_at`), `:2188-2205` (`_interpolate` sui campioni di
+  sistema);
+- cadenza dichiarata: `energy_session.py:80` (`POWER_SAMPLE_INTERVAL_S = 0.05`);
+- finestre di energia: `energy_session.py:1194` (`emi_window_energy_j`), `:1261`
+  (`pi_window_energy_j`); lettura finestra idle: `:1576`;
+- bug del sensore omonimo e fix: guard sul tipo a `energy_session.py:951-955`,
+  selezione del sensore package a `:855-915`, commit `1422d1b`;
+- budget e pesi: P1.7, P3.8; validazione della superficie: P3.10; sensibilità
+  post-hoc: P1.10; controlli di drift: P1.6;
+- artefatti della catena: `four_way_finestra_uguale_20261023_analisi.md`,
+  `srum_emi_cross_20261023_analisi.md`,
+  `idle_floor_sensitivity_20261023_analisi.md`, `emi_50ms_probe_20261023_*`;
+- provenienza della campagna di controllo: `baseline miglioramenti.DOCX` §3
+  (materiale utente, valutato contro P1: nomenclatura, registrazione delle
+  repliche e separazione dei tre valori erano già congelati).
+
+### P4.12 Aperto
+
+Niente per P4. Due esiti possono riaprirlo, e sono risultati di P6, non decisioni
+aperte:
+
+- se il test di P4.5 fallisce anche nella ripetizione, `u_bias` entra nel budget e
+  la tesi dichiara che la sottrazione non è validata su questa macchina;
+- se il pre-pilota di P3.15 mostra che un livello della griglia non è
+  raggiungibile, il rettangolo di P4.7 cambia e con esso le fasce.
