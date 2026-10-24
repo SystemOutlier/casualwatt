@@ -258,7 +258,9 @@ def test_P2_colonna_csv_accodata_senza_cambiare_ordine():
             # 24/10: contratto alt_lhm §3 (grezzi, unita', dominio,
             # cadenza osservata, versione del percorso di lettura)
             "raw_start", "raw_end", "raw_unit", "domain",
-            "sampling_interval_observed_s", "backend_version"]
+            "sampling_interval_observed_s", "backend_version",
+            # rev_metodo §2(b): denominatore dello share CPU
+            "cpu_share_window_s", "cpu_busy_capacity_cores"]
     assert CSV_COLUMNS[-len(CODA):] == CODA
     assert CSV_COLUMNS[:6] == [
         "run_id", "session_id", "timestamp_start", "timestamp_end",

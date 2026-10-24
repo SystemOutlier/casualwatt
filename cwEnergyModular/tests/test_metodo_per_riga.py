@@ -98,7 +98,8 @@ def test_colonna_esiste_una_sola_volta_ed_e_in_coda():
     # si verifica come LISTA (stessa lezione del test in test_energy_corrections).
     CODA = ["energy_calculation_method",
             "raw_start", "raw_end", "raw_unit", "domain",
-            "sampling_interval_observed_s", "backend_version"]
+            "sampling_interval_observed_s", "backend_version",
+            "cpu_share_window_s", "cpu_busy_capacity_cores"]
     assert CSV_COLUMNS[-len(CODA):] == CODA
     # il blocco storico non si e' mosso: keep_alive_sent era la coda del 23/10
     assert CSV_COLUMNS[-len(CODA) - 1] == "keep_alive_sent"
@@ -141,7 +142,7 @@ def test_nessun_campione_non_cancella_il_canale():
 def test_ensure_header_migra_un_csv_storico(tmp_path):
     """Un CSV scritto con lo schema vecchio (senza il blocco nuovo) viene migrato: celle conservate, nuove vuote."""
     path = tmp_path / "risultati_storici.csv"
-    vecchio = CSV_COLUMNS[:-6]          # lo schema di ieri: tutto tranne le 6 colonne di provenienza
+    vecchio = CSV_COLUMNS[:-8]          # ieri: senza 6 di provenienza e 2 dello share
     riga = {c: f"v:{c}" for c in vecchio}
     with open(path, "w", newline="", encoding="utf-8-sig") as fh:
         w = csv.DictWriter(fh, fieldnames=vecchio)

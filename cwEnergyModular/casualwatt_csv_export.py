@@ -101,6 +101,10 @@ CSV_COLUMNS: List[str] = [
     # Accodate in coda: i CSV storici si migrano con ensure_header.
     "raw_start", "raw_end", "raw_unit", "domain",
     "sampling_interval_observed_s", "backend_version",
+    # rev_metodo.DOCX §2(b): il denominatore dello share va dichiarato. La
+    # quota e' d_ollama/d_busy, ma va detto su quale intervallo e con quale
+    # capacita': d_busy_s <= core x finestra e' verificabile a posteriori.
+    "cpu_share_window_s", "cpu_busy_capacity_cores",
 ]
 
 
