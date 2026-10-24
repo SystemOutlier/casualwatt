@@ -1,0 +1,36 @@
+{
+  "method": "power-integration",
+  "n_runs": 1,
+  "p_base_mean_w": 13.0497,
+  "p_base_cv_pct": 2.5,
+  "p_idle_calibrated_w": 13.164,
+  "p_load_mean_w": 25.6637,
+  "p_load_cv_pct": 0.0,
+  "e_inc_mean_j": 430.7375,
+  "e_inc_cv_pct": 0.0,
+  "e_inc_ci95_j": [
+    430.7375,
+    430.7375
+  ],
+  "j_token_mean": 1.223686,
+  "j_token_cv_pct": null,
+  "j_token_ci95": [
+    1.223686,
+    1.223686
+  ],
+  "tok_out_mean": 352,
+  "window_sources": {
+    "counter-delta-fallback": 3
+  },
+  "pi_interval_measured_s": 0.2981,
+  "pi_interval_declared_s": 0.05,
+  "deriva_baseline_mean_w": -0.461,
+  "deriva_baseline_max_w": 0.461,
+  "prefill_ms_per_token": 0.8701,
+  "decoding_ms_per_token": 95.5761,
+  "ratio_fasi_mediano": 109.844,
+  "keep_alive": "5m",
+  "emi_available": "si",
+  "target_tokens_in": 64,
+  "tokens_in_mean": 378
+}
