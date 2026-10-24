@@ -1050,24 +1050,37 @@ class _CPUJouleSource:
             except Exception:
                 cum = None
                 pp1 = None
-            if cum is not None:
-                with self._emi_lock:
-                    if self._emi_samples and cum < self._emi_samples[-1][1]:
-                        # contatore decresciuto (reset del driver/riapertura):
-                        # si riparte il buffer, niente estrapolazioni false
-                        self._emi_samples.clear()
-                    self._emi_samples.append((t, cum, cum_pwh))
-                    if len(self._emi_samples) > 4000:
-                        del self._emi_samples[:2000]
-            if pp1 is not None:
-                with self._emi_lock:
-                    if (self._emi_pp1_samples
-                            and pp1[0] < self._emi_pp1_samples[-1][1]):
-                        self._emi_pp1_samples.clear()
-                    self._emi_pp1_samples.append((t, pp1[0], pp1[1]))
-                    if len(self._emi_pp1_samples) > 4000:
-                        del self._emi_pp1_samples[:2000]
+            self._accept_emi_sample(t, cum, cum_pwh, pp1)
             self._emi_stop.wait(self.POWER_SAMPLE_INTERVAL_S)
+
+    def _accept_emi_sample(self, t: float, cum: Optional[float],
+                           cum_pwh: Optional[float] = None,
+                           pp1: Optional[tuple] = None) -> None:
+        """Accoda un tick del contatore, gestendo il RESET del cumulativo.
+
+        Se il valore decresce (driver ricaricato, sospensione/ripresa,
+        riapertura dell'handle) il buffer viene svuotato: interpolare fra il
+        valore pre-reset e quello post-reset produrrebbe un delta negativo o
+        una rampa falsa. Il campione post-reset apre un nuovo buffer.
+
+        Estratto dal loop per essere verificabile senza thread: il caso
+        reset era l'unico ramo del backend EMI senza test (alt_lhm §6).
+        """
+        if cum is not None:
+            with self._emi_lock:
+                if self._emi_samples and cum < self._emi_samples[-1][1]:
+                    self._emi_samples.clear()
+                self._emi_samples.append((t, cum, cum_pwh))
+                if len(self._emi_samples) > 4000:
+                    del self._emi_samples[:2000]
+        if pp1 is not None:
+            with self._emi_lock:
+                if (self._emi_pp1_samples
+                        and pp1[0] < self._emi_pp1_samples[-1][1]):
+                    self._emi_pp1_samples.clear()
+                self._emi_pp1_samples.append((t, pp1[0], pp1[1]))
+                if len(self._emi_pp1_samples) > 4000:
+                    del self._emi_pp1_samples[:2000]
 
     def _start_emi_sampling(self) -> None:
         if self._emi_thread is not None and self._emi_thread.is_alive():
