@@ -1237,8 +1237,15 @@ bassi, e il protocollo oggi li dà per raggiungibili senza averlo misurato:
   target — ed è esattamente perché P4.7 classifica su **due** inviluppi, di progetto
   e di fit, prendendo il più conservativo;
 - la tolleranza ±5% è incompatibile con lo scarto misurato fra target e actual:
-  nel run 18:52 della v3 il target `N_in = 64` ha prodotto 126 token reali, cioè
-  circa il doppio (P2.2, `lhm_validation_v3_20261023_185232.csv:2`). Su
+  nel run 18:52 della v3 il target `N_in = 64` ha prodotto **126** token reali per
+  inferenza, cioè circa il doppio (P2.2). La riga citata riporta i totali di run su
+  3 inferenze, `tokens_in=378` e `tokens_out=352`, da cui 126 e 117 per inferenza;
+  la stessa riga li corrobora con `prefill_s=0.3289` (0,87 ms/token × 378) e
+  `decoding_s=33.6428` (95,58 ms/token × 352) —
+  `lhm_validation_v3_20261023_185232.csv:2`, md `:13`, `:25`. **Caveat della
+  sorgente**: quel run è etichettato `method=power-integration` con
+  `window_source=counter-delta-fallback`, non `emi-counter`, quindi è evidenza
+  sulla geometria del prompt e non sulla scala energetica (P2.2). Su
   `N_in = 8` uno scarto di quella taglia non è riducibile a una tolleranza del 5%:
   va misurato nel pre-pilota, non assunto.
 
@@ -1775,7 +1782,9 @@ sulle coordinate **target**, e i margini pubblicati qui sopra (1,33 / 64,0 / 21,
 (P2.3, F.6: `N_in_actual,i = prompt_eval_count_i`), e il protocollo stesso scrive
 dei dati v3: "Il target è una richiesta al costruttore del prompt, **non una
 coordinata**" (P2.2), con l'evidenza che a `N_in = 64` dichiarato corrispondevano
-126 token reali. Classificare la copertura in una base e stimare il modello in
+**126** token reali per inferenza (`tokens_in=378` su 3 inferenze,
+`lhm_validation_v3_20261023_185232.csv:2`). Classificare la copertura in una base e
+stimare il modello in
 un'altra rende `coverage_tier` e `hull_margin_tok` non coerenti con `x1_b`, `x2_b`
 di F.7: se `N_in_actual` è sistematicamente circa il doppio del target ai livelli
 bassi, il punto operativo `(12,32)` non sta dove la classificazione dice che sta, e
@@ -2096,8 +2105,10 @@ fascia di copertura (P4.7) in cui cade ciascuna richiesta di produzione.
   verificati numericamente il 24-10-2026 — `(12,32)` → 1,33 token, `(256,192)` →
   64,0, `(32,32)` → 21,2, `(128,128)` → 107,7;
 - motivo dell'inviluppo di fit `hull_fit`: il target non è una coordinata, a
-  `N_in = 64` dichiarato corrispondevano 126 token reali (P2.2,
-  `lhm_validation_v3_20261023_185232.csv:2`); i token reali sono
+  `N_in = 64` dichiarato corrispondevano **126** token reali per inferenza — la
+  riga citata riporta il totale di run `tokens_in=378` su 3 inferenze, corroborato
+  dai campi `prefill_s=0.3289` e `decoding_s=33.6428` della stessa riga (P2.2,
+  `lhm_validation_v3_20261023_185232.csv:2`, md `:13`, `:25`); i token reali sono
   `prompt_eval_count` / `eval_count` (P2.3, F.6);
 - budget e pesi: P1.7, P3.8; validazione della superficie: P3.10; diagnostica e
   lack-of-fit: P3.9; sensibilità post-hoc: P1.10; controlli di drift: P1.6;
