@@ -770,10 +770,35 @@ E_act,i = E0 + a·N_in,i + b·N_out,i + c·N_in,i·N_out,i + ε_i
 ```
 
 - `E0`: overhead fisso per richiesta a modello residente;
-- `a`: J/token di prefill marginale;
-- `b`: J/token di decode marginale;
+- `a`: J/token di prefill marginale **a `N_out = 0`**;
+- `b`: J/token di decode marginale **a `N_in = 0`**;
 - `c`: interazione, attesa ≥ 0 perché la KV cache cresce con `N_in` e ogni token
   di decode legge un contesto più lungo.
+
+`a` e `b` da soli non sono costi marginali generali: con l'interazione presente,
+`∂E/∂N_in = a + c·N_out` e `∂E/∂N_out = b + c·N_in` (P3.4), quindi il costo
+marginale dipende dall'altra coordinata. La qualifica "a `N_out = 0`" / "a
+`N_in = 0`" non è una formula nuova: è ciò che la derivata già dice, scritta
+dove la parola "marginale" compare da sola.
+
+**Cosa assorbe `c`, e il termine quadratico che il modello non ha** (aggiunta
+il 2026-10-24, redazionale: non aggiunge né toglie parametri). Se il costo del
+contesto al passo `j` di decode cresce come `N_in + j`, la somma esatta sui
+`N_out` passi è
+
+```
+Σ_{j=1..N_out} (N_in + j) = N_in·N_out + N_out·(N_out + 1)/2
+```
+
+cioè il termine di interazione del modello **più** un termine in `N_out²` che il
+modello a 4 parametri non contiene. La stessa giustificazione fisica che fonda
+`c ≥ 0` (KV cache crescente) implica quel termine omesso. Non è un motivo per
+aggiungerlo — il disegno di P3.5 non lo identifica separatamente da `b` senza
+livelli di `N_out` più distanziati, e P3.3 congela l'assenza di quadratici — ma
+va scritto che `c` assorbe parte di un effetto che ha anche una componente
+quadratica, e che il modello primario è un'**approssimazione dichiarata** della
+superficie, non la sua forma fisica. Se il lack-of-fit di P3.9 rifiuta il
+modello, questa è la prima spiegazione strutturale da citare.
 
 Il modello con interazione è il **primario** ed è congelato. Il modello ridotto
 `E0 + a·N_in + b·N_out` si riporta solo come sensibilità, con F-test sui minimi
