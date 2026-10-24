@@ -53,6 +53,17 @@ package, in watt.
 | energia di baseline | `E_base` | J | `P_pre · Δt_W` |
 | incremento netto | `E_net_incremental` | J | `E_pkg_gross − E_base` |
 | drift | `dP` | W | `P_post − P_pre` |
+| energia netta assoluta di blocco | `E_net_abs,b` | J | `|Σ_{i∈blocco} E_net_incremental,i| = m · |Ē_b|` (P1.6) |
+| energia netta assoluta di punto | `E_net_abs,p` | J | `|Σ_{i∈punto} E_net_incremental,i|` (P1.6) |
+
+- **`E_trunc` non è un termine di questo protocollo.** Compariva come denominatore
+  di `r_A` e `r_B` nella prima versione congelata senza essere definito, ed era
+  l'eredità del troncamento di produzione che la v4 ha abbandonato (P1.3, F.2). È
+  sostituito da `E_net_abs`. Se compare in un documento, in un codice o in una
+  tabella, è un referto di una versione precedente e va corretto.
+- Il valore assoluto sta **fuori** dalla somma: le singole `E_net_incremental,i`
+  restano firmate e nessuna viene clampata. `E_net_abs` è un denominatore, non una
+  grandezza pubblicata.
 
 - **Idle floor** è un sinonimo operativo di baseline. Compare una sola volta,
   qui, e poi non si usa più. Non è una seconda grandezza e non indica l'energia.
@@ -165,8 +176,11 @@ procede e si marca `cooldown_timeout`.
 - Drift, con somme sulle richieste valide (non sul tempo a muro del blocco):
 
 ```
-r_A = |dP| · Σ_{i∈blocco} Δt_W,i / Σ_{i∈blocco} E_trunc,i
-r_B = |dP| · Σ_{i∈punto}  Δt_W,i / Σ_{i∈punto}  E_trunc,i
+E_net_abs,b = |Σ_{i∈blocco} E_net_incremental,i|  =  m · |Ē_b|
+E_net_abs,p = |Σ_{i∈punto}  E_net_incremental,i|
+
+r_A = |dP| · Σ_{i∈blocco} Δt_W,i / E_net_abs,b
+r_B = |dP| · Σ_{i∈punto}  Δt_W,i / E_net_abs,p
 ```
 
   Soglia operativa 10%, sensibilità a 5/20%, non modificabile dopo i dati.
@@ -181,14 +195,14 @@ r_B = |dP| · Σ_{i∈punto}  Δt_W,i / Σ_{i∈punto}  E_trunc,i
 - Se il denominatore di `r_A` o `r_B` è zero, il blocco o il punto è invalido
   per costruzione.
 
-**Difetto dichiarato nel testo congelato (registrato il 2026-10-24, non
-corretto qui perché la correzione cambia un punto congelato).** Il simbolo
-`E_trunc` usato nelle due formule qui sopra **non è definito in nessuna parte del
+**Denominatore di `r_A` e `r_B`: definizione chiusa il 2026-10-24** (emendamento
+al punto congelato; prima era un difetto dichiarato). Il simbolo usato nella
+versione congelata era `E_trunc`, che **non era definito in nessuna parte del
 protocollo**: quattro occorrenze, tutte d'uso (P1.6 e F.3), nessuna di definizione,
-e il simbolo non compare nella sezione Terminologia. Il nome viene dalla
-produzione, che tronca due volte (`local_energy.py:300` e `:309-310`); la v4 non
-tronca (P1.3, P3.2, F.2), quindi è l'eredità di un metodo che il protocollo ha
-abbandonato. Tre letture possibili danno comportamenti diversi:
+e nessuna voce nella Terminologia. Il nome veniva dalla produzione, che tronca due
+volte (`local_energy.py:300` e `:309-310`); la v4 non tronca (P1.3, P3.2, F.2),
+quindi era l'eredità di un metodo che il protocollo ha abbandonato. Tre letture
+erano possibili e danno comportamenti diversi:
 
 | candidato | denominatore | conseguenza se `Σ E_net < 0` |
 |---|---|---|
@@ -196,13 +210,27 @@ abbandonato. Tre letture possibili danno comportamenti diversi:
 | `|Σ E_net_incremental,i|` | ≥ 0 | `r_A` esplode quando il blocco non ha segnale |
 | `Σ |E_net_incremental,i|` | > 0 | confronta il drift con una grandezza che non entra nel fit |
 
-Finché la scelta non è fatta, `r_A` e `r_B` **non sono calcolabili** e quindi non
-lo sono neppure i flag `baseline_unstable` e le regole di esclusione di P1.6,
-l'aggregato `bias_w` di P4.5 e l'anello 4 di P4.9. È la prima cosa da chiudere
-prima di scrivere il runner (P5). Raccomandazione registrata in
-`revisione_esterna_formule_20261024_valutazione.md` §4.1:
-`|Σ_{i∈blocco} E_net_incremental,i| = m · |Ē_b|`, con simbolo rinominato e voce
-aggiunta alla Terminologia.
+**Scelta: la seconda.** `E_net_abs,b = |Σ_{i∈blocco} E_net_incremental,i| =
+m · |Ē_b|`, e analogamente `E_net_abs,p` sul punto. Motivi, tutti verificabili nel
+protocollo:
+
+- è l'unica coerente con "nessun troncamento" (P1.3, F.2): il valore assoluto sta
+  fuori dalla somma, quindi le singole `E_net_incremental,i` restano firmate e
+  nessuna viene clampata;
+- è la grandezza che entra davvero nel fit, perché F.7 stima su `Ē_b` e
+  `m · |Ē_b|` ne è una funzione diretta. La terza candidata (`Σ |E_net,i|`)
+  confronterebbe il drift con una grandezza che il modello non usa;
+- rende `r_A ≥ 0` sempre, quindi il filtro `≤ 10%` non diventa cieco quando la
+  somma è negativa, che era il difetto della prima candidata;
+- dà un senso preciso alla regola già congelata "denominatore zero → blocco
+  invalido per costruzione": un blocco la cui energia netta media è zero non porta
+  informazione, e il drift non è valutabile in rapporto a nulla.
+
+Il simbolo `E_trunc` **non si usa più**: è eliminato da P1.6, da F.3 e da ogni
+altra occorrenza, ed è sostituito da `E_net_abs`. La voce è aggiunta alla
+Terminologia. L'emendamento chiude il difetto 1.1 di
+`revisione_esterna_formule_20261024_valutazione.md`; le soglie (10%, 5/20%,
+0,10 J/token) **non cambiano**.
 
 ### P1.7 Incertezza di baseline
 
@@ -1964,8 +1992,12 @@ diventa invisibile.
 
 ```
 pre_range_w = max(P_rep) − min(P_rep)
-r_A = |dP| · Σ_{i∈blocco} Δt_W,i / Σ_{i∈blocco} E_trunc,i
-r_B = |dP| · Σ_{i∈punto}  Δt_W,i / Σ_{i∈punto}  E_trunc,i
+
+E_net_abs,b = |Σ_{i∈blocco} E_net_incremental,i|  =  m · |Ē_b|
+E_net_abs,p = |Σ_{i∈punto}  E_net_incremental,i|
+
+r_A = |dP| · Σ_{i∈blocco} Δt_W,i / E_net_abs,b
+r_B = |dP| · Σ_{i∈punto}  Δt_W,i / E_net_abs,p
 ```
 
 *Applicazione.* `r_A` per blocco, `r_B` per punto di disegno. Soglia operativa
@@ -1978,13 +2010,15 @@ ridotto; oltre 20% → escluso dal fit primario e riportato in sensibilità.
 baseline sposta J/token del 6–11% (`idle_floor_sensitivity_20261023_analisi.md`
 §2). Le somme corrono sulle **richieste valide**, non sul tempo a muro del
 blocco: il blocco include warm-up e finestre idle, che non hanno energia netta
-attribuibile e gonfierebbero il numeratore. Se il denominatore è zero, blocco o
-punto è invalido per costruzione. I flag non invalidano da soli: entrano nel
-budget di F.4.
-
-**Attenzione: `E_trunc` non è definito** in nessuna parte del protocollo — vedi il
-difetto dichiarato in P1.6, con le tre letture possibili e le loro conseguenze.
-Fino alla scelta, `r_A` e `r_B` non sono calcolabili.
+attribuibile e gonfierebbero il numeratore. Il denominatore è `E_net_abs` — valore
+assoluto **della somma**, non somma dei valori assoluti — così le singole
+`E_net_incremental,i` restano firmate (P1.3, F.2), `r_A ≥ 0` sempre e il filtro
+non diventa cieco quando la somma è negativa; è anche la grandezza che entra nel
+fit, perché F.7 stima su `Ē_b`. Se il denominatore è zero, blocco o punto è
+invalido per costruzione: un blocco con energia netta media nulla non porta
+informazione e il drift non è valutabile in rapporto a nulla. I flag non
+invalidano da soli: entrano nel budget di F.4. Il simbolo `E_trunc` della prima
+versione congelata è eliminato (P1.6, emendamento del 2026-10-24).
 
 ### F.4 Incertezza di baseline (P1.7)
 
