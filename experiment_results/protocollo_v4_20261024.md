@@ -11,7 +11,7 @@ Data: 2026-10-24. Branch: `energy-consumption-framework-ollama-d248a`.
 | P1 | baseline e calibrazione idle | **congelato 2026-10-24** (emendato: sensibilità post-hoc; letteratura e confronto CodeCarbon; terza emenda di forma — motivazione causale del pre applicato in P1.14/F.2, e forma di combinazione di `budget_base_w` dichiarata decisione operativa provvisoria con rinvio motivato ai dati del pilota P2.9: P1.7, P1.13. **Emenda sostanziale del 2026-10-24**: chiuso il difetto `E_trunc`, definito `E_net_abs,b`/`E_net_abs,p` come denominatore di `r_A`/`r_B`, P1.6 e F.3) |
 | P2 | token effettivi e terminazione | **congelato 2026-10-24** |
 | P3 | geometria, modello e stima | **congelato 2026-10-24** (emendato di forma il 2026-10-24 dopo la revisione esterna: P3.3 costi marginali qualificati a `N_out = 0` / `N_in = 0` e algebra del termine quadratico omesso; P3.10 `E_pred ≤ 0` dichiarato fallimento con `pred_nonpositive` e intervallo rinominato `intervallo_conf`; P3.12/P3.13 `design_deviation_count`; P3.15 pre-pilota esteso ai livelli bassi. **Emenda sostanziale del 2026-10-24**: P3.9, il criterio dell'anello 5 usa `p_lof_perm`, `p` della stessa statistica F pesata ottenuto dalla distribuzione nulla per ricampionamento del puro errore — il `p` asintotico non è valido con pesi conservativi. Statistica e soglia 0,05 invariate, aggiunto `lof_max_rel` descrittivo. Nessuna modifica a disegno, modello o pesi) |
-| P4 | incertezza e validazione | **congelato 2026-10-24** (emendato: inviluppo convesso per la copertura, bootstrap dei residui standardizzati, criterio monolitico di catena, `u_edge` solo nel budget predittivo; seconda emenda solo di forma: P4.1 in quattro clausole, P4.4 a otto requisiti numerati con la baseline 3 pre + 3 post obbligatoria anche sui controlli; terza emenda solo di forma: seconda ragione in P4.12 per non adottare la deviazione standard a n = 3; quarta emenda solo di forma: P4.6, rettificata la giustificazione di `u_edge` — il termine congelato maggiora il disallineamento, non l'interpolazione — con formula e valore invariati. **Emenda sostanziale del 2026-10-24**: chiuso il difetto di `r_A` sui controlli — il requisito 7 di P4.4 elenca ora solo le quantità che esistono su un blocco di controllo, e il filtro di stabilità di P4.5 è sostituito dalle soglie assolute `pre_range_w,c ≤ 1,0 W` e `|dP_c| ≤ 1,0 W` con il flag `control_unstable`; `u_bias,b = |bias_w| · Δt̄_W,b` scritto in formula in P4.6 e F.11 come contributo di incertezza, non come correzione sistematica; copertura decisa su due inviluppi — `hull_design` sui target e `hull_fit` sui token reali dei 33 blocchi di fit — prendendo la fascia più conservativa, P4.7 e F.13. **Seconda emenda sostanziale del 2026-10-24**: P4.8, la copertura del bootstrap è dichiarata *nominale e non arbitrata* finché P6.4 non la verifica per simulazione, e la correzione di leva `1/√(1 − h_b)` è resa **sensibilità obbligatoria** allo stesso seed del primario — leva massima verificata sul disegno nominale 0,2852 sui blocchi (512, 256), fattore 1,1828, media 0,121212 = 4/33. Il primario non cambia e nessuna formula congelata è modificata. **Nessun difetto dichiarato aperto**) |
+| P4 | incertezza e validazione | **congelato 2026-10-24** (emendato: inviluppo convesso per la copertura, bootstrap dei residui standardizzati, criterio monolitico di catena, `u_edge` solo nel budget predittivo; seconda emenda solo di forma: P4.1 in quattro clausole, P4.4 a otto requisiti numerati con la baseline 3 pre + 3 post obbligatoria anche sui controlli; terza emenda solo di forma: seconda ragione in P4.12 per non adottare la deviazione standard a n = 3; quarta emenda solo di forma: P4.6, rettificata la giustificazione di `u_edge` — il termine congelato maggiora il disallineamento, non l'interpolazione — con formula e valore invariati. **Emenda sostanziale del 2026-10-24**: chiuso il difetto di `r_A` sui controlli — il requisito 7 di P4.4 elenca ora solo le quantità che esistono su un blocco di controllo, e il filtro di stabilità di P4.5 è sostituito dalle soglie assolute `pre_range_w,c ≤ 1,0 W` e `|dP_c| ≤ 1,0 W` con il flag `control_unstable`; `u_bias,b = |bias_w| · Δt̄_W,b` scritto in formula in P4.6 e F.11 come contributo di incertezza, non come correzione sistematica; copertura decisa su due inviluppi — `hull_design` sui target e `hull_fit` sui token reali dei 33 blocchi di fit — prendendo la fascia più conservativa, P4.7 e F.13. **Seconda emenda sostanziale del 2026-10-24**: P4.8, la copertura del bootstrap è dichiarata *nominale e non arbitrata* finché P6.4 non la verifica per simulazione, e la correzione di leva `1/√(1 − h_b)` è resa **sensibilità obbligatoria** allo stesso seed del primario — leva massima verificata sul disegno nominale 0,2852 sui blocchi (512, 256), fattore 1,1828, media 0,121212 = 4/33. Il primario non cambia e nessuna formula congelata è modificata. **Terza emenda sostanziale del 2026-10-24**: P4.4/P4.5, il gate load-versus-control passa da tre a **sei coppie** (12 blocchi) e il quorum dei controlli utilizzabili da due a **quattro**, stessa frazione congelata `⌈2/3 · n_coppie⌉`; `bias_w` si riporta anche come `bias_jtok_pct` con la scala ancorata 1 W ≈ 6–11% di `J/token`, grandezza riportata e non soglia; intervallo t e test di equivalenza a ±3–5% valutati e **non** adottati, con il limite dichiarato che un gate passato non dimostra quell'equivalenza (0,27–0,83 W sulla stessa scala). Costo in P6.1: pavimento 2 h 15 min → **2 h 33 min**. Soglie in watt invariate. **Nessun difetto dichiarato aperto**) |
 | P5 | campi CSV e runner | aperto (requisiti trasmessi dai punti congelati: P6.5) |
 | P6 | esecuzione e analisi | aperto (sezione preparatoria P6.1–P6.5: vincoli derivati dai punti congelati e proposte della revisione esterna, nessuna decisione) |
 
@@ -1323,6 +1323,8 @@ nessuno dei due è l'incertezza di un numero pubblicato. Mancano tre pezzi.
 | blocco di carico | — | blocco con le `m = 3` richieste di inferenza (P3.7) |
 | blocco di controllo | — | blocco identico per struttura, stato macchina e durata, **senza alcuna richiesta** |
 | bias di sottrazione | `bias_w` | incremento netto medio dei blocchi di controllo, in watt; atteso zero per costruzione |
+| bias in unità di metrica | `bias_jtok_pct` | intervallo `[|bias_w| · 6 , |bias_w| · 11]` % di `J/token`, traduzione del primo ordine con la scala ancorata a 1 W; **grandezza riportata, non soglia** (P4.5) |
+| controlli utilizzabili | `controls_usable_n` | numero di blocchi di controllo che superano il filtro di stabilità; il gate è eseguibile se `≥ ⌈2/3 · n_coppie⌉` (P4.5) |
 | termine di bordo | `u_edge,b` | `2 · P_peak,b · δt_edge,b`, incertezza di **disallineamento** ai due bordi della finestra, in joule; non maggiora l'interpolazione (P4.6) |
 | durata media di finestra | `Δt̄_W,b` | `(1/m) · Σ_{i∈blocco b} Δt_W,i`; grandezza già usata da `u_base,b` (P3.8) |
 | budget di fit | `budget_fit,b` | il `budget_b` di P3.8, rinominato: è ciò che pesa i blocchi nel fit |
@@ -1357,7 +1359,14 @@ test calcolabile.
    principale. Se il gate non passa, la campagna principale parte comunque ma con
    `bias_declared` e con `u_bias` dentro `budget_pred`: è la conseguenza di P4.5
    e dell'anello 4 di P4.9, non una regola nuova di questo punto.
-2. **Tre coppie.** Ogni coppia = 1 blocco di carico + 1 blocco di controllo.
+2. **Sei coppie** (emendamento del 2026-10-24, revisione esterna §4.7; la versione
+   congelata ne prevedeva tre). Ogni coppia = 1 blocco di carico + 1 blocco di
+   controllo. La ragione è aritmetica, non statistica: il quorum di P4.5 è una
+   frazione dei controlli utilizzabili e la soglia aggregata è una **mediana** dei
+   loro budget. Con tre coppie la mediana è su tre valori e un solo controllo
+   scartato dal filtro lascia il gate nelle mani di due blocchi; con sei coppie la
+   mediana è su sei e il quorum proporzionale ne richiede quattro. Costo
+   dichiarato in P6.1: 1.080 s in più di sole finestre idle, cioè 18 minuti.
 3. **Ordine randomizzato, seed registrato.** Ordine dentro la coppia e ordine
    delle coppie randomizzati; il seed va in `order_seed`.
 4. **Geometria operativa.** Il punto di conferma `(12,32)` di P3.5, cioè la
@@ -1436,9 +1445,14 @@ una soglia nuovi), e l'eliminazione del filtro (perde la protezione contro un
 controllo con baseline impazzita).
 
 Un controllo che non supera il filtro **non entra** in `bias_w` ed è registrato con
-il flag `control_unstable`; se i controlli utilizzabili sono meno di due, il gate
+il flag `control_unstable`; se i controlli utilizzabili sono meno di quattro, il gate
 non è eseguibile e `chain_status` scende a `bias_declared` con la ragione scritta —
-non si pubblica un bias medio su un solo blocco dichiarandolo test.
+non si pubblica un bias medio su un pugno di blocchi dichiarandolo test. Il quorum
+**non è una soglia nuova**: è la stessa frazione congelata (due su tre) riportata
+alle sei coppie dell'emendamento di P4.4 requisito 2. Con tre coppie il quorum era
+"almeno 2", con sei è "almeno 4"; se il numero di coppie cambiasse ancora, il quorum
+è `⌈2/3 · n_coppie⌉` e non un numero assoluto. Il numero di controlli utilizzabili
+si registra in `controls_usable_n`.
 
 ```
 per blocco:  passa se  |E_net,control,c| ≤ budget_base_j,c              (P1.7)
@@ -1475,6 +1489,44 @@ autocostruito — ma è confinata sotto una soglia assoluta congelata prima dei 
 - Le soglie sono congelate prima dei dati. Non si sceglie la soglia dopo aver
   visto il bias.
 
+**Il bias si riporta anche in unità della metrica pubblicata** (emendamento del
+2026-10-24, revisione esterna §4.7). `bias_w` è un watt: per chi legge la tesi è un
+numero senza scala, perché la metrica pubblicata è `J/token`. La traduzione usa la
+sensibilità già ancorata — 1 W di errore sulla baseline sposta `J/token` del 6–11%
+alla geometria operativa (`idle_floor_sensitivity_20261023_analisi.md` §2) — ed è
+una **grandezza riportata, non una soglia**:
+
+```
+bias_jtok_pct ∈ [ |bias_w| · 6 , |bias_w| · 11 ]   % di J/token
+```
+
+Lineare in `|bias_w|` perché ancorata a 1 W: la sensibilità è misurata a quella
+scala e non è verificata altrove, quindi la traduzione è del primo ordine e va
+scritta come tale. Non sostituisce il criterio in watt, che resta quello congelato.
+
+Tre proposte della revisione esterna su questo punto, valutate e **non** adottate:
+
+1. *Intervallo t sul bias medio.* Richiederebbe una varianza stimata su al più sei
+   blocchi, e P1.7 vieta il linguaggio della deviazione standard quando non c'è una
+   stima di varianza. La soglia aggregata è già una mediana di budget conservativi:
+   affiancarle un intervallo t introdurrebbe un secondo criterio con un'altra
+   epistemologia. Scartata per coerenza lessicale, non per costo;
+2. *Test di equivalenza con margine in `J/token` (±3–5%).* Il margine proposto,
+   convertito con la scala ancorata qui sopra, è `3/11 … 5/6` = **0,27–0,83 W**,
+   cioè più stretto della scala di 1,0 W su cui sono congelate le soglie di P1.6 e
+   il filtro dei controlli. Adottarlo significherebbe o inasprire le soglie dopo
+   averle congelate, o avere due criteri che possono contraddirsi. Si dichiara
+   invece il limite, che è la parte utile della proposta: **il gate che passa non
+   dimostra l'equivalenza a ±3–5% di `J/token`**, dimostra che il bias sta dentro
+   il budget di baseline osservato. Scartata come soglia, recepita come limite;
+3. *Otto coppie invece di sei.* Oltre sei, il costo marginale di finestre idle e di
+   richieste cresce linearmente mentre il quorum proporzionale non cambia
+   natura; il punto debole del gate non è la numerosità ma la dipendenza della
+   soglia dall'instabilità osservata (§3.4 della valutazione), che più coppie non
+   curano. Sei è il raddoppio del congelato e il primo valore dell'intervallo
+   proposto dal revisore: dà una mediana su sei valori e un quorum di quattro, a
+   18 minuti di costo. P6.4 misura se bastano.
+
 Due limiti del test, da scrivere insieme al risultato:
 
 1. il controllo valida lo **zero** dell'estimatore, non l'assenza di effetti
@@ -1488,7 +1540,12 @@ Due limiti del test, da scrivere insieme al risultato:
 
 I blocchi di carico della campagna danno anche una seconda stima di `E_net` alla
 geometria `(12,32)`, da confrontare con il punto di conferma della campagna
-principale. È un confronto descrittivo, non un gate.
+principale. È un confronto descrittivo, non un gate. Con l'emendamento a sei coppie
+questo sottoprodotto cresce: 6 blocchi × 3 richieste = 18 misure alla geometria
+operativa, contro le 9 di prima, cioè la stessa numerosità di due punti di disegno
+della griglia. Resta descrittivo — non entra in nessun anello di P4.9 — ma è il
+materiale con cui P6.4 può tarare la variabilità fra blocchi a parità di geometria,
+che oggi non è misurata.
 
 ### P4.6 Budget di incertezza completo
 
@@ -1953,7 +2010,8 @@ fascia di copertura (P4.7) in cui cade ciascuna richiesta di produzione.
 - P5 fissa nomi e tipi delle colonne. P4 elenca i contenuti nuovi obbligatori:
   `block_kind` ∈ {`load`, `control`}, `pair_id`, `order_seed`, `dt_nominal_s`,
   `dt_tick_s`, `p_peak_w`, `u_edge_j`, `budget_fit_j`, `budget_pred_j`, `u_bias_j`,
-  `bias_w`, `z_resid`, `h_leverage`, `boot_leva_rel_diff`, `boot_leva_adopted`,
+  `bias_w`, `controls_usable_n`, `bias_jtok_pct_lo`, `bias_jtok_pct_hi`,
+  `z_resid`, `h_leverage`, `boot_leva_rel_diff`, `boot_leva_adopted`,
   `hull_margin_tok`, `hull_margin_design_tok`,
   `coverage_tier` ∈ {`A`, `B`, `C`}, `coverage_tier_design`, `coverage_tier_fit`,
   `sparse_support`, `thin_support`, `out_of_coverage`, `bootstrap_seed`,
@@ -2040,22 +2098,28 @@ tali, non sono vincoli derivati, e la loro adozione resta una decisione.
   tre post da 30 s (P1.5, P3.7): 6 × 30 s = **180 s per blocco**;
 - la campagna principale ha **39 blocchi** (P3.5: 33 di fit su 10 punti, con il
   centro a 6, più 6 di conferma su 2 punti): 39 × 180 s = **7.020 s = 1 h 57 min**;
-- la campagna di gate di P4.4 aggiunge 6 blocchi (3 coppie × carico + controllo):
-  6 × 180 s = **1.080 s = 18 min**;
-- pavimento complessivo delle sole finestre idle: **8.100 s = 2 h 15 min**;
+- la campagna di gate di P4.4 aggiunge **12 blocchi** (6 coppie × carico +
+  controllo, emendamento del 2026-10-24; erano 6 blocchi con tre coppie):
+  12 × 180 s = **2.160 s = 36 min**;
+- pavimento complessivo delle sole finestre idle: **9.180 s = 2 h 33 min**;
 - a questo si aggiungono due attese per blocco, ognuna con tetto 120 s: il
   settling prima del pre e il settling prima del post (P1.5). Nel caso peggiore,
-  se entrambi raggiungono il tetto: 39 × 240 s = **9.360 s = 2 h 36 min**.
+  se entrambi raggiungono il tetto: sui 39 blocchi della campagna principale
+  39 × 240 s = **9.360 s = 2 h 36 min**, e sui 12 blocchi del gate
+  12 × 240 s = **2.880 s = 48 min**.
 
-**Come vanno letti questi numeri.** 2 h 15 min è il **pavimento delle sole
-finestre idle**: esclude le 117 richieste, i warm-up, il cooldown fra i punti
+**Come vanno letti questi numeri.** 2 h 33 min è il **pavimento delle sole
+finestre idle**: esclude le 117 richieste della campagna principale e le 18 del
+gate, i warm-up, il cooldown fra i punti
 (P1.5, criterio distinto dal settling), i ritentativi di P1.6 e ogni
-interruzione. 2 h 36 min è il **massimo** dei due settling, non il loro valore
-tipico: la durata tipica del settling non è mai stata misurata su questa macchina
-con la struttura v4, quindi non esiste una stima di durata totale affidabile.
-Sommare pavimento e massimo produrrebbe un numero senza stato — uno è un limite
-inferiore certo, l'altro un limite superiore di una sola componente — e non va
-fatto.
+interruzione. 2 h 36 min e 48 min sono il **massimo** dei due settling, non il loro
+valore tipico: la durata tipica del settling non è mai stata misurata su questa
+macchina con la struttura v4, quindi non esiste una stima di durata totale
+affidabile. Sommare pavimento e massimo produrrebbe un numero senza stato — uno è
+un limite inferiore certo, l'altro un limite superiore di una sola componente — e
+non va fatto. Il passaggio da tre a sei coppie costa 1.080 s = 18 min di
+pavimento e, nel caso peggiore del settling, altri 1.440 s = 24 min: è il prezzo
+dichiarato della potenza del gate, non un arrotondamento.
 
 **Cosa ne segue.** La durata totale diventa stimabile solo dopo che il pilota ha
 prodotto due grandezze: la mediana della durata di richiesta (che P4.4 requisito 5
@@ -2098,7 +2162,7 @@ baseline pre va da 9,35 a 18,78 W, `dP` per run fra −9,31 e +5,80 W, `P_base`
 media 11,55 W con CV 22,5% (`:318-320`,
 `lhm_validation_v3_20261023_153604.md:12-20,24`). Se la macchina non è stazionaria
 a riposo, i flag `r_A`, `pre_unstable` e `baseline_unstable` invalidano la
-campagna **dopo** averla eseguita, cioè dopo il pavimento di 2 h 15 min di P6.1.
+campagna **dopo** averla eseguita, cioè dopo il pavimento di 2 h 33 min di P6.1.
 
 Requisito: **prima** del pilota e **prima** della campagna, un audit idle di
 30 minuti sulla macchina nella configurazione esatta di misura — GUI di
@@ -2197,7 +2261,8 @@ forma è esattamente il punto in cui si introducono errori silenziosi.
 ### F.0 Ordine di calcolo
 
 Passo 0, una volta sola **prima** della campagna principale: la campagna gate
-load-versus-control di P4.4 → `bias_w`, `control_unstable`, `validation_bias_pass`
+load-versus-control di P4.4, sei coppie → `controls_usable_n`, `bias_w`,
+`bias_jtok_pct`, `control_unstable`, `validation_bias_pass`
 e quindi `u_bias,b = |bias_w| · Δt̄_W,b` (F.12). È il passo 0 perché
 `budget_pred_b` del passo 9 ne dipende: con `u_bias,b` scritto in formula
 (emendamento del 2026-10-24, P4.6) il budget predittivo non è calcolabile prima
@@ -2567,16 +2632,21 @@ per blocco di controllo c:  passa se |E_net,control,c| ≤ budget_base_j,c
 bias_w = Σ_c E_net,control,c / Σ_c Δt_W,c     sui soli controlli utilizzabili
 passa se |bias_w| ≤ mediana_c(budget_base_w,c)
 
-meno di due controlli utilizzabili:  gate non eseguibile, chain_status = bias_declared
+meno di quattro controlli utilizzabili su sei coppie:  gate non eseguibile,
+  chain_status = bias_declared          # quorum = ⌈2/3 · n_coppie⌉, frazione congelata
+
+bias_jtok_pct ∈ [ |bias_w| · 6 , |bias_w| · 11 ]   # % di J/token, grandezza riportata
+                                                   # non una soglia; scala ancorata a 1 W
 
 Δt̄_W,b = (1/m) · Σ_{i∈blocco b} Δt_W,i    # blocchi della campagna principale, non del gate
 se non passa:  u_bias,b = |bias_w| · Δt̄_W,b   → in quadratura in budget_pred_b
 se passa:      u_bias,b = 0
 ```
 
-*Applicazione.* Campagna separata, 3 blocchi di carico + 3 di controllo, stessa
-geometria del punto di conferma `(12,32)`, stessa durata, ordine randomizzato con
-seed registrato; è un gate prima della campagna principale.
+*Applicazione.* Campagna separata, 6 blocchi di carico + 6 di controllo (emendamento
+del 2026-10-24: erano tre coppie), stessa geometria del punto di conferma `(12,32)`,
+stessa durata, ordine randomizzato con seed registrato; è un gate prima della
+campagna principale.
 
 *Giustificazione.* Il criterio è calcolabile in virtù del requisito 7 di P4.4:
 `pre_range_w,c`, `dP_c`, `budget_base_j,c` e `budget_base_w,c` esistono su un blocco
@@ -2602,6 +2672,17 @@ Il filtro `|dP_c| ≤ 1,0 W` ha un secondo effetto, non solo di stabilità: limi
 circolarità del criterio per blocco, la cui soglia `budget_base_j,c` contiene
 `half_drift_c = |dP_c|/2` misurato sullo stesso blocco che produce
 `E_net,control,c`. Vedi P4.5 e §3.4 della valutazione.
+
+Le sei coppie e il quorum di quattro sono l'emendamento del 2026-10-24 (revisione
+esterna §4.7): con tre coppie la mediana della soglia era su tre valori e un solo
+controllo scartato lasciava il gate in mano a due blocchi. `bias_jtok_pct` traduce
+il bias nell'unità della metrica pubblicata con la sensibilità ancorata (1 W ≈
+6–11% di `J/token`) ed è una grandezza riportata, non un criterio. Non sono
+adottati né l'intervallo t sul bias medio — richiederebbe una varianza stimata su
+al più sei blocchi, contro il linguaggio di F.4 — né il test di equivalenza a
+±3–5%, che convertito vale 0,27–0,83 W ed è quindi più stretto delle soglie
+congelate: si dichiara invece che un gate passato **non** dimostra
+quell'equivalenza. Motivazioni complete in P4.5.
 
 Due limiti da scrivere insieme al risultato: il controllo valida lo **zero**
 dell'estimatore, non l'assenza di effetti termici sotto carico (un aumento reale
