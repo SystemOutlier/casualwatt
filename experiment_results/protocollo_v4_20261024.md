@@ -242,7 +242,58 @@ modello per processo) sono rinviati a una **v5** con validazione dedicata. Senza
 misura dell'errore sul nostro hardware sarebbero complessità aggiuntiva, non
 miglioramento.
 
-### P1.11 Ancoraggi
+### P1.11 Changelog del metodo di baseline (v1 → v4)
+
+Il metodo non è stato sostituito: è cambiato il **protocollo di campionamento**
+attorno allo stesso estimatore `ΔE/Δt`. Cronologia verificata sui file del repo:
+
+| versione | finestre idle | statistica | drift | applicazione |
+|---|---|---|---|---|
+| v1 (21/10 23:32) | 1 pre, durata agganciata al carico (32–53 s) | lettura singola | non misurato | pre |
+| v2 (22/10 00:16) | 1 pre + 1 post, 30 s | media delle due | implicito nei due valori | media pre/post |
+| v3 (22/10 01:07; 23/10 15:36 post-fix) | 1 pre + 1 post, 30 s (10 s nel rilancio 18:52) | media | esplicito (`deriva_baseline_*`) | media pre/post |
+| v4 (24/10) | 3 pre + 3 post, 30 s | mediana del pre | misurato, post diagnostico | solo pre |
+
+Ancoraggi: v1 `lhm_validation_20261021_233202.md:8,17-30` (una sola fase
+`baseline` per run); v2 `lhm_validation_v2_20261022_001626.md:7` e
+`lhm_v2replay_console.txt:36` (`P_base_avg`, media A-B); v3
+`lhm_validation_v3_20261022_010741.md:7`,
+`lhm_validation_v3_20261023_185232.md:7` e `.json:27-28` (campo di deriva).
+
+Non è cambiato: l'estimatore `ΔE/Δt` per finestra, il dominio PKG, il rifiuto
+dei delta negativi e la formula `E_net = E_gross − P_base·Δt`. È cambiato il
+backend fisico: dal 23/10 il primario è `emi-counter`, con LHM come fallback
+(cfr. protocolli v3 rilanciati post-fix).
+
+Perché è cambiato — con i nostri numeri, non con quelli di una bozza esterna:
+nel run v3 post-fix la baseline pre va da 9,35 a 18,78 W e la post da 9,42 a
+15,15 W, con `dP` per run fra −9,31 e +5,80 W e `P_base` media 11,55 W (CV
+22,5%) (`lhm_validation_v3_20261023_153604.md:12-20,24` e colonne `base_a`/
+`base_b` del CSV; sintesi in `lhm_validation_v3_postfix_20261023_analisi.md:20-24`).
+Non è un drift lento e lineare: è non stazionarietà di fondo della macchina. Da
+qui le tre repliche, la mediana e il flag di stabilità di P1.6, e da qui il
+limite di P1.10: un'interpolazione pre→post su `dP` di quest'ordine non è
+arbitra.
+
+Attenzione ai valori assoluti di v1 e v2 (72–79 "W"): provengono dal percorso di
+lettura pre-fix, che integrava la temperatura di package al posto della potenza
+(`lhm_validation_v3_postfix_20261023_analisi.md:20-24`). Restano validi come
+cronologia del protocollo, non come potenze. I drift `+1,2 / −1,5 / +1,8 W`
+citati in bozze esterne non sono di questo repo e non entrano in tesi.
+
+Testo per la tesi (bozza, da adattare):
+
+> Il metodo di calcolo della baseline è evoluto nel corso della sperimentazione
+> senza cambiare l'estimatore di base, che resta il rapporto fra energia e
+> durata della finestra idle. La versione v1 misurava una sola finestra prima
+> del carico; la v2 ha introdotto una finestra anche dopo, applicando la media
+> delle due; la v3 ha reso esplicita la deriva fra pre e post; la v4 adotta tre
+> finestre consecutive da 30 s per ciascuna fase e applica la mediana del pre,
+> riservando il post alla diagnostica. La scelta è motivata dai dati: nella v3
+> post-fix la baseline pre varia fra 9,35 e 18,78 W e la deriva per run fra
+> −9,31 e +5,80 W, quindi la sola media non basta a stabilizzare il parametro.
+
+### P1.12 Ancoraggi
 
 - estimatore: `energy_session.py:2229-2409`, in particolare `:2363-2396`; floor
   `:2252-2257`; delta negativo `:2383-2387`;
@@ -253,11 +304,18 @@ miglioramento.
 - osservatore: `experiment_results/observer_cost_20261023_analisi.md` §2;
 - drift v3: `experiment_results/lhm_validation_v3_20261023_185232.md:13,24` e
   `.json:27-28`; baseline fra run: `experiment_results/idee_implementative_20261024.md:67`;
+- instabilità post-fix: `experiment_results/lhm_validation_v3_20261023_153604.md:12-20,24`
+  e colonne `base_a`/`base_b` del CSV; sintesi in
+  `experiment_results/lhm_validation_v3_postfix_20261023_analisi.md:20-24`;
+- changelog v1/v2/v3: `experiment_results/lhm_validation_20261021_233202.md:8,17-30`,
+  `lhm_validation_v2_20261022_001626.md:7`, `lhm_v2replay_console.txt:36`,
+  `lhm_validation_v3_20261022_010741.md:7`;
 - incoerenza nota: `config.py:319` default 10 s contro floor 30 s; la v4 passa
   30 s espliciti e non tocca il default in questo punto.
 
-### P1.12 Aperto
+### P1.13 Aperto
 
 Niente per P1. I numeri 0,5 W (settling), 1,0 W (range) e 10% (drift) sono
 soglie operative dichiarate, non costanti scientifiche; restano quelle anche dopo
-i dati. La sensibilità di P1.10 si esegue in P6, non qui.
+i dati. La sensibilità di P1.10 si esegue in P6, non qui. Il changelog di P1.11
+riguarda il protocollo di campionamento, non l'estimatore.
