@@ -10,10 +10,10 @@ Data: 2026-10-24. Branch: `energy-consumption-framework-ollama-d248a`.
 |---|---|---|
 | P1 | baseline e calibrazione idle | **congelato 2026-10-24** (emendato: sensibilità post-hoc; letteratura e confronto CodeCarbon; terza emenda di forma — motivazione causale del pre applicato in P1.14/F.2, e forma di combinazione di `budget_base_w` dichiarata decisione operativa provvisoria con rinvio motivato ai dati del pilota P2.9: P1.7, P1.13) |
 | P2 | token effettivi e terminazione | **congelato 2026-10-24** |
-| P3 | geometria, modello e stima | **congelato 2026-10-24** |
-| P4 | incertezza e validazione | **congelato 2026-10-24** (emendato: inviluppo convesso per la copertura, bootstrap dei residui standardizzati, criterio monolitico di catena, `u_edge` solo nel budget predittivo; seconda emenda solo di forma: P4.1 in quattro clausole, P4.4 a otto requisiti numerati con la baseline 3 pre + 3 post obbligatoria anche sui controlli; terza emenda solo di forma: seconda ragione in P4.12 per non adottare la deviazione standard a n = 3) |
-| P5 | campi CSV e runner | aperto |
-| P6 | esecuzione e analisi | aperto (sezione preparatoria P6.1–P6.2: vincoli derivati dai punti congelati, nessuna decisione) |
+| P3 | geometria, modello e stima | **congelato 2026-10-24** (emendato solo di forma il 2026-10-24 dopo la revisione esterna: P3.3 costi marginali qualificati a `N_out = 0` / `N_in = 0` e algebra del termine quadratico omesso; P3.10 `E_pred ≤ 0` dichiarato fallimento con `pred_nonpositive` e intervallo rinominato `intervallo_conf`; P3.12/P3.13 `design_deviation_count`; P3.15 pre-pilota esteso ai livelli bassi. Nessuna formula, soglia o disegno modificato) |
+| P4 | incertezza e validazione | **congelato 2026-10-24** (emendato: inviluppo convesso per la copertura, bootstrap dei residui standardizzati, criterio monolitico di catena, `u_edge` solo nel budget predittivo; seconda emenda solo di forma: P4.1 in quattro clausole, P4.4 a otto requisiti numerati con la baseline 3 pre + 3 post obbligatoria anche sui controlli; terza emenda solo di forma: seconda ragione in P4.12 per non adottare la deviazione standard a n = 3; quarta emenda solo di forma: P4.6, rettificata la giustificazione di `u_edge` — il termine congelato maggiora il disallineamento, non l'interpolazione — con formula e valore invariati) |
+| P5 | campi CSV e runner | aperto (requisiti trasmessi dai punti congelati: P6.5) |
+| P6 | esecuzione e analisi | aperto (sezione preparatoria P6.1–P6.5: vincoli derivati dai punti congelati e proposte della revisione esterna, nessuna decisione) |
 
 Le formule di P1–P4 sono raccolte, con applicazione e giustificazione, nella
 sezione finale **Formulario consolidato (F.0–F.17)**: è una sezione derivata, non
@@ -1602,7 +1602,9 @@ aperte:
 P6 non è congelato e questa sezione **non contiene decisioni**: raccoglie i
 vincoli che i punti già congelati impongono all'esecuzione, e che altrimenti
 resterebbero impliciti fino al giorno della campagna. Ogni numero qui sotto è
-aritmetica dei punti congelati, non una stima.
+aritmetica dei punti congelati, non una stima. Da P6.3 in poi compaiono anche
+**proposte** nate dalla revisione esterna del 2026-10-24: sono etichettate come
+tali, non sono vincoli derivati, e la loro adozione resta una decisione.
 
 ### P6.1 Pavimento di tempo a muro delle finestre idle
 
@@ -1657,6 +1659,95 @@ anche le prime terne reali. P2.9 resta congelato com'è: cambia come il pilota
 viene eseguito (P6), non che cosa verifica (P2). Se il pilota fosse eseguito con
 un harness diverso dal runner di campagna, la decisione rinviata in P1.7 non
 avrebbe dati su cui chiudersi e andrebbe presa senza evidenza.
+
+### P6.3 Audit idle prima della campagna
+
+Proposta della revisione esterna del 2026-10-24, accolta come requisito di
+esecuzione. Non cambia nessuna soglia.
+
+Il rischio è ancorato ai soli dati di baseline esistenti: nel run v3 post-fix la
+baseline pre va da 9,35 a 18,78 W, `dP` per run fra −9,31 e +5,80 W, `P_base`
+media 11,55 W con CV 22,5% (`:318-320`,
+`lhm_validation_v3_20261023_153604.md:12-20,24`). Se la macchina non è stazionaria
+a riposo, i flag `r_A`, `pre_unstable` e `baseline_unstable` invalidano la
+campagna **dopo** averla eseguita, cioè dopo il pavimento di 2 h 15 min di P6.1.
+
+Requisito: **prima** del pilota e **prima** della campagna, un audit idle di
+30 minuti sulla macchina nella configurazione esatta di misura — GUI di
+monitoraggio chiuse (il costo dell'osservatore è misurato: fra ~0,2 e ~0,9 W su un
+idle di ~11 W, non distinguibile dal drift, `observer_cost_20261023_analisi.md:69`),
+processi in background elencati, piano energetico registrato, aggiornamenti
+automatici e antivirus sospesi o dichiarati, nessuna sessione utente interattiva
+aperta. Esito registrato come artefatto in `experiment_results/` con l'elenco dei
+processi e le sei finestre da 30 s lette con la sequenza di P1.5. Se l'audit mostra
+`pre_range_w > 1,0 W`, la campagna non parte e si dichiara perché: la soglia è
+quella congelata di P1.6, non una nuova.
+
+Costa mezz'ora e sposta la scoperta da dopo a prima. È l'unico requisito di P6 che
+può evitare di bruciare l'intera campagna.
+
+### P6.4 Simulazione Monte Carlo del protocollo
+
+Proposta della revisione esterna del 2026-10-24. Non è codice di produzione: è un
+harness di analisi, quindi non tocca il blocco del sorgente. La precedenza fra
+questa e la scrittura di P5 la decide l'utente.
+
+Superficie nota con coefficienti scelti entro l'ordine di grandezza atteso, rumore
+idle e deriva campionati dalle distribuzioni misurate in v3, 39 blocchi con la
+geometria di P3.5, e si osservano: bias dei coefficienti stimati, copertura reale
+degli intervalli, probabilità che i gate falliscano quando il protocollo è
+corretto (falso fallimento) e che passino quando non lo è.
+
+Arbitra **quattro** punti aperti in una volta sola, tutti oggi privi di dati:
+
+1. la concentrazione dei pesi `w_b = 1/budget_fit_b²`: la simulazione mostra quanta
+   quota del peso totale prende il blocco con il semi-range più piccolo al variare
+   del rapporto `ρ = u_base/u_within` — in media il 37% e l'82% nel 5% dei casi
+   peggiori a `ρ = 0`, contro l'8% a `ρ ≥ 0,5`. `ρ` oggi non è misurabile:
+   `u_base` si può stimare, `u_within` no, perché non esiste ancora un blocco v4
+   con tre richieste;
+2. la potenza e la circolarità del gate P4.5, la cui soglia per blocco contiene lo
+   stesso `dP` che genera `E_net,control`;
+3. il fattore 2 nell'intervallo di conferma di P3.10, di cui oggi non si conosce la
+   copertura nominale;
+4. la forma di combinazione di `budget_base_w` rinviata in P1.7 (task aperto):
+   quadratura contro somma aritmetica, con l'effetto su pesi, bootstrap e gate.
+
+Vincolo di metodo: la simulazione **non** può validare la scala assoluta, perché
+genera essa stessa l'energia. Serve a controllare la procedura statistica, non la
+misura. Va dichiarata come tale nella tesi.
+
+### P6.5 Requisiti per P5 emersi dalla revisione esterna
+
+P5 è aperto; questi sono vincoli che i punti già congelati gli trasmettono,
+registrati qui perché non si perdano.
+
+- **Lettura sincrona del contatore ai bordi di finestra.** Oggi i bordi passano da
+  `_emi_cum_at`, che interpola su un buffer campionato a 0,28–0,34 s misurati, e
+  fuori copertura ma entro 1 s restituisce il valore estremo
+  (`energy_session.py:1103-1124`). Leggere il contatore direttamente all'istante di
+  bordo, col suo timestamp, elimina i termini di disallineamento e di copertura di
+  P4.6 e riduce `u_edge` di circa un fattore 6. L'evidenza che la rende possibile
+  esiste già (`emi_50ms_probe_20261023_*`). È la via (b) dell'alternativa aperta
+  in P4.6, ed è preferibile alla via (a) perché non richiede un `ΔP_tick` che oggi
+  nessuna parte del codice misura.
+- **Matrice di disegno centrata e scalata.** Il disegno di P3.5 grezzo
+  (`1, N_in, N_out, N_in·N_out` sui 33 blocchi) ha numero di condizionamento
+  1,02e5 (valori singolari 2,65e5 / 8,79e2 / 6,06e2 / 2,59), ricalcolato il
+  2026-10-24; con i predittori standardizzati scende a 3,8. Con la WLS e il
+  bootstrap a 2000 repliche, risolvere il sistema nella forma grezza perde circa
+  cinque cifre significative nel solve. Non è un problema statistico — il disegno
+  resta di rango pieno 4 e la leva massima è 0,285 con media 0,121 = 4/33 — è un
+  problema numerico di implementazione. P5 specifichi che il fit lavora su
+  predittori centrati e scalati, o su una decomposizione stabile, e che i
+  coefficienti sono riportati nelle unità di P3.3 con la trasformazione inversa
+  dichiarata, non nella forma interna.
+- **Nome del campo del settling post.** P6.1 chiede la durata reale di entrambi i
+  settling; `settle_pre_s` è già previsto da P1.5, quello del post non ha nome.
+- **Collocazione dei campi per punto.** `err_rel`, `intervallo_conf`,
+  `pred_nonpositive`, `coverage_tier`, `hull_margin_tok` sono per punto di
+  conferma o per blocco, non per richiesta: P5 decida se stanno nel CSV delle
+  righe (ripetuti) o in un artefatto separato, e lo dichiari.
 
 ---
 
