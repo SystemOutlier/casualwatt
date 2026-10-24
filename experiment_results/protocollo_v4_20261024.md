@@ -1069,10 +1069,30 @@ nel CSV delle righe o in un artefatto separato.
 
 ### P3.15 Aperto
 
-Niente per P3. Il pre-pilota verifica solo la fattibilità dei livelli (512 input,
-256 output, prompt che sostengono la generazione): se un livello non è
-raggiungibile, P3 si riapre e si dichiara; non si cambia il livello in silenzio.
-Il fallimento della conferma è un risultato di P6, non una decisione aperta.
+Niente per P3. Il pre-pilota verifica la fattibilità dei livelli **a entrambe le
+estremità**: in alto (512 input, 256 output, prompt che sostengono la
+generazione) e in basso (estensione aggiunta il 2026-10-24: allarga ciò che il
+pre-pilota deve provare, non cambia il disegno). I livelli critici sono quelli
+bassi, e il protocollo oggi li dà per raggiungibili senza averlo misurato:
+
+- `(8, 4)` è un **vertice dell'inviluppo convesso** (P4.7). Se 8 token di input o
+  4 di output non sono raggiungibili dentro la tolleranza ±5% di P3.12, il vertice
+  non esiste nelle coordinate dichiarate e l'inviluppo è costruito su un punto
+  fittizio: `hull_margin_tok` di tutti gli altri punti sarebbe calcolato contro un
+  bordo che non c'è;
+- `(12, 32)` è il **punto operativo di conferma**, con `hull_margin_tok = 1,33`
+  (misurato il 2026-10-24, P4.7). Il margine è più piccolo della tolleranza del
+  prompt, quindi la sua fascia di copertura dipende dal token reale e non dal
+  target;
+- la tolleranza ±5% è incompatibile con lo scarto misurato fra target e actual:
+  nel run 18:52 della v3 il target `N_in = 64` ha prodotto 126 token reali, cioè
+  circa il doppio (`:585`, `lhm_validation_v3_20261023_185232.csv:2`). Su
+  `N_in = 8` uno scarto di quella taglia non è riducibile a una tolleranza del 5%:
+  va misurato nel pre-pilota, non assunto.
+
+Se un livello — alto **o basso** — non è raggiungibile, P3 si riapre e si
+dichiara; non si cambia il livello in silenzio. Il fallimento della conferma è un
+risultato di P6, non una decisione aperta.
 
 ---
 
