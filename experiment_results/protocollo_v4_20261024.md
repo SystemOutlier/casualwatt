@@ -15,6 +15,10 @@ Data: 2026-10-24. Branch: `energy-consumption-framework-ollama-d248a`.
 | P5 | campi CSV e runner | aperto |
 | P6 | esecuzione e analisi | aperto |
 
+Le formule di P1–P4 sono raccolte, con applicazione e giustificazione, nella
+sezione finale **Formulario consolidato (F.0–F.17)**: è una sezione derivata, non
+introduce decisioni e in caso di divergenza vince il punto congelato.
+
 ---
 
 ## Terminologia (vincolante per il protocollo e per la tesi)
@@ -1384,3 +1388,477 @@ aperte:
   cambiano i punti di disegno e con essi l'inviluppo di P4.7;
 - se il lack-of-fit di P3.9 è significativo, `chain_status` scende a
   `model_inadequate` e la superficie si riporta come descrizione.
+
+---
+
+## Formulario consolidato (P1–P4)
+
+Sezione derivata: **nessuna decisione nuova**. Ogni formula è riportata dal punto
+congelato indicato fra parentesi; se questa sezione e il punto divergono, vince il
+punto. Esiste perché P5 e P6 dovranno tradurre queste formule in colonne e in
+codice, e una traduzione senza l'ordine di calcolo e senza la ragione di ogni
+forma è esattamente il punto in cui si introducono errori silenziosi.
+
+### F.0 Ordine di calcolo
+
+Per ogni blocco `b`, nell'ordine:
+
+1. tre finestre pre → `P_rep,1..3`, `baseline_pre_w` (F.1);
+2. `m = 3` richieste → per ciascuna `E_pkg_gross,i`, `Δt_W,i`, `N_in,i`,
+   `N_out,i`, `done_reason` (F.6);
+3. tre finestre post → `baseline_post_w`, `dP` (F.1);
+4. `E_act,i` firmato, mai troncato (F.2);
+5. controlli `pre_range_w`, `r_A`, `r_B` e flag (F.3);
+6. `budget_base_w,b`, `budget_base_j,b` (F.4);
+7. medie di blocco `Ē_b`, `x1_b`, `x2_b`, `x12_b` (F.7);
+8. `u_base,b`, `u_within,b`, `budget_fit_b`, `w_b` (F.9);
+9. `Δt_tick,b`, `P_peak,b`, `u_edge,b`, `budget_pred_b` (F.11);
+10. fit WLS sui 33 blocchi → `θ̂ = (E0, a, b, c)` (F.9);
+11. residui, `z_b`, bootstrap a 2000 repliche → intervallo parametrico e
+    predittivo (F.14);
+12. conferma sui 6 blocchi esclusi dal fit → `err_rel`, `intervallo` (F.10);
+13. copertura → `hull_margin_tok`, `coverage_tier` (F.13);
+14. campagna separata load-versus-control → `bias_w`, `u_bias`,
+    `validation_bias_pass` (F.12);
+15. `chain_status` dai sei anelli (P4.9).
+
+I passi 1–9 sono per blocco e vivono nel CSV riga per riga; i passi 10–15 sono
+analisi e vivono nel verbale. Quali dei primi diventino colonne lo decide P5.
+
+### F.1 Baseline (P1.1, P1.3)
+
+```
+P_rep,k          = ΔE_contatore,k / Δt_reale,k          k = 1..3,  finestra = 30,000 s
+baseline_pre_w   = mediana(P_rep,1, P_rep,2, P_rep,3)
+baseline_post_w  = idem, dopo l'ultimo punto
+dP               = baseline_post_w − baseline_pre_w
+```
+
+*Applicazione.* Una volta per blocco, prima e dopo le tre richieste; la baseline
+non è un punto del modello e non contiene `E0`.
+
+*Giustificazione.* Mediana e non media: con `n = 3` una finestra contaminata
+sposta la media ma non la mediana (P1.14, "Cosa è nostro"). L'estimatore è
+identico a quello di produzione (`calibrate_idle` già fa tre ripetizioni da
+almeno 30 s e la mediana, `energy_session.py:2363-2396`, con floor a 30 s
+`:2252-2257` e rifiuto dei delta negativi `:2383-2387`): la v4 non cambia la
+formula, cambia il momento e il numero di applicazioni, perché cambiare
+stimatore e protocollo insieme confonderebbe l'esperimento (P1.2). Il
+denominatore è `Δt_reale` restituito dalla lettura, non i 30 s nominali.
+
+### F.2 Incremento netto (P1.3, P3.2)
+
+```
+baseline_energy_j = baseline_pre_w · Δt_W
+E_net_incremental = E_pkg_gross − baseline_energy_j
+E_act,i           = E_pkg_gross,i − P_pre,b · Δt_W,i        # sinonimo dichiarato
+```
+
+*Applicazione.* Per ogni richiesta. È la variabile dipendente del modello F.8.
+
+*Giustificazione.* Si applica `P_pre` e il post resta diagnostico: interpolare su
+un `dP` non stazionario sarebbe arbitrario (P1.10) e usare il post tarerebbe
+retroattivamente la sottrazione (P1.14). `P_pre,b` è la stessa per le tre
+richieste del blocco, perché la baseline è misurata una volta per blocco (P3.7).
+**Non si tronca a zero.** La produzione invece tronca, due volte:
+`package_energy_j = max(e_package, 0)` a `local_energy.py:300` e
+`active = max(package_energy_j − baseline_energy_j, 0)` a `:309-310` (il punto
+P3.2 cita `:310`, l'assegnazione del valore troncato). La v4 conserva il segno:
+un incremento negativo è l'informazione che il test di F.12 cerca, e troncandolo
+diventa invisibile.
+
+### F.3 Stabilità e drift (P1.6)
+
+```
+pre_range_w = max(P_rep) − min(P_rep)
+r_A = |dP| · Σ_{i∈blocco} Δt_W,i / Σ_{i∈blocco} E_trunc,i
+r_B = |dP| · Σ_{i∈punto}  Δt_W,i / Σ_{i∈punto}  E_trunc,i
+```
+
+*Applicazione.* `r_A` per blocco, `r_B` per punto di disegno. Soglia operativa
+10%, sensibilità a 5% e 20%, non modificabile dopo i dati. Esiti: `pre_unstable`
+se `pre_range_w > 1,0 W`; `baseline_unstable` se `r_A > 10%` (due blocchi su tre
+marcati → campagna invalida); `r_B` 10–20% → punto mantenuto, marcato, peso
+ridotto; oltre 20% → escluso dal fit primario e riportato in sensibilità.
+
+*Giustificazione.* La soglia di 1,0 W è misurata, non scelta: 1 W di errore sulla
+baseline sposta J/token del 6–11% (`idle_floor_sensitivity_20261023_analisi.md`
+§2). Le somme corrono sulle **richieste valide**, non sul tempo a muro del
+blocco: il blocco include warm-up e finestre idle, che non hanno energia netta
+attribuibile e gonfierebbero il numeratore. Se il denominatore è zero, blocco o
+punto è invalido per costruzione. I flag non invalidano da soli: entrano nel
+budget di F.4.
+
+### F.4 Incertezza di baseline (P1.7)
+
+```
+half_range_pre_w = (max(P_rep) − min(P_rep)) / 2        # semi-range conservativo
+half_drift_w     = |dP| / 2                             # semi-range conservativo
+budget_base_w    = sqrt(half_range_pre_w² + half_drift_w²)
+budget_base_j    = Δt_W · budget_base_w
+budget_J_base    = budget_base_j / N_out_actual
+```
+
+*Applicazione.* Per blocco. `budget_base_w` entra in `u_base` del fit (F.9);
+`budget_base_j` è la soglia del test di F.12.
+
+*Giustificazione.* Con `n = 3` non si stima una deviazione standard: i due termini
+sono **semi-range conservativi** e la radice è la loro combinazione in
+quadratura, un budget e non una varianza. Nella tesi il termine è "semi-range
+conservativo", mai "deviazione standard". `budget_J_base` è **solo** il
+contributo di baseline — l'esempio di 0,034 J/token a 0,3 W, 3,6 s e 32 token è
+questo contributo — e il totale aggiunge repliche e bordo (F.9, F.11).
+
+### F.5 Sensibilità post-hoc, secondaria (P1.10)
+
+```
+P_lin(t)     = P_pre + (P_post − P_pre) · (t − t_pre_mid) / (t_post_mid − t_pre_mid)
+E_base_lin,i = Δt_W,i · P_lin(t_mid,W,i)
+Δ_sens,i     = (E_pkg_gross,i − E_base_lin,i) − E_net_incremental,i
+```
+
+*Applicazione.* Calcolata **dopo** la chiusura dei dati primari. Se
+`|Δ_sens| ≤ budget_base_j` del blocco, l'interpolazione non aggiunge
+informazione; altrimenti si dichiara la differenza e il primario resta.
+
+*Giustificazione.* Assume drift lineare fra pre e post, e il drift misurato non lo
+è: nel run v3 la baseline va da 13,28 a 12,82 W con `dP = −0,461 W`
+(`lhm_validation_v3_20261023_185232.md:13,24`) e fra run è passata da 13,39 a
+12,19 W (`idee_implementative_20261024.md:67`). Per questo la sensibilità non
+arbitra. Stimatori più complessi — regressione sull'intera finestra, Kalman,
+media mobile, modello per processo — sono rinviati a una v5 con validazione
+dedicata.
+
+### F.6 Token e terminazione (P2.3, P2.4)
+
+```
+N_in_actual,i  = prompt_eval_count_i
+N_out_actual,i = eval_count_i
+dev_in_pct,i   = 100 · (N_in_actual,i − n_input_tokens_target) / n_input_tokens_target
+dev_out_pct,i  = 100 · (N_out_actual,i − n_output_tokens_target) / n_output_tokens_target
+J/token_pkg,i  = E_net_incremental,i / N_out_actual,i          # richiede N_out_actual ≥ 1
+early_stop     = (done_reason == "stop" and N_out_actual < num_predict)
+```
+
+*Applicazione.* Ogni riga del CSV. `J/token_pkg,i` è **descrittivo**: la metrica
+primaria è F.8 ai due riferimenti predeclarati. `dev_in_pct` e `dev_out_pct`
+misurano quanto il costruttore del prompt ha centrato il target, non sono criteri
+di validità. `N_total_actual` non è mai un denominatore.
+
+*Giustificazione.* I contatori di Ollama e non una stima: la v4 non chiama
+`_estimate_tokens` (`benchmark_unified.py:101-116`) e se un contatore manca la
+richiesta è invalida — non esiste un ramo "stima e prosegui" (P2.6). `early_stop`
+non è un errore e non si esclude: gli stop anticipati sono la maggioranza, e
+scartarli eliminerebbe la maggior parte dei dati proprio alle `N_out` basse
+(P2.4). Ogni richiesta porta un nonce univoco a larghezza fissa all'inizio del
+prompt (P2.8), così nessuna coppia condivide un prefisso byte-identico e
+`N_in_actual` è l'intero prompt, non la parte non ancora in cache: senza nonce il
+riuso del prefisso KV cambierebbe il costo attribuito a `N_in` senza cambiare
+`N_in_actual`, e il modello geometrico vedrebbe un input che non è stato pagato.
+
+### F.7 Unità del fit: medie di blocco (P3.7)
+
+```
+Ē_b   = (1/m) Σ_i E_act,i                    m = 3
+x1_b  = (1/m) Σ_i N_in,i
+x2_b  = (1/m) Σ_i N_out,i
+x12_b = (1/m) Σ_i N_in,i · N_out,i
+```
+
+*Applicazione.* Un punto del fit per blocco; 39 blocchi totali, 33 nel fit, 6 di
+conferma esclusi.
+
+*Giustificazione.* `x12_b` è la media dei prodotti e non il prodotto delle medie:
+così la linearizzazione del modello resta esatta anche con nonce di lunghezza
+leggermente diversa. L'unità è il blocco perché la baseline è misurata una volta
+per blocco e il suo errore è comune alle tre richieste — ed è la ragione per cui
+`u_base` non si divide per `m` in F.9.
+
+### F.8 Modello e quantità derivate (P3.3, P3.4)
+
+```
+E_act,i = E0 + a·N_in,i + b·N_out,i + c·N_in,i·N_out,i + ε_i
+
+E_model(ref)    = E0 + a·N_in,ref + b·N_out,ref + c·N_in,ref·N_out,ref
+J/token_ref     = E_model(ref) / N_out,ref
+∂E/∂N_out (ref) = b + c·N_in,ref
+∂E/∂N_in  (ref) = a + c·N_out,ref
+share_E0(ref)   = E0 / E_model(ref)
+```
+
+*Applicazione.* Riferimenti predeclarati `(32,32)` e `(128,128)`, entrambi sulla
+griglia. `E0` overhead fisso per richiesta a modello residente, `a` J/token di
+prefill marginale, `b` J/token di decode marginale, `c` interazione.
+
+*Giustificazione.* La superficie è lineare **nei parametri**; `c·N_in·N_out` è
+un'interazione bilineare, non un termine quadratico, e non si aggiungono `N_in²`
+o `N_out²`. `c ≥ 0` è atteso perché la KV cache cresce con `N_in` e ogni token di
+decode legge un contesto più lungo. Il modello ridotto
+`E0 + a·N_in + b·N_out` si riporta solo come sensibilità con F-test sui minimi
+quadrati pesati e non sostituisce il primario dopo aver visto i dati. `E0` è
+un'estrapolazione a `(0,0)`: il punto minimo `(8,4)` la vincola ma non la
+identifica, per questo esce con il suo intervallo e con il flag
+`intercept_nonphysical` se l'intervallo include valori negativi — non si vincola
+il fit e non si cambia modello. `J/token_32` e `J/token_128` sono valori
+**fitted**, non stime indipendenti. La quota di attribuzione `s` **non entra nel
+modello**: il contatore resta sulla macchina e la geometria spiega l'energia
+netta, quindi `s` non ha un coefficiente — ed è la ragione per cui l'anello
+"quota CPU" di P4.9 non può fare da gate su nulla.
+
+### F.9 Stima: minimi quadrati pesati (P3.8, P4.6)
+
+```
+min_{E0,a,b,c} Σ_b w_b · (Ē_b − E0 − a·x1_b − b·x2_b − c·x12_b)²
+
+u_base,b      = Δt̄_W,b · budget_base_w,b        # comune alle m richieste
+u_within,b    = semi-range(E_act,i nel blocco)  # non diviso per √m
+budget_fit_b² = u_base,b² + u_within,b²
+w_b           = 1 / budget_fit_b²
+```
+
+*Applicazione.* Sui 33 blocchi del fit: 10 punti (9 celle della griglia
+32/128/512 × 32/128/256 più il minimo `(8,4)`), con il centro `(128,128)` a 6
+blocchi. Errori standard HC3.
+
+*Giustificazione.* `u_base,b` non si divide per `m` perché l'errore di baseline è
+comune alle tre richieste; `u_within,b` non si divide per `√m` perché non si
+assume l'indipendenza delle tre richieste. Sono scelte conservative deliberate:
+`budget_fit_b` è un budget conservativo e `w_b` un peso conservativo, non un peso
+di precisione. Se `budget_fit_b = 0` si usa peso uguale e si marca il blocco. La
+stima primaria è la WLS; la OLS non pesata è sensibilità. Il bootstrap per batch
+non si usa: con 3 batch ha troppi pochi cluster. `budget_fit_b` è lo stesso
+oggetto del `budget_b` di P3.8, rinominato in P4.3 per distinguerlo dal
+predittivo — non è un emendamento e i pesi restano congelati.
+
+### F.10 Validazione della superficie (P3.10)
+
+```
+E_meas     = media dei 3 blocchi del punto di conferma
+E_pred     = modello ai parametri stimati sui soli blocchi di fit
+err_rel    = |E_meas − E_pred| / E_pred
+u_conf     = semi-range(E_meas,1..3)                    # non diviso per √3
+intervallo = [q2.5 − 2·u_conf , q97.5 + 2·u_conf]       # quantili bootstrap della previsione
+passa se   err_rel ≤ 10%  e  E_meas ∈ intervallo
+```
+
+*Applicazione.* Sui due punti `(12,32)` e `(256,192)`, misurati nella stessa
+campagna ma esclusi dalla stima; l'analisi li apre solo dopo che la specifica è
+congelata e i coefficienti stimati.
+
+*Giustificazione.* Il 10% è la stessa scala della sensibilità della baseline
+(1 W ≈ 6–11% di J/token), non una soglia scientifica, ed è dichiarato come tale.
+Se fallisce si dichiara il fallimento: nessun rifit sui punti di conferma, nessuna
+scelta di un altro modello sui dati di validazione, `J/token` resta quello del
+modello marcato `validation_failed`. La forma dell'intervallo è congelata; P4 non
+la riapre, e la sostituzione di `u_conf` con `budget_pred` si riporta solo come
+sensibilità (P4.6).
+
+### F.11 Termine di bordo e budget predittivo (P4.3, P4.6)
+
+```
+δt_edge,b      = Δt_tick,b / 2
+u_edge,b       = 2 · P_peak,b · δt_edge,b  =  P_peak,b · Δt_tick,b
+budget_pred_b² = budget_fit_b² + u_edge,b²
+```
+
+*Applicazione.* Per blocco. Ogni numero **pubblicato** — `J/token`, previsione su
+un punto, contributo di un coefficiente — esce con `budget_pred`, mai con il solo
+`u_base`.
+
+*Giustificazione.* Ogni bordo della finestra cade quasi sempre fra due campioni e
+il contatore cumulativo è interpolato linearmente (`_emi_cum_at`,
+`energy_session.py:1103-1124`), quindi l'errore di un bordo è al più
+`P_peak · δt_edge` e i bordi sono due. Tre dettagli che cambiano il numero:
+`Δt_tick,b` è l'intervallo **misurato** del buffer EMI nel blocco, non il
+dichiarato `POWER_SAMPLE_INTERVAL_S = 0.05` (`energy_session.py:80`) — in
+produzione è 0,28–0,34 s; `P_peak,b` è la potenza **totale** di picco, non la
+netta, perché ciò che si interpola è un contatore che accumula potenza totale e
+usare la netta sottostimerebbe il termine; e il risultato non è trascurabile,
+con `Δt_tick = 0,30 s` e `P_peak = 35 W` vale 10,5 J, confrontabile con l'energia
+netta di una richiesta breve alla geometria operativa (ordine di grandezza
+dichiarato come esempio, non come misura). È un limite superiore conservativo,
+non una propagazione di varianza: la stessa regola di F.4.
+
+`u_edge` entra **solo** nel budget predittivo: fonderlo nel budget di fit
+riaprirebbe i pesi congelati di P3.8. Come sensibilità secondaria si rifà il fit
+con `w_b = 1/budget_pred_b²` e si riporta lo spostamento dei coefficienti; se
+resta dentro l'intervallo bootstrap, la scelta dei pesi è dichiarata non
+influente. Sulle finestre idle da 30 s il termine si trascura **e si dichiara**:
+0,3 s su 30 s è l'1% della finestra e la potenza netta in idle è per costruzione
+prossima a zero. La grandezza di `u_edge` è anche l'argomento quantitativo dello
+sviluppo 3 del cap. 6: il probe a 50 ms mostra che il registro si aggiorna a
+quella cadenza, quindi `Δt_tick` è riducibile di un fattore ~6 per via software, e
+`u_edge` con esso.
+
+### F.12 Test di sottrazione load-versus-control (P4.4, P4.5)
+
+```
+per blocco di controllo c:  passa se |E_net,control,c| ≤ budget_base_j,c
+
+bias_w = Σ_c E_net,control,c / Σ_c Δt_W,c     sui soli blocchi con r_A ≤ 10%
+passa se |bias_w| ≤ mediana_c(budget_base_w,c)
+
+se non passa:  u_bias = |bias_w| · Δt_W   → entra in budget_pred
+```
+
+*Applicazione.* Campagna separata, 3 blocchi di carico + 3 di controllo, stessa
+geometria del punto di conferma `(12,32)`, stessa durata, ordine randomizzato con
+seed registrato; è un gate prima della campagna principale.
+
+*Giustificazione.* Il criterio è calcolabile solo in virtù del requisito 7 di
+P4.4: `r_A`, `budget_base_j,c` e `budget_base_w,c` esistono su un blocco di
+controllo perché quel blocco esegue la stessa struttura 3 pre + 3 post dei
+blocchi di carico. `bias_w` è atteso zero per costruzione — il blocco di
+controllo è identico per struttura, stato macchina e durata, senza alcuna
+richiesta — quindi il test è falsificabile, a differenza di un confronto fra due
+letture dello stesso registro. Se il test fallisce, `u_bias` si dichiara con il
+suo segno e **P1 non cambia**: sostituire l'estimatore sulla base di un solo test
+sarebbe cambiare metodo senza evidenza. Una sola ripetizione, per distinguere un
+transitorio da un bias sistematico. Soglie congelate prima dei dati.
+
+Due limiti da scrivere insieme al risultato: il controllo valida lo **zero**
+dell'estimatore, non l'assenza di effetti termici sotto carico (un aumento reale
+del fondo durante l'inferenza è un effetto fisico che nessun blocco di controllo
+rimuove, e P1 lo tratta come drift diagnostico); e non arbitra la **scala
+assoluta**, perché legge lo stesso registro di LibreHardwareMonitor.
+
+### F.13 Copertura: inviluppo convesso (P4.7)
+
+```
+vertici = (8,4)   (512,32)   (512,256)   (32,256)
+box     = 8 ≤ N_in ≤ 512 ,  4 ≤ N_out ≤ 256
+
+A = dentro l'inviluppo                    → claim primari
+B = dentro il box, fuori dall'inviluppo   → previsione descrittiva, sparse_support
+C = fuori dal box                         → nessuna stima, out_of_coverage
+hull_margin_tok < 2                       → thin_support
+```
+
+*Applicazione.* Ogni punto pubblicato esce con `coverage_tier` e
+`hull_margin_tok`; l'inviluppo si calcola dai 10 punti di disegno, non si scrive
+a mano.
+
+*Giustificazione.* Le celle del disegno non riempiono un rettangolo: la regione
+`N_in > 32, N_out < 32` è coperta, la regione `N_in < 32, N_out > 32` no, e
+prendere il box avrebbe spacciato per interpolazione bilineare
+un'estrapolazione mascherata. I vertici sono **quattro**, non cinque: `(32,32)`
+sta dentro con margine 21,2 token e il poligono che lo includesse fra `(8,4)` e
+`(512,32)` non sarebbe convesso. Margini verificati numericamente il 24-10-2026:
+`(12,32)` → 1,33 token, `(256,192)` → 64,0, `(32,32)` → 21,2, `(128,128)` →
+107,7. Il punto operativo `(12,32)` è quindi in fascia A per 1,33 token:
+`thin_support` non cambia l'intervallo, dichiara che la classificazione A si
+regge su un supporto di progetto sottile e che a sostenerla è la conferma
+empirica di F.10, non la geometria. Non esiste una penalità di estrapolazione
+inventata: la fascia B è descrittiva e la fascia C non pubblica.
+
+### F.14 Bootstrap dei residui standardizzati (P4.8)
+
+```
+r_b = Ē_b − f(x_b; θ̂)
+z_b = r_b / budget_fit_b
+2000 repliche, seed registrato (bootstrap_seed)
+per ciascuna replica:
+    ricampiona z con reintroduzione, stratificato per punto di disegno
+      (10 strati, numerosità preservata: 3 per punto, 6 per il centro)
+    Ȳ*_b = f(x_b; θ̂) + budget_fit_b · z*_b
+    rifit WLS con gli stessi pesi w_b  → θ*
+
+parametrico: q2,5 e q97,5 di b + c·N_in,ref ; a + c·N_out,ref ; J/token_32 ; J/token_128
+predittivo : spread parametrico di f(x; θ*) allargato con il budget_pred del blocco nuovo
+```
+
+*Giustificazione.* Ricampiona **residui** e non blocchi: con 33 blocchi il case
+bootstrap rimetterebbe in gioco il disegno, che invece è fissato, e ciò che va
+propagato è lo scarto fra superficie e misura. Standardizzare per `budget_fit_b`
+invece che per una σ stimata è coerente con F.4 e F.9: non assume gaussianità dei
+residui fisici su 33 punti, non introduce un fattore `√m` fittizio e conserva la
+natura conservativa dei budget. I pesi non si ricalcolano dentro la replica,
+altrimenti l'intervallo dipenderebbe dal rumore del budget e non da quello dei
+dati. I due intervalli sono oggetti diversi e si riportano come tali: il
+parametrico contiene solo l'incertezza dei coefficienti e non deve contenere la
+dispersione di un blocco singolo; il predittivo è quello con cui si confronta una
+misura, ed è ciò che F.10 usa nella forma congelata con `2·u_conf`. Diagnostica:
+gli errori standard HC3 si riportano accanto come approssimazione lineare; se le
+due ampiezze differiscono di più di un fattore 2, il bootstrap resta primario e
+la discrepanza si dichiara. Il bootstrap non sostituisce il lack-of-fit: un
+modello inadeguato ha un intervallo stretto e sbagliato.
+
+### F.15 Confronto con la produzione reale (P4.11)
+
+```
+Σ_i modello(N_in,i, N_out,i)   contro   Σ_i E_act,i      sulle richieste del blocco
+```
+
+*Applicazione.* Sul blocco di produzione, con i token effettivi di F.6 e il
+modello ai coefficienti stimati sui soli blocchi di fit. Si riportano il rapporto
+delle due somme, la sua dispersione fra i blocchi e la fascia di copertura di
+ciascuna richiesta di produzione.
+
+*Giustificazione.* Richiesta per richiesta e non sul punto medio dei token. È
+**descrittivo** e non ha esito pass/fail: la produzione reale ha dinamiche
+proprie — lunghezza variabile, terminazione naturale, prefissi non uniformi — che
+il disegno sperimentale descrive senza vincolare, e trasformare il confronto in
+un test significherebbe usare gli stessi dati con due ruoli diversi.
+
+### F.16 Regole di forma che vincolano ogni formula
+
+- nessun `sqrt(Σ u²)` di questa sezione è una propagazione di varianza: sono
+  combinazioni in quadratura di **budget conservativi** (F.4, F.9, F.11);
+- nessun semi-range diventa σ, e nessun `√m` o `√3` compare dove non è scritto:
+  `u_within,b` e `u_conf` non si dividono per la radice del numero di repliche;
+- nessuna quantità netta è troncata a zero (F.2); gli zeri legittimi sono
+  dichiarati — `baseline_energy_j = 0` con `idle_provenance = "uncalibrated"`
+  (`local_energy.py:196-203`) — e non sono celle vuote riempite;
+- nessun dominio si somma: PP0 e PP1 sono sottoinsiemi di PKG, e nemmeno
+  PKG + DRAM (`emi_backend.py:29`, `:272`; `DOMAIN_NAMES = ("pkg", "dram",
+  "pp0", "pp1")` a `:73`);
+- ogni soglia — 1,0 W, 10%, 20%, 10% di `err_rel`, 2 token, fattore 2 — è
+  congelata prima dei dati e non si sposta dopo aver visto il numero;
+- ogni numero pubblicato esce con il suo `budget_pred` e con la sua fascia;
+  "validata" si scrive solo se `chain_status = validated` (P4.9);
+- l'accordo fra due letture dello stesso registro (EMI ↔ LHM ↔ SRUM, tutte su
+  `MSR_PKG_ENERGY_STATUS` 0x611) è coerenza software e di registro, non
+  validazione metrologica della scala assoluta (P4.10).
+
+### F.17 Dalla formula alla colonna: stato attuale
+
+Colonne che **esistono già** nello schema di `casualwatt_csv_export.py`
+(`CSV_COLUMNS`, `:17-108`) e il simbolo che le abita. Nomi e tipi definitivi, e
+quali contenuti nuovi diventino colonne, li decide P5: questa tavola è la mappa
+di ciò che c'è, non lo schema.
+
+| simbolo (formula) | colonna esistente | nota per P5 |
+|---|---|---|
+| `E_pkg_gross,i` (F.2) | `package_energy_j` | oggi `max(·, 0)` a `local_energy.py:300` |
+| `baseline_pre_w` (F.1) | `idle_power_w` | una sola cifra per riga: le tre repliche non sono salvate |
+| `baseline_energy_j` (F.2) | `baseline_energy_j` | `idle_power_w · dt` a `:308` |
+| `E_act,i` (F.2) | `active_energy_j` | oggi troncato a `:309-310`; la v4 conserva il segno |
+| `N_in_actual`, `N_out_actual` (F.6) | `input_tokens`, `output_tokens` | — |
+| `J/token_pkg,i` (F.6) | `energy_per_output_token_j` | descrittivo, non metrica primaria |
+| `Δt_W,i` (F.2) | `duration_s` | — |
+| `Δt_tick,b` (F.11) | `sampling_interval_observed_s` | osservato, non richiesto: è già la grandezza giusta |
+| valori grezzi del contatore | `raw_start`, `raw_end`, `raw_unit`, `domain` | rendono `package_energy_j` revisionabile |
+| canale di misura | `energy_calculation_method` | token di `MEASURED_METHODS` (`energy_session.py:49-50`) |
+| origine della finestra | `package_window_source` | `exact-counter \| samples-fallback \| unavailable` |
+| origine della baseline | `idle_provenance` | `calibrated \| session \| uncalibrated` |
+| `keep_alive` inviato | `keep_alive_sent` | la v4 lo fissa a `-1` (P1.4) |
+| quota di tempo CPU | `cpu_time_share`, `cpu_share_window_s`, `cpu_busy_capacity_cores` | la quota `s` non entra in F.8 |
+
+Contenuti obbligatori già elencati dai punti congelati. P3.13: `batch_id`,
+`block_id`, `point_id`, target e actual dei token, `done_reason`, `early_stop`,
+`prompt_nonce`, `model_digest`, `ollama_version`, `temperature`, `num_ctx`,
+`num_predict`, `order_index`, `r_A`, `r_B`, `negative_increment`,
+`pre_unstable`, `baseline_unstable`, `design_deviation`. P4.12: `block_kind`,
+`pair_id`, `order_seed`, `dt_nominal_s`, `dt_tick_s`, `p_peak_w`, `u_edge_j`,
+`budget_fit_j`, `budget_pred_j`, `u_bias_j`, `bias_w`, `z_resid`,
+`hull_margin_tok`, `coverage_tier`, `sparse_support`, `thin_support`,
+`out_of_coverage`, `bootstrap_seed`, `validation_bias_pass`, `chain_status`.
+
+Grandezze che compaiono in questo formulario e che **nessun punto ha ancora
+messo in elenco**: le tre repliche pre e le tre post di F.1 (oggi il CSV salva
+una sola cifra in `idle_power_w`), `baseline_post_w`, `dP`, `pre_range_w` di F.3,
+`half_range_pre_w`, `half_drift_w`, `budget_base_w`, `budget_base_j` di F.4,
+`Δ_sens` di F.5, `share_E0` di F.8. Sono il lavoro principale di P5, insieme a
+nomi, tipi e unità di tutto il resto: due di queste — `budget_base_j` e
+`r_A` — sono la soglia e il filtro del test di F.12, quindi se non diventano
+colonne il gate di P4.5 non è calcolabile dai dati salvati.
