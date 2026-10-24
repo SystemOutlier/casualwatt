@@ -1485,6 +1485,29 @@ Due conseguenze da dichiarare, non da nascondere.
 2. `(256,192)` sta dentro con margine 64 token: la conferma alta è in fascia A
    piena.
 
+**Difetto dichiarato nel testo congelato (registrato il 2026-10-24, non corretto
+qui perché la correzione cambia un punto congelato).** Le fasce sono decise
+sull'inviluppo dei **10 punti di disegno**, cioè sulle coordinate **target**, e i
+margini pubblicati qui sopra (1,33 / 64,0 / 21,2 / 107,7) sono calcolati su quelle.
+Il modello però è stimato sui token **reali** (P2.3, F.6:
+`N_in_actual,i = prompt_eval_count_i`), e il protocollo stesso scrive dei dati v3:
+"Il target è una richiesta al costruttore del prompt, **non una coordinata**"
+(`:585`), con l'evidenza che a `N_in = 64` dichiarato corrispondevano 126 token
+reali. Classificare la copertura in una base e stimare il modello in un'altra rende
+`coverage_tier` e `hull_margin_tok` non coerenti con `x1_b`, `x2_b` di F.7: se
+`N_in_actual` è sistematicamente circa il doppio del target ai livelli bassi, il
+punto operativo `(12,32)` non sta dove la classificazione dice che sta, e il suo
+margine di 1,33 token — già sottile — non è il margine reale.
+
+Raccomandazione registrata in
+`revisione_esterna_formule_20261024_valutazione.md` §4.4: `coverage_tier` e
+`hull_margin_tok` si calcolano su `(x1_b, x2_b)` di F.7, cioè le medie di blocco dei
+token reali; l'**inviluppo** resta quello dei punti di disegno, perché è il disegno
+a definire il supporto. I margini già pubblicati restano validi come **margini di
+progetto**, etichettati come tali, e vanno ricalcolati sui reali a dati raccolti.
+La conseguenza da accettare prima, non da scoprire dopo: la fascia di un punto può
+cambiare in seguito alla misura.
+
 Non esiste più una penalità di extrapolazione inventata: la fascia B è descrittiva e
 la fascia C non pubblica. L'errore misurato in P3.10 resta quello che è — il test
 empirico della superficie nei due punti fuori griglia — e non diventa un termine di
@@ -2230,7 +2253,9 @@ hull_margin_tok < 2                       → thin_support
 
 *Applicazione.* Ogni punto pubblicato esce con `coverage_tier` e
 `hull_margin_tok`; l'inviluppo si calcola dai 10 punti di disegno, non si scrive
-a mano.
+a mano. **Attenzione:** i margini qui sotto sono calcolati sulle coordinate
+**target** del disegno, mentre il fit usa i token **reali** (F.6, F.7): vedi il
+difetto dichiarato in P4.7.
 
 *Giustificazione.* Le celle del disegno non riempiono un rettangolo: la regione
 `N_in > 32, N_out < 32` è coperta, la regione `N_in < 32, N_out > 32` no, e
