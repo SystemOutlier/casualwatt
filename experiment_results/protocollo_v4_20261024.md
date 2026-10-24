@@ -178,6 +178,48 @@ mai "deviazione standard". `budget_J_base` è **solo** il contributo di baseline
 il totale aggiunge bordo finestra e repliche. L'esempio di 0,034 J/token a 0,3 W,
 3,6 s e 32 token è solo questo contributo.
 
+**Stato della forma di combinazione (aggiornamento 24-10-2026).** La quadratura
+resta la formula operativa della campagna e non viene modificata. Non va però
+presentata come un limite conservativo garantito: per due termini non negativi
+`sqrt(a² + b²) / (a + b)` sta fra `1/√2` e `1`, quindi la somma aritmetica è fra
+1,000 e 1,414 volte la quadratura, qualunque siano i valori misurati. Con l'unico
+termine ancorato ai dati — `|dP| = 0,461 W` nel run v3, cioè
+`half_drift_w ≈ 0,23 W` (`lhm_validation_v3_20261023_185232.md:13,24`) — e
+nell'ipotesi puramente illustrativa che i due termini siano uguali, la quadratura
+dà 0,326 W contro 0,461 W della somma.
+
+`half_range_pre_w` invece **non è mai stato misurato**: i run v3 usavano una
+finestra da 10 s per fase (`lhm_validation_v3_20261023_185232.md:6`, "Baseline:
+10 s x2 (A-B-A)"), quindi non esistono terne di repliche. Le prime le produrrà la
+struttura 3 × 30 s di P1.5.
+
+La scelta fra le due forme dipende da che cosa il budget rappresenta, non da
+quanto è grande. La quadratura è appropriata quando i termini sono incertezze
+standard combinabili sotto un'ipotesi probabilistica, per esempio
+l'indipendenza; la somma aritmetica è appropriata quando i termini sono limiti
+assoluti e si vuole garantire che la combinazione non li superi, senza assumere
+compensazioni. I nostri termini sono semi-range osservati, che non sono
+automaticamente deviazioni standard: nessuna delle due forme diventa corretta per
+il solo fatto di essere applicata a questi valori.
+
+**Decisione rinviata, motivata.** La combinazione resta com'è e non si modifica
+silenziosamente. Dopo il pilota di P2.9, valutati i dati e gli effetti a valle,
+si decide se mantenerla o introdurne una diversa, con un'analisi di sensibilità
+documentata (opzione approvata dall'utente il 24-10-2026). Due vincoli sul rinvio:
+
+- va risolto **prima** della campagna principale, perché `budget_base_w` entra nei
+  pesi del fit `w_b = 1/budget_fit_b²` (F.9), nella standardizzazione del
+  bootstrap `z_b = r_b/budget_fit_b` (F.14) e nella soglia del gate di P4.5.
+  Cambiarlo dopo aver visto i risultati della campagna sarebbe spostare una
+  soglia dopo i dati;
+- il rinvio non sospende le altre regole: le soglie di P1.6 (1,0 W, 10%, 5/20%)
+  restano congelate e non si muovono in nessuno dei due scenari.
+
+Il pilota non determina da solo quale interpretazione sia corretta: fornisce la
+variabilità reale dei termini e la stabilità delle conseguenze a valle, ma la
+definizione del budget resta una scelta coerente con la natura dell'incertezza
+dichiarata.
+
 ### P1.8 Cosa è escluso
 
 - energia di caricamento del modello e costo di residenza: la baseline è
@@ -319,12 +361,20 @@ Testo per la tesi (bozza, da adattare):
 
 ### P1.13 Aperto
 
-Niente per P1. I numeri 0,5 W (settling), 1,0 W (range) e 10% (drift) sono
-soglie operative dichiarate, non costanti scientifiche; restano quelle anche dopo
-i dati. La sensibilità di P1.10 si esegue in P6, non qui. Il changelog di P1.11
-riguarda il protocollo di campionamento, non l'estimatore. Il riferimento MDPI
-non leggibile (HTTP 403) resta escluso e non è un punto aperto: è materiale non
-citabile finché non verificato.
+Un solo punto, aggiunto il 24-10-2026: la **forma di combinazione** di
+`budget_base_w` — quadratura o somma aritmetica — è una decisione operativa
+provvisoria, rinviata alla valutazione dei dati del pilota P2.9 (P1.7). Non è
+aperta la formula, che resta congelata e si applica: è aperta la sua
+interpretazione, e va chiusa **prima** della campagna principale per i vincoli
+elencati in P1.7.
+
+Il resto non è aperto. I numeri 0,5 W (settling), 1,0 W (range) e 10% (drift)
+sono soglie operative dichiarate, non costanti scientifiche; restano quelle anche
+dopo i dati e in entrambi gli scenari di combinazione. La sensibilità di P1.10 si
+esegue in P6, non qui. Il changelog di P1.11 riguarda il protocollo di
+campionamento, non l'estimatore. Il riferimento MDPI non leggibile (HTTP 403)
+resta escluso e non è un punto aperto: è materiale non citabile finché non
+verificato.
 
 ### P1.14 Fondamento nella letteratura (verificato 2026-10-24)
 
@@ -1527,7 +1577,10 @@ sono **semi-range conservativi** e la radice è la loro combinazione in
 quadratura, un budget e non una varianza. Nella tesi il termine è "semi-range
 conservativo", mai "deviazione standard". `budget_J_base` è **solo** il
 contributo di baseline — l'esempio di 0,034 J/token a 0,3 W, 3,6 s e 32 token è
-questo contributo — e il totale aggiunge repliche e bordo (F.9, F.11).
+questo contributo — e il totale aggiunge repliche e bordo (F.9, F.11). La forma di
+combinazione è una decisione operativa provvisoria, non definitiva: resta la
+quadratura, la scelta fra quadratura e somma è rinviata ai dati del pilota P2.9 e
+va chiusa prima della campagna principale (P1.7, P1.13).
 
 ### F.5 Sensibilità post-hoc, secondaria (P1.10)
 
