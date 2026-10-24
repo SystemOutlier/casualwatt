@@ -11,7 +11,7 @@ Data: 2026-10-24. Branch: `energy-consumption-framework-ollama-d248a`.
 | P1 | baseline e calibrazione idle | **congelato 2026-10-24** (emendato: sensibilità post-hoc; letteratura e confronto CodeCarbon) |
 | P2 | token effettivi e terminazione | **congelato 2026-10-24** |
 | P3 | geometria, modello e stima | **congelato 2026-10-24** |
-| P4 | incertezza e validazione | **congelato 2026-10-24** (budget completo con termine di bordo; campagna load-versus-control; fasce A/B/C; bootstrap stratificato) |
+| P4 | incertezza e validazione | **congelato 2026-10-24** (emendato: inviluppo convesso per la copertura, bootstrap dei residui standardizzati, criterio monolitico di catena, `u_edge` solo nel budget predittivo) |
 | P5 | campi CSV e runner | aperto |
 | P6 | esecuzione e analisi | aperto |
 
@@ -946,14 +946,23 @@ dell'intervallo di previsione e il test della sottrazione di baseline. Non cambi
 l'estimatore di baseline (P1.1), né il modello (P3.3), né il disegno (P3.5), né
 i pesi del fit (P3.8).
 
+Stesura: una prima versione è stata congelata e committata (`c41a6ec`) con fasce di
+copertura a rettangolo e case bootstrap; è stata emendata lo stesso giorno sulle
+quattro decisioni approvate — inviluppo convesso per la copertura, bootstrap dei
+residui standardizzati, criterio monolitico di catena, `u_edge` solo nel budget
+predittivo e in sensibilità. La versione qui sotto è quella emendata, ed è quella
+che vale.
+
 ### P4.1 Decisione in una riga
 
-> Ogni numero pubblicato della v4 esce con tre cose: il budget completo
-> `u_tot = sqrt(u_base² + u_within² + u_edge²)`, la fascia di copertura A/B/C, e
-> — per la differenza incrementale — l'esito del test load-versus-control. La
-> sottrazione di baseline è validata su questa macchina se il bias misurato a
-> incremento nullo sta dentro il budget; se non ci sta, il bias si dichiara, si
-> aggiunge al budget, e P1 non cambia senza nuova evidenza.
+> Ogni numero pubblicato della v4 esce con tre cose: il budget predittivo
+> `budget_pred = sqrt(u_base² + u_within² + u_edge²)`, la fascia di copertura
+> A/B/C decisa sull'inviluppo convesso del disegno, e — per la differenza
+> incrementale — l'esito del test load-versus-control. La sottrazione di baseline è
+> validata su questa macchina se il bias misurato a incremento nullo sta dentro il
+> budget; se non ci sta, il bias si dichiara, si aggiunge al budget, e P1 non cambia
+> senza nuova evidenza. La parola "validata" sull'intera misura si usa solo se tutti
+> gli anelli di P4.9 passano: altrimenti si scrive quale anello ha ceduto.
 
 ### P4.2 Perché serve un punto separato
 
@@ -965,9 +974,10 @@ nessuno dei due è l'incertezza di un numero pubblicato. Mancano tre pezzi.
    (`energy_session.py:1103-1124`). Su finestre di pochi secondi, con una cadenza
    reale di 0,28–0,34 s, questo termine non è trascurabile e finora non era
    scritto da nessuna parte.
-2. **La copertura.** La superficie è fittata su un rettangolo (P3.5) e il punto
-   operativo reale sta sotto quel rettangolo. P3.13 rimandava qui le regole di
-   extrapolazione.
+2. **La copertura.** I 10 punti di disegno (P3.5) non riempiono nessun rettangolo:
+   con il punto minimo `(8,4)` la regione coperta è un poligono, e usare il box
+   avrebbe fatto passare per interpolazione quella che è extrapolazione. P3.13
+   rimandava qui le regole.
 3. **Il bias della sottrazione.** Nessun confronto fra due letture dello stesso
    registro può arbitrarlo: LHM, EMI e SRUM leggono tutti
    `MSR_PKG_ENERGY_STATUS`. Serve un test a incremento nullo per costruzione.
@@ -979,10 +989,12 @@ nessuno dei due è l'incertezza di un numero pubblicato. Mancano tre pezzi.
 | blocco di carico | — | blocco con le `m = 3` richieste di inferenza (P3.7) |
 | blocco di controllo | — | blocco identico per struttura, stato macchina e durata, **senza alcuna richiesta** |
 | bias di sottrazione | `bias_w` | incremento netto medio dei blocchi di controllo, in watt; atteso zero per costruzione |
-| termine di bordo | `u_edge,b` | incertezza dell'interpolazione lineare ai due bordi della finestra, in joule |
-| budget completo | `u_tot,b` | combinazione conservativa dei tre termini, in joule |
-| fascia di copertura | A / B / C | regime in cui cade un punto di valutazione rispetto al disegno misurato |
-| penalità di extrapolazione | `u_extrap` | errore relativo misurato in validazione (P3.10), riusato come allargamento dell'intervallo in fascia B |
+| termine di bordo | `u_edge,b` | `2 · P_peak,b · δt_edge,b`, incertezza dell'interpolazione lineare ai due bordi della finestra, in joule |
+| budget di fit | `budget_fit,b` | il `budget_b` di P3.8, rinominato: è ciò che pesa i blocchi nel fit |
+| budget predittivo | `budget_pred,b` | `sqrt(budget_fit_b² + u_edge,b²)`: accompagna ogni numero pubblicato |
+| fascia di copertura | A / B / C | dentro l'inviluppo convesso del disegno / dentro il box ma fuori dall'inviluppo / fuori dal box |
+| margine di inviluppo | `hull_margin_tok` | distanza in token dal bordo dell'inviluppo, negativa se fuori |
+| stato della catena | `chain_status` | `validated` solo se tutti gli anelli di P4.9 passano; altrimenti l'etichetta dell'anello ceduto |
 
 ### P4.4 Campagna di validazione load-versus-control
 
@@ -1023,8 +1035,9 @@ aggregato:   bias_w = Σ_c E_net,control,c / Σ_c Δt_W,c
 ```
 
 - **Se passa**: la sottrazione di P1 è validata su questa macchina nel senso
-  dichiarato in P4.9, e `u_bias = 0`.
-- **Se non passa**: `u_bias = |bias_w| · Δt_W` entra in `u_tot` (P4.6), il bias è
+  dichiarato in P4.9–P4.10 — anello 4 della catena, non scala assoluta — e
+  `u_bias = 0`.
+- **Se non passa**: `u_bias = |bias_w| · Δt_W` entra in `budget_pred` (P4.6), il bias è
   dichiarato nella tesi con il suo segno, e **P1 non si cambia**: sostituire
   l'estimatore sulla base di un solo test sarebbe cambiare metodo senza
   evidenza. La campagna si ripete una sola volta, per distinguere un transitorio
@@ -1050,109 +1063,179 @@ principale. È un confronto descrittivo, non un gate.
 
 ### P4.6 Budget di incertezza completo
 
+Due budget, nomi distinti, nessun cambiamento ai pesi congelati.
+
 ```
-u_tot,b²  = u_base,b² + u_within,b² + u_edge,b²            # per blocco, in joule
-u_base,b  = Δt̄_W,b · budget_base_w,b                        # P1.7, P3.8
+budget_fit_b²  = u_base,b² + u_within,b²         # ≡ budget_b di P3.8, stesso oggetto
+budget_pred_b² = budget_fit_b² + u_edge,b²       # per ogni numero pubblicato
+
+u_base,b   = Δt̄_W,b · budget_base_w,b                        # P1.7, P3.8
 u_within,b = semi-range(E_act,i nel blocco)                  # P3.8, non diviso per √m
-u_edge,b  = Δt_tick,b · P̄_net,b                             # due bordi, mezzo tick ciascuno
+u_edge,b   = 2 · P_peak,b · δt_edge,b ,   δt_edge,b = Δt_tick,b / 2
 ```
 
-`Δt_tick,b` è l'intervallo **misurato** del buffer EMI nel blocco, non quello
-dichiarato da `POWER_SAMPLE_INTERVAL_S = 0.05` (`energy_session.py:80`): sul
-percorso di produzione è 0,28–0,34 s. `P̄_net,b` è la potenza netta media del
-blocco. Ciascun bordo cade fra due campioni e il cumulativo è interpolato
-linearmente, quindi l'errore di un bordo è al più metà dell'energia netta di un
-tick; due bordi danno un tick intero. È un limite superiore conservativo, non una
-propagazione di varianza — la stessa regola di P1.7.
+`budget_fit_b` **è** il `budget_b` di P3.8, rinominato solo per distinguerlo dal
+predittivo: non è un emendamento. I pesi del fit restano `w_b = 1/budget_fit_b²`,
+congelati.
+
+Il termine di bordo. `δt_edge,b` è metà dell'intervallo **misurato** del buffer EMI
+nel blocco, non dell'intervallo dichiarato da `POWER_SAMPLE_INTERVAL_S = 0.05`
+(`energy_session.py:80`): sul percorso di produzione `Δt_tick` è 0,28–0,34 s. Ogni
+bordo della finestra cade quasi sempre fra due campioni e il contatore cumulativo è
+interpolato linearmente (`_emi_cum_at`, `energy_session.py:1103-1124`), quindi
+l'errore di un bordo è al più `P_peak · δt_edge` e i bordi sono due. `P_peak,b` è la
+potenza **totale** di picco del blocco, non quella netta: ciò che viene interpolato
+è un contatore che accumula potenza totale, quindi il limite deve usare la potenza
+totale — usare quella netta sottostimerebbe il termine. È un limite superiore
+conservativo, non una propagazione di varianza: la stessa regola di P1.7.
+
+Ordine di grandezza, dichiarato come esempio e non come misura: con
+`Δt_tick = 0,30 s` e `P_peak = 35 W` il termine vale `10,5 J`, confrontabile con
+l'energia netta di una richiesta breve alla geometria operativa. Quindi `u_edge` si
+calcola per blocco e si riporta; non si assume trascurabile. La sua grandezza è
+anche l'argomento quantitativo dello sviluppo 3 del cap. 6: il probe a 50 ms mostra
+che il registro si aggiorna a quella cadenza, quindi `Δt_tick` è riducibile di un
+fattore ~6 per via software, e `u_edge` con esso.
 
 Regole:
 
-- i **pesi del fit restano quelli congelati in P3.8** (`w_b = 1/budget_b²` con
-  `budget_b² = u_base,b² + u_within,b²`). P4 non riapre P3. Come sensibilità si
-  rifà il fit con `w_b = 1/u_tot,b²` e si riporta lo spostamento dei coefficienti:
-  se resta dentro l'intervallo bootstrap, la scelta dei pesi è dichiarata non
-  influente;
 - ogni numero **pubblicato** — `J/token`, previsione su un punto, contributo di un
-  coefficiente — esce con `u_tot`, mai con il solo `u_base`;
+  coefficiente — esce con `budget_pred`, mai con il solo `u_base`;
+- come sensibilità secondaria si rifà il fit con `w_b = 1/budget_pred_b²` e si
+  riporta lo spostamento dei coefficienti: se resta dentro l'intervallo bootstrap,
+  la scelta dei pesi è dichiarata non influente;
 - per le finestre idle da 30 s il termine di bordo si trascura e si dichiara:
-  0,3 s su 30 s è l'1% della finestra e la potenza netta in idle è per
+  0,3 s su 30 s è l'1% della finestra, e la potenza netta in idle è per
   costruzione prossima a zero;
-- `u_edge` è anche l'argomento quantitativo dello sviluppo 3 del cap. 6: il probe
-  a 50 ms mostra che il registro si aggiorna a quella cadenza, quindi `Δt_tick` è
-  riducibile di un fattore ~6 per via software, e questo termine con esso.
+- l'intervallo di conferma di P3.10 resta nella forma congelata
+  (`q2.5 − 2·u_conf`, `q97.5 + 2·u_conf`); come sensibilità si riporta se l'esito
+  cambia sostituendo `u_conf` con `budget_pred`. P4 non riapre P3.
 
-### P4.7 Fasce di copertura
+### P4.7 Fasce di copertura: inviluppo convesso, non rettangolo
 
-Il rettangolo del fit è `32 ≤ N_in ≤ 512`, `32 ≤ N_out ≤ 256` (P3.5). Il
-rettangolo **esteso** è quello coperto dai punti effettivamente misurati, griglia
-più i due punti di conferma `(12,32)` e `(256,192)`: `12 ≤ N_in ≤ 512`,
-`32 ≤ N_out ≤ 256`.
+Le celle del disegno non riempiono un rettangolo. Con il punto minimo `(8,4)` e la
+griglia `32/128/512 × 32/128/256` (P3.5), la regione `N_in > 32, N_out < 32` è
+coperta dal disegno e la regione `N_in < 32, N_out > 32` no. Prendere il rettangolo
+avrebbe spacciato per interpolazione bilineare un'estrapolazione mascherata. La
+fascia si decide quindi sull'**inviluppo convesso dei 10 punti di disegno**,
+calcolato dai punti e non scritto a mano.
 
-- **Fascia A — interpolazione.** Il punto è dentro il rettangolo del fit. Si
-  riporta `E_pred` con l'intervallo di P4.8. Verificata dal punto di conferma
-  `(256,192)`, che sta dentro il rettangolo ma non è un nodo della griglia.
-- **Fascia B — estrapolazione coperta.** Il punto è fuori dal rettangolo del fit
-  ma dentro il rettangolo esteso, cioè `12 ≤ N_in < 32` con
-  `32 ≤ N_out ≤ 256`. Si riporta `E_pred` con il flag `extrapolated`,
-  l'intervallo allargato di `u_extrap`, e l'avvertenza che in questa fascia il
-  valore è dominato da `E0 + a·N_in`, i termini che il disegno vincola meno.
-  **Il punto operativo reale e il blocco di produzione cadono in fascia B**, e il
-  `J/token` di produzione va pubblicato con quel flag.
-- **Fascia C — fuori copertura.** Tutto il resto, inclusa qualsiasi richiesta con
-  `N_in > 512` o `N_out > 256`. Il modello è lineare nei parametri e
-  extrapolerebbe senza protesta: non si pubblica nessun numero del modello. Si
-  riporta solo il rapporto descrittivo `E_act/N_out_actual` del blocco misurato,
-  marcato `out_of_coverage`.
-
-La penalità non è inventata: è l'errore relativo misurato in validazione.
+I vertici dell'inviluppo sono quattro:
 
 ```
-u_extrap = E_pred · max(err_rel dei due punti di conferma)          # P3.10
-intervallo_B = [q2.5 − u_extrap, q97.5 + u_extrap]
+(8,4)   (512,32)   (512,256)   (32,256)
 ```
 
-Quindi `u_extrap` esiste solo dopo P3.10. Se un punto di conferma fallisce la
-validazione, `u_extrap` non è definito e la fascia B non pubblica previsioni: si
-riporta il fallimento.
+`(32,32)` **non** è un vertice: sta dentro l'inviluppo con un margine di 21,2
+token. Correzione alla lista a cinque vertici circolata in chat: il poligono con
+`(32,32)` fra `(8,4)` e `(512,32)` non è convesso, perché `(32,32)` cade sopra la
+retta che unisce quei due punti.
 
-Conseguenza dichiarata: la v4 non pubblica un `J/token` per prompt lunghi, che è
-esattamente ciò che la letteratura analitica chiede
-(`cavagna2026sweetspot`). Estendere la griglia verso l'alto è lavoro della v5,
-non una regola di extrapolazione.
+- **Fascia A — dentro l'inviluppo.** Claim primari: `J/token` ai due riferimenti,
+  costi marginali, previsioni con l'intervallo di P4.8.
+- **Fascia B — dentro il box, fuori dall'inviluppo.** Il box è `8 ≤ N_in ≤ 512`,
+  `4 ≤ N_out ≤ 256`. Il modello viene valutato, ma la previsione è **descrittiva**,
+  marcata `sparse_support`, e non entra nei claim primari.
+- **Fascia C — fuori dal box.** Nessuna stima, nessun modello applicato. Si
+  registrano solo le misure grezze del blocco, marcato `out_of_coverage`.
 
-### P4.8 Intervallo di previsione: bootstrap stratificato
+Due conseguenze da dichiarare, non da nascondere.
+
+1. Il punto di conferma `(12,32)` — la geometria operativa reale, e quindi il
+   `J/token` di produzione — cade **in fascia A**, con un margine di `1,33` token
+   dal lato `(8,4)–(32,256)`. L'appartenenza è geometricamente sottile. Per questo
+   `hull_margin_tok` è una colonna obbligatoria, e ogni punto pubblicato con margine
+   inferiore a 2 token esce anche con il flag `thin_support`. Il flag non cambia
+   l'intervallo: dichiara che la classificazione A si regge su un supporto di
+   progetto di misura, e che a sostenerla è il punto di conferma empirico di P3.10,
+   non la geometria.
+2. `(256,192)` sta dentro con margine 64 token: la conferma alta è in fascia A
+   piena.
+
+Non esiste più una penalità di extrapolazione inventata: la fascia B è descrittiva e
+la fascia C non pubblica. L'errore misurato in P3.10 resta quello che è — il test
+empirico della superficie nei due punti fuori griglia — e non diventa un termine di
+allargamento.
+
+Limite di copertura dichiarato: la v4 non pubblica un `J/token` per prompt lunghi
+(`N_in > 512`), che è esattamente ciò che la letteratura analitica chiede
+(`cavagna2026sweetspot`). Estendere la griglia verso l'alto è lavoro della v5, non
+una regola di extrapolazione.
+
+### P4.8 Intervallo: bootstrap dei residui standardizzati
+
+Il bootstrap ricampiona **residui**, non blocchi. Con 33 blocchi il case bootstrap
+rimetterebbe in gioco il disegno; il disegno invece è fissato, e ciò che va
+propagato è lo scarto fra superficie e misura.
 
 ```
-unità di ricampionamento : il blocco, non la richiesta — l'errore di baseline è
-                           comune alle m richieste del blocco (P3.8)
-strati                   : i 10 punti di disegno; dentro ogni strato si
-                           ricampionano i blocchi con reintroduzione, mantenendo
-                           la numerosità del punto (3; 6 per il centro)
-repliche                 : 2000, congelate
-per ciascuna replica     : rifit WLS con gli stessi pesi w_b di P3.8 — i pesi non
-                           si ricalcolano dentro il bootstrap, altrimenti
-                           l'intervallo dipenderebbe dal rumore del budget e non
-                           da quello dei dati
-previsione               : E_pred*(x) al punto di valutazione; q2.5 e q97.5 dei
-                           2000 valori
-seed                     : fissato e registrato (bootstrap_seed)
+fit WLS sui 33 blocchi (P3.8)          → θ̂ = (E0, a, b, c) e fitted f(x_b; θ̂)
+residui                                → r_b = Ē_b − f(x_b; θ̂)
+residui standardizzati                 → z_b = r_b / budget_fit_b
+repliche                               → 2000, seed registrato (bootstrap_seed)
+per ciascuna replica:
+  ricampiona z con reintroduzione, stratificato per punto di disegno
+    (10 strati, numerosità preservata: 3 per punto, 6 per il centro)
+  dati sintetici                       → Ȳ*_b = f(x_b; θ̂) + budget_fit_b · z*_b
+  rifit WLS con gli stessi pesi w_b    → θ*
 ```
 
-Cosa è e cosa non è:
+Standardizzare per `budget_fit_b` invece che per una σ stimata è la scelta coerente
+con P1.7 e P3.8: non assume gaussianità dei residui fisici su 33 punti, non
+introduce un fattore `√m` fittizio e conserva la natura conservativa dei budget. I
+pesi non si ricalcolano dentro la replica, altrimenti l'intervallo dipenderebbe dal
+rumore del budget e non da quello dei dati.
 
-- i quantili bootstrap descrivono la variabilità della **superficie stimata**; la
-  dispersione delle tre misure del punto di conferma entra a parte, come `2·u_conf`
-  in P3.10, con `u_conf` = semi-range non diviso per `√3`;
-- il bootstrap per batch non si usa: 3 batch sono troppo pochi cluster (già in
-  P3.8);
-- gli errori standard HC3 si riportano accanto come approssimazione lineare e si
-  confrontano con l'ampiezza bootstrap: se differiscono di più di un fattore 2, il
-  bootstrap resta primario e la discrepanza si dichiara — è il sintomo di una
-  superficie mal condizionata o di un blocco influente (P3.9);
-- il bootstrap non sostituisce il lack-of-fit di P3.9: un modello inadeguato ha un
-  intervallo stretto e sbagliato.
+I due intervalli sono **oggetti diversi** e vanno riportati come tali:
 
-### P4.9 La catena è validata anello per anello
+- **parametrico**, sul costo marginale per token: quantili 2,5 e 97,5 delle quantità
+  derivate `b + c·N_in,ref`, `a + c·N_out,ref`, `J/token_32`, `J/token_128`,
+  calcolate su `θ*`. Contiene solo l'incertezza dei coefficienti: non contiene la
+  dispersione di un blocco di misura singolo, e non deve contenerla;
+- **predittivo**, su un blocco nuovo a geometria `x`: lo spread parametrico di
+  `f(x; θ*)` allargato con il `budget_pred` del blocco nuovo (P4.6). È questo
+  l'intervallo con cui si confronta una misura, ed è ciò che P3.10 usa nella sua
+  forma congelata con il termine `2·u_conf`.
+
+Diagnostica: gli errori standard HC3 si riportano accanto come approssimazione
+lineare; se l'ampiezza bootstrap e quella HC3 differiscono di più di un fattore 2,
+il bootstrap resta primario e la discrepanza si dichiara — è il sintomo di una
+superficie mal condizionata o di un blocco influente (P3.9). Il bootstrap non
+sostituisce il lack-of-fit: un modello inadeguato ha un intervallo stretto e
+sbagliato.
+
+### P4.9 Catena di validazione: criterio monolitico
+
+"Validata" è una parola sola e si assegna solo se **tutti** gli anelli passano. Non
+esiste validazione parziale: un anello rotto rompe la parola, non il dato.
+
+| # | anello | criterio | etichetta se fallisce |
+|---|---|---|---|
+| 1 | token e terminazione | pilota P2.9 A/B/C superato | campagna non eseguibile: si corregge il pilota, non i dati |
+| 2 | contatore | nessun blocco con delta negativo, reset o lettura non finita (P1.6) | `counter_invalid`: il blocco si ripete una volta, poi si scarta e si dichiara |
+| 3 | baseline | `r_A ≤ 10%` in almeno 2 blocchi su 3 per punto (P1.6) | `baseline_unstable`; con due punti su tre, campagna invalida |
+| 4 | sottrazione | test load-versus-control dentro il budget (P4.5) | `bias_declared`: `u_bias` entra in `budget_pred`, P1 non cambia |
+| 5 | adeguatezza del modello | lack-of-fit **non** significativo, `p ≥ 0,05` (P3.9) | `model_inadequate`: la superficie si riporta come descrizione, non come legge |
+| 6 | conferma | entrambi i punti di P3.10 con `err_rel ≤ 10%` e dentro l'intervallo | `validation_failed`: nessun rifit sui punti di conferma |
+
+Regole di fallimento, congelate:
+
+- se anche un solo anello fallisce, l'esperimento **non si scarta**: si
+  riclassifica. Alle etichette della tabella si aggiunge `reduced_design`, per i
+  casi in cui un punto è escluso dal fit primario perché `r_B > 20%` (P1.6);
+- non si forza l'adattamento del modello sui dati di test, non si sceglie un altro
+  modello sui dati di validazione, non si sposta una soglia dopo aver visto il
+  numero;
+- l'esito della catena è una colonna (`chain_status`) e una riga di verbale, non un
+  aggettivo nel testo;
+- nella tesi la frase "la misura è validata" compare solo se
+  `chain_status = validated`. Negli altri casi si scrive quale anello ha ceduto.
+
+Gli anelli non sono sostituibili fra loro: nessun confronto fra due letture dello
+stesso registro può rimpiazzare il test di sottrazione (4), e nessun test di
+sottrazione può rimpiazzare la conferma su geometrie mai entrate nel fit (6).
+
+### P4.10 Cosa arbitra ogni prova, e cosa no
 
 Nessun anello, da solo, è validazione. La catena è forte quanto il suo anello più
 debole, che su questa macchina è l'assenza del wattometro.
@@ -1175,49 +1258,85 @@ Temperature omonimo, e lo stesso confronto dava rapporti 2,47–4,42 con offset
 controllo che ha salvato il metodo è stato leggere il tipo di sensore, non
 confrontare due misure.
 
-### P4.10 Cosa non è deciso qui
+**Caveat sulla scala assoluta, obbligatorio nella tesi.** La sovrapposizione
+EMI ↔ SRUM (0,9946) e EMI ↔ LHM (0,9947–1,0082 a finestra identica, 0,9966–1,0156
+sulla trace busy-loop) è un controllo di **coerenza software e di registro**, non
+una validazione metrologica della scala assoluta: tutte le letture stanno sullo
+stesso `MSR_PKG_ENERGY_STATUS`, quindi concordano per costruzione anche se la scala
+del registro fosse sbagliata. Una validazione metrologica richiede un wattometro
+AC/DC esterno, che non c'è. Questo va scritto nel capitolo della valutazione
+**prima** dei numeri, non in una nota a piè di pagina: è ciò che protegge il lavoro
+da un'obiezione ovvia in sede di revisione.
+
+### P4.11 Confronto con la produzione reale
+
+Il blocco di produzione (terminazione naturale, P3.5) si confronta con il modello
+**richiesta per richiesta**, non sul punto medio dei token:
+
+```
+Σ_i modello(N_in,i, N_out,i)   contro   Σ_i E_act,i     sulle richieste del blocco
+```
+
+con `N_in,i` e `N_out,i` effettivi (P2) e il modello ai coefficienti stimati sui
+soli blocchi di fit. Il confronto è **descrittivo** e non ha esito pass/fail: la
+produzione reale ha dinamiche proprie — lunghezza variabile, terminazione naturale,
+prefissi non uniformi — che il disegno sperimentale descrive senza vincolare.
+Trasformarlo in un test significherebbe usare gli stessi dati con due ruoli diversi.
+
+Si riportano il rapporto delle due somme, la sua dispersione fra i blocchi e la
+fascia di copertura (P4.7) in cui cade ciascuna richiesta di produzione.
+
+### P4.12 Cosa non è deciso qui
 
 - P5 fissa nomi e tipi delle colonne. P4 elenca i contenuti nuovi obbligatori:
   `block_kind` ∈ {`load`, `control`}, `pair_id`, `order_seed`, `dt_nominal_s`,
-  `dt_tick_s`, `p_net_mean_w`, `u_edge_j`, `u_bias_j`, `u_tot_j`, `bias_w`,
-  `extrapolation_tier` ∈ {`A`, `B`, `C`}, `u_extrap_j`, `coverage_flag`,
-  `bootstrap_seed`, `validation_bias_pass`;
-- P6 fissa l'ordine di esecuzione — la campagna di P4.4 sta prima della principale
-  e ne è il gate — e gli script di analisi;
+  `dt_tick_s`, `p_peak_w`, `u_edge_j`, `budget_fit_j`, `budget_pred_j`, `u_bias_j`,
+  `bias_w`, `z_resid`, `hull_margin_tok`, `coverage_tier` ∈ {`A`, `B`, `C`},
+  `sparse_support`, `thin_support`, `out_of_coverage`, `bootstrap_seed`,
+  `validation_bias_pass`, `chain_status`;
+- P6 fissa l'ordine di esecuzione — la campagna di P4.4 sta prima della principale e
+  ne è il gate — e gli script di analisi;
 - il wattometro: la scala assoluta resta non arbitrata (cap. 6, sviluppo 1);
-- Linux/RAPL: il disegno di P4.4 è indipendente dal backend e si applica a RAPL
-  con gli stessi criteri, ma in v4 non è eseguito. Il backend Linux è
-  implementato, non validato su questa campagna;
+- Linux/RAPL: il disegno di P4.4 è indipendente dal backend e si applica a RAPL con
+  gli stessi criteri, ma in v4 non è eseguito. Il backend Linux è implementato, non
+  validato su questa campagna;
 - la deviazione standard campionaria con n = 3 **non si adotta**: con tre repliche
   non è una stima utilizzabile di varianza, e affiancarla al semi-range invita a
   trattarla come tale. Restano registrati i tre valori, la mediana, il minimo, il
   massimo e il range (già in P1.5 e P1.7).
 
-### P4.11 Ancoraggi
+### P4.13 Ancoraggi
 
 - interpolazione ai bordi: `energy_session.py:1103-1124` (`_emi_cum_at`),
   `:1126-1148` (`_emi_field_at`), `:2188-2205` (`_interpolate` sui campioni di
   sistema);
 - cadenza dichiarata: `energy_session.py:80` (`POWER_SAMPLE_INTERVAL_S = 0.05`);
+  cadenza misurata 0,28–0,34 s: cap. 5, §risoluzione;
 - finestre di energia: `energy_session.py:1194` (`emi_window_energy_j`), `:1261`
   (`pi_window_energy_j`); lettura finestra idle: `:1576`;
 - bug del sensore omonimo e fix: guard sul tipo a `energy_session.py:951-955`,
   selezione del sensore package a `:855-915`, commit `1422d1b`;
-- budget e pesi: P1.7, P3.8; validazione della superficie: P3.10; sensibilità
-  post-hoc: P1.10; controlli di drift: P1.6;
+- inviluppo convesso: calcolato sui 10 punti di disegno di P3.5; vertici `(8,4)`,
+  `(512,32)`, `(512,256)`, `(32,256)`; margini verificati numericamente il
+  24-10-2026 — `(12,32)` → 1,33 token, `(256,192)` → 64,0, `(32,32)` → 21,2,
+  `(128,128)` → 107,7;
+- budget e pesi: P1.7, P3.8; validazione della superficie: P3.10; diagnostica e
+  lack-of-fit: P3.9; sensibilità post-hoc: P1.10; controlli di drift: P1.6;
 - artefatti della catena: `four_way_finestra_uguale_20261023_analisi.md`,
   `srum_emi_cross_20261023_analisi.md`,
   `idle_floor_sensitivity_20261023_analisi.md`, `emi_50ms_probe_20261023_*`;
 - provenienza della campagna di controllo: `baseline miglioramenti.DOCX` §3
-  (materiale utente, valutato contro P1: nomenclatura, registrazione delle
-  repliche e separazione dei tre valori erano già congelati).
+  (materiale utente, valutato contro P1: nomenclatura, registrazione delle repliche
+  e separazione dei tre valori erano già congelati).
 
-### P4.12 Aperto
+### P4.14 Aperto
 
-Niente per P4. Due esiti possono riaprirlo, e sono risultati di P6, non decisioni
+Niente per P4. Tre esiti possono riaprirlo, e sono risultati di P6, non decisioni
 aperte:
 
 - se il test di P4.5 fallisce anche nella ripetizione, `u_bias` entra nel budget e
   la tesi dichiara che la sottrazione non è validata su questa macchina;
-- se il pre-pilota di P3.15 mostra che un livello della griglia non è
-  raggiungibile, il rettangolo di P4.7 cambia e con esso le fasce.
+- se il pre-pilota di P3.15 mostra che un livello della griglia non è raggiungibile,
+  cambiano i punti di disegno e con essi l'inviluppo di P4.7;
+- se il lack-of-fit di P3.9 è significativo, `chain_status` scende a
+  `model_inadequate` e la superficie si riporta come descrizione.
