@@ -353,6 +353,22 @@ sottrazione. L'estimatore resta quello di produzione
 (`energy_session.py:2363-2396`), così la catena di misura non cambia insieme al
 protocollo.
 
+**Motivazione causale dell'applicazione al solo pre** (aggiunta il 24-10-2026;
+redazionale: non modifica né formule né soglie, rafforza la giustificazione).
+La richiesta è l'intervento. `P_pre` è misurata su uno stato della macchina che
+la richiesta non ha ancora modificato; `P_post` è misurata su uno stato che la
+richiesta ha modificato — è per questo che intorno alle finestre esiste un
+settling (P1.5). La grandezza che la sottrazione vorrebbe, la potenza idle
+**durante** `Δt_W`, non è osservata: sia il pre sia il post ne sono proxy, ma solo
+il pre non è una funzione del trattamento. Condizionare l'estimatore a una
+grandezza post-trattamento renderebbe la correzione dipendente dall'esito che deve
+correggere. Sotto l'assunzione che il livello idle sia stabile dentro il blocco —
+che è esattamente ciò che `pre_unstable` e `r_A` misurano (P1.6) — `P_pre` è la
+scelta che non introduce circolarità, mentre `dP` misura quanto quell'assunzione
+deriva: informazione sull'assunzione, non una stima migliore dell'idle non
+osservato. Per questo il post si registra e non si applica, e la sua distanza dal
+pre entra nel budget (F.4) invece di entrare nella correzione.
+
 **Correzioni al materiale esterno.** Il riferimento citato come "Khan et al."
 non compare in queste fonti: il lavoro è Alizadeh & Castor 2024. CodeCarbon non
 sottrae idle e va citato come contrasto, non come supporto. MLPerf Power non
@@ -1458,7 +1474,11 @@ E_act,i           = E_pkg_gross,i − P_pre,b · Δt_W,i        # sinonimo dichi
 
 *Giustificazione.* Si applica `P_pre` e il post resta diagnostico: interpolare su
 un `dP` non stazionario sarebbe arbitrario (P1.10) e usare il post tarerebbe
-retroattivamente la sottrazione (P1.14). `P_pre,b` è la stessa per le tre
+retroattivamente la sottrazione (P1.14). La ragione è causale, non solo
+operativa: `P_post` è misurata dopo che il carico ha modificato lo stato della
+macchina, quindi è una grandezza post-trattamento, e la potenza idle durante
+`Δt_W` non è osservata — `P_pre` è l'unico proxy che non sia funzione del
+trattamento (P1.14, motivazione causale). `P_pre,b` è la stessa per le tre
 richieste del blocco, perché la baseline è misurata una volta per blocco (P3.7).
 **Non si tronca a zero.** La produzione invece tronca, due volte:
 `package_energy_j = max(e_package, 0)` a `local_energy.py:300` e
