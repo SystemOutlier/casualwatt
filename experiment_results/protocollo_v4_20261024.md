@@ -1414,10 +1414,18 @@ fascia di copertura (P4.7) in cui cade ciascuna richiesta di produzione.
 - Linux/RAPL: il disegno di P4.4 è indipendente dal backend e si applica a RAPL con
   gli stessi criteri, ma in v4 non è eseguito. Il backend Linux è implementato, non
   validato su questa campagna;
-- la deviazione standard campionaria con n = 3 **non si adotta**: con tre repliche
-  non è una stima utilizzabile di varianza, e affiancarla al semi-range invita a
-  trattarla come tale. Restano registrati i tre valori, la mediana, il minimo, il
-  massimo e il range (già in P1.5 e P1.7).
+- la deviazione standard campionaria con n = 3 **non si adotta**, per due ragioni
+  distinte. Prima: con tre repliche non è una stima utilizzabile di varianza, e
+  affiancarla al semi-range invita a trattarla come tale. Seconda: non aggiunge
+  informazione, perché con n = 3 la terna (min, med, max) **è** la terna delle
+  osservazioni riordinata, quindi la deviazione standard ne è una funzione
+  deterministica — con `m = (min + med + max)/3` vale
+  `sd = sqrt(((min−m)² + (med−m)² + (max−m)²)/2)`; verificato numericamente il
+  24-10-2026 su 20.000 terne casuali in [5, 40] W, scarto massimo 3,6e-15 W — e
+  le tre osservazioni sono già registrate (P1.5, P1.7). Un indicatore ridondante
+  ha un solo effetto: suggerire
+  che esista una σ stimata. Restano registrati i tre valori, la mediana, il
+  minimo, il massimo e il range.
 
 ### P4.13 Ancoraggi
 
