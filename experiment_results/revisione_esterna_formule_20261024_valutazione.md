@@ -21,6 +21,25 @@ correzioni di forma o di definizione applicabili subito**, **6 proposte che
 cambiano un punto congelato e richiedono una decisione**, **4 respinte con
 motivo**. Due numeri della revisione si riproducono esattamente; uno no.
 
+**Stato degli ancoraggi (aggiornamento del 2026-10-25).** I riferimenti `:NNNN` al
+protocollo che compaiono qui sotto — 23 occorrenze — puntano alla revisione di
+`protocollo_v4_20261024.md` com'era il 2026-10-24, quando questa valutazione è
+stata scritta. Da allora il protocollo è cresciuto molto (gli emendamenti del
+secondo turno erano a lunghezza invariata, 3148 righe; quello del terzo turno su
+`u_edge` l'ha portato a 3155), quindi **quei numeri non tornano più** e non vanno
+usati per navigare il protocollo: sono la traccia storica di ciò che è stato
+verificato e dove. Gli ancoraggi correnti degli stessi punti — P4.5, P4.6, P4.7,
+P4.9, P4.12, F.11, F.13, F.17, P6.5 — stanno nella tabella di controllo incrociato
+(§6) di `revisione_esterna_20261025_secondo_turno_valutazione.md`, rieseguita riga
+per riga. È l'applicazione a un documento storico della regola di AGENTS.md "se un
+ancoraggio non torna, il file è stantio: va corretto, non ignorato": la correzione
+dovuta è dichiarare quale revisione il documento descrive, perché ricalcolare i 23
+ancoraggi sul testo di oggi produrrebbe numeri validi oggi a fronte di una verifica
+eseguita su un testo diverso. Restano validi gli ancoraggi al codice
+(`local_energy.py:309-310`, `energy_session.py:1111-1116`), quelli agli altri
+artefatti (`lhm_validation_v3_20261023_185232.md`) e l'auto-riferimento a questo
+documento, aggiornato a `:126`.
+
 ---
 
 ## 1. Contraddizioni reali nel testo congelato
@@ -592,7 +611,7 @@ geometria del prompt e non sulla scala energetica.
 
 I punti corretti sono **cinque**, non quattro: protocollo `:1245` (P3.15), `:1794`
 (conseguenza di P4.7), `:2116` (ancoraggi di P4.13), `:2844` (giustificazione di
-F.13) e questo documento `:107`. La quarta occorrenza del protocollo era invisibile
+F.13) e questo documento `:126`. La quarta occorrenza del protocollo era invisibile
 a un `grep "126 token reali"` perché il testo va a capo fra il numero e "token": la
 ricerca di un ancoraggio ripetuto va fatta sul **numero**, non sulla frase, o in
 modalità multilinea. È la ragione per cui questa sezione esiste: la prima
