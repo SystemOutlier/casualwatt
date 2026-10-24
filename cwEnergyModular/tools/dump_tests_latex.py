@@ -67,13 +67,20 @@ def tex_escape(testo: str) -> str:
 
 
 def _spezza_identificatore(testo_escaped: str) -> str:
-    """Punti di capo dopo ogni underscore.
+    """Punti di capo dopo underscore e trattini.
 
     Gli identificatori dei test sono lunghi e privi di spazi (
     test_A2_gpu_energia_indipendente_dall_utilizzo) e in \\texttt non vengono
     sillabati: senza \\allowbreak la colonna sfonda e longtable va in overfull.
+
+    Il trattino serve quanto l'underscore perch\\`e i valori parametrizzati di
+    oggi sono etichette di canale (emi-counter, librehardwaremonitor-energy,
+    power-integration): il parametro e' stampato in \\texttt dentro la stessa
+    colonna da 0,30\\textwidth, e 'librehardwaremonitor-energy' da sola e' pi\\`u
+    larga della colonna (24/10, overfull di 66 pt su riga 243 del file generato).
     """
-    return testo_escaped.replace("\\_", "\\_\\allowbreak{}")
+    out = testo_escaped.replace("\\_", "\\_\\allowbreak{}")
+    return out.replace("-", "-\\allowbreak{}")
 
 
 def _spezza_percorso(testo_escaped: str) -> str:
@@ -85,6 +92,42 @@ def _spezza_percorso(testo_escaped: str) -> str:
     """
     out = testo_escaped.replace("\\_", "\\_\\allowbreak{}")
     return out.replace("/", "/\\allowbreak{}")
+
+
+def cella_test(fname: str, classe: str, param: str) -> str:
+    """La prima colonna della riga: \texttt{nome(classe)} col parametro tra parentesi.
+
+    Estratta dal ciclo di emissione perche' e' IL punto dove l'impaginazione si
+    decide: se qui un frammento non ha un \\allowbreak, la colonna da
+    0,30\\textwidth sfonda e il PDF va in overfull (24/10, sei righe). Tenere la
+    logica in una funzione vuol dire poterla verificare senza compilare la tesi.
+    """
+    nome = _spezza_camel(_spezza_identificatore(tex_escape(fname)))
+    if param:
+        # \\allowbreak ANCHE prima della parentesi: senza, la coda del nome e
+        # l'apertura del parametro formano un solo blocco inseguibile
+        # ('numero({librehardwaremonitor-', 29 caratteri) e la colonna sfonda
+        # comunque, hyphen o non hyphen.
+        nome += "\\allowbreak{}\\,(\\texttt{%s})" % _spezza_identificatore(
+            tex_escape(param))
+    if classe:
+        nome = "\\texttt{%s}:\\allowbreak{} %s" % (
+            _spezza_camel(_spezza_identificatore(tex_escape(classe))), nome)
+    else:
+        nome = "\\texttt{%s}" % nome
+    return nome
+
+
+def frammenti_inseguibili(testo_tex: str) -> list:
+    """I pezzi di testo LaTeX che NON possono andare a capo, cioe' fra un \\allowbreak e l'altro.
+
+    Serve alla verifica (tests/test_dump_node_id.py): un frammento piu' lungo
+    della colonna e' un overfull box gia' scritto, indipendentemente da che cosa
+    dice la riga.
+    """
+    pulito = (testo_tex.replace("\\allowbreak{}", "\x00")
+              .replace("\\,", "").replace("\\texttt", "").replace("\\_", "_"))
+    return [f.strip("{}():; ") for f in pulito.split("\x00") if f.strip("{}():; ")]
 
 
 def _spezza_camel(testo_escaped: str) -> str:
@@ -332,14 +375,7 @@ def main() -> int:
         emetti("\\bottomrule")
         emetti("\\endlastfoot")
         for i, (classe, fname, param, doc, esito, nid) in enumerate(lst, start=1):
-            nome = _spezza_camel(_spezza_identificatore(tex_escape(fname)))
-            if param:
-                nome += "\\,(\\texttt{%s})" % _spezza_identificatore(tex_escape(param))
-            if classe:
-                nome = "\\texttt{%s}:\\allowbreak{} %s" % (
-                    _spezza_camel(_spezza_identificatore(tex_escape(classe))), nome)
-            else:
-                nome = "\\texttt{%s}" % nome
+            nome = cella_test(fname, classe, param)
             emetti(f"{i} & {nome} & {cella(doc, MAX_DOC) if doc else 'nessuna docstring'} "
                    f"& {ESITI.get(esito, esito.lower())} \\\\")
         emetti("\\end{longtable}")
