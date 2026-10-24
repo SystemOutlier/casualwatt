@@ -11,7 +11,7 @@ Data: 2026-10-24. Branch: `energy-consumption-framework-ollama-d248a`.
 | P1 | baseline e calibrazione idle | **congelato 2026-10-24** (emendato: sensibilità post-hoc; letteratura e confronto CodeCarbon) |
 | P2 | token effettivi e terminazione | **congelato 2026-10-24** |
 | P3 | geometria, modello e stima | **congelato 2026-10-24** |
-| P4 | incertezza e validazione | **congelato 2026-10-24** (emendato: inviluppo convesso per la copertura, bootstrap dei residui standardizzati, criterio monolitico di catena, `u_edge` solo nel budget predittivo) |
+| P4 | incertezza e validazione | **congelato 2026-10-24** (emendato: inviluppo convesso per la copertura, bootstrap dei residui standardizzati, criterio monolitico di catena, `u_edge` solo nel budget predittivo; seconda emenda solo di forma: P4.1 in quattro clausole, P4.4 a otto requisiti numerati con la baseline 3 pre + 3 post obbligatoria anche sui controlli) |
 | P5 | campi CSV e runner | aperto |
 | P6 | esecuzione e analisi | aperto |
 
@@ -950,19 +950,42 @@ Stesura: una prima versione è stata congelata e committata (`c41a6ec`) con fasc
 copertura a rettangolo e case bootstrap; è stata emendata lo stesso giorno sulle
 quattro decisioni approvate — inviluppo convesso per la copertura, bootstrap dei
 residui standardizzati, criterio monolitico di catena, `u_edge` solo nel budget
-predittivo e in sensibilità. La versione qui sotto è quella emendata, ed è quella
-che vale.
+predittivo e in sensibilità (`d9e4af1`). La versione qui sotto è quella emendata,
+ed è quella che vale.
+
+Seconda emenda, stessa giornata, su valutazione della struttura di P4 proposta in
+`bozza p4.DOCX`: nessuna decisione è cambiata. Sono entrate due sole aggiunte di
+forma, entrambe richieste esplicitamente e nessuna delle quali tocca P1, P2, P3 o
+i pesi del fit: (i) P4.1 apre con la formulazione secca in quattro clausole,
+quella proposta, e il testo precedente resta come dettaglio; (ii) il disegno di
+P4.4 passa da elenco puntato a otto requisiti numerati, e la struttura di
+baseline 3 pre + 3 post sui blocchi di controllo — che prima era un inciso —
+diventa il requisito 7 con la ragione per cui è obbligatorio: senza di essa `r_A`,
+`budget_base_j,c` e `budget_base_w,c` non esistono sul blocco di controllo e il
+criterio di P4.5 non è calcolabile. P4.5 ora cita quel requisito. I tre punti
+della struttura proposta che erano in conflitto con le decisioni approvate
+(`u_edge` dentro il budget di fit e senza il fattore 2, inviluppo a cinque vertici
+con `(32,32)`, catena costruita sui confronti di coerenza same-counter invece che
+sui gate di campagna) **non** sono stati adottati: la valutazione è in chat e le
+ragioni restano quelle di P4.6, P4.7 e P4.9–P4.10.
 
 ### P4.1 Decisione in una riga
 
-> Ogni numero pubblicato della v4 esce con tre cose: il budget predittivo
-> `budget_pred = sqrt(u_base² + u_within² + u_edge²)`, la fascia di copertura
-> A/B/C decisa sull'inviluppo convesso del disegno, e — per la differenza
-> incrementale — l'esito del test load-versus-control. La sottrazione di baseline è
-> validata su questa macchina se il bias misurato a incremento nullo sta dentro il
-> budget; se non ci sta, il bias si dichiara, si aggiunge al budget, e P1 non cambia
-> senza nuova evidenza. La parola "validata" sull'intera misura si usa solo se tutti
-> gli anelli di P4.9 passano: altrimenti si scrive quale anello ha ceduto.
+P1 resta operativo così com'è; la validazione della sottrazione è un test
+separato, non una modifica dell'estimatore; il budget di un numero pubblicato
+aggiunge il termine di bordo ai due contributi già dichiarati; copertura e
+intervallo accompagnano ogni numero — la copertura come campo
+(`coverage_tier`, `hull_margin_tok`), l'intervallo come numero con il suo budget
+— e non come aggettivo nel testo.
+
+Nel dettaglio: ogni numero pubblicato della v4 esce con tre cose: il budget
+predittivo `budget_pred = sqrt(u_base² + u_within² + u_edge²)`, la fascia di
+copertura A/B/C decisa sull'inviluppo convesso del disegno, e — per la differenza
+incrementale — l'esito del test load-versus-control. La sottrazione di baseline è
+validata su questa macchina se il bias misurato a incremento nullo sta dentro il
+budget; se non ci sta, il bias si dichiara, si aggiunge al budget, e P1 non cambia
+senza nuova evidenza. La parola "validata" sull'intera misura si usa solo se tutti
+gli anelli di P4.9 passano: altrimenti si scrive quale anello ha ceduto.
 
 ### P4.2 Perché serve un punto separato
 
@@ -1004,28 +1027,49 @@ sulla registrazione delle tre repliche e sulla separazione dei tre valori erano
 già congelate (P1.7, P1.5 passo 3, P1.3); la campagna di controllo invece è
 nuova ed è l'unico test **diretto** della sottrazione.
 
-Disegno:
+Disegno. I requisiti sono numerati perché P4.5 fa riferimento per numero al
+requisito 7: non è una lista di buone intenzioni, è l'elenco di ciò che rende il
+test calcolabile.
 
-- campagna separata, eseguita **prima** della campagna principale, come gate;
-- 3 coppie; ogni coppia = 1 blocco di carico + 1 blocco di controllo;
-- ordine dentro la coppia e ordine delle coppie randomizzati, seed registrato
-  (`order_seed`);
-- geometria: il punto di conferma `(12,32)` di P3.5, cioè la geometria operativa
-  reale, con terminazione naturale come nel blocco di produzione;
-- durata: `dt_nominal_s` fissato **prima** della campagna come 3 × la mediana
-  della durata di richiesta misurata nel pilota di P2. Il blocco di controllo
-  attende quella durata senza inviare richieste. Lo scarto fra nominale e
-  misurato non crea bias: ciascun blocco sottrae `P_pre · Δt_W` con il **proprio**
-  `Δt_W` misurato, quindi l'atteso del controllo è zero per ogni durata;
-- stato macchina: identico a P1.4 (`keep_alive = -1`, modello residente e caldo,
-  GUI di LibreHardwareMonitor chiusa, processi concorrenti dichiarati);
-- struttura di baseline: identica a P1.5, tre finestre pre da 30 s e tre post da
-  30 s, **anche** sul blocco di controllo;
-- per ciascun blocco di controllo si calcola
-  `E_net,control = E_pkg_gross − P_pre · Δt_W`, con lo stesso codice di
-  produzione e senza troncamento.
+1. **Campagna separata, eseguita come gate.** La campagna precede la campagna
+   principale. Se il gate non passa, la campagna principale parte comunque ma con
+   `bias_declared` e con `u_bias` dentro `budget_pred`: è la conseguenza di P4.5
+   e dell'anello 4 di P4.9, non una regola nuova di questo punto.
+2. **Tre coppie.** Ogni coppia = 1 blocco di carico + 1 blocco di controllo.
+3. **Ordine randomizzato, seed registrato.** Ordine dentro la coppia e ordine
+   delle coppie randomizzati; il seed va in `order_seed`.
+4. **Geometria operativa.** Il punto di conferma `(12,32)` di P3.5, cioè la
+   geometria operativa reale, con terminazione naturale come nel blocco di
+   produzione.
+5. **Durata fissata prima.** `dt_nominal_s` è fissato **prima** della campagna
+   come 3 × la mediana della durata di richiesta misurata nel pilota di P2. Il
+   blocco di controllo attende quella durata senza inviare richieste. Lo scarto
+   fra nominale e misurato non crea bias: ciascun blocco sottrae `P_pre · Δt_W`
+   con il **proprio** `Δt_W` misurato, quindi l'atteso del controllo è zero per
+   ogni durata.
+6. **Stato macchina identico a P1.4.** `keep_alive = -1`, modello residente e
+   caldo, GUI di LibreHardwareMonitor chiusa, processi concorrenti dichiarati.
+7. **Struttura di baseline identica su entrambi i tipi di blocco.** Tre finestre
+   pre da 30 s e tre post da 30 s, come in P1.5, **anche** sul blocco di
+   controllo. Non è una simmetria formale: è ciò che rende calcolabili su quel
+   blocco `baseline_pre_w`, `baseline_post_w` e quindi `dP`, `budget_base_w`,
+   `budget_base_j`, `r_A` e `r_B` (P1.5, P1.6, P1.7), e sono esattamente le
+   quantità che il criterio di P4.5 usa — filtro sui blocchi con `r_A ≤ 10%`,
+   confronto per blocco con `budget_base_j,c`, confronto aggregato con
+   `mediana_c(budget_base_w,c)`. Un blocco di controllo senza struttura pre/post
+   produrrebbe un `E_net` privo di `P_pre` e non confrontabile con nessun budget,
+   cioè inutilizzabile. Il requisito vale per costruzione anche sul blocco di
+   carico della coppia, che è un blocco di produzione a tutti gli effetti.
+8. **Stessa procedura di produzione.** Per ciascun blocco di controllo si calcola
+   `E_net,control = E_pkg_gross − P_pre · Δt_W`, con lo stesso codice di
+   produzione e senza troncamento.
 
 ### P4.5 Criterio del test
+
+Il criterio è calcolabile solo in virtù del requisito 7 di P4.4: `r_A`,
+`budget_base_j,c` e `budget_base_w,c` esistono su un blocco di controllo perché
+quel blocco esegue la stessa struttura di baseline 3 pre + 3 post dei blocchi di
+carico.
 
 ```
 per blocco:  passa se  |E_net,control,c| ≤ budget_base_j,c              (P1.7)
