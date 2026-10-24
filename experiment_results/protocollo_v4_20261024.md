@@ -11,9 +11,9 @@ Data: 2026-10-24. Branch: `energy-consumption-framework-ollama-d248a`.
 | P1 | baseline e calibrazione idle | **congelato 2026-10-24** (emendato: sensibilità post-hoc; letteratura e confronto CodeCarbon; terza emenda di forma — motivazione causale del pre applicato in P1.14/F.2, e forma di combinazione di `budget_base_w` dichiarata decisione operativa provvisoria con rinvio motivato ai dati del pilota P2.9: P1.7, P1.13. **Emenda sostanziale del 2026-10-24**: chiuso il difetto `E_trunc`, definito `E_net_abs,b`/`E_net_abs,p` come denominatore di `r_A`/`r_B`, P1.6 e F.3) |
 | P2 | token effettivi e terminazione | **congelato 2026-10-24** |
 | P3 | geometria, modello e stima | **congelato 2026-10-24** (emendato di forma il 2026-10-24 dopo la revisione esterna: P3.3 costi marginali qualificati a `N_out = 0` / `N_in = 0` e algebra del termine quadratico omesso; P3.10 `E_pred ≤ 0` dichiarato fallimento con `pred_nonpositive` e intervallo rinominato `intervallo_conf`; P3.12/P3.13 `design_deviation_count`; P3.15 pre-pilota esteso ai livelli bassi. **Emenda sostanziale del 2026-10-24**: P3.9, il criterio dell'anello 5 usa `p_lof_perm`, `p` della stessa statistica F pesata ottenuto dalla distribuzione nulla per ricampionamento del puro errore — il `p` asintotico non è valido con pesi conservativi. Statistica e soglia 0,05 invariate, aggiunto `lof_max_rel` descrittivo. Nessuna modifica a disegno, modello o pesi) |
-| P4 | incertezza e validazione | **congelato 2026-10-24** (emendato: inviluppo convesso per la copertura, bootstrap dei residui standardizzati, criterio monolitico di catena, `u_edge` solo nel budget predittivo; seconda emenda solo di forma: P4.1 in quattro clausole, P4.4 a otto requisiti numerati con la baseline 3 pre + 3 post obbligatoria anche sui controlli; terza emenda solo di forma: seconda ragione in P4.12 per non adottare la deviazione standard a n = 3; quarta emenda solo di forma: P4.6, rettificata la giustificazione di `u_edge` — il termine congelato maggiora il disallineamento, non l'interpolazione — con formula e valore invariati. **Emenda sostanziale del 2026-10-24**: chiuso il difetto di `r_A` sui controlli — il requisito 7 di P4.4 elenca ora solo le quantità che esistono su un blocco di controllo, e il filtro di stabilità di P4.5 è sostituito dalle soglie assolute `pre_range_w,c ≤ 1,0 W` e `|dP_c| ≤ 1,0 W` con il flag `control_unstable`; `u_bias,b = |bias_w| · Δt̄_W,b` scritto in formula in P4.6 e F.11 come contributo di incertezza, non come correzione sistematica; copertura decisa su due inviluppi — `hull_design` sui target e `hull_fit` sui token reali dei 33 blocchi di fit — prendendo la fascia più conservativa, P4.7 e F.13. **Seconda emenda sostanziale del 2026-10-24**: P4.8, la copertura del bootstrap è dichiarata *nominale e non arbitrata* finché P6.4 non la verifica per simulazione, e la correzione di leva `1/√(1 − h_b)` è resa **sensibilità obbligatoria** allo stesso seed del primario — leva massima verificata sul disegno nominale 0,2852 sui blocchi (512, 256), fattore 1,1828, media 0,121212 = 4/33. Il primario non cambia e nessuna formula congelata è modificata. **Terza emenda sostanziale del 2026-10-24**: P4.4/P4.5, il gate load-versus-control passa da tre a **sei coppie** (12 blocchi) e il quorum dei controlli utilizzabili da due a **quattro**, stessa frazione congelata `⌈2/3 · n_coppie⌉`; `bias_w` si riporta anche come `bias_jtok_pct` con la scala ancorata 1 W ≈ 6–11% di `J/token`, grandezza riportata e non soglia; intervallo t e test di equivalenza a ±3–5% valutati e **non** adottati, con il limite dichiarato che un gate passato non dimostra quell'equivalenza (0,27–0,83 W sulla stessa scala). Costo in P6.1: pavimento 2 h 15 min → **2 h 33 min**. Soglie in watt invariate. **Nessun difetto dichiarato aperto**) |
-| P5 | campi CSV e runner | aperto (requisiti trasmessi dai punti congelati: P6.5) |
-| P6 | esecuzione e analisi | aperto (sezione preparatoria P6.1–P6.5: vincoli derivati dai punti congelati e proposte della revisione esterna, nessuna decisione) |
+| P4 | incertezza e validazione | **congelato 2026-10-24** (emendato: inviluppo convesso per la copertura, bootstrap dei residui standardizzati, criterio monolitico di catena, `u_edge` solo nel budget predittivo; seconda emenda solo di forma: P4.1 in quattro clausole, P4.4 a otto requisiti numerati con la baseline 3 pre + 3 post obbligatoria anche sui controlli; terza emenda solo di forma: seconda ragione in P4.12 per non adottare la deviazione standard a n = 3; quarta emenda solo di forma: P4.6, rettificata la giustificazione di `u_edge` — il termine congelato maggiora il disallineamento, non l'interpolazione — con formula e valore invariati. **Emenda sostanziale del 2026-10-24**: chiuso il difetto di `r_A` sui controlli — il requisito 7 di P4.4 elenca ora solo le quantità che esistono su un blocco di controllo, e il filtro di stabilità di P4.5 è sostituito dalle soglie assolute `pre_range_w,c ≤ 1,0 W` e `|dP_c| ≤ 1,0 W` con il flag `control_unstable`; `u_bias,b = |bias_w| · Δt̄_W,b` scritto in formula in P4.6 e F.11 come contributo di incertezza, non come correzione sistematica; copertura decisa su due inviluppi — `hull_design` sui target e `hull_fit` sui token reali dei 33 blocchi di fit — prendendo la fascia più conservativa, P4.7 e F.13. **Seconda emenda sostanziale del 2026-10-24**: P4.8, la copertura del bootstrap è dichiarata *nominale e non arbitrata* finché P6.4 non la verifica per simulazione, e la correzione di leva `1/√(1 − h_b)` è resa **sensibilità obbligatoria** allo stesso seed del primario — leva massima verificata sul disegno nominale 0,2852 sui blocchi (512, 256), fattore 1,1828, media 0,121212 = 4/33. Il primario non cambia e nessuna formula congelata è modificata. **Terza emenda sostanziale del 2026-10-24**: P4.4/P4.5, il gate load-versus-control passa da tre a **sei coppie** (12 blocchi) e il quorum dei controlli utilizzabili da due a **quattro**, stessa frazione congelata `⌈2/3 · n_coppie⌉`; `bias_w` si riporta anche come `bias_jtok_pct` con la scala ancorata 1 W ≈ 6–11% di `J/token`, grandezza riportata e non soglia; intervallo t e test di equivalenza a ±3–5% valutati e **non** adottati, con il limite dichiarato che un gate passato non dimostra quell'equivalenza (0,27–0,83 W sulla stessa scala). Costo in P6.1: pavimento 2 h 15 min → **2 h 33 min**. Soglie in watt invariate. **Quarta emenda sostanziale del 2026-10-24**: P4.6, chiusa l'alternativa aperta sul termine di bordo — adottata la via (b), lettura sincrona del contatore ai bordi di finestra con `Δt_W` preso dalla stessa coppia di letture, come requisito vincolante di P5; la via (a) è scartata perché chiede un `ΔP_tick` che nessuna parte del codice misura. Formula e valore congelato di `u_edge,b` invariati: cambia solo cosa è `Δt_tick,b`, e il fattore di riduzione si misura, non si assume. **Nessun difetto dichiarato aperto, nessuna alternativa aperta**) |
+| P5 | campi CSV e runner | aperto (requisiti vincolanti trasmessi dai punti congelati: P6.5, fra cui la lettura sincrona del contatore ai bordi e `Δt_W` dalla stessa coppia di letture) |
+| P6 | esecuzione e analisi | aperto, ma **non più solo preparatorio**: P6.1 e P6.2 sono aritmetica dei punti congelati (P6.1 ricalcolato il 2026-10-24 per le sei coppie del gate: pavimento delle sole finestre idle 2 h 33 min); P6.3 (audit idle) e P6.4 (simulazione Monte Carlo) sono **adottate come requisiti vincolanti**; P6.5 è l'elenco dei requisiti per P5 |
 
 **Quattro difetti dichiarati nel testo congelato (2026-10-24), tutti chiusi lo
 stesso giorno.** Trovati leggendo il protocollo contro se stesso e contro il codice,
@@ -1652,16 +1652,52 @@ copre.
 
 I tre termini sono concordi in segno e indipendenti in origine, quindi il limite
 della somma è superiore a 10,5 J; il valore congelato **non** li maggiora tutti e
-tre. Cosa si fa è una decisione aperta, non una rettifica: la formula di
-`budget_pred_b` è congelata e qui non cambia. Le due vie sono (a) aggiungere a
-`budget_pred` un termine di interpolazione stimato sul `ΔP_tick` **misurato** nel
-bloco — oggi `ΔP_tick` non è misurato da nessuna parte, quindi il termine non è
-calcolabile — oppure (b) eliminare alla radice i termini 2 e 3 leggendo il
+tre.
+
+**Decisione presa il 2026-10-24: via (b), come requisito vincolante di P5.** Le
+due vie erano (a) aggiungere a `budget_pred` un termine di interpolazione stimato
+sul `ΔP_tick` **misurato** nel
+bloco — oggi `ΔP_tick` non è misurato da nessuna parte del codice, quindi la (a)
+introduce un termine **non calcolabile** — oppure (b) eliminare alla radice i termini 2 e 3 leggendo il
 contatore in modo sincrono ai bordi di finestra, con il suo timestamp, che è
-materiale di P5. La via (b) è quella che il probe a 50 ms rende disponibile; la
-via (a) richiede una misura nuova. Fino alla decisione, ogni numero pubblicato
-esce con `budget_pred` nella forma congelata e con la dichiarazione che il termine
-copre il disallineamento, non l'interpolazione né la copertura.
+materiale di P5.
+
+**Si adotta la (b) e si scarta la (a)**, per tre ragioni. Prima: la (a) chiede un
+termine non calcolabile, cioè un budget che per essere scritto ha bisogno di una
+catena di misura nuova. Seconda: quel termine sarebbe a sua volta una stima, un
+numero con la propria incertezza dentro un budget che dovrebbe essere un limite
+superiore; la (b) non produce stime. Terza: la (b) elimina i tre errori insieme,
+non ne maggiora uno. Con due letture sincrone il bordo della finestra **è** un
+campione del contatore: non c'è interpolazione (termine 1), non c'è sfasamento fra
+l'istante chiesto e l'istante letto (termine 2), e non si esercita il clamp a 1 s
+di `_emi_cum_at` (termine 3).
+
+La decisione non tocca la formula congelata di `u_edge,b`, che resta
+`2 · P_peak,b · δt_edge,b`: cambia **cosa è** `Δt_tick,b`. Oggi è la cadenza del
+nostro sampler, 0,28–0,34 s misurati; con la lettura sincrona diventa l'intervallo
+fra gli aggiornamenti del registro, che il probe a 50 ms mostra più breve
+(`emi_50ms_probe_20261023_*`). Il fattore di riduzione **si misura, non si
+assume**: finché non è misurato sulla macchina nella configurazione di campagna,
+il valore pubblicato di `u_edge,b` resta quello della formula congelata con il
+`Δt_tick,b` effettivamente osservato nel blocco, che la v4 già registra come
+`sampling_interval_observed_s`.
+
+Requisito che ne segue per P5, riportato in P6.5: la finestra di misura è
+delimitata dalle **due letture sincrone**, e `Δt_W` è la differenza dei loro
+timestamp, non l'intervallo nominale chiesto dal runner. Energia e durata devono
+riferirsi allo stesso intervallo, altrimenti `E_base = P_pre · Δt_W` sottrae
+l'energia di un tratto diverso da quello misurato. Oggi non è così: `duration_s` è
+`t_end − t_start` sull'orologio di Python, meno le sottofinestre escluse
+(`local_energy.py:156`, `:171`), mentre l'energia è la differenza dei valori di
+contatore **interpolati** a quegli stessi istanti (`energy_session.py:1245-1250`,
+`_emi_cum_at` sui bordi della finestra).
+Il runner apre la prima lettura prima di inviare la richiesta e chiude la seconda
+dopo la terminazione.
+
+Fino all'implementazione in P5, e quindi per ogni numero prodotto con il codice
+attuale, vale la regola provvisoria già scritta: `budget_pred` esce nella forma
+congelata, con la dichiarazione che il termine di bordo copre il disallineamento e
+**non** l'interpolazione né la copertura.
 
 Ordine di grandezza, dichiarato come esempio e non come misura: con
 `Δt_tick = 0,30 s` e `P_peak = 35 W` il termine vale `10,5 J`, confrontabile con
@@ -1669,7 +1705,9 @@ l'energia netta di una richiesta breve alla geometria operativa. Quindi `u_edge`
 calcola per blocco e si riporta; non si assume trascurabile. La sua grandezza è
 anche l'argomento quantitativo dello sviluppo 3 del cap. 6: il probe a 50 ms mostra
 che il registro si aggiorna a quella cadenza, quindi `Δt_tick` è riducibile di un
-fattore ~6 per via software, e `u_edge` con esso.
+fattore ~6 per via software, e `u_edge` con esso. È la ragione per cui la via (b) è
+stata adottata, ma il fattore ~6 resta un valore di probe: non è misurato nella
+configurazione di campagna e non si pubblica come riduzione acquisita.
 
 Regole:
 
@@ -2047,6 +2085,10 @@ fascia di copertura (P4.7) in cui cade ciascuna richiesta di produzione.
   cadenza misurata 0,28–0,34 s: cap. 5, §risoluzione;
 - finestre di energia: `energy_session.py:1194` (`emi_window_energy_j`), `:1261`
   (`pi_window_energy_j`); lettura finestra idle: `:1576`;
+- durata di finestra oggi sull'orologio di Python: `local_energy.py:156`
+  (`dt = t_end − t_start`), `:171` (meno le sottofinestre escluse), `:175`
+  (`duration_s`); bordi interpolati agli stessi istanti:
+  `energy_session.py:1245-1250`;
 - bug del sensore omonimo e fix: guard sul tipo a `energy_session.py:951-955`,
   selezione del sensore package a `:855-915`, commit `1422d1b`;
 - inviluppo di progetto `hull_design`: calcolato sui 10 punti di disegno di P3.5;
@@ -2085,12 +2127,19 @@ aperte:
 
 ## P6 — Esecuzione e analisi (aperto)
 
-P6 non è congelato e questa sezione **non contiene decisioni**: raccoglie i
-vincoli che i punti già congelati impongono all'esecuzione, e che altrimenti
-resterebbero impliciti fino al giorno della campagna. Ogni numero qui sotto è
-aritmetica dei punti congelati, non una stima. Da P6.3 in poi compaiono anche
-**proposte** nate dalla revisione esterna del 2026-10-24: sono etichettate come
-tali, non sono vincoli derivati, e la loro adozione resta una decisione.
+P6 non è congelato: raccoglie i vincoli che i punti già congelati impongono
+all'esecuzione, e che altrimenti resterebbero impliciti fino al giorno della
+campagna. Ogni numero qui sotto è aritmetica dei punti congelati, non una stima.
+
+**Eccezione dichiarata del 2026-10-24.** Questa sezione diceva di non contenere
+decisioni, e da oggi ne contiene due. Le voci da P6.3 in poi sono nate dalla
+revisione esterna del 2026-10-24 e non sono vincoli derivati: **P6.3 (audit idle) e
+P6.4 (simulazione Monte Carlo) sono adottate come requisiti vincolanti**, perché
+punti congelati ne dipendono — P4.8 rimanda a P6.4 per la copertura del bootstrap e
+P4.5 per la verifica del quorum di sei coppie. P6.5 resta un elenco di requisiti
+trasmessi a P5, che è aperto. L'ordine di esecuzione resta aperto, con l'unica
+precedenza fissata in P6.4: dopo la chiusura di P5, prima della pubblicazione degli
+intervalli.
 
 ### P6.1 Pavimento di tempo a muro delle finestre idle
 
@@ -2154,8 +2203,8 @@ avrebbe dati su cui chiudersi e andrebbe presa senza evidenza.
 
 ### P6.3 Audit idle prima della campagna
 
-Proposta della revisione esterna del 2026-10-24, accolta come requisito di
-esecuzione. Non cambia nessuna soglia.
+Proposta della revisione esterna del 2026-10-24, **adottata come requisito
+vincolante di esecuzione** lo stesso giorno. Non cambia nessuna soglia.
 
 Il rischio è ancorato ai soli dati di baseline esistenti: nel run v3 post-fix la
 baseline pre va da 9,35 a 18,78 W, `dP` per run fra −9,31 e +5,80 W, `P_base`
@@ -2180,13 +2229,23 @@ può evitare di bruciare l'intera campagna.
 
 ### P6.4 Simulazione Monte Carlo del protocollo
 
-Proposta della revisione esterna del 2026-10-24. Non è codice di produzione: è un
-harness di analisi, quindi non tocca il blocco del sorgente. La precedenza fra
-questa e la scrittura di P5 la decide l'utente.
+Nata come proposta della revisione esterna del 2026-10-24. Non è codice di
+produzione: è un harness di analisi, quindi non tocca il blocco del sorgente.
+
+**Adottata come requisito vincolante il 2026-10-24**, non più come proposta: due
+punti congelati ne fanno ormai una condizione di pubblicazione. P4.8 dichiara la
+copertura del bootstrap *nominale e non arbitrata* finché questa simulazione non la
+verifica, quindi la tesi non può scrivere "95%" prima; e P4.5 rinvia qui la verifica
+che sei coppie e il quorum di quattro bastino. Precedenza: **dopo** la chiusura di
+P5 e **prima** della pubblicazione degli intervalli della campagna, perché la
+simulazione deve girare sul disegno e sui pesi che il runner implementa davvero. Non
+è un prerequisito dell'esecuzione: la campagna si può correre prima, sono i numeri
+pubblicati che aspettano la simulazione.
 
 Superficie nota con coefficienti scelti entro l'ordine di grandezza atteso, rumore
 idle e deriva campionati dalle distribuzioni misurate in v3, 39 blocchi con la
-geometria di P3.5, e si osservano: bias dei coefficienti stimati, copertura reale
+geometria di P3.5 più le 12 del gate di P4.4 per il punto 2, e si osservano: bias
+dei coefficienti stimati, copertura reale
 degli intervalli, probabilità che i gate falliscano quando il protocollo è
 corretto (falso fallimento) e che passino quando non lo è.
 
@@ -2199,7 +2258,10 @@ Arbitra **cinque** punti aperti in una volta sola, tutti oggi privi di dati:
    `u_base` si può stimare, `u_within` no, perché non esiste ancora un blocco v4
    con tre richieste;
 2. la potenza e la circolarità del gate P4.5, la cui soglia per blocco contiene lo
-   stesso `dP` che genera `E_net,control`;
+   stesso `dP` che genera `E_net,control`. Con l'emendamento a sei coppie la
+   simulazione deve dire anche se il quorum di quattro controlli utilizzabili è
+   sufficiente, cioè quanta probabilità c'è che il gate dichiari `bias_declared`
+   su una macchina corretta solo perché il filtro ne scarta troppi;
 3. il fattore 2 nell'intervallo di conferma di P3.10, di cui oggi non si conosce la
    copertura nominale;
 4. la forma di combinazione di `budget_base_w` rinviata in P1.7 (task aperto):
@@ -2220,15 +2282,26 @@ misura. Va dichiarata come tale nella tesi.
 P5 è aperto; questi sono vincoli che i punti già congelati gli trasmettono,
 registrati qui perché non si perdano.
 
-- **Lettura sincrona del contatore ai bordi di finestra.** Oggi i bordi passano da
+- **Lettura sincrona del contatore ai bordi di finestra — requisito vincolante,
+  deciso il 2026-10-24 in P4.6.** Oggi i bordi passano da
   `_emi_cum_at`, che interpola su un buffer campionato a 0,28–0,34 s misurati, e
   fuori copertura ma entro 1 s restituisce il valore estremo
   (`energy_session.py:1103-1124`). Leggere il contatore direttamente all'istante di
   bordo, col suo timestamp, elimina i termini di disallineamento e di copertura di
-  P4.6 e riduce `u_edge` di circa un fattore 6. L'evidenza che la rende possibile
-  esiste già (`emi_50ms_probe_20261023_*`). È la via (b) dell'alternativa aperta
-  in P4.6, ed è preferibile alla via (a) perché non richiede un `ΔP_tick` che oggi
-  nessuna parte del codice misura.
+  P4.6 e riduce `u_edge` di circa un fattore 6 — fattore che resta da misurare nella
+  configurazione di campagna e non si pubblica come acquisito. L'evidenza che la rende possibile
+  esiste già (`emi_50ms_probe_20261023_*`). È la via (b) di P4.6, **adottata e non
+  più alternativa aperta**: la via (a) è scartata perché richiede un `ΔP_tick` che
+  oggi nessuna parte del codice misura, e perché introdurrebbe dentro un limite
+  superiore una stima con la propria incertezza.
+- **`Δt_W` dalla stessa coppia di letture.** Conseguenza del requisito precedente,
+  e non opzionale: la finestra è delimitata dalle due letture sincrone e `Δt_W` è la
+  differenza dei loro timestamp. Oggi `duration_s` è `t_end − t_start` sull'orologio
+  di Python (`local_energy.py:156`, `:171`) mentre l'energia è interpolata a quegli
+  istanti (`energy_session.py:1245-1250`): due intervalli che coincidono solo se
+  l'interpolazione è esatta. Energia e durata devono riferirsi allo stesso tratto,
+  altrimenti `E_base = P_pre · Δt_W` sottrae l'energia di un tratto diverso da
+  quello misurato e `E_act,i` di F.2 perde significato.
 - **Matrice di disegno centrata e scalata.** Il disegno di P3.5 grezzo
   (`1, N_in, N_out, N_in·N_out` sui 33 blocchi) ha numero di condizionamento
   1,02e5 (valori singolari 2,65e5 / 8,79e2 / 6,06e2 / 2,59), ricalcolato il
@@ -2596,9 +2669,13 @@ variazione di potenza dentro il tick, con limite `ΔP_tick · Δt_tick / 4` per 
 entro 1 s `_emi_cum_at` restituisce il valore estremo (`:1111-1116`), cioè
 attribuisce energia zero al tratto, fino a `P_peak · 1 s`. I tre termini sono
 concordi in segno, quindi 10,5 J non li maggiora tutti: la formula è congelata e
-non cambia, la scelta fra aggiungere il termine di interpolazione (che richiede un
-`ΔP_tick` misurato, oggi inesistente) ed eliminarli con una lettura sincrona ai
-bordi (materiale di P5) è una decisione aperta. Dettagli che cambiano il numero:
+non cambia. La scelta è **chiusa** il 2026-10-24 a favore della lettura sincrona ai
+bordi (via (b), requisito vincolante di P5, con `Δt_W` dalla stessa coppia di
+letture); il termine di interpolazione (via (a)) è scartato perché richiede un
+`ΔP_tick` misurato che oggi nessuna parte del codice produce, e perché metterebbe
+una stima dentro un limite superiore. Finché P5 non è implementato, il valore
+pubblicato resta 10,5 J con la dichiarazione che copre il disallineamento e non gli
+altri due modi. Dettagli che cambiano il numero:
 `Δt_tick,b` è l'intervallo **misurato** del buffer EMI nel blocco, non il
 dichiarato `POWER_SAMPLE_INTERVAL_S = 0.05` (`energy_session.py:80`) — in
 produzione è 0,28–0,34 s; `P_peak,b` è la potenza **totale** di picco, non la
