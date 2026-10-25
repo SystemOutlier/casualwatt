@@ -25,8 +25,9 @@ motivo**. Due numeri della revisione si riproducono esattamente; uno no.
 protocollo che compaiono qui sotto — 23 occorrenze — puntano alla revisione di
 `protocollo_v4_20261024.md` com'era il 2026-10-24, quando questa valutazione è
 stata scritta. Da allora il protocollo è cresciuto molto (gli emendamenti del
-secondo turno erano a lunghezza invariata, 3148 righe; quello del terzo turno su
-`u_edge` l'ha portato a 3155), quindi **quei numeri non tornano più** e non vanno
+secondo turno erano a lunghezza invariata, 3147 righe; quello del terzo turno su
+`u_edge` l'ha portato a 3154, e il resto del terzo turno a 3198), quindi **quei
+numeri non tornano più** e non vanno
 usati per navigare il protocollo: sono la traccia storica di ciò che è stato
 verificato e dove. Gli ancoraggi correnti degli stessi punti — P4.5, P4.6, P4.7,
 P4.9, P4.12, F.11, F.13, F.17, P6.5 — stanno nella tabella di controllo incrociato
@@ -38,7 +39,25 @@ ancoraggi sul testo di oggi produrrebbe numeri validi oggi a fronte di una verif
 eseguita su un testo diverso. Restano validi gli ancoraggi al codice
 (`local_energy.py:309-310`, `energy_session.py:1111-1116`), quelli agli altri
 artefatti (`lhm_validation_v3_20261023_185232.md`) e l'auto-riferimento a questo
-documento, aggiornato a `:126`.
+documento, aggiornato a `:145` (era `:126` prima degli aggiornamenti del terzo turno qui sopra).
+
+**Convenzione di conteggio delle righe** (dichiarata il 2026-10-25, terzo turno,
+perché un ancoraggio e un conteggio che usano due convenzioni diverse sono un
+fuori-di-uno sistematico). `:NNNN` è il numero della riga di **contenuto**: la
+stessa numerazione che danno `wc -l`, l'editor e `enumerate(read().split('
+'), 1)`.
+Un conteggio fatto con `len(read().split('
+'))` restituisce una riga in più,
+perché conta anche la stringa vuota che segue l'ultimo `
+`. Le cifre scritte qui
+sopra e nel messaggio del commit `aad8a91` ("3148 → 3155") usavano la seconda
+convenzione e sono quindi **una riga più alte** del numero dell'ultima riga: i
+valori corretti sono 3147 → 3154. Il messaggio di commit non si corregge — un
+commit si rifà, non si riscrive, e riscriverlo sarebbe un `--amend` su lavoro già
+consegnato — e resta come traccia con questa dichiarazione accanto. Il conteggio è
+di forma, non di merito: nessun ancoraggio qui sotto dipendeva da quale delle due
+convenzioni si usava, perché tutti erano stati verificati stampando la riga
+citata.
 
 ---
 
@@ -146,6 +165,41 @@ Hanno una sola risposta difendibile e non cambiano nessuna decisione congelata.
 
 Sollevata dal revisore 2, par. 180. **La matematica è confermata, il numero della
 revisione no.**
+
+> **Aggiornamento del 2026-10-25 (terzo turno): questi numeri ora hanno un
+> costruttore.** Tutto il §2.1 qui sotto cita un calcolo eseguito mentre si
+> scriveva questa valutazione e non salvato da nessuna parte. Per AGENTS.md
+> un'analisi non tracciata è un numero che nessuno può rigenerare, quindi non era
+> evidenza: lo ha osservato il revisore del terzo turno ("senza accesso al codice e
+> alla procedura di calcolo non li presenterei come una verifica indipendente") e
+> l'osservazione è stata accolta. I numeri sono ora rigenerati da
+> `u_edge_interpolazione_probe.py`, alla radice del repo dove sta la convenzione
+> degli harness citati: 5 verifiche, 5/5 superate, exit 0, aritmetica su forme
+> d'onda sintetiche quindi eseguibile ovunque e riproducibile bit per bit. Il
+> protocollo li cita in P4.6 (`:1700-1720`) e in F.11 (`:2826-2834`).
+>
+> Il testo qui sotto **resta invariato** come traccia storica della verifica del
+> 2026-10-24. Due correzioni di merito lo riguardano, emerse eseguendo l'harness:
+>
+> - il `3,0e-11 J` di `:154-155` è **ritirato**. È il residuo *assoluto* di
+>   `np.cumsum` su una griglia che qui non è dichiarata, e non è riproducibile:
+>   cresce con la densità di griglia (3,553e-13 / 7,189e-12 / 2,271e-11 J per
+>   `n` = 10 001 / 100 001 / 1 000 001) ed è proporzionale a `P`. A potenza
+>   costante l'errore di interpolazione è identicamente nullo in aritmetica esatta,
+>   quindi ciò che si misura è solo arrotondamento: la forma pubblicabile è
+>   **relativa** alla grandezza del contatore `P·Δt_tick`, 7,027e-12 a `P = 35 W`,
+>   `Δt_tick = 0,30 s`, `n = 2 000 001`, invariante in `P` (70 W e 140 W danno lo
+>   stesso relativo). La prima versione dell'harness **falliva** la verifica 1
+>   (4/5, exit 1) proprio per questo: il criterio confrontava residui assoluti e li
+>   voleva decrescenti al crescere della griglia, che è l'opposto di ciò che
+>   `cumsum` fa. Corretto prima del commit; l'errore è la ragione per cui il ritiro
+>   è deciso e non solo dichiarato;
+> - il `3,75 J` di `:174-179` è riproducibile come **aritmetica** del termine —
+>   `2 × (25 W × 0,30 s / 4) = 2 × 1,8750 J`, e l'harness conferma 1,8750 J per un
+>   bordo a `f = 0,5` — e resta non riprodotto come **misura**, perché
+>   `ΔP_tick = 25 W` è un'ipotesi del revisore e nessuna parte del codice misura
+>   `ΔP_tick` nel blocco. È la stessa distinzione per cui il protocollo scarta la
+>   via (a).
 
 P4.6 scrive: "il contatore cumulativo è interpolato linearmente (`_emi_cum_at`,
 `energy_session.py:1103-1124`), quindi l'errore di un bordo è al più
@@ -611,7 +665,7 @@ geometria del prompt e non sulla scala energetica.
 
 I punti corretti sono **cinque**, non quattro: protocollo `:1245` (P3.15), `:1794`
 (conseguenza di P4.7), `:2116` (ancoraggi di P4.13), `:2844` (giustificazione di
-F.13) e questo documento `:126`. La quarta occorrenza del protocollo era invisibile
+F.13) e questo documento `:145`, che era `:126` quando la correzione fu eseguita. La quarta occorrenza del protocollo era invisibile
 a un `grep "126 token reali"` perché il testo va a capo fra il numero e "token": la
 ricerca di un ancoraggio ripetuto va fatta sul **numero**, non sulla frase, o in
 modalità multilinea. È la ragione per cui questa sezione esiste: la prima
