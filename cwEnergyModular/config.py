@@ -156,13 +156,21 @@ OLLAMA_GENERATE_ENDPOINT = f"{OLLAMA_API_URL}/api/generate"
 # (cap. 5 e 6 della tesi, esperimento A-B-A).
 OLLAMA_KEEP_ALIVE = os.getenv("CW_OLLAMA_KEEP_ALIVE", "").strip().strip('"')
 
-# Nomi dei processi Ollama da individuare per il PID (sezione 7, punto 2)
-OLLAMA_PROCESS_NAMES = (
-    "ollama.exe",
+# Nomi dei processi del motore locale (sezione 7, punto 2).
+# Radici dell'albero: solo il processo principale di Ollama. Un runner del
+# modello (llama-server, ollama_llama_server, oppure lo stesso ollama.exe con
+# argomento "runner") entra nell'albero per DISCENDENZA, non per nome: il nome
+# serve a riconoscerlo e a segnalare un runner rimasto fuori dall'albero
+# (un motore che stiamo misurando senza attribuirlo).
+OLLAMA_ROOT_NAMES = ("ollama.exe", "ollama")
+OLLAMA_RUNNER_NAMES = (
+    "llama-server.exe",
+    "llama-server",
     "ollama_llama_server.exe",
-    "ollama",
     "ollama_llama_server",
 )
+# Unione storica: chi cerca solo per nome trova sia la radice sia i runner.
+OLLAMA_PROCESS_NAMES = OLLAMA_ROOT_NAMES + OLLAMA_RUNNER_NAMES
 
 # ---------------------------------------------------------------------------
 # Provider cloud compatibili OpenAI (sezione 6 e 9)

@@ -690,11 +690,22 @@ def run_unified_benchmark(
         SESSION.start()
         time.sleep(SESSION.interval_s * 2)
 
-    # ---- 2. PID Ollama -----------------------------------------------------
-    ollama_pids = SESSION.find_ollama_procs()
-    primary_pid = ollama_pids[0] if ollama_pids else None
-    log(f"PID Ollama rilevato: {primary_pid if primary_pid else 'NESSUNO (ollama offline?)'} "
-        f"(albero: {ollama_pids})")
+    # ---- 2. Albero worker del motore ---------------------------------------
+    # Il log dichiara le IDENTITA' usate (pid + create_time + nome), non solo
+    # un PID: senza create_time un PID riusato e' indistinguibile dal worker
+    # che ha lasciato il posto.
+    worker_tree = SESSION.find_worker_tree()
+    primary_pid = worker_tree[0].pid if worker_tree else None
+    if worker_tree:
+        log("Albero worker del motore: " + ", ".join(
+            f"{w.pid}:{w.name}@{w.create_time:.0f}" for w in worker_tree))
+    else:
+        log("Albero worker del motore: NESSUNO (ollama offline?)")
+    stray = SESSION.find_stray_runner_procs(worker_tree)
+    if stray:
+        log("AVVISO: runner del modello FUORI dall'albero misurato (non "
+            "attribuito): " + ", ".join(
+                f"{w.pid}:{w.name}@{w.create_time:.0f}" for w in stray))
 
     # ---- 3. calibrazione idle ----------------------------------------------
     if not skip_idle_calibration and SESSION.idle_power_w is None:
