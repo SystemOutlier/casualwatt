@@ -99,7 +99,8 @@ def test_colonna_esiste_una_sola_volta_ed_e_in_coda():
     CODA = ["energy_calculation_method",
             "raw_start", "raw_end", "raw_unit", "domain",
             "sampling_interval_observed_s", "backend_version",
-            "cpu_share_window_s", "cpu_busy_capacity_cores"]
+            "cpu_share_window_s", "cpu_busy_capacity_cores",
+            "package_energy_raw_j", "active_energy_raw_j", "active_valid"]
     assert CSV_COLUMNS[-len(CODA):] == CODA
     # il blocco storico non si e' mosso: keep_alive_sent era la coda del 23/10
     assert CSV_COLUMNS[-len(CODA) - 1] == "keep_alive_sent"
@@ -142,7 +143,10 @@ def test_nessun_campione_non_cancella_il_canale():
 def test_ensure_header_migra_un_csv_storico(tmp_path):
     """Un CSV scritto con lo schema vecchio (senza il blocco nuovo) viene migrato: celle conservate, nuove vuote."""
     path = tmp_path / "risultati_storici.csv"
-    vecchio = CSV_COLUMNS[:-8]          # ieri: senza 6 di provenienza e 2 dello share
+    # Schema fermo al canale per riga: senza grezzi, senza denominatore e
+    # senza la coda P2. Il taglio e' per NOME, non per indice negativo, cosi'
+    # ogni colonna accodata non obbliga a ricalcolare il taglio.
+    vecchio = CSV_COLUMNS[:CSV_COLUMNS.index("energy_calculation_method") + 1]
     riga = {c: f"v:{c}" for c in vecchio}
     with open(path, "w", newline="", encoding="utf-8-sig") as fh:
         w = csv.DictWriter(fh, fieldnames=vecchio)

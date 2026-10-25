@@ -828,6 +828,11 @@ def run_unified_benchmark(
                     idle_power_w=local.idle_power_w,
                     baseline_energy_j=local.baseline_energy_j,
                     active_energy_j=local.active_energy_j,
+                    # P2: grandezza grezza con segno e validita' dichiarata
+                    package_energy_raw_j=_na_or(
+                        getattr(local, "package_energy_raw_j", None)),
+                    active_energy_raw_j=getattr(local, "active_energy_raw_j", 0.0),
+                    active_valid=bool(getattr(local, "active_valid", False)),
                     ollama_active_energy_j=local.ollama_active_energy_j,
                     cpu_time_share=local.cpu_time_share,
                     gpu_available=local.gpu_available,
@@ -969,6 +974,13 @@ def run_unified_benchmark(
                         idle_power_w=client_local.idle_power_w,
                         baseline_energy_j=client_local.baseline_energy_j,
                         active_energy_j=client_local.active_energy_j,
+                        # P2: stessi campi grezzi anche per la riga cloud
+                        package_energy_raw_j=_na_or(
+                            getattr(client_local, "package_energy_raw_j", None)),
+                        active_energy_raw_j=getattr(
+                            client_local, "active_energy_raw_j", 0.0),
+                        active_valid=bool(
+                            getattr(client_local, "active_valid", False)),
                         ollama_active_energy_j=client_local.ollama_active_energy_j,
                         cpu_time_share=client_local.cpu_time_share,
                         # rev_metodo §2(b): denominatore dichiarato anche qui
