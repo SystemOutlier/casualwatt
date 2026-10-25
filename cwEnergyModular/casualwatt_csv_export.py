@@ -110,6 +110,11 @@ CSV_COLUMNS: List[str] = [
     # quota e' d_ollama/d_busy, ma va detto su quale intervallo e con quale
     # capacita': d_busy_s <= core x finestra e' verificabile a posteriori.
     "cpu_share_window_s", "cpu_busy_capacity_cores",
+    # P2: la riga dichiara la grandezza GREZZA, con segno, e se la sottrazione
+    # della baseline ha senso. package_energy_j e active_energy_j restano
+    # troncati a zero per compatibilita': senza queste tre colonne un troncamento
+    # e' indistinguibile da uno zero misurato.
+    "package_energy_raw_j", "active_energy_raw_j", "active_valid",
 ]
 
 

@@ -87,9 +87,20 @@ from .energy_session import SESSION, SystemSample
 class LocalEnergyResult:
     duration_s: float = 0.0
     package_energy_j: float = 0.0
+    # Valore GREZZO del contatore sulla finestra, senza il clamp a zero di
+    # package_energy_j. Un contatore cumulativo non produce incrementi negativi
+    # in condizioni normali; se succede, il numero che lo dichiara e' questo.
+    package_energy_raw_j: Optional[float] = None
     idle_power_w: float = 0.0
     baseline_energy_j: float = 0.0
     active_energy_j: float = 0.0
+    # E_package - baseline CON SEGNO. Negativo significa "la finestra ha
+    # consumato meno della baseline": e' un dato, non un errore da azzerare.
+    active_energy_raw_j: float = 0.0
+    # True solo se la sottrazione ha senso: raw >= 0, P_idle calibrata e
+    # package effettivamente letto. Con active_valid=False, active_energy_j
+    # (troncato) non e' una quantita' misurabile.
+    active_valid: bool = False
     ollama_active_energy_j: float = 0.0
     cpu_time_share: float = 0.0
     gpu_available: bool = False
@@ -316,6 +327,7 @@ class CasualWattLocalEnergyProfiler:
                 res.cpu_attribution_method = "unavailable"
 
         res.package_energy_j = round(max(e_package, 0.0), 6)
+        res.package_energy_raw_j = round(float(e_package), 6)
         # ---- A1: baseline SEMPRE sulla stessa finestra dell'integrale -----
         # La vecchia logica "coda inattiva" scalava la baseline su
         # [t_start, t_last_active] mentre E_package copriva tutta la
@@ -324,8 +336,28 @@ class CasualWattLocalEnergyProfiler:
         #     baseline = P_idle * dt_effettiva   (dt gia' ridotto delle
         #     sottofinestre escluse, coerenza B2)
         res.baseline_energy_j = round(res.idle_power_w * dt, 6)
-        active = max(res.package_energy_j - res.baseline_energy_j, 0.0)
+        # La sottrazione si conserva con il segno: active_energy_j resta
+        # troncato a zero per compatibilita' con i CSV gia' scritti, ma la
+        # riga dichiara ora il valore grezzo e la validita' della grandezza.
+        active_raw = float(e_package) - res.baseline_energy_j
+        active = max(active_raw, 0.0)
+        res.active_energy_raw_j = round(active_raw, 6)
         res.active_energy_j = round(active, 6)
+        idle_missing = (
+            res.idle_provenance is None
+            or res.idle_provenance == "uncalibrated"
+        )
+        res.active_valid = bool(
+            active_raw >= 0.0
+            and not idle_missing
+            and res.package_window_source != "unavailable"
+        )
+        if active_raw < 0.0:
+            notes.append(
+                f"E_attiva grezza {active_raw:+.3f} J < 0 (package "
+                f"{float(e_package):.3f} J < baseline {res.baseline_energy_j:.3f} J): "
+                "active_energy_j troncato a 0, active_valid=False"
+            )
 
         # ---- B2: cpu busy sugli intervalli NON esclusi (coerenza) ---------
         if excl:

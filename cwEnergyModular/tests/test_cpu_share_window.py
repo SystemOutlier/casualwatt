@@ -109,7 +109,14 @@ def test_colonne_e_export(tmp_path):
     """Le due colonne sono in coda, una sola volta, e i valori arrivano nel CSV."""
     assert CSV_COLUMNS.count("cpu_share_window_s") == 1
     assert CSV_COLUMNS.count("cpu_busy_capacity_cores") == 1
-    assert CSV_COLUMNS[-2:] == ["cpu_share_window_s", "cpu_busy_capacity_cores"]
+    # I due campi del denominatore restano adiacenti; dopo di loro la sola
+    # coda aggiunta dalla correzione dell'attribuzione (P2), accodata per non
+    # spostare nessuna colonna esistente.
+    i = CSV_COLUMNS.index("cpu_share_window_s")
+    assert CSV_COLUMNS[i:i + 2] == [
+        "cpu_share_window_s", "cpu_busy_capacity_cores"]
+    assert CSV_COLUMNS[i + 2:] == [
+        "package_energy_raw_j", "active_energy_raw_j", "active_valid"]
 
     p = tmp_path / "out.csv"
     export_results_csv([{"run_id": "r1", "cpu_share_window_s": 1.5,

@@ -260,7 +260,9 @@ def test_P2_colonna_csv_accodata_senza_cambiare_ordine():
             "raw_start", "raw_end", "raw_unit", "domain",
             "sampling_interval_observed_s", "backend_version",
             # rev_metodo §2(b): denominatore dello share CPU
-            "cpu_share_window_s", "cpu_busy_capacity_cores"]
+            "cpu_share_window_s", "cpu_busy_capacity_cores",
+            # P2: grandezza grezza con segno e validita' dichiarata
+            "package_energy_raw_j", "active_energy_raw_j", "active_valid"]
     assert CSV_COLUMNS[-len(CODA):] == CODA
     assert CSV_COLUMNS[:6] == [
         "run_id", "session_id", "timestamp_start", "timestamp_end",
