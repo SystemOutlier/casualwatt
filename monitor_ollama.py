@@ -70,7 +70,7 @@ from pathlib import Path
 
 import psutil
 
-SCHEMA_VERSION = "telemetry/2"
+SCHEMA_VERSION = "telemetry/3"
 ROOT_ALLOWLIST = frozenset({
     "ollama.exe",
     "ollama app.exe",
@@ -742,7 +742,58 @@ def r(value, ndigits=3):
     return round(value, ndigits) if value is not None else ""
 
 
-def main():
+def scan_processes(mode, cache, excluded):
+    """Enumerazione dei processi, o struttura vuota con `mode == "off"`.
+
+    Il ramo off non chiama `psutil.process_iter`: la condizione C del punto
+    #67 misura l'assenza di quella chiamata, quindi non deve esistere un
+    percorso alternativo che la reintroduca.
+    """
+    if mode == "off":
+        return {"server": [], "clients": [], "read_errors": 0}
+    return collect(cache, excluded)
+
+
+def sweep_fields(sweep, ncpu):
+    """Campi della riga derivati dalla scansione, uguali nei due modi."""
+    server = sweep["server"]
+    clients = sweep["clients"]
+    cpu_sum = sum(item["cpu"] for item in server if item["cpu"] is not None)
+    rss_sum = sum(item["rss"] for item in server if item["rss"] is not None)
+    vms_sum = sum(item["vms"] for item in server if item["vms"] is not None)
+    unknown = sum(1 for item in server if item["cpu_unknown"])
+    runner_count = sum(1 for item in server if item["role"] == "runner")
+    runner_rss = sum(item["rss"] for item in server
+                     if item["role"] == "runner" and item["rss"] is not None)
+    return {
+        "ollama_server_count": len(server),
+        "ollama_runner_count": runner_count,
+        "ollama_runner_rss_mb": r(runner_rss / 1048576, 2),
+        "ollama_server_pids": ";".join(str(item["pid"]) for item in server),
+        "ollama_server_ppids": ";".join(
+            "" if item["ppid"] is None else str(item["ppid"]) for item in server
+        ),
+        "ollama_server_names": ";".join(item["name"] for item in server),
+        "ollama_server_roles": ";".join(item["role"] for item in server),
+        "ollama_server_match_reasons": ";".join(
+            item["match"] for item in server
+        ),
+        "ollama_client_count": len(clients),
+        "ollama_client_pids": ";".join(str(item["pid"]) for item in clients),
+        "ollama_client_ppids": ";".join(
+            "" if item["ppid"] is None else str(item["ppid"]) for item in clients
+        ),
+        "ollama_client_names": ";".join(item["name"] for item in clients),
+        "ollama_cpu_pct_sum_per_core": r(cpu_sum),
+        "ollama_cpu_pct_host_capacity": r(cpu_sum / ncpu),
+        "ollama_cpu_unknown_count": unknown,
+        "proc_read_errors": sweep["read_errors"],
+        "ollama_rss_sum_mb": r(rss_sum / 1048576, 2),
+        "ollama_vms_sum_mb": r(vms_sum / 1048576, 2),
+    }
+
+
+def build_parser():
     parser = argparse.ArgumentParser(description=__doc__.splitlines()[0])
     parser.add_argument("--interval", type=float, default=1.0,
                         help="requested sampling interval in seconds")
@@ -768,6 +819,15 @@ def main():
                         help="seconds sampled after the last request")
     parser.add_argument("--requests-output", default="")
     parser.add_argument("--meta-output", default="")
+    parser.add_argument(
+        "--process-scan", choices=("full", "off"), default="full",
+        help="per-process enumeration: full (default) or off (no process_iter)",
+    )
+    return parser
+
+
+def main():
+    parser = build_parser()
     args = parser.parse_args()
     if args.interval <= 0:
         parser.error("--interval must be > 0")
@@ -833,9 +893,14 @@ def main():
     self_proc.cpu_percent(None)
 
     # The first enumeration warms psutil's process cache (seconds, once per
-    # run); no sampled row must absorb that cost.
-    print("Warm-up della cache dei processi...", flush=True)
-    collect(cache, excluded)
+    # run); no sampled row must absorb that cost. Con --process-scan off non
+    # c'e' cache da scaldare e nessuna enumerazione da nascondere.
+    if args.process_scan == "full":
+        print("Warm-up della cache dei processi...", flush=True)
+        collect(cache, excluded)
+    else:
+        print("Scansione dei processi disattivata (--process-scan off).",
+              flush=True)
     psutil.cpu_percent(None)
     self_proc.cpu_percent(None)
     time.sleep(args.interval)
@@ -853,6 +918,7 @@ def main():
         "schema_version", "platform", "python_version", "psutil_version",
         "logical_cpus",
         "interval_requested_s", "interval_effective_s", "sweep_duration_s",
+        "process_scan", "process_scan_s",
         "sweep_overrun_s", "schedule_missed_total",
         "system_cpu_pct", "system_ram_total_mb", "system_ram_available_mb",
         "system_ram_used_pct",
@@ -899,6 +965,7 @@ def main():
         },
         "sampling": {
             "interval_requested_s": args.interval,
+            "process_scan": args.process_scan,
             "columns": columns,
         },
         "ollama": {
@@ -964,7 +1031,9 @@ def main():
                 offsets_ms.append(offset_ms)
                 vm = psutil.virtual_memory()
                 sys_cpu = psutil.cpu_percent(None)
-                sweep = collect(cache, excluded)
+                scan_start = time.monotonic()
+                sweep = scan_processes(args.process_scan, cache, excluded)
+                scan_s = time.monotonic() - scan_start
                 duration = time.monotonic() - start_mono
                 effective = start_mono - prev_start if prev_start is not None else None
                 api = poller.snapshot()
@@ -981,22 +1050,8 @@ def main():
                               if item["cpu"] is not None)
                 rss_sum = sum(item["rss"] for item in server
                               if item["rss"] is not None)
-                vms_sum = sum(item["vms"] for item in server
-                              if item["vms"] is not None)
-                unknown = sum(1 for item in server if item["cpu_unknown"])
                 runner_count = sum(1 for item in server
                                    if item["role"] == "runner")
-                runner_rss = sum(item["rss"] for item in server
-                                 if item["role"] == "runner"
-                                 and item["rss"] is not None)
-                server_ppids = ";".join(
-                    "" if item["ppid"] is None else str(item["ppid"])
-                    for item in server
-                )
-                client_ppids = ";".join(
-                    "" if item["ppid"] is None else str(item["ppid"])
-                    for item in clients
-                )
 
                 row = {
                     "run_id": run_id,
@@ -1012,6 +1067,8 @@ def main():
                     "interval_requested_s": args.interval,
                     "interval_effective_s": r(effective),
                     "sweep_duration_s": r(duration),
+                    "process_scan": args.process_scan,
+                    "process_scan_s": r(scan_s),
                     "sweep_overrun_s": r(max(0.0, duration - args.interval)),
                     "schedule_missed_total": missed,
                     "system_cpu_pct": r(sys_cpu),
@@ -1024,26 +1081,7 @@ def main():
                     "observer_rss_mb": r(
                         observer_mem.rss / 1048576 if observer_mem else None, 2
                     ),
-                    "ollama_server_count": len(server),
-                    "ollama_runner_count": runner_count,
-                    "ollama_runner_rss_mb": r(runner_rss / 1048576, 2),
-                    "ollama_server_pids": ";".join(str(item["pid"]) for item in server),
-                    "ollama_server_ppids": server_ppids,
-                    "ollama_server_names": ";".join(item["name"] for item in server),
-                    "ollama_server_roles": ";".join(item["role"] for item in server),
-                    "ollama_server_match_reasons": ";".join(
-                        item["match"] for item in server
-                    ),
-                    "ollama_client_count": len(clients),
-                    "ollama_client_pids": ";".join(str(item["pid"]) for item in clients),
-                    "ollama_client_ppids": client_ppids,
-                    "ollama_client_names": ";".join(item["name"] for item in clients),
-                    "ollama_cpu_pct_sum_per_core": r(cpu_sum),
-                    "ollama_cpu_pct_host_capacity": r(cpu_sum / ncpu),
-                    "ollama_cpu_unknown_count": unknown,
-                    "proc_read_errors": sweep["read_errors"],
-                    "ollama_rss_sum_mb": r(rss_sum / 1048576, 2),
-                    "ollama_vms_sum_mb": r(vms_sum / 1048576, 2),
+                    **sweep_fields(sweep, ncpu),
                     "api_status": api["status"],
                     "api_models_count": "" if api["count"] is None else api["count"],
                     "api_models": ";".join(api["models"]),
