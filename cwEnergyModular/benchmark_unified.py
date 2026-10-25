@@ -39,6 +39,7 @@ from energy.carbon_intensity import get_carbon_intensity
 from energy.energy_session import MEASURED_METHODS, SESSION
 from energy.local_energy import CasualWattLocalEnergyProfiler, LocalEnergyResult
 from energy.network_energy import NetworkEnergyTracker
+from energy.worker_tree import worker_cpu_delta
 from evaluator import evaluate_response
 
 APP_VERSION = "1.0.0"
@@ -707,6 +708,15 @@ def run_unified_benchmark(
             "attribuito): " + ", ".join(
                 f"{w.pid}:{w.name}@{w.create_time:.0f}" for w in stray))
 
+    # ---- 2b. risoluzione osservata dei cpu_times ---------------------------
+    # Il tick del kernel, non i 100 ns nominali: una finestra confrontabile con
+    # questo passo ha un delta CPU quantizzato, e la riga lo dira'.
+    cpu_res = CasualWattLocalEnergyProfiler.probe_cpu_time_resolution()
+    SESSION.cpu_time_resolution_s = cpu_res
+    log("Risoluzione osservata dei cpu_times per processo: "
+        + (f"{cpu_res:.4f} s" if cpu_res
+           else "non misurabile (nessun passo non nullo)"))
+
     # ---- 3. calibrazione idle ----------------------------------------------
     if not skip_idle_calibration and SESSION.idle_power_w is None:
         try:
@@ -764,19 +774,25 @@ def run_unified_benchmark(
             )
             t_wall0 = time.time()
             try:
-                # Ricalcola albero processi Ollama a OGNI richiesta (non solo all'avvio)
-                current_ollama_pids = SESSION.find_ollama_procs()
-                # Leggi cpu_times agli estremi esatti della finestra (non dai campioni)
-                from energy.local_energy import CasualWattLocalEnergyProfiler
-                cpu_t_start = CasualWattLocalEnergyProfiler._read_ollama_cpu_times(current_ollama_pids)
-                
+                # Albero worker ricostruito a OGNI richiesta (non solo
+                # all'avvio), con identita' (pid, create_time). Numeratore e
+                # denominatore sono letti nella stessa chiamata.
+                edge_start = SESSION.read_cpu_edge()
+                current_ollama_pids = [w.pid for w in edge_start["tree"]]
+
                 # 1) inferenza del modello valutato (senza profilo ancora)
                 resp_data, _local_raw = _ollama_infer_only(
                     model, pr["text"], temperature, timeout_s
                 )
-                # Leggi cpu_times a t_end (dopo inferenza, prima del judge)
-                cpu_t_end = CasualWattLocalEnergyProfiler._read_ollama_cpu_times(current_ollama_pids)
-                direct_cpu_delta = max(cpu_t_end - cpu_t_start, 0.0)
+                # Stessa lettura accoppiata a t_end (prima del judge): il
+                # confronto fra i due bordi dice anche se un worker e' sparito.
+                edge_end = SESSION.read_cpu_edge()
+                worker_delta = worker_cpu_delta(
+                    edge_start["worker"], edge_end["worker"])
+                direct_cpu_delta = worker_delta.d_ollama
+                direct_busy_delta = max(
+                    float(edge_end["busy"]) - float(edge_start["busy"]), 0.0)
+                worker_exit_in_window = worker_delta.worker_exit_in_window
                 # 2) valutazione + LLM Judge (eventuale): registra le sue
                 #    sottofinestre in llm_judge.LAST_WINDOWS
                 _lj.LAST_WINDOWS = []
@@ -799,6 +815,8 @@ def run_unified_benchmark(
                     resp_data["_t0"], t_end_profile,
                     ollama_pids=current_ollama_pids,
                     direct_cpu_delta=direct_cpu_delta,
+                    direct_busy_delta=direct_busy_delta,
+                    worker_exit_in_window=worker_exit_in_window,
                     exclude_windows=jw if jw else None,
                 )
                 if jw:
@@ -892,6 +910,11 @@ def run_unified_benchmark(
                     cpu_share_window_s=getattr(local, "cpu_share_window_s", 0.0),
                     cpu_busy_capacity_cores=getattr(
                         local, "cpu_busy_capacity_cores", 0),
+                    # P5: integrita' del numeratore e tick osservato
+                    worker_exit_in_window=bool(
+                        getattr(local, "worker_exit_in_window", False)),
+                    cpu_time_resolution_s=_na_or(
+                        getattr(local, "cpu_time_resolution_s", None)),
                 )
                 # riscrive qualita' con valutazione reale (N/A se saltata)
                 rec.update(
@@ -1009,6 +1032,11 @@ def run_unified_benchmark(
                             client_local, "cpu_share_window_s", 0.0),
                         cpu_busy_capacity_cores=getattr(
                             client_local, "cpu_busy_capacity_cores", 0),
+                        # P5: integrita' del numeratore e tick osservato
+                        worker_exit_in_window=bool(
+                            getattr(client_local, "worker_exit_in_window", False)),
+                        cpu_time_resolution_s=_na_or(
+                            getattr(client_local, "cpu_time_resolution_s", None)),
                         gpu_available=client_local.gpu_available,
                         gpu_board_energy_j=client_local.gpu_board_energy_j,
                         gpu_energy_attributed_j=client_local.gpu_energy_attributed_j,

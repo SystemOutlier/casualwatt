@@ -101,7 +101,8 @@ def test_colonna_esiste_una_sola_volta_ed_e_in_coda():
             "sampling_interval_observed_s", "backend_version",
             "cpu_share_window_s", "cpu_busy_capacity_cores",
             "package_energy_raw_j", "active_energy_raw_j", "active_valid",
-            "cpu_time_share_raw", "share_anomaly"]
+            "cpu_time_share_raw", "share_anomaly",
+            "worker_exit_in_window", "cpu_time_resolution_s"]
     assert CSV_COLUMNS[-len(CODA):] == CODA
     # il blocco storico non si e' mosso: keep_alive_sent era la coda del 23/10
     assert CSV_COLUMNS[-len(CODA) - 1] == "keep_alive_sent"

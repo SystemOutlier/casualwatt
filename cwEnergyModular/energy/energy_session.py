@@ -1805,6 +1805,21 @@ class EnergySession:
         return [w.pid for w in cls.find_worker_tree()]
 
     @classmethod
+    def read_cpu_edge(cls) -> Dict[str, object]:
+        """Legge numeratore e denominatore dello share nello stesso istante.
+
+        Ritorna ``{"tree": [...], "worker": {identita': secondi}, "busy": s}``.
+        Le cpu_times dei worker e il tempo busy di sistema sono letti
+        consecutivamente dentro questa chiamata: fra le due non c'e' inferenza
+        ne' attesa. Lo scarto residuo e' il tempo di enumerazione e lettura dei
+        processi, che va dichiarato e non azzerato.
+        """
+        tree = cls.find_worker_tree()
+        worker = read_worker_cpu_times(tree)
+        busy = cls._system_busy_seconds()
+        return {"tree": tree, "worker": worker, "busy": busy}
+
+    @classmethod
     def _ollama_tree_stats(cls, pids: List[int]) -> Dict[str, float]:
         io_bytes = 0
         cpu_secs = 0.0
