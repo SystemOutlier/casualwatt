@@ -264,7 +264,9 @@ def test_P2_colonna_csv_accodata_senza_cambiare_ordine():
             # P2: grandezza grezza con segno e validita' dichiarata
             "package_energy_raw_j", "active_energy_raw_j", "active_valid",
             # P3: quota senza clamp e anomalia dichiarata
-            "cpu_time_share_raw", "share_anomaly"]
+            "cpu_time_share_raw", "share_anomaly",
+            # P5: integrita' del numeratore e tick osservato
+            "worker_exit_in_window", "cpu_time_resolution_s"]
     assert CSV_COLUMNS[-len(CODA):] == CODA
     assert CSV_COLUMNS[:6] == [
         "run_id", "session_id", "timestamp_start", "timestamp_end",

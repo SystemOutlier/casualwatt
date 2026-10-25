@@ -160,6 +160,14 @@ class LocalEnergyResult:
     # dell'energia, gia' ridotta delle sottofinestre escluse.
     cpu_share_window_s: float = 0.0
     cpu_busy_capacity_cores: int = 0    # core LOGICI (psutil percpu)
+    # Passo minimo non nullo osservato nei cpu_times per processo: la
+    # granularita' reale del contatore (il tick del kernel), non i 100 ns
+    # nominali di GetProcessTimes. Una finestra confrontabile con questo passo
+    # ha un delta CPU quantizzato.
+    cpu_time_resolution_s: Optional[float] = None
+    # True se un processo presente a t_start non era piu' leggibile a t_end:
+    # il suo tempo CPU non e' nel numeratore e la finestra non e' integra.
+    worker_exit_in_window: bool = False
 
 
 class CasualWattLocalEnergyProfiler:
@@ -176,9 +184,17 @@ class CasualWattLocalEnergyProfiler:
         ollama_pids: Optional[List[int]] = None,
         direct_io_delta: Optional[float] = None,
         direct_cpu_delta: Optional[float] = None,
+        direct_busy_delta: Optional[float] = None,
+        worker_exit_in_window: bool = False,
         exclude_windows: Optional[List[tuple]] = None,
     ) -> LocalEnergyResult:
         """Profilazione causale della finestra [t_start, t_end].
+
+        direct_cpu_delta / direct_busy_delta: numeratore e denominatore dello
+        share letti agli stessi estremi. Quando forniti, sostituiscono i delta
+        ricavati dai campioni. Con sottofinestre escluse il denominatore
+        diretto copre il segmento di inferenza (la stessa lettura del
+        numeratore), non le sottofinestre escluse: la nota della riga lo dice.
 
         exclude_windows: lista di (a, b) da SCORPORARE dal calcolo (es. la
         chiamata al LLM Judge, che avviene DOPO l'inferenza e non deve essere
@@ -367,7 +383,19 @@ class CasualWattLocalEnergyProfiler:
             )
 
         # ---- B2: cpu busy sugli intervalli NON esclusi (coerenza) ---------
-        if excl:
+        if direct_busy_delta is not None and direct_busy_delta >= 0.0:
+            # Denominatore letto agli stessi estremi del numeratore (una sola
+            # chiamata): e' la lettura coerente con direct_cpu_delta. Con
+            # sottofinestre escluse copre il segmento di inferenza, non le
+            # escluse, e la nota lo dichiara.
+            dt_cpu_busy = float(direct_busy_delta)
+            notes.append(
+                "cpu busy di sistema da lettura esatta agli estremi, nella "
+                "stessa chiamata del numeratore"
+                + ("; il denominatore copre il segmento di inferenza, non le "
+                   "sottofinestre escluse" if excl else "")
+            )
+        elif excl:
             def _in_excl(a: float, b: float) -> bool:
                 return any(not (b <= x or a >= y) for x, y in excl)
             pairs = list(zip(samples[1:], samples[:-1]))
@@ -430,6 +458,24 @@ class CasualWattLocalEnergyProfiler:
                 f"anomalia dello share ({anomaly}): d_ollama={d_ollama:.6f} s, "
                 f"d_busy={dt_cpu_busy:.6f} s, capacita'={capacity_s:.6f} s; "
                 "cpu_time_share resta limitato a [0,1]"
+            )
+
+        # ---- integrita' della finestra: processo sparito e quantizzazione --
+        res.worker_exit_in_window = bool(worker_exit_in_window)
+        if worker_exit_in_window:
+            notes.append(
+                "worker_exit_in_window=True: un processo dell'albero presente "
+                "a t_start non era piu' leggibile a t_end; il suo tempo CPU "
+                "non e' nel numeratore e la finestra non e' integra"
+            )
+        res.cpu_time_resolution_s = getattr(
+            self.session, "cpu_time_resolution_s", None)
+        if (res.cpu_time_resolution_s
+                and dt < 30.0 * float(res.cpu_time_resolution_s)):
+            notes.append(
+                f"finestra {dt:.3f} s < 30 x risoluzione osservata dei "
+                f"cpu_times ({float(res.cpu_time_resolution_s):.4f} s): il "
+                "delta CPU puo' essere quantizzato"
             )
         
         # Diagnostica: valori usati per il calcolo dello share
@@ -607,6 +653,44 @@ class CasualWattLocalEnergyProfiler:
         return res
 
     # ------------------------------------------------------------------ util
+    @staticmethod
+    def probe_cpu_time_resolution(
+        pid: Optional[int] = None,
+        max_seconds: float = 1.0,
+        spin_s: float = 0.001,
+    ) -> Optional[float]:
+        """Passo minimo non nullo di cpu_times per processo (tick osservato).
+
+        GetProcessTimes dichiara 100 ns, ma il kernel aggiorna l'accumulatore
+        per processo al tick: un delta chiesto su una finestra piu' corta del
+        tick vale 0 o un suo multiplo. Questa sonda misura il passo OSSERVATO
+        su un processo che consuma CPU (se stesso), non il valore nominale.
+        Ritorna None se non osserva alcun passo positivo.
+        """
+        try:
+            pr = psutil.Process(pid or psutil.Process().pid)
+
+            def _sum_cpu() -> float:
+                t = pr.cpu_times()
+                return float(t.user + t.system)
+
+            prev = _sum_cpu()
+            best: Optional[float] = None
+            deadline = time.perf_counter() + max_seconds
+            while time.perf_counter() < deadline:
+                stop = time.perf_counter() + spin_s
+                while time.perf_counter() < stop:
+                    pass
+                cur = _sum_cpu()
+                delta = cur - prev
+                if delta > 0.0 and (best is None or delta < best):
+                    best = delta
+                prev = cur
+            return best
+        except (psutil.NoSuchProcess, psutil.AccessDenied,
+                ValueError, OSError):
+            return None
+
     @staticmethod
     def _ollama_cpu_delta(samples: List[SystemSample]) -> Optional[float]:
         valid = [s for s in samples if s.ollama_pids]

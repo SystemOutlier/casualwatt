@@ -119,6 +119,11 @@ CSV_COLUMNS: List[str] = [
     # cpu_time_share=1 e questi due campi vuoti la quota e' 1 per misura; con
     # share_anomaly valorizzata il clamp ha nascosto un'incoerenza.
     "cpu_time_share_raw", "share_anomaly",
+    # P5: integrita' del numeratore e quantizzazione. worker_exit_in_window
+    # dice che un processo presente a t_start non era piu' leggibile a t_end
+    # (tempo CPU perso); cpu_time_resolution_s e' il tick OSSERVATO dei
+    # cpu_times, contro cui la finestra va confrontata.
+    "worker_exit_in_window", "cpu_time_resolution_s",
 ]
 
 
