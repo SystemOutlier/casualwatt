@@ -1659,13 +1659,13 @@ testo descriveva già a parole (valutazione esterna §4.3):
 - `u_bias,b = |bias_w| · Δt̄_W,b` entra in quadratura in `budget_pred_b`, e vale
   **zero** se il gate di P4.5 passa. `bias_w` è un watt medio di campagna, `Δt̄_W,b`
   è la durata media delle finestre del blocco: il prodotto è l'energia che il bias
-  sposta su quel blocco, nella stessa unità degli altri tre termini;
-- **non** è una correzione sistematica. L'alternativa — sottrarre `bias_w · Δt_W`
-  da `E_net` e propagare l'incertezza della correzione — cambia i dati, non solo
-  gli intervalli, e contraddice P4.5: "il bias è dichiarato nella tesi con il suo
-  segno, e **P1 non si cambia**". Il segno di `bias_w` si riporta nel verbale e
-  nella tesi, e non si applica ai dati;
-- il valore assoluto sta dentro `u_bias,b` perché un contributo di incertezza è non
+  sposta su quel blocco, nella stessa unità degli altri tre termini. Lo zero è una
+  **convenzione operativa**: il gate, che ha tetto 0,7071 W, non azzera il bias;
+  un residuo a base `budget_base_w` duplicherebbe `u_base,b`, che lo contiene;
+- **non** è una correzione sistematica: sottrarre `bias_w · Δt_W` da `E_net` cambia
+  i dati, non gli intervalli, e contraddice P4.5 ("il bias è dichiarato nella tesi
+  con il suo segno, e **P1 non si cambia**"); il segno si riporta, non si applica;
+- il valore assoluto è dentro `u_bias,b` perché un contributo di incertezza è non
   negativo per costruzione; il segno resta solo nella quantità dichiarata.
 
 `u_bias,b` è **comune a tutti i blocchi della campagna** attraverso `bias_w`, e
