@@ -2317,13 +2317,13 @@ che sono gli unici dati di baseline esistenti, usavano una finestra da 10 s per
 fase (`lhm_validation_v3_20261023_185232.md:6`), quindi non esiste ancora una
 terna.
 
-Il requisito di esecuzione è quindi: **il pilota gira con lo stesso runner della
-campagna, e ogni suo blocco esegue la sequenza completa di P1.5** — settling, tre
-finestre pre da 30 s, tre post da 30 s — così che le prove A, B e C producano
-anche le prime terne reali. P2.9 resta congelato com'è: cambia come il pilota
-viene eseguito (P6), non che cosa verifica (P2). Se il pilota fosse eseguito con
-un harness diverso dal runner di campagna, la decisione rinviata in P1.7 non
-avrebbe dati su cui chiudersi e andrebbe presa senza evidenza.
+Il requisito è quindi: **il pilota gira con lo stesso runner della campagna, e
+ogni suo blocco esegue la sequenza completa di P1.5** — settling, tre finestre pre
+da 30 s, tre post da 30 s — perché le prove A, B e C producano le prime terne
+reali: `half_range_pre_w`, che decide P1.7, e `u_within,b` dei blocchi di carico,
+che è il denominatore del primo `ρ` misurato — senza di esso P6.4 resta una
+funzione non ancorata. P2.9 non cambia cosa verifica, cambia come il pilota è
+eseguito (P6): un harness diverso dal runner lascerebbe la decisione senza dati.
 
 ### P6.3 Audit idle prima della campagna
 
