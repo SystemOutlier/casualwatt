@@ -1587,16 +1587,16 @@ Tre proposte della revisione esterna su questo punto, valutate e **non** adottat
    proposto dal revisore: dà una mediana su sei valori e un quorum di quattro, a
    18 minuti di costo. P6.4 misura se bastano.
 
-Due limiti del test, da scrivere insieme al risultato:
+Tre limiti del test, da scrivere insieme al risultato:
 
 1. il controllo valida lo **zero** dell'estimatore, non l'assenza di effetti
-   termici sotto carico. Un aumento reale del fondo durante l'inferenza
-   (ventole, frequenza, temperatura) è un effetto fisico che nessun blocco di
-   controllo rimuove: P1 lo tratta come drift diagnostico (`dP`, `r_A`, `r_B`),
-   non come errore di stima;
-2. il controllo non arbitra la **scala assoluta**: legge lo stesso registro di
-   LibreHardwareMonitor. Lo strumento che manca resta il wattometro (cap. 6,
-   sviluppo 1).
+   termici sotto carico: l'aumento reale del fondo in inferenza (ventole,
+   frequenza, temperatura) è un effetto che nessun blocco di controllo rimuove,
+   e P1 lo tratta come drift diagnostico (`dP`, `r_A`, `r_B`), non come errore;
+2. non arbitra la **scala assoluta**: stesso registro di LHM, manca il wattometro;
+3. la soglia ha un **tetto** deducibile dai filtri prima dei dati: entrambi i
+   termini di `budget_base_w,c` sono ≤ 0,5 W, quindi la mediana non supera
+   0,7071 W (1,0 W in forma aritmetica) e "non rilevarebbe 1 W" è falso;
 
 I blocchi di carico della campagna danno anche una seconda stima di `E_net` alla
 geometria `(12,32)`, da confrontare con il punto di conferma della campagna
@@ -2929,11 +2929,11 @@ al più sei blocchi, contro il linguaggio di F.4 — né il test di equivalenza 
 congelate: si dichiara invece che un gate passato **non** dimostra
 quell'equivalenza. Motivazioni complete in P4.5.
 
-Due limiti da scrivere insieme al risultato: il controllo valida lo **zero**
-dell'estimatore, non l'assenza di effetti termici sotto carico (un aumento reale
-del fondo durante l'inferenza è un effetto fisico che nessun blocco di controllo
-rimuove, e P1 lo tratta come drift diagnostico); e non arbitra la **scala
-assoluta**, perché legge lo stesso registro di LibreHardwareMonitor.
+Tre limiti da scrivere insieme al risultato: il controllo valida lo **zero**
+dell'estimatore, non l'assenza di effetti termici sotto carico (un fondo che sale
+in inferenza è un effetto fisico, e P1 lo tratta come drift diagnostico); non
+arbitra la **scala assoluta**, perché legge lo stesso registro di LHM; e la soglia
+ha un tetto di 0,7071 W, perché i filtri pongono i due termini sotto 0,5 W.
 
 ### F.13 Copertura: inviluppo convesso (P4.7)
 
