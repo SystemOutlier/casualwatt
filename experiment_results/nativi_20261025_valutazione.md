@@ -6,6 +6,12 @@ e' una risposta di assistente: le sue citazioni sono segnaposto
 evidenza**. Ogni affermazione qui sotto e' verificata contro il codice o un
 artefatto tracciato il 25/10/2026.
 
+**Correzione del 2026-10-25.** La prova `s` contro `s_EPI` non e' l'anello 4 di
+P4.9 — l'anello 4 e' la sottrazione load-versus-control di P4.5 — ma la terza
+riga della tabella di P4.10; il §3 e il §4 sono corretti sotto. La
+raccomandazione distingue inoltre il numero di configurazioni dal numero di
+repliche.
+
 ## 1. Cosa il documento azzecca
 
 - **EMI misura il dominio, non il processo.** Corretto, ed e' il nostro canale
@@ -102,30 +108,36 @@ e' un errore del metodo. Con "Ollama unico processo attivo" la stima si avvicina
 riferimento solo se anche il resto del sistema e' fermo; non e' il caso di
 Windows, dove il tempo busy include kernel e servizi.
 
-L'anello 4 di P4.9 usa un riferimento diverso e piu' onesto: un'altra
-attribuzione dichiarata come tale, il modello EPI, 0,7339 contro 0,7361
-(`protocollo_v4_20261024.md:2116`). Quell'accordo arbitra la **procedura**
+La prova di P4.10 sulla quota di tempo CPU usa un riferimento diverso e piu'
+onesto: un'altra attribuzione dichiarata come tale, il modello EPI, 0,7339
+contro 0,7361 (`protocollo_v4_20261024.md:2116`). Il confronto **non** e'
+l'anello 4 di P4.9: l'anello 4 e' la sottrazione load-versus-control di P4.5,
+mentre il confronto con EPI e' la terza riga della tabella di P4.10, che il
+testo chiama *prova* e non anello. Quell'accordo arbitra la **procedura**
 (insieme dei processi e denominatore), non l'equivalenza tempo ↔ energia, che
-resta assunzione dichiarata. Anche MAE/RMSE contro EPI misurerebbero soprattutto
-la differenza fra due modelli basati entrambi sul tempo CPU: non sono una
-validazione contro l'hardware.
+resta assunzione dichiarata, e non e' una misura indipendente dell'energia del
+processo. Anche MAE/RMSE contro EPI misurerebbero soprattutto la differenza fra
+due modelli basati entrambi sul tempo CPU: non sono una validazione contro
+l'hardware.
 
 ## 4. Cosa vale la pena fare
 
 Nessuna modifica al codice di produzione: P5 non e' congelato e il sorgente e'
 bloccato. Le proposte sono per P5/P6.
 
-1. **Ripetere l'anello 4 su piu' configurazioni (≥ 10).** E' la parte
-   difendibile della proposta del documento, ma con il riferimento EPI e non con
-   `E_active`. Si riporta la distribuzione di `s − s_EPI` su modelli,
+1. **Ripetere la prova di P4.10 su piu' configurazioni, con repliche.** E' la
+   parte difendibile della proposta del documento, ma con il riferimento EPI e
+   non con `E_active`. Si riporta la distribuzione di `s − s_EPI` su modelli,
    `num_predict` e livelli di concorrenza, con una banda di accordo
-   preregistrata; nessuna soglia si sposta dopo i dati. Questo trasforma un
-   confronto singolo in un test di ripetibilita' della procedura.
+   preregistrata; nessuna soglia si sposta dopo i dati. Numero di
+   configurazioni e numero di repliche sono due grandezze distinte: dieci
+   configurazioni con una sola replica danno dieci numeri e nessuna stima della
+   variabilita' entro configurazione. Il punto e' recepito in P6.6.
 2. **Automatizzare l'estrazione EPI per fase in un harness tracciato.** Oggi
-   l'anello 4 si ricostruisce da `srum_emi_cross.py` e `cpu_share_check.py`;
-   un harness che produce direttamente `s_EPI` e `s_busy` per fase rende
-   l'anello rigenerabile. `MeasuredPower` entra solo se una fonte primaria ne
-   documenta il significato e il CSV lo espone.
+   la prova di P4.10 si ricostruisce da `srum_emi_cross.py` e
+   `cpu_share_check.py`; un harness che produce direttamente `s_EPI` e `s_busy`
+   per fase rende la prova rigenerabile. `MeasuredPower` entra solo se una fonte
+   primaria ne documenta il significato e il CSV lo espone.
 3. **Dichiarare il cambio dell'albero PID.** Se un runner **muore** fra
    `t_start` e `t_end`, la lettura a `t_end` non lo trova e il suo tempo CPU va
    perso senza segnalarlo (un runner che nasce e' invece catturato, perche' a
@@ -138,6 +150,10 @@ bloccato. Le proposte sono per P5/P6.
    `% Processor Time`; passare a PDH aggiungerebbe un sottosistema di
    campionamento senza un campo nuovo. La correzione necessaria era
    l'insieme dei processi e il denominatore, non l'API.
+
+Questi quattro punti sono recepiti nel protocollo come P6.6 (prova di
+attribuzione ripetibile) e P6.5 (`engine_tree_changed`), 2026-10-25. Il codice di
+produzione non cambia: P5 non e' congelato.
 
 ## 5. Verdetto
 
@@ -161,7 +177,8 @@ del package.
 - `cwEnergyModular/casualwatt_csv_export.py:79`, `:107`.
 - `experiment_results/srum_emi_cross_20261023_analisi.md:16-18`, `:42-52`,
   `:133-162`.
-- `experiment_results/protocollo_v4_20261024.md:2112-2120` (P4.9/P4.10,
-  anello 4).
+- `experiment_results/protocollo_v4_20261024.md:2112-2120` (P4.10, prova
+  quota di tempo CPU ↔ quota di energia; l'anello 4 di P4.9 e' la sottrazione
+  load-versus-control di P4.5).
 - `srum.py:45-48`, `srum_emi_cross.py:49`, `:244`.
 - `experiment_results/srum_dump_20261023_121718_start.csv` (header).
