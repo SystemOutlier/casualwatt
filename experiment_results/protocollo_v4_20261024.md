@@ -319,17 +319,17 @@ si decide se mantenerla o introdurne una diversa, con un'analisi di sensibilità
 documentata (opzione approvata dall'utente il 24-10-2026). Due vincoli sul rinvio:
 
 - va risolto **prima** della campagna principale, perché `budget_base_w` entra nei
-  pesi del fit `w_b = 1/budget_fit_b²` (F.9), nella standardizzazione del
-  bootstrap `z_b = r_b/budget_fit_b` (F.14) e nella soglia del gate di P4.5.
-  Cambiarlo dopo aver visto i risultati della campagna sarebbe spostare una
-  soglia dopo i dati;
+  pesi del fit `w_b = 1/budget_fit_b²` (F.9), nel bootstrap `z_b` (F.14) e nella
+  soglia del gate di P4.5. Sui pesi l'effetto non è monotono in `ρ`: fra 0,20 e
+  0,25 c'è l'incrocio, sotto la somma aritmetica concentra di meno (0,85 a 0,05),
+  sopra di più (1,40 a 1,00) — `semi_range_concentrazione_pesi_probe.py`, 25-10.
+  Cambiarlo dopo aver visto i risultati sarebbe spostare una soglia dopo i dati;
 - il rinvio non sospende le altre regole: le soglie di P1.6 (1,0 W, 10%, 5/20%)
   restano congelate e non si muovono in nessuno dei due scenari.
 
-Il pilota non determina da solo quale interpretazione sia corretta: fornisce la
-variabilità reale dei termini e la stabilità delle conseguenze a valle, ma la
-definizione del budget resta una scelta coerente con la natura dell'incertezza
-dichiarata.
+Il pilota non determina da solo l'interpretazione corretta: fornisce la variabilità
+reale dei termini e la stabilità delle conseguenze a valle, ma la definizione del
+budget resta una scelta coerente con la natura dell'incertezza dichiarata.
 
 ### P1.8 Cosa è escluso
 
