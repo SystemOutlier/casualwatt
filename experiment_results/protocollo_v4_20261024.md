@@ -1167,17 +1167,21 @@ nomina.
 - se una richiesta di geometria termina con EOS prima del tetto, la misura resta
   valida per P2 ma **non è assegnabile alla cella**: è `design_deviation`, si
   sostituisce e si registra; non si cambia il target;
-- **conteggio delle sostituzioni per cella** (aggiunta il 2026-10-24,
-  redazionale: obbliga a registrare un numero, non cambia la regola). Ogni cella
-  registra `design_deviation_count`, il numero di sostituzioni eseguite per
-  arrivare alle `m = 3` richieste assegnabili, e per ogni sostituzione il prompt
-  scartato e quello che lo sostituisce. La ragione non è amministrativa:
-  sostituire le richieste che terminano presto **seleziona** prompt che generano
-  a lungo, quindi una cella con molte sostituzioni non contiene un campione
-  casuale di prompt ma una popolazione selezionata dal criterio di sostituzione.
-  Il conteggio non corregge l'effetto: lo rende visibile, e se una cella arriva a
-  un numero di sostituzioni paragonabile a `m` la cella va discussa nel testo,
-  non pubblicata come le altre;
+- **conteggio delle sostituzioni** (aggiunta il 2026-10-24, redazionale: obbliga a
+  registrare un numero, non cambia la regola; **unità dichiarata il 2026-10-25**).
+  `design_deviation_count` è registrato **per blocco**, non per cella: conta le
+  sostituzioni eseguite per arrivare alle `m = 3` richieste assegnabili **di quel
+  blocco**, e per ogni sostituzione il prompt scartato e quello che lo sostituisce.
+  L'unità non è una scelta amministrativa: `m = 3` è il numero di richieste di un
+  blocco, quindi confrontare il conteggio di una cella (3 blocchi, fino a 9
+  richieste) con `m` mescola due unità — il valore per cella, se serve, è la somma
+  dei tre blocchi e va confrontato con `3m`. La ragione del conteggio non è
+  amministrativa: sostituire le richieste che terminano presto **seleziona** prompt
+  che generano a lungo, quindi un blocco con molte sostituzioni non contiene un
+  campione casuale di prompt ma una popolazione selezionata dal criterio di
+  sostituzione. Il conteggio non corregge l'effetto: lo rende visibile, e se il
+  conteggio di un blocco arriva a un valore paragonabile a `m` — o quello di una
+  cella a `3m` — quel blocco va discusso nel testo, non pubblicato come gli altri;
 - la temperatura è quella di produzione, registrata e non trattata come fattore;
 - il blocco di produzione (prompt reali, EOS naturale) è P6 e non entra nel fit
   della superficie: la superficie descrive il costo di decode, non la
@@ -3130,7 +3134,9 @@ Contenuti obbligatori già elencati dai punti congelati. P3.13: `batch_id`,
 `block_id`, `point_id`, target e actual dei token, `done_reason`, `early_stop`,
 `prompt_nonce`, `model_digest`, `ollama_version`, `temperature`, `num_ctx`,
 `num_predict`, `order_index`, `r_A`, `r_B`, `negative_increment`,
-`pre_unstable`, `baseline_unstable`, `design_deviation`. P4.12: `block_kind`,
+`pre_unstable`, `baseline_unstable`, `design_deviation`, `design_deviation_count`
+(per blocco: era nell'elenco di P3.13 e mancava qui, corretto il 2026-10-25).
+P4.12: `block_kind`,
 `pair_id`, `order_seed`, `dt_nominal_s`, `dt_tick_s`, `p_peak_w`, `u_edge_j`,
 `budget_fit_j`, `budget_pred_j`, `u_bias_j`, `bias_w`, `z_resid`,
 `hull_margin_tok`, `hull_margin_design_tok`, `coverage_tier`,
