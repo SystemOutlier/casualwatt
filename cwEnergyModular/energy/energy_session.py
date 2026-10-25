@@ -32,10 +32,25 @@ from typing import Dict, List, Optional
 import psutil
 
 try:  # config e' nella cartella padre: import assoluto protetto
-    from config import MONITOR_INTERVAL_S, OLLAMA_PROCESS_NAMES
+    from config import (
+        MONITOR_INTERVAL_S, OLLAMA_ROOT_NAMES, OLLAMA_RUNNER_NAMES,
+    )
 except Exception:  # pragma: no cover - contesto di test standalone
     MONITOR_INTERVAL_S = 0.5
-    OLLAMA_PROCESS_NAMES = ("ollama.exe", "ollama_llama_server.exe", "ollama")
+    OLLAMA_ROOT_NAMES = ("ollama.exe", "ollama")
+    OLLAMA_RUNNER_NAMES = (
+        "llama-server.exe", "llama-server",
+        "ollama_llama_server.exe", "ollama_llama_server",
+    )
+
+from .worker_tree import (
+    WorkerProc,
+    build_worker_tree,
+    read_process_table,
+    read_worker_cpu_times,
+    stray_runners,
+    worker_cpu_delta,
+)
 
 
 #: Metodi che possono esprimere un NUMERO di energia. Sono i metodi che leggono
@@ -1757,22 +1772,37 @@ class EnergySession:
         except Exception:
             return 0
 
-    @staticmethod
-    def find_ollama_procs() -> List[int]:
-        """PID dell'albero Ollama (server + worker llama_server)."""
-        pids: List[int] = []
-        wanted = {n.lower() for n in OLLAMA_PROCESS_NAMES}
-        try:
-            for p in psutil.process_iter(["pid", "name"]):
-                try:
-                    nm = (p.info["name"] or "").lower()
-                    if nm in wanted or nm.rstrip(".exe") in {w.rstrip(".exe") for w in wanted}:
-                        pids.append(int(p.info["pid"]))
-                except (psutil.NoSuchProcess, psutil.AccessDenied):
-                    continue
-        except Exception:
-            pass
-        return sorted(set(pids))
+    @classmethod
+    def find_worker_tree(cls) -> List[WorkerProc]:
+        """Albero del motore locale, ricostruito a ogni richiesta.
+
+        Radici per nome (``OLLAMA_ROOT_NAMES``) + discendenti ricorsivi,
+        qualunque sia il loro nome: il runner del modello
+        (``llama-server``, ``ollama_llama_server`` o lo stesso ``ollama.exe``
+        con argomento ``runner``) e' incluso perche' figlio, non perche'
+        compare in una lista. L'identita' e' ``(pid, create_time)``.
+        """
+        table = read_process_table()
+        return build_worker_tree(table, OLLAMA_ROOT_NAMES, OLLAMA_RUNNER_NAMES)
+
+    @classmethod
+    def find_stray_runner_procs(
+        cls, tree: Optional[List[WorkerProc]] = None,
+    ) -> List[WorkerProc]:
+        """Runner del modello che NON discendono dall'albero misurato.
+
+        Se ne esiste uno, il run sta misurando un motore che non attribuisce:
+        il chiamante lo deve scrivere nel log, non ignorarlo.
+        """
+        table = read_process_table()
+        current = tree if tree is not None else build_worker_tree(
+            table, OLLAMA_ROOT_NAMES, OLLAMA_RUNNER_NAMES)
+        return stray_runners(table, current, OLLAMA_RUNNER_NAMES)
+
+    @classmethod
+    def find_ollama_procs(cls) -> List[int]:
+        """PID dell'albero del motore (compatibilita': solo i PID, ordinati)."""
+        return [w.pid for w in cls.find_worker_tree()]
 
     @classmethod
     def _ollama_tree_stats(cls, pids: List[int]) -> Dict[str, float]:
