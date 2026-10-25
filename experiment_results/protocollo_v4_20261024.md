@@ -2442,17 +2442,17 @@ registrati qui perché non si perdano.
   essere per richiesta, oppure portare `n_inferenze` accanto ai totali e il livello
   nel nome del campo: un conteggio senza livello dichiarato non è leggibile da un
   terzo, e un ancoraggio non verificabile equivale a nessun ancoraggio (AGENTS.md).
-- **Matrice di disegno centrata e scalata.** Il disegno di P3.5 grezzo
-  (`1, N_in, N_out, N_in·N_out` sui 33 blocchi) ha numero di condizionamento
-  1,02e5 (valori singolari 2,65e5 / 8,79e2 / 6,06e2 / 2,59), ricalcolato il
-  2026-10-24; con i predittori standardizzati scende a 3,8. Con la WLS e il
-  bootstrap a 2000 repliche, risolvere il sistema nella forma grezza perde circa
-  cinque cifre significative nel solve. Non è un problema statistico — il disegno
-  resta di rango pieno 4 e la leva massima è 0,285 con media 0,121 = 4/33 — è un
-  problema numerico di implementazione. P5 specifichi che il fit lavora su
-  predittori centrati e scalati, o su una decomposizione stabile, e che i
-  coefficienti sono riportati nelle unità di P3.3 con la trasformazione inversa
-  dichiarata, non nella forma interna.
+- **Matrice di disegno centrata e scalata.** Sui 33 blocchi di P3.5, con matrice
+  `(1, N_in, N_out, N_in·N_out)`, il condizionamento in 2-norma vale 1,0227e5 e
+  scende a 3,761 con i predittori non costanti in z-score e l'intercetta intatta
+  (9,0 con `N_out²`, 17,0 con anche `N_in²`): la doppia convenzione è dichiarata
+  perché senza di essa il numero non è riproducibile — è perché i 10/19/33 dei
+  revisori non sono citabili. Rango 4 pieno e leva max 0,285 (media 4/33) sono
+  stimabilità algebrica, non stabilità numerica: ricalcolati il 2026-10-25 da
+  `condizionamento_disegno_probe.py`, che misura anche le cifre perse dai quattro
+  solve, 1,05-5,35 sui 24 casi con almeno 10,30 corrette — "circa cinque cifre"
+  era il caso con β interi, un limite non una proprietà. P5 prescriva QR o SVD su
+  predittori centrati e scalati, mai equazioni normali; β in unità P3.3 con inversa.
 - **Nome del campo del settling post.** P6.1 chiede la durata reale di entrambi i
   settling; `settle_pre_s` è già previsto da P1.5, quello del post non ha nome.
 - **Collocazione dei campi per punto.** `err_rel`, `intervallo_conf`,
