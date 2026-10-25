@@ -835,6 +835,10 @@ def run_unified_benchmark(
                     active_valid=bool(getattr(local, "active_valid", False)),
                     ollama_active_energy_j=local.ollama_active_energy_j,
                     cpu_time_share=local.cpu_time_share,
+                    # P3: quota senza clamp e anomalia dichiarata
+                    cpu_time_share_raw=_na_or(
+                        getattr(local, "cpu_time_share_raw", None)),
+                    share_anomaly=getattr(local, "share_anomaly", "") or "",
                     gpu_available=local.gpu_available,
                     gpu_device_index=("" if local.gpu_device_index is None else local.gpu_device_index),
                     gpu_board_energy_j=local.gpu_board_energy_j,
@@ -983,6 +987,12 @@ def run_unified_benchmark(
                             getattr(client_local, "active_valid", False)),
                         ollama_active_energy_j=client_local.ollama_active_energy_j,
                         cpu_time_share=client_local.cpu_time_share,
+                        # P3: quota senza clamp e anomalia dichiarata
+                        cpu_time_share_raw=_na_or(
+                            getattr(client_local, "cpu_time_share_raw", None)),
+                        share_anomaly=(
+                            getattr(client_local, "share_anomaly", "") or ""
+                        ),
                         # rev_metodo §2(b): denominatore dichiarato anche qui
                         cpu_share_window_s=getattr(
                             client_local, "cpu_share_window_s", 0.0),
