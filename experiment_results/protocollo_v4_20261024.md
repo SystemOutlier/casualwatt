@@ -1128,7 +1128,10 @@ E_pred ≤ 0  →  err_rel non definito (None, non 0, non +inf aritmetico)
 ```
 
 Il punto è dichiarato **fallimento della previsione**, non escluso dal criterio e
-non salvato da una divisione implicita. Si riportano comunque `E_meas`,
+non salvato da una divisione implicita, e **resta nel conteggio dei casi
+valutati**: i punti di conferma sono due e l'anello 6 di P4.9 li richiede
+entrambi, quindi un `pred_nonpositive` non può essere né diluito in una media né
+tolto dal denominatore. Si riportano comunque `E_meas`,
 `E_pred`, `intervallo_conf` e l'esito dell'appartenenza all'intervallo, che resta
 informativo: un `E_meas` dentro l'intervallo con `E_pred ≤ 0` dice che il modello
 non ha segno coerente in quella regione, e questo va scritto nel testo, non
