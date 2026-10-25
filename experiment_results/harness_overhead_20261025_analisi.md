@@ -126,17 +126,20 @@ assume**, si misura (come gia' concluso in `telemetry_association_20261025.md`).
 
 ## Cosa si puo' dire
 
-1. **Nessun offset positivo di potenza, ma il criterio non passa.** In tutte e
-   tre le fasi B la potenza media di finestra e' *inferiore* a quella delle
-   fasi A, di 0,48-1,38 W. Non c'e' evidenza che l'harness scaldi il package.
-   Il criterio pre-dichiarato resta pero' non soddisfatto (uscita di -1,38 W al
-   ciclo 2): il risultato corretto e' l'intervallo, non "overhead nullo".
-2. **Il segno negativo si spiega con la forma della finestra, non con un
-   risparmio.** Le finestre B sono piu' lunghe del 6,5% (+0,195 s) con gli
+1. **Nessun offset positivo di potenza osservato, ma il criterio non passa.**
+   In tutte e tre le fasi B la potenza media di finestra e' *inferiore* a quella
+   delle fasi A, di 0,48-1,38 W. Il criterio pre-dichiarato resta pero' non
+   soddisfatto (uscita di -1,38 W al ciclo 2): il risultato corretto e'
+   l'intervallo, non "overhead nullo". **Questi dati non dimostrano che
+   l'overhead energetico dell'harness sia zero**: mostrano che in questa
+   configurazione non si osserva un offset positivo e che il criterio scelto
+   per escludere un effetto distinguibile dal drift non e' stato raggiunto.
+2. **Il segno negativo e' coerente con la forma della finestra, e non implica
+   meno energia.** Le finestre B sono piu' lunghe del 6,5% (+0,195 s) con gli
    stessi 64 token, e l'energia per richiesta e' **piu' alta** di 2,8 J
    (+3,4%), in 3 cicli su 3 rispetto al punto medio. Potenza media piu' bassa e
-   durata maggiore sono due viste dello stesso fatto: la stessa energia e'
-   distribuita su piu' tempo; l'energia totale per richiesta sale.
+   durata maggiore possono coesistere: se la richiesta dura di piu', consuma
+   piu' energia complessiva anche quando la potenza media scende.
 3. **La grandezza che conta per J/token e' proprio quella che sale.** Il
    `j_per_token` misurato passa da 1,2854 (A) a 1,3292 (B), +0,0438 J/token
    (+3,4%). Non e' una stima puntuale robusta (n=12 finestre B), ma il segno e'
@@ -150,27 +153,45 @@ assume**, si misura (come gia' concluso in `telemetry_association_20261025.md`).
    core e la CPU dell'osservatore 3,3-3,8 s per fase. Sono compatibili con un
    rallentamento del runner per contesa (GIL del thread di lettura o
    backpressure sulla socket), ma con questi dati non si distingue la contesa
-   dal normale jitter di scheduling. Nessuna attribuzione.
+   dal normale jitter di scheduling. Il confronto A-B non isola la sola
+   scansione `psutil`: cambia anche il processo che pilota le richieste.
+   **L'aumento di durata non e' attribuito a `psutil`.**
 6. **Il livello assoluto resta non arbitrato.** La sonda EMI e' il riferimento
    comune: un accordo fra due letture dello stesso registro non e' una
    validazione indipendente, e qui non c'e' un wattmetro AC/DC esterno.
 
+## Cosa questi dati non dimostrano
+
+- Che l'overhead energetico dell'harness sia nullo: il criterio preregistrato
+  non e' soddisfatto, e l'energia per richiesta sale.
+- Che l'aumento di durata sia causato dalla scansione `psutil`: il disegno non
+  la separa dal resto dell'harness ne' dal rumore di scheduling.
+- Che la differenza di energia per richiesta sia statisticamente significativa:
+  non c'e' test, ci sono 12 finestre B e 3 cicli, e non si e' dichiarata una
+  procedura inferenziale.
+- Che il risultato si generalizzi ad altri modelli, computer o carichi: un
+  modello CPU-only da 1,2 B, un prompt da 64 token, una sola prova.
+- Che A sia "nessun osservatore": A contiene la sonda e il driver delle
+  richieste.
+
 ## Conseguenze operative
 
-- Per i **livelli di potenza** l'harness non introduce un offset positivo
-  rilevabile; per l'**energia per token** introduce un bias misurato di
-  +0,044 J/token in questa configurazione. Se una campagna usa `monitor_ollama`
+- Per i **livelli di potenza** in questa configurazione non si osserva un
+  offset positivo; per l'**energia per token** il bias misurato e' +0,044 J/token.
+  Poiche' il criterio non e' soddisfatto, nessuna delle due letture va
+  presentata come "overhead nullo". Se una campagna usa `monitor_ollama`
   accanto alle misure, quel bias va dichiarato, non corretto in silenzio.
 - Il protocollo v4 non mette `monitor_ollama.py` nel percorso energetico: il
   risultato non tocca `MEASURED_METHODS` ne' la produzione. Dice pero' che la
   telemetria concorrente puo' **allungare la richiesta**, quindi non va
   attivata durante la campagna principale senza questa dichiarazione.
 - La sonda a 100 ms e' la parte piu' economica dell'osservazione (0,31% di un
-  core): il costo sta nella scansione dei processi, non nella lettura EMI.
-- Se si vuole stringere il numero, il disegno giusto e' piu' cicli e piu'
-  richieste per fase, oppure una variante B con la sola scansione `psutil`
-  disattivata per separare le due componenti. Sono esperimenti da fare, non
-  modifiche da adottare ora.
+  core). Il duty CPU della scansione e' 9-10% di un core, ma **il duty non e'
+  energia**: la quota energetica della scansione non e' misurata.
+- Se si vuole stringere il numero, il disegno giusto e' un confronto mirato fra
+  sonda da sola, harness completo e harness con scansione ridotta, con ordine
+  dei cicli bilanciato e repliche scelte sulla variabilita' osservata. Sono
+  esperimenti da fare, non modifiche da adottare ora.
 
 ## Limiti
 
@@ -186,7 +207,16 @@ assume**, si misura (come gia' concluso in `telemetry_association_20261025.md`).
   come chiede P1.4; la GUI di LibreHardwareMonitor era chiusa (`tasklist`
   prima del run) e non c'era altro monitoraggio noto.
 - 12 finestre B e 24 A: con n cosi' piccolo il range osservato e' l'unico
-  intervallo onesto.
+  intervallo onesto. Non c'e' test di significativita' e non e' stata
+  dichiarata una procedura inferenziale: "3 cicli su 3" e' un fatto descrittivo,
+  non una probabilita'.
+- L'ordine e' fisso A1-B-A2 in tutti i cicli: B sta sempre in mezzo. Il disegno
+  compensa un drift lineare del livello, non un effetto d'ordine o di stato
+  termico. Servirebbe un ordine bilanciato fra i cicli.
+- La potenza di finestra e' una media sugli incrementi contenuti: le finestre
+  hanno 2 incrementi a cavallo ciascuna (72 in totale) esclusi, con 90-96 ms
+  scoperti in media. Non e' una sorgente di errore nota, ma e' un bordo
+  dichiarato, non rimosso.
 
 ## Riprodurre
 
