@@ -1146,7 +1146,8 @@ nomina.
 
 - primarie: `J/token_32` e `J/token_128` (P3.4), con intervallo bootstrap;
 - coefficienti `a`, `b`, `c`, `E0` con intervalli;
-- costi marginali `b + c·N_in,ref` e `a + c·N_out,ref`;
+- costi marginali, ciascuno riferito alla propria coordinata: `∂E/∂N_out =
+  b + c·N_in,ref` e `∂E/∂N_in = a + c·N_out,ref`;
 - `share_E0` ai due riferimenti;
 - descrittiva: `E_act/N_out_actual` per richiesta (mediana, IQR, range), non
   come stima primaria;
@@ -1950,7 +1951,8 @@ rumore del budget e non da quello dei dati.
 I due intervalli sono **oggetti diversi** e vanno riportati come tali:
 
 - **parametrico**, sul costo marginale per token: quantili 2,5 e 97,5 delle quantità
-  derivate `b + c·N_in,ref`, `a + c·N_out,ref`, `J/token_32`, `J/token_128`,
+  derivate `∂E/∂N_out = b + c·N_in,ref`, `∂E/∂N_in = a + c·N_out,ref`,
+  `J/token_32`, `J/token_128`,
   calcolate su `θ*`. Contiene solo l'incertezza dei coefficienti: non contiene la
   dispersione di un blocco di misura singolo, e non deve contenerla;
 - **predittivo**, su un blocco nuovo a geometria `x`: lo spread parametrico di
@@ -2675,7 +2677,8 @@ share_E0(ref)   = E0 / E_model(ref)
 griglia. `E0` overhead fisso per richiesta a modello residente, `a` J/token di
 prefill marginale **a `N_out = 0`**, `b` J/token di decode marginale **a
 `N_in = 0`**, `c` interazione. Con l'interazione presente i costi marginali sono
-`a + c·N_out` e `b + c·N_in`, quindi `a` e `b` da soli non lo sono in generale.
+`∂E/∂N_in = a + c·N_out` e `∂E/∂N_out = b + c·N_in`, quindi `a` e `b` da soli
+non lo sono in generale.
 
 *Giustificazione.* La superficie è lineare **nei parametri**; `c·N_in·N_out` è
 un'interazione bilineare, non un termine quadratico, e non si aggiungono `N_in²`
@@ -2962,7 +2965,7 @@ per ciascuna replica:
     Ȳ*_b = f(x_b; θ̂) + budget_fit_b · z*_b
     rifit WLS con gli stessi pesi w_b  → θ*
 
-parametrico: q2,5 e q97,5 di b + c·N_in,ref ; a + c·N_out,ref ; J/token_32 ; J/token_128
+parametrico: q2,5 e q97,5 di ∂E/∂N_out = b + c·N_in,ref ; ∂E/∂N_in = a + c·N_out,ref ; J/token_32 ; J/token_128
 predittivo : spread parametrico di f(x; θ*) allargato con il budget_pred del blocco nuovo
 ```
 
