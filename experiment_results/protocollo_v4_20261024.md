@@ -13,7 +13,7 @@ Data: 2026-10-24. Branch: `energy-consumption-framework-ollama-d248a`.
 | P3 | geometria, modello e stima | **congelato 2026-10-24** (emendato di forma il 2026-10-24 dopo la revisione esterna: P3.3 costi marginali qualificati a `N_out = 0` / `N_in = 0` e algebra del termine quadratico omesso; P3.10 `E_pred ≤ 0` dichiarato fallimento con `pred_nonpositive` e intervallo rinominato `intervallo_conf`; P3.12/P3.13 `design_deviation_count`; P3.15 pre-pilota esteso ai livelli bassi. **Emenda sostanziale del 2026-10-24**: P3.9, il criterio dell'anello 5 usa `p_lof_perm`, `p` della stessa statistica F pesata ottenuto dalla distribuzione nulla per ricampionamento del puro errore — il `p` asintotico non è valido con pesi conservativi. Statistica e soglia 0,05 invariate, aggiunto `lof_max_rel` descrittivo. **Aggiunta del 2026-10-25, di sola dichiarazione**: all'elenco dei contenuti obbligatori di P3.13 si aggiungono `pre_range_w` e `dP`, grandezze già definite in F.1 e F.3 e già usate da tre flag, perché un flag i cui ingressi non sono registrati non è verificabile da un terzo (P4.12). **Terzo turno, 2026-10-25, ancora di sola dichiarazione**: `design_deviation_count` dichiarato **per blocco** e non per cella, con soglia di discussione `m` per blocco e `3m` per cella (P3.12) e campo aggiunto all'elenco di F.17, che lo ometteva; costi marginali scritti con la propria coordinata anche in P3.11 e nello pseudocodice di F.14 (P3.3 e P3.4 li qualificavano già, P4.8 e F.8 corretti nello stesso turno); punto con `pred_nonpositive` dichiarato **nel conteggio dei casi valutati**, non solo "non escluso dal criterio" (P3.10). Nessuna modifica a disegno, modello, pesi o soglie) |
 | P4 | incertezza e validazione | **congelato 2026-10-24** (emendato: inviluppo convesso per la copertura, bootstrap dei residui standardizzati, criterio monolitico di catena, `u_edge` solo nel budget predittivo; seconda emenda solo di forma: P4.1 in quattro clausole, P4.4 a otto requisiti numerati con la baseline 3 pre + 3 post obbligatoria anche sui controlli; terza emenda solo di forma: seconda ragione in P4.12 per non adottare la deviazione standard a n = 3; quarta emenda solo di forma: P4.6, rettificata la giustificazione di `u_edge` — il termine congelato maggiora il disallineamento, non l'interpolazione — con formula e valore invariati. **Emenda sostanziale del 2026-10-24**: chiuso il difetto di `r_A` sui controlli — il requisito 7 di P4.4 elenca ora solo le quantità che esistono su un blocco di controllo, e il filtro di stabilità di P4.5 è sostituito dalle soglie assolute `pre_range_w,c ≤ 1,0 W` e `|dP_c| ≤ 1,0 W` con il flag `control_unstable`; `u_bias,b = |bias_w| · Δt̄_W,b` scritto in formula in P4.6 e F.11 come contributo di incertezza, non come correzione sistematica; copertura decisa su due inviluppi — `hull_design` sui target e `hull_fit` sui token reali dei 33 blocchi di fit — prendendo la fascia più conservativa, P4.7 e F.13. **Seconda emenda sostanziale del 2026-10-24**: P4.8, la copertura del bootstrap è dichiarata *nominale e non arbitrata* finché P6.4 non la verifica per simulazione, e la correzione di leva `1/√(1 − h_b)` è resa **sensibilità obbligatoria** allo stesso seed del primario — leva massima verificata sul disegno nominale 0,2852 sui blocchi (512, 256), fattore 1,1828, media 0,121212 = 4/33. Il primario non cambia e nessuna formula congelata è modificata. **Terza emenda sostanziale del 2026-10-24**: P4.4/P4.5, il gate load-versus-control passa da tre a **sei coppie** (12 blocchi) e il quorum dei controlli utilizzabili da due a **quattro**, stessa frazione congelata `⌈2/3 · n_coppie⌉`; `bias_w` si riporta anche in unità di metrica (coppia di campi `bias_jtok_pct_lo`/`bias_jtok_pct_hi`) con la scala ancorata 1 W ≈ 6–11% di `J/token`, grandezza riportata e non soglia; intervallo t e test di equivalenza a ±3–5% valutati e **non** adottati, con il limite dichiarato che un gate passato non dimostra quell'equivalenza (0,27–0,83 W sulla stessa scala). Costo in P6.1: pavimento 2 h 15 min → **2 h 33 min**. Soglie in watt invariate. **Quarta emenda sostanziale del 2026-10-24**: P4.6, chiusa l'alternativa aperta sul termine di bordo — adottata la via (b), lettura sincrona del contatore ai bordi di finestra con `Δt_W` preso dalla stessa coppia di letture, come requisito vincolante di P5; la via (a) è scartata perché chiede un `ΔP_tick` che nessuna parte del codice misura. Formula e valore congelato di `u_edge,b` invariati: cambia solo cosa è `Δt_tick,b`, e il fattore di riduzione si misura, non si assume. **Quinta emenda, di sola dichiarazione (2026-10-25)**: specificata la metrica di `hull_margin_tok` e `hull_margin_design_tok` (distanza perpendicolare euclidea dalla retta dello spigolo più vicino, coordinate grezze, negativa se fuori) e verificata per esecuzione sui quattro margini pubblicati (1,33 / 64,0 / 21,24 / 107,7), perché con la distanza dal vertice il punto operativo (12,32) darebbe 28,28 e il flag `thin_support` si rovescerebbe; coordinate normalizzate valutate e **non** adottate, decisione metodologica distinta; `pre_range_w` e `dP` entrano nei contenuti obbligatori di P4.12, senza i quali `control_unstable` registra un esito i cui ingressi non sono leggibili; dichiarata la scala di `budget_fit_b`/`budget_pred_b` (joule sulla scala di `Ē_b`, non del totale di blocco) e scartata la lettura a durata aggregata; il passo 5 di F.0 distingue i controlli di stabilità sui blocchi di carico dal filtro assoluto di P4.5 sui blocchi di controllo. **Sesta emenda, di sola dichiarazione e di provenienza (2026-10-25, terzo turno)**: i numeri dei tre errori di bordo di P4.6 sono rigenerati da un harness tracciato (`u_edge_interpolazione_probe.py`, 5/5 verifiche, exit 0) e il residuo assoluto `3,0e-11 J` è **ritirato**, perché era l'assoluto di una griglia non dichiarata e cresce con la densità di griglia; al suo posto il residuo **relativo** alla grandezza del contatore, 7,0e-12, invariante in `P` e dichiarato con la griglia usata; il ritiro vale in **entrambe** le occorrenze, P4.6 e F.11 — la seconda trovata dal controllo incrociato del terzo turno, che ha mostrato il ritiro incompleto. Costi marginali scritti con la propria coordinata anche in P4.8. Nessuna formula cambiata, nessuna soglia spostata, nessun valore numerico congelato modificato. **Nessun difetto dichiarato aperto, nessuna alternativa aperta**) **Settima emenda, di sola dichiarazione (2026-10-25, quarto turno)**: P4.5, la soglia del gate ha un **tetto** deducibile dai filtri già congelati prima dei dati — `half_range_pre_w,c` e `half_drift_c` sono entrambi ≤ 0,5 W, quindi `budget_base_w,c ≤ sqrt(0,5² + 0,5²) = 0,7071 W` (1,0 W con la somma aritmetica) e la `mediana_c` eredita il tetto: la lettura "non rilevarebbe un bias da 1 W" è superata, perché sopra il tetto il gate non può passare. Il limite è il terzo scritto insieme al risultato. P4.6, lo `u_bias,b = 0` dopo un gate passato è dichiarato **convenzione operativa**, non dimostrazione che il bias sia nullo, e la ragione del doppio conteggio evitato è scritta: `u_base,b` porta già `budget_base_w,b`. Soglie e formule invariate.) |
 | P5 | campi CSV e runner | aperto (requisiti vincolanti trasmessi dai punti congelati: P6.5, fra cui la lettura sincrona del contatore ai bordi, `Δt_W` dalla stessa coppia di letture e il livello di aggregazione dei conteggi di token) |
-| P6 | esecuzione e analisi | aperto, ma **non più solo preparatorio**: P6.1 e P6.2 sono aritmetica dei punti congelati (P6.1 ricalcolato il 2026-10-24 per le sei coppie del gate: pavimento delle sole finestre idle 2 h 33 min); P6.3 (audit idle) e P6.4 (simulazione Monte Carlo) sono **adottate come requisiti vincolanti**; P6.5 è l'elenco dei requisiti per P5 **Settima emenda (2026-10-25, quarto turno, di sola dichiarazione e di provenienza)**: P6.5, i numeri di condizionamento sono rigenerati da `condizionamento_disegno_probe.py` con la norma e la convenzione di scaling dichiarate, il risolutore diventa **prescrittivo** (QR o SVD su predittori centrati e scalati, mai equazioni normali sulla grezza) e "perde circa cinque cifre" è declassato a limite: le cifre perse misurate stanno fra 1,05 e 5,35 su 24 casi, con almeno 10,30 corrette. P6.4 punto 1, "8% a ρ ≥ 0,5" è **ritirato** perché sotto `u_base,b = ρ·u_within,b` la quota è indipendente da ρ per cancellazione esatta, mentre le ancore a ρ = 0 (37,3% medio, 82,7% al p95, ESS 7,30 su 33) reggono e sono misurate da `semi_range_concentrazione_pesi_probe.py`. P6.2, il pilota deve produrre anche `u_within,b`: è il denominatore del primo ρ misurato. P1.7, la forma di combinazione sui pesi non ha un verso fisso — incrocio fra ρ = 0,20 e 0,25. Disegno, modello e soglie invariati. |
+| P6 | esecuzione e analisi | aperto, ma **non più solo preparatorio**: P6.1 e P6.2 sono aritmetica dei punti congelati (P6.1 ricalcolato il 2026-10-24 per le sei coppie del gate: pavimento delle sole finestre idle 2 h 33 min); P6.3 (audit idle) e P6.4 (simulazione Monte Carlo) sono **adottate come requisiti vincolanti**; P6.5 è l'elenco dei requisiti per P5 **Settima emenda (2026-10-25, quarto turno, di sola dichiarazione e di provenienza)**: P6.5, i numeri di condizionamento sono rigenerati da `condizionamento_disegno_probe.py` con la norma e la convenzione di scaling dichiarate, il risolutore diventa **prescrittivo** (QR o SVD su predittori centrati e scalati, mai equazioni normali sulla grezza) e "perde circa cinque cifre" è declassato a limite: le cifre perse misurate stanno fra 1,05 e 5,35 su 24 casi, con almeno 10,30 corrette. P6.4 punto 1, "8% a ρ ≥ 0,5" è **ritirato** perché sotto `u_base,b = ρ·u_within,b` la quota è indipendente da ρ per cancellazione esatta, mentre le ancore a ρ = 0 (37,3% medio, 82,7% al p95, ESS 7,30 su 33) reggono e sono misurate da `semi_range_concentrazione_pesi_probe.py`. P6.2, il pilota deve produrre anche `u_within,b`: è il denominatore del primo ρ misurato. P1.7, la forma di combinazione sui pesi non ha un verso fisso — incrocio fra ρ = 0,20 e 0,25. Disegno, modello e soglie invariati. **Ottava emenda (2026-10-25)**: P6.6, la prova di attribuzione di P4.10 — `s` contro `s_EPI`, non l'anello 4 di P4.9, che è la sottrazione di P4.5 — si ripete su `C` configurazioni × `R` repliche; `C = 10` con `R = 1` non stima la variabilità; la banda di concordanza si congela prima del primo run; `engine_tree_changed` diventa requisito di P5 (P6.5). La prova resta una prova: non promuove l'attribuzione a validata, non entra in `chain_status` e non arbitra la scala assoluta. Nessuna modifica a P1–P4, nessuna soglia spostata, codice di produzione invariato. |
 
 **Nove difetti dichiarati nel testo congelato, tutti chiusi.** Quattro registrati
 il 2026-10-24, un quinto emerso il 2026-10-25 verificando gli ancoraggi del
@@ -71,6 +71,14 @@ ritirato in P4.6 era ancora pubblicato in F.11, e lo stesso controllo ne ha
 trovate sbagliate altre quattro nelle tabelle degli artefatti. Ritiri e correzioni
 vanno eseguiti su **tutte** le occorrenze, cercandole e non ricordandole: è la
 terza conferma che verificare ancoraggi e provenienza batte leggere le proposte. Il quarto turno (2026-10-25, **settima emenda**) è della stessa natura e con lo stesso esito: cinque delle sue osservazioni erano già in vigore nel testo congelato, tre erano difetti reali di numeri descritti invece che rigenerati, ed è chiuso dagli stessi due strumenti: `condizionamento_disegno_probe.py` e `semi_range_concentrazione_pesi_probe.py`. Le sue correzioni sono di sola dichiarazione, eccetto il tetto della soglia di P4.5, che è un limite in più e non modifica nessuna soglia.
+
+L'**ottava emenda** (2026-10-25) ha una provenienza diversa: non è un turno di
+revisione del protocollo, è la risposta alla valutazione di `nativi.DOCX`
+(`nativi_20261025_valutazione.md`). Adotta P6.6, che ripete la prova di
+attribuzione di P4.10 su un piano dichiarato, e corregge l'etichetta "anello 4"
+usata per quella prova nell'artefatto di valutazione: l'anello 4 di P4.9 è la
+sottrazione di P4.5. Non tocca P1–P4, non sposta soglie e non modifica il codice
+di produzione.
 
 Le formule di P1–P4 sono raccolte, con applicazione e giustificazione, nella
 sezione finale **Formulario consolidato (F.0–F.17)**: è una sezione derivata, non
@@ -2255,15 +2263,17 @@ P6 non è congelato: raccoglie i vincoli che i punti già congelati impongono
 all'esecuzione, e che altrimenti resterebbero impliciti fino al giorno della
 campagna. Ogni numero qui sotto è aritmetica dei punti congelati, non una stima.
 
-**Eccezione dichiarata del 2026-10-24.** Questa sezione diceva di non contenere
-decisioni, e da oggi ne contiene due. Le voci da P6.3 in poi sono nate dalla
-revisione esterna del 2026-10-24 e non sono vincoli derivati: **P6.3 (audit idle) e
-P6.4 (simulazione Monte Carlo) sono adottate come requisiti vincolanti**, perché
-punti congelati ne dipendono — P4.8 rimanda a P6.4 per la copertura del bootstrap e
-P4.5 per la verifica del quorum di sei coppie. P6.5 resta un elenco di requisiti
-trasmessi a P5, che è aperto. L'ordine di esecuzione resta aperto, con l'unica
-precedenza fissata in P6.4: dopo la chiusura di P5, prima della pubblicazione degli
-intervalli.
+**Eccezione dichiarata del 2026-10-24, estesa il 2026-10-25.** Questa sezione
+diceva di non contenere decisioni; dal 2026-10-24 ne contiene due e dal
+2026-10-25 tre. Le voci da P6.3 in poi non sono vincoli derivati: **P6.3 (audit
+idle), P6.4 (simulazione Monte Carlo) e P6.6 (prova di attribuzione ripetibile)
+sono adottate come requisiti vincolanti**, perché punti congelati ne dipendono —
+P4.8 rimanda a P6.4 per la copertura del bootstrap, P4.5 per la verifica del
+quorum di sei coppie, e P4.10 per la prova di attribuzione che P6.6 ripete. P6.5
+resta un elenco di requisiti trasmessi a P5, che è aperto. L'ordine di esecuzione
+resta aperto, con l'unica precedenza fissata in P6.4: dopo la chiusura di P5,
+prima della pubblicazione degli intervalli. P6.6 lascia aperta la sola banda di
+concordanza, da congelare prima del primo run.
 
 ### P6.1 Pavimento di tempo a muro delle finestre idle
 
@@ -2467,6 +2477,17 @@ registrati qui perché non si perdano.
   `control_unstable` sono affermazioni non verificabili dai dati salvati e il gate
   di P4.5 non è calcolabile da un terzo. Sono campi nuovi, da aggiungere con
   `ensure_header` come gli altri accodati in coda.
+- **`engine_tree_changed`: l'identità dei PID agli estremi, non solo la loro
+  somma.** P6.6 lo richiede. Oggi `_read_ollama_cpu_times` restituisce solo la
+  somma di user+system (`local_energy.py:550-577`) e i PID sono catturati una
+  volta per richiesta (`benchmark_unified.py:757`), quindi il flag non è
+  calcolabile dal codice attuale: P5 lo aggiunga come campo nuovo, con i due
+  insiemi di identità `(pid, create_time)` letti a `t_start` e `t_end` (o un
+  hash e la cardinalità), perché un flag senza ingressi è un'affermazione e non
+  un dato (P4.12). Il flag è vero quando l'insieme a `t_end` non è un
+  sovrainsieme di quello a `t_start`; quando è vero, `direct_cpu_delta` non
+  alimenta `s` e la riga è esclusa dal confronto o il suo `s` viene dal fallback
+  dichiarato, con la provenienza nella riga.
 - **Metrica di `hull_margin_tok` da implementare, non da interpretare.** La
   distanza dichiarata in F.13 il 2026-10-25 è la **perpendicolare euclidea dalla
   retta dello spigolo più vicino**, in coordinate grezze e con segno negativo
@@ -2474,6 +2495,118 @@ registrati qui perché non si perdano.
   la distanza dal vertice più vicino, che per il punto di conferma (12,32) dà
   28,28 invece di 1,33 (fattore 21,3) e rovescia il flag congelato
   `thin_support`.
+
+### P6.6 La prova di attribuzione si ripete, non si promuove ad anello
+
+**Ancoraggio.** Nel testo congelato l'**anello 4 di P4.9** è la **sottrazione**
+load-versus-control di P4.5, e F.0 passo 14 lo dà per deciso dal passo 0. Il
+confronto fra la quota di tempo CPU `s` e il modello EPI è la terza riga della
+tabella di **P4.10**: una **prova** che arbitra la procedura di attribuzione, non
+un anello della catena. Questa sezione ripete quella prova su un piano
+dichiarato e non riapre P4. L'etichetta "anello 4" applicata alla prova EPI è un
+errore dell'artefatto di valutazione del 2026-10-25, corretto lo stesso giorno in
+`nativi_20261025_valutazione.md`: un anello mancato invalida la catena, una prova
+ripetuta misura la stabilità di una procedura, e i due esiti non si scambiano.
+
+**Le tre grandezze, una per riga.**
+
+| grandezza | definizione | cosa non è |
+|---|---|---|
+| `E_pkg_gross,i` | lettura del contatore di package EMI sulla finestra `i` (F.2) | non è un'attribuzione: il contatore conosce il dominio, non il processo |
+| `E_act,i = E_pkg_gross,i − P_pre,b · Δt_W,i` | energia attiva derivata per sottrazione della baseline (F.2), segno conservato | non è ancora energia del processo: è package meno una stima dell'idle |
+| `E_act,i · s_i` (campo `ollama_active_energy_j`) | energia **attribuita** al motore, con `s` quota di tempo CPU | non è una lettura: aggiunge alla quantità derivata una stima di ripartizione, e l'equivalenza tempo ↔ energia resta l'assunzione dichiarata di eq. (3.3) |
+| `s_EPI` | frazione di energia CPU che il modello EPI di Windows assegna allo stesso albero di processi | non è una misura indipendente dell'energia del processo: è un'altra attribuzione, con una propria contabilità |
+
+La vicinanza `s ≈ s_EPI` confronta due procedure di attribuzione. Non dimostra
+che una delle due coincida con l'energia fisica consumata dal processo, non
+arbitra la scala assoluta (P4.10: tutte le letture stanno su
+`MSR_PKG_ENERGY_STATUS`) e non sostituisce nessuno dei sei anelli di P4.9.
+
+**Definizioni da fissare prima del primo run.**
+
+- `s = d_ollama / d_busy`, limitata a [0,1]: `d_ollama` è la somma di user+system
+  dell'albero ricorsivo del motore fra i due bordi della finestra
+  (`d_ollama_cpu_s`), `d_busy` è il tempo non-idle del sistema sulla stessa
+  finestra, somma dei delta per core con `System Idle Process` escluso
+  (`d_busy_s`); capacità e finestra sono `cpu_busy_capacity_cores` e
+  `cpu_share_window_s` (`local_energy.py:342-355`;
+  `casualwatt_csv_export.py:104-107`). Se `direct_cpu_delta` non è disponibile,
+  `d_ollama` viene dai campioni e la provenienza va nella riga. Il denominatore è
+  `d_busy`, non il tempo totale dei core: il secondo include l'idle e dà 0,50, un
+  fattore 1,47 sulla quota (P4.10).
+- `s_EPI = Σ CPUEnergyConsumption(albero) / Σ CPUEnergyConsumption(tutte le
+  voci della stessa fase)`: è il campo per-processo del modello EPI, non
+  `EmiEnergyConsumption`, che è uno pseudo-AppId di package con
+  `CPUEnergyConsumption = 0` (`srum_emi_cross_20261023_analisi.md:16-18`).
+  L'albero è `ollama.exe` + `llama-server.exe` + `ollama app.exe`; il needle
+  `"ollama"` vede 0,0011 invece di 0,7361 (`:158-162`).
+- Stessa finestra per `s` e `s_EPI`, con i timestamp dei bordi registrati. SRUM
+  ha bucket al minuto compattati in record orari
+  (`srum_emi_cross_20261023_analisi.md:42-52`): `powercfg /srumutil` si esegue
+  ai confini di fase, mai nel tick (`srum.py:45-48`, `srum_emi_cross.py:49`,
+  `:244`).
+- Fase valida: finestra integra, `done_reason` atteso, nessun
+  `engine_tree_changed`, nessuna esclusione non dichiarata. Ogni esclusione si
+  registra con la motivazione.
+
+**Configurazioni e repliche sono due numeri.** `C` configurazioni (modello,
+`num_predict`, concorrenza) e `R` repliche per configurazione si dichiarano prima
+del primo run. `C = 10` con `R = 1` produce dieci numeri e nessuna stima della
+variabilità entro configurazione: è una copertura di condizioni, non una
+garanzia di precisione. Il piano dichiara `R` e la sua ragione; il rapporto dà la
+distribuzione di `d = s − s_EPI` per configurazione e la dispersione fra
+configurazioni, non solo la media complessiva.
+
+**Statistica e banda.** Per ogni fase valida si calcola `d = s − s_EPI` e si
+riportano distribuzione, media, mediana, dispersione e intervallo. La banda di
+concordanza si fissa **prima del primo run**, in forma assoluta e relativa, e non
+si sceglie dopo aver visto `d`. È l'unico valore che questo punto lascia aperto:
+l'unica osservazione esistente è una fase sola (0,7339 contro 0,7361,
+`srum_emi_cross_20261023_analisi.md:147-148`) e non basta a calibrarla; la banda
+va ancorata alla precisione alla quale l'attribuzione cambia una conclusione, e
+va committata prima dell'esecuzione.
+
+**Risultato e interpretazione, separati.** Una differenza dentro la banda indica
+concordanza fra le due procedure nelle condizioni testate; non prova
+l'accuratezza assoluta dell'attribuzione, non dice quale delle due sia più vicina
+all'energia fisica del processo e non autorizza a scrivere "validata". Fuori
+banda si scrive che la procedura non è stabile in quelle condizioni, non che
+l'energia del processo è diversa.
+
+**`engine_tree_changed`.** La produzione legge i PID una volta per richiesta
+(`benchmark_unified.py:757`) e `_read_ollama_cpu_times` percorre i figli in modo
+ricorsivo ai due bordi (`local_energy.py:550-577`). Un worker che nasce durante
+la finestra è catturato a `t_end` con tutto il suo tempo CPU (a `t_start` valeva
+zero); un worker che muore non è più leggibile e il suo tempo va perso; un
+riavvio della radice perde l'albero. P5 registra l'identità `(pid, create_time)`
+letta a `t_start` e `t_end` e pone `engine_tree_changed = true` quando l'insieme
+a `t_end` non è un sovrainsieme di quello a `t_start` (P6.5). Quando è vero,
+`direct_cpu_delta` non alimenta `s`: la riga è esclusa dal confronto oppure il
+suo `s` viene dal fallback dichiarato, con la provenienza. Il flag porta con sé i
+suoi ingressi, come ogni flag obbligatorio (P4.12). `keep_alive = -1` (P1.4)
+riduce il rischio, non lo elimina.
+
+**Harness e collocazione.** L'estrazione di `s_EPI` per fase diventa un harness
+tracciato, non una ricostruzione manuale da `srum_emi_cross.py` e
+`cpu_share_check.py`; l'harness salva le righe SRUM grezze, i timestamp di fase,
+la configurazione, le versioni (`ollama_version`, `model_digest`) e le
+esclusioni. I numeri si producono con lo stesso runner della campagna (P6.2),
+altrimenti il confronto è fra EPI e una procedura che non pubblicheremo.
+L'harness è analisi, non produzione: non tocca il percorso energetico e può
+essere scritto prima che P5 chiuda; l'esecuzione aspetta il runner.
+
+**Cosa non si fa.** Non si migra a PDH/WMI: `psutil.Process.cpu_times()` legge
+`GetProcessTimes`, la stessa contabilità nativa da cui PDH deriva
+`% Processor Time`; il difetto corretto il 23/10 era l'insieme dei processi e il
+denominatore, non l'API (`nativi_20261025_valutazione.md:136-140`). Non si
+modifica il percorso energetico di produzione: P5 non è congelato e il sorgente
+resta bloccato. Non si promuove l'attribuzione a "validata": P6.6 non entra in
+`chain_status` e non sostituisce il wattometro esterno per la scala assoluta.
+La priorità non è un'altra API: è la stabilità della procedura e l'osservabilità
+delle perdite di tempo CPU.
+
+**Cosa resta aperto.** La banda numerica. Tutto il resto è fissato qui e non si
+sposta dopo i dati.
 
 ---
 

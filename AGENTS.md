@@ -46,9 +46,11 @@ Fonti primarie, in ordine di autorita':
 
 P1 (baseline), P2 (token e terminazione), P3 (geometria e modello), P4
 (incertezza e validazione) sono **congelati**. P5 (schema CSV e runner) e P6
-(esecuzione e analisi) sono **aperti**; di P6 esiste solo una sezione
-preparatoria (P6.1 pavimento di tempo a muro, P6.2 obblighi di esecuzione del
-pilota) che e' derivata e non contiene decisioni.
+(esecuzione e analisi) sono **aperti**. P6 contiene P6.1 (pavimento di tempo a
+muro) e P6.2 (obblighi del pilota), derivati, e tre requisiti adottati come
+vincolanti: P6.3 (audit idle), P6.4 (simulazione Monte Carlo) e P6.6 (prova di
+attribuzione ripetibile, 2026-10-25, con la banda di concordanza ancora da
+congelare prima del primo run).
 
 C'e' una sola eccezione dichiarata al congelamento: la **forma di combinazione**
 di `budget_base_w` (quadratura o somma aritmetica) e' una decisione operativa
