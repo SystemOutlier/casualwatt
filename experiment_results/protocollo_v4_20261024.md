@@ -2793,10 +2793,15 @@ il contatore cumulativo è letto per interpolazione lineare (`_emi_cum_at`,
 e i bordi sono due, **per disallineamento**: se l'istante di bordo usato da Python
 e il timestamp del campione EMI non coincidono, un'energia `P · δt` finisce dal
 lato sbagliato del bordo. Non è invece un limite dell'**interpolazione**, che a
-potenza costante ha errore nullo — verificato numericamente il 2026-10-24:
-`P = 35 W` su un tick di 0,30 s, errore massimo 3,0e-11 J — e dipende dalla
+potenza costante ha errore nullo — rigenerato dall'harness tracciato
+`u_edge_interpolazione_probe.py` (5/5 verifiche, exit 0, 2026-10-25) a `P = 35 W`,
+`Δt_tick = 0,30 s`, `n = 2 000 001`: residuo **relativo** alla grandezza del
+contatore 7,0e-12, invariante in `P`. L'assoluto è proporzionale a `P` e cresce
+con la densità di griglia, quindi il `3,0e-11 J` scritto qui in precedenza è
+**ritirato** anche in questa occorrenza, come già in P4.6: era l'assoluto di una
+griglia non dichiarata. L'errore dipende dalla
 variazione di potenza dentro il tick, con limite `ΔP_tick · Δt_tick / 4` per bordo
-(1,875 J con `ΔP_tick = 25 W`). Un terzo modo non è coperto: fuori copertura ma
+(1,8750 J con `ΔP_tick = 25 W`). Un terzo modo non è coperto: fuori copertura ma
 entro 1 s `_emi_cum_at` restituisce il valore estremo (`:1111-1116`), cioè
 attribuisce energia zero al tratto, fino a `P_peak · 1 s`. I tre termini sono
 concordi in segno, quindi 10,5 J non li maggiora tutti: la formula è congelata e
