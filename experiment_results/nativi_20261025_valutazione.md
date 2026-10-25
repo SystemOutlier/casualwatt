@@ -110,10 +110,12 @@ Windows, dove il tempo busy include kernel e servizi.
 
 La prova di P4.10 sulla quota di tempo CPU usa un riferimento diverso e piu'
 onesto: un'altra attribuzione dichiarata come tale, il modello EPI, 0,7339
-contro 0,7361 (`protocollo_v4_20261024.md:2116`). Il confronto **non** e'
-l'anello 4 di P4.9: l'anello 4 e' la sottrazione load-versus-control di P4.5,
-mentre il confronto con EPI e' la terza riga della tabella di P4.10, che il
-testo chiama *prova* e non anello. Quell'accordo arbitra la **procedura**
+contro 0,7361 (`protocollo_v4_20261024.md:2124`, terza riga della tabella di
+P4.10). Il confronto **non** e' l'anello 4 di P4.9: l'anello 4 e' la
+sottrazione load-versus-control di P4.5 (`:2094` nella tabella degli anelli,
+criterio a `:1472`), mentre il confronto con EPI e' la terza riga della
+tabella di P4.10, che il testo chiama *prova* e non anello. Quell'accordo
+arbitra la **procedura**
 (insieme dei processi e denominatore), non l'equivalenza tempo ↔ energia, che
 resta assunzione dichiarata, e non e' una misura indipendente dell'energia del
 processo. Anche MAE/RMSE contro EPI misurerebbero soprattutto la differenza fra
@@ -177,8 +179,9 @@ del package.
 - `cwEnergyModular/casualwatt_csv_export.py:79`, `:107`.
 - `experiment_results/srum_emi_cross_20261023_analisi.md:16-18`, `:42-52`,
   `:133-162`.
-- `experiment_results/protocollo_v4_20261024.md:2112-2120` (P4.10, prova
-  quota di tempo CPU ↔ quota di energia; l'anello 4 di P4.9 e' la sottrazione
-  load-versus-control di P4.5).
+- `experiment_results/protocollo_v4_20261024.md:2115-2128` (P4.10, tabella
+  delle prove; la quota di tempo CPU ↔ quota di energia e' la riga 2124;
+  l'anello 4 di P4.9 e' la sottrazione load-versus-control di P4.5, riga 2094
+  della tabella degli anelli).
 - `srum.py:45-48`, `srum_emi_cross.py:49`, `:244`.
 - `experiment_results/srum_dump_20261023_121718_start.csv` (header).
