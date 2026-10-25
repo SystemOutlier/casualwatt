@@ -5,9 +5,23 @@ energy/local_energy.py — Profilo energetico causale per inferenza LOCALE.
 Formule implementate (sezione 2 della specifica, nessuna invenzione):
 
     E_attiva = max(0, E_package - P_idle * dt)
-    E_ollama = E_attiva * (dt_cpu_ollama / dt_cpu_busy)
+    E_ollama = E_attiva * s
+    s        = dt_cpu_ollama / dt_cpu_busy
 
 con:
+* s              : quota del tempo CPU BUSY di SISTEMA, NON quota sulla
+                   capacita'. Il denominatore e' il tempo non-idle di tutti i
+                   core nella stessa finestra, non N_eff * dt: sottrarre la
+                   baseline e poi moltiplicare per una quota sulla capacita'
+                   toglierebbe l'idle due volte, perche' P_idle * dt e' gia'
+                   stato sottratto e N_eff * dt include i core inattivi.
+                   La formula s = d_ollama / d_busy e' l'unica usata; una
+                   quota sulla capacita' non e' implementata e non va usata.
+* E_ollama       : STIMA di attribuzione, non una misura per processo. Il
+                   contatore package conosce il dominio (PKG), non il
+                   processo: E_ollama ripartisce una quantita' derivata con
+                   una quota di tempo CPU, e l'equivalenza tempo <-> energia
+                   resta un'assunzione dichiarata (protocollo v4, P4.10).
 * E_package      : energia package CPU nella finestra della richiesta.
                    METODO PRINCIPALE SU WINDOWS 11 (dal 23/10): "emi-counter"
                    -> contatore package EMI CUMULATIVO (pWh, ioctl documentato
@@ -25,8 +39,10 @@ con:
                    (GUI/Ollama/cloud/CSV restano utilizzabili).
 * P_idle         : potenza idle calibrata (SESSION.calibrate_idle, solo
                    Windows+LHM, >=30 s x 3 ripetizioni, mediana);
-* dt_cpu_ollama  : secondi CPU dell'albero Ollama nella finestra;
-* dt_cpu_busy    : secondi CPU busy NON-idle di tutto il sistema nella finestra.
+* dt_cpu_ollama  : secondi CPU (user+system) dell'albero del motore nella
+                   finestra;
+* dt_cpu_busy    : secondi CPU busy NON-idle di TUTTO il sistema nella
+                   stessa finestra. E' il denominatore di s.
 
 La baseline idle e' salvata separatamente in ``baseline_energy_j`` e NON entra
 in ``local_energy_j`` ne' in ``end_to_end_energy_j`` (sezioni 12.1/12.3).
@@ -254,8 +270,9 @@ class CasualWattLocalEnergyProfiler:
                    else "integration counter")
             )
             res.cpu_attribution_method = (
-                f"{method}; cpu-time-share attribution "
-                "(E_attiva * dt_cpu_ollama/dt_cpu_busy); " + _edge_txt
+                f"{method}; cpu-time-share attribution, ESTIMATE "
+                "(E_attiva * d_ollama/d_busy; share of system BUSY time, "
+                "not of capacity); " + _edge_txt
             )
         else:
             # FALLBACK dichiarato: differenza dei campioni interpolati
@@ -284,8 +301,9 @@ class CasualWattLocalEnergyProfiler:
                             e_package += max(cur.package_energy_j - prev.package_energy_j, 0.0)
                         prev = cur
                 res.cpu_attribution_method = (
-                    f"{method}; cpu-time-share attribution "
-                    "(E_attiva * dt_cpu_ollama/dt_cpu_busy)"
+                    f"{method}; cpu-time-share attribution, ESTIMATE "
+                    "(E_attiva * d_ollama/d_busy; share of system BUSY time, "
+                    "not of capacity)"
                 )
             else:
                 e_package = 0.0

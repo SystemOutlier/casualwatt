@@ -75,7 +75,12 @@ CSV_COLUMNS: List[str] = [
     "acc_comp_components", "acc_comp_weights",
     # Punto 2: provenienza dell'idle GPU usato nello scorporo (calibrated|missing)
     "gpu_idle_provenance",
-    # Diagnostica cpu-time-share (per riga: perche' share=0?)
+    # Diagnostica cpu-time-share (per riga: perche' share=0?). La quota e'
+    # d_ollama/d_busy, cioe' sul tempo BUSY di sistema (non-idle), NON sulla
+    # capacita' N_eff*dt: la baseline e' gia' sottratta, e una quota sulla
+    # capacita' toglierebbe l'idle due volte. ollama_active_energy_j e' una
+    # STIMA di attribuzione, non una misura per processo: il contatore conosce
+    # il dominio (PKG), non il processo.
     "ollama_pids_used", "d_ollama_cpu_s", "d_busy_s", "n_samples_in_window",
     # answer_type e extracted_answer (valutazione accuratezza)
     "answer_type", "extracted_answer",
