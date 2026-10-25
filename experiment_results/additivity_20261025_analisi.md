@@ -83,18 +83,67 @@ misura diretta dei `cpu_times` dei sei processi conferma:
 * 2 processi: 3,61 + 4,00 = 7,61 s (0,95 core);
 * 6 processi: somma 7,76-7,86 s (0,97-0,98 core).
 
-Il gruppo di processi lanciato da questa sessione e' limitato a circa un core.
-Il meccanismo non e' stato identificato: non e' un job object interrogabile
-(`IsProcessInJob` = False, la query del rate di CPU sul job corrente fallisce
-con accesso negato), l'affinita' e' piena (0-19) e la priorita' e' normale (32).
-Ollama, che non e' figlio di questa sessione, usa invece ~9,9 core (`d_ollama`
-99,3 s su 10 s): il tetto non e' della macchina.
+### I carichi sono processi veri, non thread
+
+Verificato nel codice e a runtime: `_start_busy` crea `ctx.Process` con
+contesto `spawn` (una `multiprocessing` spawn per loop, argomenti
+`(stop,)`), e ogni processo legge il proprio `cpu_times`. A runtime, per
+N = 1, 2, 3, 6, 10, i PID distinti sono sempre N e ogni PID ha il suo
+contributo. Una variante a thread avrebbe mostrato N nel conteggio dello
+script e **un solo** core di CPU reale: e' l'altra spiegazione, ed e' esclusa
+dai PID distinti con `cpu_times` separati.
+
+### Curva dei core consegnati, N = 1..10
+
+Sonda dedicata (stessa struttura di `_start_busy`: N processi, lettura di
+`cpu_times` di tutti, finestra di 3 s), due esecuzioni: dentro questa sessione
+e **fuori dall'albero** di questa sessione (processo lanciato via WMI
+`Win32_Process.Create`, quindi figlio di `WmiPrvSE`, non nostro discendente):
+
+| N | PID distinti | core, in sessione | core, fuori albero (WMI) |
+|---|---|---|---|
+| 1 | 1 | 0,98 | 0,96 |
+| 2 | 2 | 0,88 | 0,93 |
+| 3 | 3 | 0,97 | 0,92 |
+| 6 | 6 | 1,03 | 1,02 |
+| 10 | 10 | 1,18 | 1,25 |
+
+Il totale resta **circa un core a ogni N**, anche fuori dal nostro albero.
+Una finestra di 2 s puo' mostrare un burst sopra il core (1,9 core con 6
+processi): a 3 s il valore si assesta. L'affinita' e' piena (0-19), la
+priorita' normale (32), `IsProcessInJob` = False e la query del rate di CPU
+sul job corrente fallisce con accesso negato.
+
+Lettura corretta dei tre fatti insieme:
+
+* il tetto **non e' dell'harness** (processi veri, PID distinti, nessun
+  thread, nessuna somma di tempi sbagliata);
+* il tetto **non e' confinato al gruppo di processi di questa sessione**
+  (la sonda via WMI, fuori dall'albero, consegna gli stessi ~1 core);
+* il tetto **non e' della macchina**: Ollama, che non e' figlio di questa
+  sessione, usa ~9,9 core (`d_ollama` 99,3 s su 10 s).
+
+Resta un limite dell'ambiente in cui questa sessione esegue i processi che
+avvia; il meccanismo non e' identificato. L'ipotesi precedente ("limite del
+gruppo di processi della sessione") e' quindi **smentita** dalla prova fuori
+albero, e il test a sei core **non e' stato eseguito**.
+
+### Cosa dichiara ora l'harness
+
+Ogni prova B/C porta quattro campi nuovi nel CSV e nel JSON:
+`busy_probe_cores` (core totali misurati dalla sonda prima della finestra),
+`busy_probe_pids` (PID distinti fra i loop), `busy_pids_cores` (contributo
+per PID) e `busy_cores_window` (`d_busy/dt` **dentro** la finestra, che
+include il fondo della macchina e quindi non coincide con la sonda).
+Il run rifiuta il carico se i loop consumano meno della meta' dell'atteso:
+in questo ambiente `--n-procs 6` e `--n-procs 10` vengono rifiutati, e con
+`--n-procs-list 3,6,10` il run si ferma al primo livello rifiutato.
 
 Conseguenza: l'additivita' qui sopra e' misurata **a un core di carico estraneo
-(7% della macchina)**, non a sei. Il test a sei core va lanciato da un terminale
-normale; l'harness ora rifiuta il carico se i processi non lo consegnano
-(`_start_busy` misura i `cpu_times` su una finestra di 2 s e si ferma sotto
-meta' dell'atteso).
+(7% della macchina)**, non a sei. La tabella per livello introdotta con
+`--n-procs-list` esiste ed e' provata su righe sintetiche, ma i livelli 3, 6 e
+10 **non sono stati misurati qui**: il test va lanciato da un terminale
+normale, fuori da questo ambiente.
 
 ## Cosa questo esperimento non dimostra
 
