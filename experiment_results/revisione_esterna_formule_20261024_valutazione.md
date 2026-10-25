@@ -699,3 +699,74 @@ indicare l'intervallo, ed è dichiarato in P4.5. Solo nomi: intervallo, scala
 ancorata, status di grandezza riportata e soglie in watt invariati.
 
 Nessuna delle quattro voci tocca una formula congelata né sposta una soglia.
+
+---
+
+## 10. Quarto turno: emendamenti (P1/P3/P4/P6) e verdetti (2026-10-25)
+
+Questa sezione registra le decisioni prese elaborando la quarta revisione esterna
+(tre parti: riesame §3, audit/Monte Carlo/lettura bordi §5+§6, decisioni §4.1–4.7),
+contro il protocollo v4 com'è al 2026-10-25 (3198 righe, sei emendamenti già
+applicati dopo il terzo turno). Il quarto turno **non riapre** punti congelati:
+conferma, rettifica o chiude ciò che il terzo turno aveva lasciato aperto.
+
+### 10.1 Cosa era già in vigore (non riaperto)
+
+| punto | stato al 24-10 | conferma/rettifica |
+|---|---|---|
+| Semi-range n=3: factor 1,27 = ratio of means, 30,6% per-blocco | già in §3.1, numeri riprodotti | confermato; separato ratio of means (1,27) da copertura per-blocco (30,6% < σ/√3) |
+| ρ-cancellation in quota pesi | già in §3.2, simulato 5 ρ | confermato: ρ = u_base/u_within cancella esattamente (verificato 1e-16); la tabella pubblicata discendente proveniva da u_base = ρ·σ (comune) non da u_base ∝ u_within |
+| Condizionamento: convenzione di scaling dichiarata | già in §3.3, P5 | confermato: cond. standardizzati 3,8 / 9,0 / 17,0; grezzo 1,02e5; cifre perse 1,05–5,35 su 24 casi; "~5 cifre" era bound su β-integer non proprietà del disegno |
+| Gate threshold cap: 0,7071 W (quadratura) / 1,0 W (aritmetica) | già in P4.5/F.12 terzo turno | confermato: il claim "il gate non rileva 1 W" è superato dal cap deducibile prima dei dati |
+| u_bias = 0 su gate passato = convenzione operativa | già in P4.6 terzo turno | confermato: non prova bias nullo, evita doppio conteggio via u_base |
+| P6.2 deve produrre u_within, ρ, concentrazione | già in P6.2 terzo turno | confermato: pilota misura ρ; concentrazione rinviata a P6.4 punto 1 |
+| P5 specifica design matrix, centering/scaling, norma, metodo numerico | già in P5 terzo turno | confermato: requisito in P6.5 solver prescription |
+| Monte Carlo: 7 quantità, 3 scenari separati | già in P6.4 terzo turno | confermato: bias coefficienti, copertura intervalli, falsi fallimenti gate, concentrazione, ρ, forma combinazione, bootstrap leverage |
+| Audit idle: tre esiti con criteri prima campagna | già in P6.3 terzo turno | confermato: ammissibile / non ammissibile / inconclusivo |
+| Edge sync: 6 misure prima adozione | già in P5 terzo turno | confermato: fattore ~6 riduzione u_edge è stima da verificare |
+
+### 10.2 Veri difetti corretti dal quarto turno
+
+| difetto | correzione | dove |
+|---|---|---|
+| §3.1: "factor 1,27" non separava ratio-of-means da per-block coverage | separati esplicitamente; E[semi-range]/sd(mediana) = 1,27; copertura per-blocco = 30,6% < σ/√3 | §3.1 (testo), P4.8/F.14 (protocollo) |
+| §3.2: tabella concentrazione non proveniva dalla formula dichiarata | rettificata: proveniva da u_base = ρ·σ (σ comune), non da u_base = ρ·u_within (proporzionale) | §3.2, P6.2 |
+| §3.3: convenzioni condizionamento non dichiarate (QR vs NE, z-score) | dichiarate: z-score per standardizzati, 2-norm per condition number, SVD esatta via Fraction; digits lost misurati 24 casi | §3.3, P5, P6.5 |
+| §3.4: "1 W claim" non sostituito da cap deducibile | cap 0,7071 W (quadratura) / 1,0 W (aritmetica) da P1.7/F.12 preso come limite risoluzione gate | P4.5, F.12, §3.4 |
+| §6: "repliche non stimabili" confonde stimabilità algebrica (rango) con stabilità/coverage | rigetto confermato: rango 4/33 = pieno; stimabilità ≠ coverage nominale; replica non stimabile non esiste per bootstrap residui | §6 punto 1 |
+| §6: respingere 3,75 J non prova che 10,5 J basta | confermato: 3,75 J è caso peggiore termine interpolazione (ΔP=25W assunto); 10,5 J è termine disallineamento; due termini distinti e concordi → somma 14,25 J | §2.1, §6 punto 3 |
+
+### 10.3 Cosa non è cambiato
+
+- **Forma di combinazione P1.7**: resta rinviata ai dati del pilota P2.9 (task #43); il quarto turno corrobora il rinvio (due revisioni indipendenti la sollevano, revisore 1 preferisce somma), non lo riapre
+- **P4.5 lack-of-fit**: decisione già presa (p_lof_perm da ricampionamento puro errore, commit `71664e4`)
+- **P4.6 bootstrap leverage**: decisione già presa (copertura nominale non arbitrata fino a P6.4; 1/√(1−h) sensibilità obbligatoria, fattore max 1,1828, commit `b3eeaed`)
+- **P4.7 potenza gate**: decisione già presa (sei coppie, quorum 4, bias_jtok_pct riportato, commit `9dde1d1`)
+- **P5 lettura sincrona bordi**: decisione già presa (via (b) requisito vincolante, commit `81f4381`)
+- **P6 audit idle / Monte Carlo**: decisioni già prese (commit `81f4381`)
+- **Due righe della tabella §7**: aggiornate "dove" per 4.5→commit, 4.6→commit (già fatto nel terzo turno)
+- **Ancoraggi**: dichiarati storici (vedi nota all'inizio); tabella controllo incrociato aggiornata sta in `revisione_esterna_20261025_secondo_turno_valutazione.md` §6
+
+### 10.4 Provenienza harness
+
+| harness | verifiche | exit | commit |
+|---|---|---|---|
+| `condizionamento_disegno_probe.py` | 5 (rango, cond2 2-norm + z-score, leve trace=p, solve esatto Fraction, digits lost 24 casi) | 0 | (tracciato alla radice) |
+| `semi_range_concentrazione_pesi_probe.py` | 5 (semi-range analitico, copertura per-blocco 30,6%, tre parametrizzazioni ρ con cancellation, scan crossover P1.7 step 0,05, ESS 1..33 Kish) | 0 | (tracciato alla radice) |
+| `u_edge_interpolazione_probe.py` | 5 (errore interpolazione costante, gradino f=0,25/0,5/0,75, rampa, disallineamento, estrapolazione) | 0 | (tracciato alla radice, citato P4.6/F.11) |
+
+Tutti gli harness usano aritmetica su forme d'onda sintetiche → eseguibili ovunque, riproducibili bit per bit, nessuna dipendenza da hardware o runtime.
+
+### 10.5 Sintesi verdetti quarto turno
+
+| categoria | conto | note |
+|---|---|---|
+| Contraddizioni reali risolte (già chiuse) | 4 | §1.1–1.4 → commit `faae5f1`, `0b2626a`, `5951908`, `18c08a8` |
+| Correzioni forma applicate | 7 | §2.1–2.7 → commit `e00de6a`, `7066e4e`, `ba01462`, `7826e9f`, `09ecdce` |
+| Decisioni su punti aperti (già prese) | 6 | §4.1–4.7 → commit `71664e4`, `b3eeaed`, `9dde1d1`, `81f4381`, `481eeea` |
+| Proposte respinte | 4 | §6 — nessuna riaperta |
+| Nuovi difetti interni trovati | 4 | §9 — nessuno tocca formule congelate |
+| Difetti §3 rettificati dal quarto turno | 6 | §10.2 — tutte correzioni di tracciabilità/provenienza, zero decisioni nuove |
+| Punti riaperti | 0 | congelamento rispettato integralmente |
+
+Il protocollo v4 è coerente: tutte le decisioni del quarto turno erano già nel testo (emendamenti 1–6) o sono correzioni di provenienza/tracciabilità. Nessuna formula congelata è stata riscritta. Prossimo passo: congelamento P5 (schema CSV, runner, campi verbale, keep_alive dichiarato, HWiNFO 4a sorgente).
