@@ -17,9 +17,15 @@ Disegno (protocollo v4 per la baseline, non per i criteri):
   * blocchi: ogni blocco contiene le tre condizioni in ordine casuale
     (``--seed`` fisso, l'ordine e' stampato e salvato), cosi' la deriva lenta
     della macchina non favorisce una condizione;
-  * (A) richieste Ollama sequenziali per ``--trial-s`` secondi, nessun altro carico;
-  * (B) solo ``--n-procs`` processi busy-loop Python (multiprocessing), stessa durata;
-  * (C) entrambi insieme, stessa durata;
+  * (A) UNA richiesta Ollama, nessun altro carico: la finestra e' [prima della
+    POST, risposta ricevuta];
+  * (B) solo ``--n-procs`` processi busy-loop Python (multiprocessing) per
+    ``--load-s`` secondi;
+  * (C) UNA richiesta Ollama (la stessa) con i busy-loop gia' attivi: cosi' A e
+    C fanno lo stesso lavoro del modello e il confronto E_worker(C) contro
+    E_active(A) non e' confuso da una throughput diversa. B ha una durata
+    propria: l'additivita' in energia si confronta a tasso
+    (``E_active(B) * dt_C / dt_B``), e il fattore e' stampato;
   * per ogni prova la finestra energetica e' [t0, t1] sul contatore EMI esatto
     e la quota e' letta agli stessi estremi (``SESSION.read_cpu_edge``).
 
@@ -48,7 +54,7 @@ Vincoli operativi:
 
 Uso:
   py experiment_additivity.py
-  py experiment_additivity.py --blocks 7 --trial-s 45 --n-procs 8
+  py experiment_additivity.py --blocks 7 --load-s 30 --n-procs 6
 
 Output:
   experiment_results/additivity_<ts>.csv    una riga per prova
@@ -63,7 +69,6 @@ import multiprocessing as mp
 import random
 import statistics
 import sys
-import threading
 import time
 from datetime import datetime
 from pathlib import Path
@@ -97,7 +102,7 @@ CSV_FIELDS = [
     "share_anomaly", "ollama_active_energy_j", "worker_exit_in_window",
     "cpu_busy_capacity_cores", "cpu_share_window_s", "cpu_time_resolution_s",
     "package_window_source", "energy_calculation_method",
-    "n_requests", "n_busy_procs", "n_worker_procs",
+    "n_requests", "tokens_out", "n_busy_procs", "n_worker_procs",
     "edge_start_offset_s", "edge_end_offset_s", "keep_alive_sent",
 ]
 
@@ -171,27 +176,6 @@ def _payload(args) -> dict:
     return payload
 
 
-def _request_loop(stop_event: threading.Event, payload: dict,
-                  timeout_s: float, stats: dict) -> None:
-    """Richieste sequenziali finche' la finestra non si chiude.
-
-    Una richiesta in volo al confine viene lasciata finire (il suo tempo CPU
-    oltre t_end resta fuori dalla finestra), poi il thread esce.
-    """
-    while not stop_event.is_set():
-        try:
-            r = requests.post(config.OLLAMA_GENERATE_ENDPOINT, json=payload,
-                              timeout=timeout_s)
-            r.raise_for_status()
-            data = r.json()
-            stats["n"] += 1
-            stats["tokens_out"] += int(data.get("eval_count") or 0)
-        except Exception as exc:  # noqa: BLE001 - il run si ferma, non si maschera
-            stats["errors"].append(f"{type(exc).__name__}: {exc}")
-            stop_event.set()
-            return
-
-
 def _installed_models() -> list:
     r = requests.get(config.OLLAMA_TAGS_ENDPOINT, timeout=10)
     r.raise_for_status()
@@ -207,49 +191,40 @@ def _run_trial(condition: str, args, ctx) -> dict:
     if n_procs:
         procs, busy_stop = _start_busy(ctx, n_procs, args.settle_s)
 
-    req_stop = threading.Event()
-    req_stats = {"n": 0, "tokens_out": 0, "errors": []}
-    thread = None
+    n_requests = 0
+    tokens_out = 0
 
-    t0 = time.monotonic()
-    wall0 = time.time()
-
-    # Qualunque cosa succeda nella finestra, richieste e busy-loop vanno spenti:
-    # un carico che sopravvive alla prova sporcherebbe la calibrazione POST.
+    # Qualunque cosa succeda nella finestra, i busy-loop vanno spenti: un carico
+    # che sopravvive alla prova sporcherebbe la calibrazione POST.
     try:
+        t0 = time.monotonic()
+        wall0 = time.time()
         edge0 = SESSION.read_cpu_edge()
         offset0 = time.monotonic() - t0
 
         if condition in ("A", "C"):
-            thread = threading.Thread(
-                target=_request_loop,
-                args=(req_stop, _payload(args), args.request_timeout_s, req_stats),
-                daemon=True,
-            )
-            thread.start()
+            # UNA richiesta: A e C fanno lo stesso lavoro del modello. La
+            # risposta chiude la finestra; nessuna richiesta resta in volo.
+            r = requests.post(config.OLLAMA_GENERATE_ENDPOINT,
+                              json=_payload(args),
+                              timeout=args.request_timeout_s)
+            r.raise_for_status()
+            tokens_out = int(r.json().get("eval_count") or 0)
+            n_requests = 1
+            t1 = time.monotonic()
+            wall1 = time.time()
+        else:
+            deadline = t0 + args.load_s
+            while time.monotonic() < deadline:
+                time.sleep(min(0.2, max(deadline - time.monotonic(), 0.0)))
+            t1 = time.monotonic()
+            wall1 = time.time()
 
-        # Attesa del confine; se la richiesta e' gia' fallita si chiude subito
-        # la finestra (il run si fermera', ma il tempo non si butta).
-        deadline = t0 + args.trial_s
-        while time.monotonic() < deadline and not req_stop.is_set():
-            time.sleep(min(0.2, max(deadline - time.monotonic(), 0.0)))
-        t1 = time.monotonic()
-        wall1 = time.time()
         edge1 = SESSION.read_cpu_edge()
         offset1 = time.monotonic() - t1
     finally:
-        req_stop.set()
-        if thread is not None:
-            thread.join(timeout=args.request_timeout_s + 5.0)
         if busy_stop is not None:
             _stop_busy(procs, busy_stop)
-
-    if thread is not None and thread.is_alive():
-        raise RuntimeError(
-            "la richiesta Ollama non e' terminata entro il timeout: "
-            "finestra non chiusa, run fermato")
-    if req_stats["errors"]:
-        raise RuntimeError("richiesta Ollama fallita: " + req_stats["errors"][0])
 
     delta = worker_cpu_delta(edge0["worker"], edge1["worker"])
     direct_busy = max(float(edge1["busy"]) - float(edge0["busy"]), 0.0)
@@ -288,8 +263,8 @@ def _run_trial(condition: str, args, ctx) -> dict:
         "cpu_time_resolution_s": res.cpu_time_resolution_s,
         "package_window_source": res.package_window_source,
         "energy_calculation_method": res.energy_calculation_method,
-        "n_requests": req_stats["n"],
-        "tokens_out": req_stats["tokens_out"],
+        "n_requests": n_requests,
+        "tokens_out": tokens_out,
         "n_busy_procs": n_procs,
         "n_worker_procs": len(pids),
         "edge_start_offset_s": round(offset0, 6),
@@ -329,6 +304,7 @@ def _fmt_stats(s: dict, unit: str = "") -> str:
 
 
 METRICS = [
+    ("dt_s", "durata finestra [s]"),
     ("package_energy_raw_j", "E_package grezza [J]"),
     ("active_energy_raw_j", "E_attiva grezza (con segno) [J]"),
     ("d_ollama_cpu_s", "d_ollama [s]"),
@@ -388,22 +364,38 @@ def _print_summary(rows: list, summary: dict) -> None:
               f"{_fmt_stats(s, ' J')}")
 
     print("\nE_active(C) vs E_active(A) + E_active(B) - additivita' in energia "
-          "(stesso contatore, stessa baseline):")
+          "(stesso contatore, stessa baseline).")
+    print("A e C fanno UNA richiesta ciascuna e si confrontano dirette. B ha "
+          "durata propria (--load-s): per la somma va riportata alla durata "
+          "della C dello stesso blocco, E_active(B) * dt_C/dt_B. Il fattore "
+          "e' stampato.")
+    dt_b_mean = summary["B"]["dt_s"].get("mean")
+    dt_c_mean = summary["C"]["dt_s"].get("mean")
     if (ea_a.get("mean") is not None and ea_b.get("mean") is not None
-            and ea_c.get("mean") is not None):
-        somma = ea_a["mean"] + ea_b["mean"]
-        print(f"  A + B (medie)          {somma:.3f} J")
+            and ea_c.get("mean") is not None and dt_b_mean and dt_c_mean):
+        fattore = dt_c_mean / dt_b_mean
+        b_scaled = ea_b["mean"] * fattore
+        somma = ea_a["mean"] + b_scaled
+        print(f"  fattore dt_C/dt_B      {fattore:.3f} "
+              f"(dt_C {dt_c_mean:.2f} s / dt_B {dt_b_mean:.2f} s)")
+        print(f"  A + B scalata (medie)  {somma:.3f} J")
         print(f"  C (media)              {ea_c['mean']:.3f} J")
         if somma:
-            print(f"  differenza (C - A - B) {ea_c['mean'] - somma:+.3f} J   "
-                  f"rapporto C/(A+B) {ea_c['mean'] / somma:.3f}")
-    sum_ac = {r["block"]: r.get("active_energy_raw_j") for r in by["A"]}
-    b_c = {r["block"]: r.get("active_energy_raw_j") for r in by["B"]}
-    c_c = {r["block"]: r.get("active_energy_raw_j") for r in by["C"]}
-    d2 = [c_c[k] - sum_ac[k] - b_c[k] for k in sorted(set(sum_ac) & set(b_c) & set(c_c))
-          if None not in (sum_ac[k], b_c[k], c_c[k])]
+            print(f"  differenza (C - A - B_scalata) "
+                  f"{ea_c['mean'] - somma:+.3f} J   "
+                  f"rapporto C/(A+B_scalata) {ea_c['mean'] / somma:.3f}")
+    a_e = {r["block"]: r.get("active_energy_raw_j") for r in by["A"]}
+    b_e = {r["block"]: r.get("active_energy_raw_j") for r in by["B"]}
+    c_e = {r["block"]: r.get("active_energy_raw_j") for r in by["C"]}
+    dt_b = {r["block"]: r.get("dt_s") for r in by["B"]}
+    dt_c = {r["block"]: r.get("dt_s") for r in by["C"]}
+    d2 = []
+    for k in sorted(set(a_e) & set(b_e) & set(c_e)):
+        if None in (a_e[k], b_e[k], c_e[k], dt_b[k], dt_c[k]) or not dt_b[k]:
+            continue
+        d2.append(c_e[k] - a_e[k] - b_e[k] * dt_c[k] / dt_b[k])
     if d2:
-        print(f"  differenze appaiate per blocco (C-A-B)  "
+        print("  differenze appaiate per blocco (C - A - B scalata)  "
               f"{_fmt_stats(_stats(d2), ' J')}")
 
     print("\nControllo: E_worker(B) con il solo carico estraneo:")
@@ -429,8 +421,9 @@ def _parse_args(argv=None):
     p.add_argument("--model", default="llama3.2:3b")
     p.add_argument("--blocks", type=int, default=5,
                    help="blocchi (ognuno con A, B, C in ordine casuale)")
-    p.add_argument("--trial-s", type=float, default=30.0,
-                   help="durata di ogni prova [s]")
+    p.add_argument("--load-s", type=float, default=20.0,
+                   help="durata della sola condizione B [s]; A e C durano "
+                        "quanto la loro unica richiesta Ollama")
     p.add_argument("--n-procs", type=int,
                    default=int(psutil.cpu_count(logical=False) or 1),
                    help="processi busy-loop per la condizione B (default: core fisici)")
@@ -448,8 +441,10 @@ def _parse_args(argv=None):
     args = p.parse_args(argv)
     if args.blocks < 1:
         p.error("--blocks deve essere >= 1")
-    if args.trial_s < 1.0:
-        p.error("--trial-s deve essere >= 1 s")
+    if args.load_s < 1.0:
+        p.error("--load-s deve essere >= 1 s")
+    if args.num_predict < 1:
+        p.error("--num-predict deve essere >= 1")
     if args.n_procs < 1:
         p.error("--n-procs deve essere >= 1")
     if args.warmup_requests < 0:
@@ -464,8 +459,9 @@ def main(argv=None) -> int:
     print(f"Data: {datetime.now().isoformat(timespec='seconds')}")
     print(f"Host: {psutil.cpu_count(logical=True)} core logici, "
           f"{psutil.cpu_count(logical=False)} fisici; modello {args.model}")
-    print(f"Blocchi: {args.blocks} x 3 condizioni; prova {args.trial_s:.0f} s; "
-          f"busy-loop {args.n_procs} processi; seme {args.seed}")
+    print(f"Blocchi: {args.blocks} x 3 condizioni; B dura {args.load_s:.0f} s; "
+          f"A e C una richiesta; busy-loop {args.n_procs} processi; "
+          f"seme {args.seed}")
 
     try:
         installed = _installed_models()
