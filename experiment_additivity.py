@@ -39,6 +39,20 @@ uscita e ritardo residuo delle letture di bordo. Alla fine: media e intervallo
 [min, max] con semi-range per condizione (mai una deviazione standard: con
 pochi blocchi non e' una stima di varianza, P4.12) e il confronto
 E_worker(C) contro E_active(A), piu' E_active(C) contro E_active(A)+E_active(B).
+Con ``--n-procs-list`` la stessa cosa si ripete per ogni livello di carico e
+al posto del confronto unico esce una tabella per livello.
+
+Limiti dell'attribuzione, dichiarati. ``E_worker = E_attiva * s`` e' il limite
+INFERIORE dell'intervallo in cui si riporta l'energia del worker, ``E_attiva``
+il limite SUPERIORE: ``s <= 1`` per costruzione, quindi ``E_worker <=
+E_attiva`` sempre, ed e' ``E_attiva`` il valore primario quando il benchmark
+gira in isolamento (non richiede alcuna ipotesi di ripartizione). Nel run a un
+core di carico estraneo il bordo inferiore sta 8,3% sotto ``E_attiva(A)`` in A
+e 15,5% in C (``additivity_20261025_analisi.md``). L'intervallo non e' una
+banda di confidenza e non dimostra che ``E_worker`` sottostimi in ogni
+condizione: un carico con potenza per ciclo piu' alta della media (AVX) puo'
+invertire il verso. Le formule non cambiano: ``E_attiva = E_pkg - P_idle*dt``,
+``s = d_ollama/d_busy``, ``E_worker = E_attiva*s``.
 
 NON stampa giudizi di accettazione: non c'e' una banda preregistrata per
 questo esperimento, quindi i numeri si riportano e basta.
@@ -52,17 +66,27 @@ Vincoli operativi:
     carico e sporcano la baseline), e non vanno aperti fino alla POST;
   * i processi busy-loop sono figli di questo processo, non dell'albero
     Ollama: restano fuori dal numeratore e dentro il denominatore, che e'
-    esattamente il punto del test;
+    esattamente il punto del test. Sono processi veri (``ctx.Process`` con
+    contesto ``spawn``), non thread: ogni loop ha un PID proprio e il suo
+    ``cpu_times``, e la sonda stampa i core consegnati per PID -- un unico
+    processo con N thread darebbe N nello script e un core solo nella realta';
   * il carico dichiarato deve essere quello reale: prima di ogni prova B/C si
     misura quanta CPU hanno consumato i busy-loop e il run si ferma se sono
     meno della meta' dell'atteso (una sandbox che limita la CPU del gruppo
-    lascerebbe N processi vivi con molto meno di N core);
+    lascerebbe N processi vivi con molto meno di N core). I core consegnati si
+    riportano due volte: dalla sonda prima della finestra e da ``d_busy/dt``
+    dentro la finestra;
+  * questo harness non termina processi che non ha avviato: se trova un runner
+    del modello fuori dall'albero lo dichiara e prosegue. Non chiude browser,
+    editor ne' monitor di terze parti: se disturbano la baseline, la baseline
+    lo registra e la riga va letta con quel contesto;
   * il sampler della sessione e questo harness costano CPU in tutte le
     condizioni: e' un carico comune, dichiarato, non una correzione.
 
 Uso:
   py experiment_additivity.py
   py experiment_additivity.py --blocks 7 --load-s 30 --n-procs 6
+  py experiment_additivity.py --n-procs-list 1,3,6,10 --blocks 3
 
 Output:
   experiment_results/additivity_<ts>.csv    una riga per prova
@@ -111,6 +135,8 @@ CSV_FIELDS = [
     "cpu_busy_capacity_cores", "cpu_share_window_s", "cpu_time_resolution_s",
     "package_window_source", "energy_calculation_method",
     "n_requests", "tokens_out", "n_busy_procs", "n_worker_procs",
+    "busy_probe_cores", "busy_probe_pids", "busy_cores_window",
+    "busy_pids_cores",
     "edge_start_offset_s", "edge_end_offset_s", "keep_alive_sent",
 ]
 
@@ -134,7 +160,7 @@ def _cpu_seconds_of(pid: int) -> float:
 
 
 def _start_busy(ctx, n_procs: int, settle_s: float):
-    """Avvia N busy-loop e verifica che consumino davvero N core.
+    """Avvia N busy-loop (processi veri) e verifica che consumino N core.
 
     Un processo vivo non basta. In un ambiente che limita la CPU del gruppo di
     processi (job object, power throttling, sandbox) N processi possono restare
@@ -142,6 +168,11 @@ def _start_busy(ctx, n_procs: int, settle_s: float):
     carico diverso da quello dichiarato, con N solo nel nome. Il controllo
     misura i ``cpu_times`` di TUTTI i processi sulla finestra di assestamento e
     rifiuta il carico se la somma e' sotto meta' dell'atteso.
+
+    Ritorna ``(procs, stop, probe)``: ``probe`` dichiara i core consegnati
+    misurati qui, prima della finestra, e il contributo di ogni PID. I loop
+    sono ``ctx.Process`` con contesto ``spawn``: PID distinti con il proprio
+    ``cpu_times``, non thread dentro un processo.
     """
     stop = ctx.Event()
     procs = [ctx.Process(target=_busy_loop, args=(stop,), daemon=True)
@@ -161,17 +192,29 @@ def _start_busy(ctx, n_procs: int, settle_s: float):
         if not p.is_alive():
             _stop_busy(procs, stop)
             raise RuntimeError(f"processo busy-loop {p.pid} morto all'avvio")
+    per_pid = [max(c_end[i] - c_start[i], 0.0) / elapsed
+               for i in range(n_procs)]
     consumed = sum(max(c_end[i] - c_start[i], 0.0) for i in range(n_procs))
     expected = n_procs * elapsed
+    probe = {
+        "n": n_procs,
+        "elapsed_s": round(elapsed, 6),
+        "cores": round(consumed / elapsed, 4) if elapsed > 0 else None,
+        "per_pid_cores": [round(x, 4) for x in per_pid],
+        "distinct_pids": len({p.pid for p in procs}),
+    }
     if consumed < 0.5 * expected:
         _stop_busy(procs, stop)
         raise RuntimeError(
             f"i {n_procs} busy-loop hanno consumato {consumed:.2f} s di CPU in "
-            f"{elapsed:.1f} s (atteso ~{expected:.1f} s): l'ambiente limita la "
-            "CPU di questo gruppo di processi, quindi la condizione B non "
-            "avrebbe il carico dichiarato. Lanciare l'harness da un terminale "
-            "normale, non da una sandbox che limita la CPU.")
-    return procs, stop
+            f"{elapsed:.1f} s, cioe' {consumed / elapsed:.2f} core su "
+            f"{n_procs} attesi ({expected:.1f} s): l'ambiente limita la CPU "
+            "di questo gruppo di processi, quindi la condizione B non avrebbe "
+            "il carico dichiarato (per PID: "
+            + ", ".join(f"{x:.2f}" for x in per_pid) + " core). Lanciare "
+            "l'harness da un terminale normale, non da una sandbox che limita "
+            "la CPU.")
+    return procs, stop, probe
 
 
 def _stop_busy(procs, stop) -> None:
@@ -213,11 +256,14 @@ def _installed_models() -> list:
 # ---------------------------------------------------------------------------
 # una prova
 # ---------------------------------------------------------------------------
-def _run_trial(condition: str, args, ctx) -> dict:
-    n_procs = args.n_procs if condition in ("B", "C") else 0
-    procs, busy_stop = ([], None)
+def _run_trial(condition: str, args, ctx, n_procs: int | None = None) -> dict:
+    if n_procs is None:
+        n_procs = args.n_procs if condition in ("B", "C") else 0
+    if condition == "A":
+        n_procs = 0
+    procs, busy_stop, busy_probe = ([], None, None)
     if n_procs:
-        procs, busy_stop = _start_busy(ctx, n_procs, args.settle_s)
+        procs, busy_stop, busy_probe = _start_busy(ctx, n_procs, args.settle_s)
 
     n_requests = 0
     tokens_out = 0
@@ -294,6 +340,13 @@ def _run_trial(condition: str, args, ctx) -> dict:
         "n_requests": n_requests,
         "tokens_out": tokens_out,
         "n_busy_procs": n_procs,
+        "busy_probe_cores": (busy_probe["cores"] if busy_probe else None),
+        "busy_probe_pids": (busy_probe["distinct_pids"] if busy_probe else None),
+        "busy_cores_window": (round(res.d_busy_s / (t1 - t0), 4)
+                              if n_procs and t1 > t0 else None),
+        "busy_pids_cores": (" ".join(f"{x:.2f}"
+                                     for x in busy_probe["per_pid_cores"])
+                            if busy_probe else ""),
         "n_worker_procs": len(pids),
         "edge_start_offset_s": round(offset0, 6),
         "edge_end_offset_s": round(offset1, 6),
@@ -337,6 +390,8 @@ METRICS = [
     ("active_energy_raw_j", "E_attiva grezza (con segno) [J]"),
     ("d_ollama_cpu_s", "d_ollama [s]"),
     ("d_busy_cpu_s", "d_busy [s]"),
+    ("busy_probe_cores", "core consegnati (sonda pre-finestra)"),
+    ("busy_cores_window", "core consegnati (d_busy/dt in finestra)"),
     ("cpu_time_share_raw", "share grezzo d_ollama/d_busy"),
     ("ollama_active_energy_j", "E_worker = E_attiva x share [J]"),
 ]
@@ -351,17 +406,130 @@ def _summarize(rows: list) -> dict:
     return out
 
 
-def _print_summary(rows: list, summary: dict) -> None:
+def _level_table(rows: list, levels: list) -> list:
+    """Una riga per livello di carico: quanto carico, che quota, che rapporto.
+
+    Le grandezze sono medie per livello; il rapporto C/(A+B) e' appaiato per
+    blocco (A e B dello stesso blocco della C) e usa la B riportata alla
+    durata della C, ``E_active(B) * dt_C/dt_B``.
+    """
+    a_rows = [r for r in rows if r["condition"] == "A"]
+    ea_a = _stats([r.get("active_energy_raw_j") for r in a_rows])
+    out = []
+    for n in levels:
+        b = [r for r in rows
+             if r["condition"] == "B" and r.get("n_busy_procs") == n]
+        c = [r for r in rows
+             if r["condition"] == "C" and r.get("n_busy_procs") == n]
+        eb_w = _stats([r["active_energy_raw_j"] / r["dt_s"] for r in b
+                       if r.get("dt_s")])
+        sh = _stats([r.get("cpu_time_share_raw") for r in c])
+        ew = _stats([r.get("ollama_active_energy_j") for r in c])
+        probe = _stats([r.get("busy_probe_cores") for r in b])
+        window = _stats([r.get("busy_cores_window") for r in b])
+        ratios, loss = [], []
+        a_e = {r["block"]: r for r in a_rows}
+        for rc in c:
+            ra = a_e.get(rc["block"])
+            rb = next((x for x in b if x["block"] == rc["block"]), None)
+            if not (ra and rb) or not rb.get("dt_s"):
+                continue
+            try:
+                den = (ra["active_energy_raw_j"]
+                       + rb["active_energy_raw_j"] * rc["dt_s"] / rb["dt_s"])
+                if not den:
+                    continue
+                ratios.append(rc["active_energy_raw_j"] / den)
+                loss.append(rc["active_energy_raw_j"]
+                            - ra["active_energy_raw_j"]
+                            - rb["active_energy_raw_j"] * rc["dt_s"] / rb["dt_s"])
+            except TypeError:
+                continue
+        out.append({
+            "n": n,
+            "n_trials_B": len(b),
+            "n_trials_C": len(c),
+            "cores_probe": probe,
+            "cores_window": window,
+            "foreign_load_w": eb_w,
+            "share_c": sh,
+            "worker_energy_c": ew,
+            "e_active_a": ea_a,
+            "ratio_worker_over_active_a": (
+                ew["mean"] / ea_a["mean"]
+                if ew.get("n") and ea_a.get("mean") else None),
+            "ratio_c_over_a_plus_b": _stats(ratios),
+            "delta_c_minus_a_minus_b": _stats(loss),
+        })
+    return out
+
+
+def _print_level_table(table: list) -> None:
+    print("\n=== Tabella per livello di carico ===")
+    print("E_attiva(B)/dt e' la potenza del solo carico estraneo sopra la "
+          "baseline; share(C) e' d_ollama/d_busy con il carico attivo; "
+          "E_w(C)/E_a(A) e' bordo inferiore su bordo superiore; C/(A+B) e' "
+          "l'additivita' a durata pareggiata, appaiata per blocco.")
+
+    def g(row, key, sub="mean", fmt="{:.3f}"):
+        v = row.get(key)
+        if isinstance(v, dict):
+            v = v.get(sub)
+        return fmt.format(v) if v is not None else "n/d"
+
+    print(f"  {'n':>3}  {'core sonda':>10}  {'core finestra':>13}  "
+          f"{'E_a(B)/dt [W]':>13}  {'share(C)':>8}  "
+          f"{'E_w(C)/E_a(A)':>13}  {'C/(A+B)':>8}  {'C-A-B [J]':>10}")
+    for row in table:
+        print(f"  {row['n']:>3}  {g(row, 'cores_probe').rjust(10)}  "
+              f"{g(row, 'cores_window').rjust(13)}  "
+              f"{g(row, 'foreign_load_w').rjust(13)}  "
+              f"{g(row, 'share_c').rjust(8)}  "
+              f"{g(row, 'ratio_worker_over_active_a').rjust(13)}  "
+              f"{g(row, 'ratio_c_over_a_plus_b').rjust(8)}  "
+              f"{g(row, 'delta_c_minus_a_minus_b').rjust(10)}")
+
+
+def _print_condition_block(cond: str, summary: dict) -> None:
+    n = summary[cond]["active_energy_raw_j"].get("n", 0)
+    print(f"\n{LABEL[cond]}  (n={n})")
+    if not n:
+        return
+    for key, label in METRICS:
+        if not summary[cond][key].get("n"):
+            continue
+        print(f"  {label:<38} {_fmt_stats(summary[cond][key])}")
+
+
+def _print_declared(rows: list) -> None:
+    invalid = [r for r in rows if r.get("active_valid") is False]
+    exits = [r for r in rows if r.get("worker_exit_in_window")]
+    anomalies = [r for r in rows if r.get("share_anomaly")]
+    print("\nRighe dichiarate (riportate, non scartate): "
+          f"active_valid=False {len(invalid)}, "
+          f"worker_exit_in_window {len(exits)}, "
+          f"anomalia share {len(anomalies)}.")
+    print("Nessuna soglia di accettazione: questo harness stampa i numeri, non "
+          "un verdetto.")
+
+
+def _print_summary(rows: list, summary: dict, levels=None) -> None:
+    levels = list(levels or [])
+    if levels:
+        print("\n=== Riepilogo ===")
+        print("Semi-range = (max - min) / 2: e' un intervallo osservato, non "
+              "una deviazione standard (P4.12). Con piu' livelli di carico B e "
+              "C non si aggregano: si riportano per livello, nella tabella.")
+        _print_condition_block("A", summary)
+        _print_level_table(_level_table(rows, levels))
+        _print_declared(rows)
+        return
+
     print("\n=== Riepilogo per condizione ===")
     print("Semi-range = (max - min) / 2: e' un intervallo osservato, non una "
           "deviazione standard (P4.12).")
     for cond in CONDITIONS:
-        n = summary[cond]["active_energy_raw_j"].get("n", 0)
-        print(f"\n{LABEL[cond]}  (n={n})")
-        if not n:
-            continue
-        for key, label in METRICS:
-            print(f"  {label:<38} {_fmt_stats(summary[cond][key])}")
+        _print_condition_block(cond, summary)
 
     print("\n=== Confronti ===")
     by = {cond: [r for r in rows if r["condition"] == cond] for cond in CONDITIONS}
@@ -441,15 +609,7 @@ def _print_summary(rows: list, summary: dict) -> None:
     print("\nControllo: E_worker(B) con il solo carico estraneo:")
     print(f"  {_fmt_stats(summary['B']['ollama_active_energy_j'], ' J')}")
 
-    invalid = [r for r in rows if r.get("active_valid") is False]
-    exits = [r for r in rows if r.get("worker_exit_in_window")]
-    anomalies = [r for r in rows if r.get("share_anomaly")]
-    print("\nRighe dichiarate (riportate, non scartate): "
-          f"active_valid=False {len(invalid)}, "
-          f"worker_exit_in_window {len(exits)}, "
-          f"anomalia share {len(anomalies)}.")
-    print("Nessuna soglia di accettazione: questo harness stampa i numeri, non "
-          "un verdetto.")
+    _print_declared(rows)
 
 
 # ---------------------------------------------------------------------------
@@ -460,13 +620,18 @@ def _parse_args(argv=None):
         description="Additivita' della quota di tempo CPU sull'energia EMI.")
     p.add_argument("--model", default="llama3.2:3b")
     p.add_argument("--blocks", type=int, default=5,
-                   help="blocchi (ognuno con A, B, C in ordine casuale)")
+                   help="blocchi (ognuno con A, B, C in ordine casuale; con "
+                        "--n-procs-list, una coppia B/C per ogni livello)")
     p.add_argument("--load-s", type=float, default=20.0,
                    help="durata della sola condizione B [s]; A e C durano "
                         "quanto la loro unica richiesta Ollama")
     p.add_argument("--n-procs", type=int,
                    default=int(psutil.cpu_count(logical=False) or 1),
                    help="processi busy-loop per la condizione B (default: core fisici)")
+    p.add_argument("--n-procs-list", default="",
+                   help="livelli di carico da provare in sequenza casuale, "
+                        "es. 1,3,6,10; se presente, sostituisce --n-procs "
+                        "per B e C e produce una tabella per livello")
     p.add_argument("--num-predict", type=int, default=160)
     p.add_argument("--temperature", type=float, default=config.DEFAULT_TEMPERATURE)
     p.add_argument("--seed", type=int, default=20261025,
@@ -489,7 +654,40 @@ def _parse_args(argv=None):
         p.error("--n-procs deve essere >= 1")
     if args.warmup_requests < 0:
         p.error("--warmup-requests deve essere >= 0")
+    raw = str(args.n_procs_list or "").strip()
+    levels = []
+    if raw:
+        try:
+            levels = sorted({int(x) for x in raw.replace(";", ",").split(",")
+                             if x.strip()})
+        except ValueError:
+            p.error("--n-procs-list vuole interi separati da virgola, "
+                    "es. 1,3,6,10")
+        if any(x < 1 for x in levels):
+            p.error("--n-procs-list: ogni livello deve essere >= 1")
+    args.n_procs_list = levels
     return args
+
+
+def _trial_specs(args, rng) -> list:
+    """(condizione, processi) del blocco, in ordine casuale con il seme.
+
+    Senza ``--n-procs-list``: A, B e C una volta ciascuna. Con la lista: una A
+    per blocco (il riferimento non dipende dal livello) e una coppia B/C per
+    ogni livello. L'ordine casuale vale su tutte le prove del blocco, cosi' la
+    deriva lenta della macchina non favorisce ne' un livello ne' una
+    condizione.
+    """
+    specs = [("A", 0)]
+    if args.n_procs_list:
+        for n in args.n_procs_list:
+            specs.append(("B", n))
+            specs.append(("C", n))
+    else:
+        specs.append(("B", args.n_procs))
+        specs.append(("C", args.n_procs))
+    rng.shuffle(specs)
+    return specs
 
 
 def main(argv=None) -> int:
@@ -499,9 +697,15 @@ def main(argv=None) -> int:
     print(f"Data: {datetime.now().isoformat(timespec='seconds')}")
     print(f"Host: {psutil.cpu_count(logical=True)} core logici, "
           f"{psutil.cpu_count(logical=False)} fisici; modello {args.model}")
-    print(f"Blocchi: {args.blocks} x 3 condizioni; B dura {args.load_s:.0f} s; "
-          f"A e C una richiesta; busy-loop {args.n_procs} processi; "
-          f"seme {args.seed}")
+    load_desc = (f"livelli di carico {args.n_procs_list}, una coppia B/C per "
+                 "livello" if args.n_procs_list
+                 else f"busy-loop {args.n_procs} processi")
+    print(f"Blocchi: {args.blocks}; B dura {args.load_s:.0f} s; "
+          f"A e C una richiesta; {load_desc}; seme {args.seed}")
+    if args.n_procs_list:
+        print("Ordine casuale su tutte le prove del blocco; E_attiva(A) e' il "
+              "riferimento unico del blocco. Ogni prova dichiara i core "
+              "consegnati dalla sonda e dalla finestra.")
     if args.temperature > 0:
         print("AVVISO: temperatura > 0: il numero di token generati varia fra "
               "le richieste, quindi A e C non fanno lo stesso lavoro e il "
@@ -590,19 +794,20 @@ def main(argv=None) -> int:
     aborted = None
     try:
         for block in range(1, args.blocks + 1):
-            order = list(CONDITIONS)
-            rng.shuffle(order)
-            orders[block] = order
+            specs = _trial_specs(args, rng)
+            orders[block] = [(f"{cond}[{n}]" if n else cond) for cond, n in specs]
             print(f"\n--- Blocco {block}/{args.blocks}: ordine "
-                  f"{' -> '.join(order)} ---")
-            for pos, cond in enumerate(order, 1):
+                  f"{' -> '.join(orders[block])} ---")
+            for pos, (cond, n_procs) in enumerate(specs, 1):
                 if pos > 1:
                     time.sleep(args.settle_s)
-                row = _run_trial(cond, args, ctx)
+                row = _run_trial(cond, args, ctx, n_procs)
                 row["block"] = block
                 row["order_in_block"] = pos
                 rows.append(row)
-                print(f"  [{pos}/3] {LABEL[cond]:<28} "
+                label = (LABEL[cond] + (f" n={n_procs}"
+                                        if args.n_procs_list else ""))
+                print(f"  [{pos}/{len(specs)}] {label:<32} "
                       f"dt={row['dt_s']:.2f}s | "
                       f"E_attiva={row['active_energy_raw_j']:+.2f}J | "
                       f"d_ollama={row['d_ollama_cpu_s']:.3f}s | "
@@ -610,6 +815,8 @@ def main(argv=None) -> int:
                       f"share={row['cpu_time_share_raw'] if row['cpu_time_share_raw'] is not None else float('nan'):.4f} | "
                       f"E_worker={row['ollama_active_energy_j']:.2f}J | "
                       f"req={row['n_requests']} tok={row['tokens_out']}"
+                      + (f" | core sonda={row['busy_probe_cores']:.2f}"
+                         if row.get("busy_probe_cores") is not None else "")
                       + (f" | anomalia={row['share_anomaly']}"
                          if row["share_anomaly"] else "")
                       + (" | WORKER PERSO" if row["worker_exit_in_window"] else "")
@@ -639,7 +846,7 @@ def main(argv=None) -> int:
           f"baseline applicata.")
 
     summary = _summarize(rows)
-    _print_summary(rows, summary)
+    _print_summary(rows, summary, args.n_procs_list)
 
     ts = datetime.now().strftime("%Y%m%d_%H%M%S")
     out_dir = ROOT / "experiment_results"
@@ -667,6 +874,9 @@ def main(argv=None) -> int:
                 "applied": "pre",
             },
             "orders": orders,
+            "levels": args.n_procs_list,
+            "levels_table": (_level_table(rows, args.n_procs_list)
+                             if args.n_procs_list else []),
             "aborted": aborted,
             "keep_alive_sent": (config.OLLAMA_KEEP_ALIVE
                                 or "non inviato (default Ollama)"),
