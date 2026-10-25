@@ -26,6 +26,10 @@ Disegno (protocollo v4 per la baseline, non per i criteri):
     E_active(A) non e' confuso da una throughput diversa. B ha una durata
     propria: l'additivita' in energia si confronta a tasso
     (``E_active(B) * dt_C / dt_B``), e il fattore e' stampato;
+  * perche' "la stessa richiesta" sia lo stesso lavoro serve decodifica
+    greedy (``--temperature 0``): con temperatura > 0 il modello si ferma a
+    lunghezze diverse e le due condizioni non sono piu' confrontabili
+    direttamente (il run lo dichiara e stampa i token di ogni prova);
   * per ogni prova la finestra energetica e' [t0, t1] sul contatore EMI esatto
     e la quota e' letta agli stessi estremi (``SESSION.read_cpu_edge``).
 
@@ -363,6 +367,18 @@ def _print_summary(rows: list, summary: dict) -> None:
         print(f"  differenze appaiate per blocco (C-A)  "
               f"{_fmt_stats(s, ' J')}")
 
+    print("\nPer token: l'unico confronto A-C che sopravvive a lunghezze "
+          "diverse della risposta.")
+    for cond in ("A", "C"):
+        vals = [r for r in by[cond] if r.get("tokens_out")]
+        if not vals:
+            continue
+        ea_t = _stats([r["active_energy_raw_j"] / r["tokens_out"] for r in vals])
+        ew_t = _stats([r["ollama_active_energy_j"] / r["tokens_out"]
+                       for r in vals])
+        print(f"  {LABEL[cond]:<28} E_attiva/token {_fmt_stats(ea_t, ' J')}")
+        print(f"  {'':<28} E_worker/token {_fmt_stats(ew_t, ' J')}")
+
     print("\nE_active(C) vs E_active(A) + E_active(B) - additivita' in energia "
           "(stesso contatore, stessa baseline).")
     print("A e C fanno UNA richiesta ciascuna e si confrontano dirette. B ha "
@@ -462,6 +478,11 @@ def main(argv=None) -> int:
     print(f"Blocchi: {args.blocks} x 3 condizioni; B dura {args.load_s:.0f} s; "
           f"A e C una richiesta; busy-loop {args.n_procs} processi; "
           f"seme {args.seed}")
+    if args.temperature > 0:
+        print("AVVISO: temperatura > 0: il numero di token generati varia fra "
+              "le richieste, quindi A e C non fanno lo stesso lavoro e il "
+              "confronto diretto va letto per token. Per lavoro identico "
+              "usare --temperature 0.")
 
     try:
         installed = _installed_models()
@@ -564,7 +585,7 @@ def main(argv=None) -> int:
                       f"d_busy={row['d_busy_cpu_s']:.3f}s | "
                       f"share={row['cpu_time_share_raw'] if row['cpu_time_share_raw'] is not None else float('nan'):.4f} | "
                       f"E_worker={row['ollama_active_energy_j']:.2f}J | "
-                      f"req={row['n_requests']}"
+                      f"req={row['n_requests']} tok={row['tokens_out']}"
                       + (f" | anomalia={row['share_anomaly']}"
                          if row["share_anomaly"] else "")
                       + (" | WORKER PERSO" if row["worker_exit_in_window"] else "")
