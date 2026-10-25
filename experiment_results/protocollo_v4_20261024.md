@@ -2375,12 +2375,12 @@ corretto (falso fallimento) e che passino quando non lo è.
 
 Arbitra **cinque** punti aperti in una volta sola, tutti oggi privi di dati:
 
-1. la concentrazione dei pesi `w_b = 1/budget_fit_b²`: la simulazione mostra quanta
-   quota del peso totale prende il blocco con il semi-range più piccolo al variare
-   del rapporto `ρ = u_base/u_within` — in media il 37% e l'82% nel 5% dei casi
-   peggiori a `ρ = 0`, contro l'8% a `ρ ≥ 0,5`. `ρ` oggi non è misurabile:
-   `u_base` si può stimare, `u_within` no, perché non esiste ancora un blocco v4
-   con tre richieste;
+1. la concentrazione dei pesi `w_b = 1/budget_fit_b²` al variare del rapporto
+   `ρ = u_base/u_within`: misurata il 2026-10-25 da
+   `semi_range_concentrazione_pesi_probe.py`, è il 37,3% medio e l'82,7% al p95 a
+   `ρ = 0` (ESS 7,30 su 33). È l'unica ancora valida: sotto `u_base = ρ·u_within`
+   la quota è indipendente da ρ per cancellazione esatta, quindi "8% a ρ ≥ 0,5"
+   è ritirato; finché ρ non è misurato resta una funzione, non una tabella;
 2. la potenza e la circolarità del gate P4.5, la cui soglia per blocco contiene lo
    stesso `dP` che genera `E_net,control`. Con l'emendamento a sei coppie la
    simulazione deve dire anche se il quorum di quattro controlli utilizzabili è
