@@ -103,6 +103,13 @@ class LocalEnergyResult:
     active_valid: bool = False
     ollama_active_energy_j: float = 0.0
     cpu_time_share: float = 0.0
+    # Quota GREZZA d_ollama/d_busy, senza clamp a [0,1]; None quando il
+    # denominatore e' nullo. E' il numero che dice se il clamp ha nascosto
+    # qualcosa.
+    cpu_time_share_raw: Optional[float] = None
+    # "" oppure il primo token anomalo per gravita':
+    # "d_busy=0" | "d_busy>capacita'" | "d_ollama>d_busy".
+    share_anomaly: str = ""
     gpu_available: bool = False
     gpu_device_index: Optional[int] = None
     gpu_board_energy_j: float = 0.0
@@ -394,11 +401,36 @@ class CasualWattLocalEnergyProfiler:
         # logici su cui e' aggregato cpu_busy_seconds.
         res.cpu_share_window_s = round(dt, 6)
         res.cpu_busy_capacity_cores = int(psutil.cpu_count(logical=True) or 0)
-        share = 0.0
-        if dt_cpu_busy > 0:
-            share = min(max(d_ollama / dt_cpu_busy, 0.0), 1.0)
+        # Il rapporto si calcola GREZZO: un clamp silenzioso a [0,1] rendeva
+        # indistinguibile un d_ollama > d_busy (contabilita' incoerente, es.
+        # letture non simultanee o CPU-time perso) da uno share di 1 legittimo.
+        capacity_s = res.cpu_busy_capacity_cores * res.cpu_share_window_s
+        share_raw: Optional[float] = None
+        anomalies: List[str] = []
+        if dt_cpu_busy <= 0.0:
+            anomalies.append("d_busy=0")
+        else:
+            share_raw = d_ollama / dt_cpu_busy
+            if capacity_s > 0.0 and dt_cpu_busy > capacity_s + 1e-6:
+                anomalies.append("d_busy>capacita'")
+            if d_ollama > dt_cpu_busy:
+                anomalies.append("d_ollama>d_busy")
+        res.cpu_time_share_raw = (
+            round(share_raw, 6) if share_raw is not None else None
+        )
+        # La colonna porta UNA anomalia (la prima per gravita': denominatore
+        # nullo, denominatore impossibile, numeratore maggiore del denominatore);
+        # le note le portano tutte, cosi' nessuna viene persa.
+        res.share_anomaly = anomalies[0] if anomalies else ""
+        share = 0.0 if share_raw is None else min(max(share_raw, 0.0), 1.0)
         res.cpu_time_share = round(share, 6)
         res.ollama_active_energy_j = round(active * share, 6)
+        for anomaly in anomalies:
+            notes.append(
+                f"anomalia dello share ({anomaly}): d_ollama={d_ollama:.6f} s, "
+                f"d_busy={dt_cpu_busy:.6f} s, capacita'={capacity_s:.6f} s; "
+                "cpu_time_share resta limitato a [0,1]"
+            )
         
         # Diagnostica: valori usati per il calcolo dello share
         res.d_ollama_cpu_s = round(d_ollama, 6)

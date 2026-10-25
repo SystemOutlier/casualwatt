@@ -115,6 +115,10 @@ CSV_COLUMNS: List[str] = [
     # troncati a zero per compatibilita': senza queste tre colonne un troncamento
     # e' indistinguibile da uno zero misurato.
     "package_energy_raw_j", "active_energy_raw_j", "active_valid",
+    # P3: lo share grezzo (senza clamp) e il token dell'anomalia. Con
+    # cpu_time_share=1 e questi due campi vuoti la quota e' 1 per misura; con
+    # share_anomaly valorizzata il clamp ha nascosto un'incoerenza.
+    "cpu_time_share_raw", "share_anomaly",
 ]
 
 

@@ -116,7 +116,8 @@ def test_colonne_e_export(tmp_path):
     assert CSV_COLUMNS[i:i + 2] == [
         "cpu_share_window_s", "cpu_busy_capacity_cores"]
     assert CSV_COLUMNS[i + 2:] == [
-        "package_energy_raw_j", "active_energy_raw_j", "active_valid"]
+        "package_energy_raw_j", "active_energy_raw_j", "active_valid",
+        "cpu_time_share_raw", "share_anomaly"]
 
     p = tmp_path / "out.csv"
     export_results_csv([{"run_id": "r1", "cpu_share_window_s": 1.5,
