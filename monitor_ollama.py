@@ -443,6 +443,19 @@ def window_coverage(samples_ns, start_ns, end_ns):
     return coverage
 
 
+def parse_keep_alive(text):
+    """`-1` e `0` sono secondi numerici per Ollama, non durate.
+
+    Inviare "-1" come stringa produce HTTP 400 ("missing unit in duration"):
+    il valore numerico e' l'unico modo di chiedere la residenza illimitata.
+    """
+    value = text.strip()
+    if value and (value.isdigit()
+                  or (value.startswith("-") and value[1:].isdigit())):
+        return int(value)
+    return text
+
+
 def ns_to_s(value):
     return round(value / 1e9, 6) if isinstance(value, (int, float)) else ""
 
@@ -504,8 +517,11 @@ class RequestDriver(threading.Thread):
             "options": self.options,
         }
         if self.keep_alive:
-            payload["keep_alive"] = self.keep_alive
+            payload["keep_alive"] = self.keep_alive_value()
         return payload
+
+    def keep_alive_value(self):
+        return parse_keep_alive(self.keep_alive)
 
     def keep_alive_sent(self):
         return self.keep_alive or "non inviato (default Ollama)"
@@ -900,7 +916,10 @@ def main():
             ),
             "prompt_chars": len(prompt),
             "options": options,
-            "keep_alive_sent": args.keep_alive or "non inviato (default Ollama)",
+            "keep_alive_sent": (
+                parse_keep_alive(args.keep_alive) if args.keep_alive
+                else "non inviato (default Ollama)"
+            ),
             "stream": True,
             "request_csv": (
                 str(requests_out.resolve()) if args.requests > 0 else ""
