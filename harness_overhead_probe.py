@@ -1,48 +1,88 @@
 #!/usr/bin/env python3
-"""A-B-A del costo dell'harness di telemetria Ollama.
+"""A-B-C del costo dell'harness di telemetria Ollama.
 
-Domanda: `monitor_ollama.py`, che ogni 0,5 s enumera i processi con psutil e
-interroga `/api/ps`, sposta la potenza del package misurata dal contatore EMI
-durante le stesse richieste?
+Domanda: l'enumerazione dei processi con psutil che `monitor_ollama.py` esegue
+ogni 0,5 s sposta l'energia per richiesta o la durata della richiesta misurate
+dal contatore EMI?
+
+Condizioni, a parita' di modello, prompt, opzioni, `keep_alive`, carico e
+macchina:
+
+- A: richieste guidate da questo script, nessuna scansione dei processi;
+- B: richieste guidate da `monitor_ollama.py --process-scan full`;
+- C: richieste guidate da `monitor_ollama.py --process-scan off`.
+
+B-C isola la scansione a driver costante; B-A e' la differenza totale
+harness+driver; C-A il residuo del driver e delle componenti fisse comuni a B e
+C (compresa l'interrogazione periodica di `/api/ps`).
 
 Disegno, dichiarato prima dei dati:
 
 - riferimento: la sonda EMI di questo script, attiva a 100 ms in **tutte** le
-  fasi. Il suo costo e' costante e resta dentro ogni condizione, quindi i delta
-  A-B-A misurano il costo **incrementale** dell'harness, non il costo
-  zero-osservatore (che richiederebbe un wattmetro esterno);
+  fasi. Il suo costo e' dentro ogni condizione, quindi i contrasti sono
+  incrementali e non misurano il costo zero-osservatore (che richiederebbe un
+  wattmetro esterno);
 - baseline: 3 finestre idle da 30 s prima e 3 dopo, con settling P1.5
   (media mobile a 10 s stabile entro 0,5 W, tetto 120 s);
+- ordine: un blocco di sei cicli con l'insieme completo delle sequenze di
+  Williams per tre trattamenti (ABC, BCA, CAB, CBA, ACB, BAC). Ogni condizione
+  occupa ogni posizione due volte e segue ogni altra condizione due volte:
+  l'ordine e' bilanciato per posizione e carryover e non richiede
+  randomizzazione. Oltre sei cicli si ripete il blocco, sfalsato di una
+  sequenza per blocco;
 - stato: due warm-up scartati con lo stesso prompt e `keep_alive = -1`, poi
   `/api/ps` verificato prima e dopo; il modello resta residente per tutto il
   run. La geometria dei warm-up non e' quella di P1.4 (512,128): qui serve solo
   caricare pesi e cache, non misurare token;
-- carico: 4 richieste per fase, stesso modello, prompt, opzioni e `keep_alive`,
-  invii a 6 s, coda di 2 s;
-- tre cicli A-B-A. In A e A2 le richieste sono guidate da questo script, senza
-  campionamento psutil; in B le guida `monitor_ollama.py` con lo stesso carico.
-  Il riferimento EMI e la regola degli incrementi contenuti sono identici;
+- carico: 4 richieste per condizione per ciclo, invii a 6 s, coda di 2 s;
 - nessuna sottrazione del costo dell'osservatore (P1.4): si misura e si
-  dichiara;
-- criterio: "non distinguibile dal drift" solo se, per ogni ciclo,
-  |B - media(A1,A2)| non supera |A2 - A1| **e** resta sotto 1,0 W, la scala
-  assoluta gia' congelata in P4.5. Altrimenti si riporta l'intervallo osservato.
+  dichiara.
+
+Criteri preregistrati, nessuno dei quali si sposta dopo aver visto i risultati:
+
+- metriche primarie: energia per richiesta (J) e durata della finestra (s);
+- contrasto primario: B-C. Secondari: B-A e C-A;
+- soglie di rilevanza pratica: 1,0 J per richiesta (circa 1,2% degli ~82 J del
+  run A-B-A, sotto il CV fra run del J/token riportato per v3) e 0,10 s di
+  durata (circa 3,3% di una finestra da ~3 s, sotto la cadenza di 0,5 s della
+  telemetria dell'harness);
+- finestra valida: `status == "ok"`, `eval_count` uguale al `num_predict`
+  dichiarato (quando presente) e positivo. Una cella condizione-ciclo entra
+  nell'analisi con almeno 3 finestre valide su 4; un contrasto entra se
+  entrambe le celle sono incluse, con eliminazione listwise del ciclo. I cicli
+  esclusi si contano e si riportano;
+- stima: differenze pairate a livello di ciclo, intervallo t al 95% con n-1
+  gradi di liberta'. Sotto 4 cicli pairati l'intervallo non si riporta, solo i
+  valori osservati. La dispersione fra cicli e' la scala dell'intervallo, non
+  l'incertezza di una singola misura;
+- verdetto per metrica e contrasto: "effetto rilevante" se l'intero intervallo
+  sta oltre +soglia o oltre -soglia; "equivalenza entro soglia" se l'intero
+  intervallo sta dentro (-soglia, +soglia); "non conclusivo" se attraversa un
+  bordo. Il mancato superamento di una soglia non e' prova di assenza: conta
+  solo la posizione dell'intervallo;
+- numerosita': il pilota e' a 6 cicli. Se la semi-ampiezza dell'intervallo per
+  B-C supera meta' della soglia, su energia o durata, il run definitivo si
+  esegue da capo a 12 cicli (due blocchi completi), poi 18; non si accodano
+  sessioni diverse. La regola usa solo l'ampiezza, non il segno.
 
 Cio' che questo script non fa: non e' un canale di misura, non entra in
 `MEASURED_METHODS`, non calcola energia di protocollo, non modifica la
-produzione. Le energie per finestra sono diagnostiche.
+produzione. Le energie per finestra sono diagnostiche. La versione A-B-A ha
+prodotto l'artefatto `harness_overhead_20261025`; questa implementa il disegno
+A-B-C del punto #67.
 
 Uso:
-  python harness_overhead_probe.py --tag harness_overhead_20261025
+  python harness_overhead_probe.py --tag harness_overhead_abc_20261025
 
-I file finiscono in `experiment_results/`: sonda EMI, finestre delle richieste
-guidate dallo script, telemetria e richieste dell'harness per ogni fase B,
-riepilogo JSON e tabella delle finestre.
+I file finiscono in `experiment_results/`: sonda EMI, richieste guidate dallo
+script, telemetria e richieste dell'harness per ogni fase B e C, riepilogo JSON
+e tabella delle finestre.
 """
 import argparse
 import csv
 import hashlib
 import json
+import math
 import statistics
 import subprocess
 import sys
@@ -63,7 +103,25 @@ from monitor_ollama import parse_keep_alive
 PWH_TO_J = 3.6e-9
 STABLE_TOL_W = 0.5
 STABLE_WINDOW_S = 10.0
-SCALE_W = 1.0
+T_ENERGY_J = 1.0
+T_DURATION_S = 0.10
+MIN_PAIRED_CYCLES = 4
+MAX_CYCLES = 18
+SEQUENCES = (
+    ("a", "b", "c"),
+    ("b", "c", "a"),
+    ("c", "a", "b"),
+    ("c", "b", "a"),
+    ("a", "c", "b"),
+    ("b", "a", "c"),
+)
+T975 = {
+    1: 12.706, 2: 4.303, 3: 3.182, 4: 2.776, 5: 2.571, 6: 2.447,
+    7: 2.365, 8: 2.306, 9: 2.262, 10: 2.228, 11: 2.201, 12: 2.179,
+    13: 2.160, 14: 2.145, 15: 2.131, 16: 2.120, 17: 2.110, 18: 2.101,
+    19: 2.093, 20: 2.086, 21: 2.080, 22: 2.074, 23: 2.069, 24: 2.064,
+    25: 2.060, 26: 2.056, 27: 2.052, 28: 2.048, 29: 2.045, 30: 2.042,
+}
 REQUEST_COLUMNS = [
     "phase", "cycle", "request_index", "status", "http_status", "error",
     "t_send_mono_ns", "t_first_token_mono_ns", "t_end_mono_ns",
@@ -74,6 +132,12 @@ PROBE_COLUMNS = [
     "phase", "cycle", "mono_before_ns", "mono_after_ns", "mono_mid_ns",
     "utc", "ts_100ns", "pkg_pwh",
 ]
+
+
+def cycle_order(cycle):
+    """Sequenza del ciclo: blocco Williams completo, sfalsato ogni sei."""
+    block, index = divmod(cycle - 1, len(SEQUENCES))
+    return SEQUENCES[(index + block) % len(SEQUENCES)]
 
 
 class Sampler(threading.Thread):
@@ -385,13 +449,14 @@ def drive_requests(args, sampler, phase, cycle, path):
     return rows
 
 
-def run_harness(args, out_dir, tag, cycle):
-    sampler_phase = f"c{cycle}_b"
-    run_id = f"{tag}_b{cycle}"
-    telemetry = out_dir / f"{tag}_telemetry_b{cycle}.csv"
-    requests = out_dir / f"{tag}_requests_b{cycle}.csv"
-    meta = out_dir / f"{tag}_meta_b{cycle}.json"
-    log = out_dir / f"{tag}_harness_b{cycle}.log"
+def run_harness(args, out_dir, tag, cycle, condition):
+    process_scan = "full" if condition == "b" else "off"
+    sampler_phase = f"c{cycle}_{condition}"
+    run_id = f"{tag}_{condition}{cycle}"
+    telemetry = out_dir / f"{tag}_telemetry_{condition}{cycle}.csv"
+    requests = out_dir / f"{tag}_requests_{condition}{cycle}.csv"
+    meta = out_dir / f"{tag}_meta_{condition}{cycle}.json"
+    log = out_dir / f"{tag}_harness_{condition}{cycle}.log"
     command = [
         sys.executable, str(args.harness),
         "--interval", "0.5",
@@ -403,13 +468,14 @@ def run_harness(args, out_dir, tag, cycle):
         "--prompt", args.prompt,
         "--options-json", json.dumps(args.options),
         "--keep-alive", args.keep_alive,
+        "--process-scan", process_scan,
         "--run-id", run_id,
         "--output", str(telemetry),
         "--requests-output", str(requests),
         "--meta-output", str(meta),
     ]
-    print(f"  {sampler_phase}: {args.harness.name} (run_id={run_id})",
-          flush=True)
+    print(f"  {sampler_phase}: {args.harness.name} "
+          f"(process-scan={process_scan}, run_id={run_id})", flush=True)
     started = time.monotonic()
     result = subprocess.run(
         command, capture_output=True, text=True,
@@ -428,6 +494,8 @@ def run_harness(args, out_dir, tag, cycle):
           flush=True)
     return {
         "cycle": cycle,
+        "condition": condition,
+        "process_scan": process_scan,
         "phase": sampler_phase,
         "command": command,
         "returncode": result.returncode,
@@ -481,6 +549,8 @@ def harness_telemetry_summary(path):
                  if row["interval_effective_s"]]
     sweeps = [float(row["sweep_duration_s"]) for row in rows
               if row["sweep_duration_s"]]
+    scans = [float(row["process_scan_s"]) for row in rows
+             if row.get("process_scan_s") not in (None, "")]
     cpu = [float(row["observer_cpu_pct"]) for row in rows
            if row["observer_cpu_pct"]]
     cpu_seconds = 0.0
@@ -490,16 +560,23 @@ def harness_telemetry_summary(path):
                             * float(row["interval_effective_s"]))
         except (TypeError, ValueError):
             pass
+    interval_median = statistics.median(intervals) if intervals else None
+    scan_median = statistics.median(scans) if scans else None
     return {
         "rows": len(rows),
-        "interval_median_s": (round(statistics.median(intervals), 4)
-                              if intervals else None),
+        "interval_median_s": (round(interval_median, 4)
+                              if interval_median is not None else None),
         "sweep_median_s": (round(statistics.median(sweeps), 4)
                            if sweeps else None),
         "sweep_max_s": round(max(sweeps), 4) if sweeps else None,
-        "sweep_duty": (round(statistics.median(sweeps)
-                             / statistics.median(intervals), 6)
-                       if sweeps and intervals else None),
+        "sweep_duty": (round(statistics.median(sweeps) / interval_median, 6)
+                       if sweeps and interval_median else None),
+        "process_scan_median_s": (round(scan_median, 6)
+                                  if scan_median is not None else None),
+        "process_scan_max_s": round(max(scans), 6) if scans else None,
+        "process_scan_duty": (round(scan_median / interval_median, 6)
+                              if scan_median is not None and interval_median
+                              else None),
         "observer_cpu_pct_mean": (round(statistics.mean(cpu), 4)
                                   if cpu else None),
         "observer_cpu_pct_max": round(max(cpu), 4) if cpu else None,
@@ -507,18 +584,184 @@ def harness_telemetry_summary(path):
     }
 
 
-def mean_of(values):
-    clean = [value for value in values if value is not None]
-    return round(statistics.mean(clean), 4) if clean else None
+def t_critical(df):
+    return T975.get(df, 1.96)
 
 
-def median_of(values):
-    clean = [value for value in values if value is not None]
-    return round(statistics.median(clean), 4) if clean else None
+def request_is_valid(row, expected_tokens):
+    """Finestra valida secondo il criterio preregistrato di #67."""
+    if row.get("status") != "ok":
+        return False
+    try:
+        tokens = int(row.get("eval_count"))
+    except (TypeError, ValueError):
+        return False
+    if tokens <= 0:
+        return False
+    return expected_tokens is None or tokens == expected_tokens
 
 
-def analyze(args, sampler, probe_rows, driven_rows, harness_runs,
-            baselines, probe_cpu_s, wall_s):
+def condition_windows(driven_rows, harness_runs, probe_rows):
+    windows = {"a": [], "b": [], "c": []}
+    for row in driven_rows:
+        metrics = request_metrics(probe_rows, row)
+        metrics["condition"] = "a"
+        windows["a"].append(metrics)
+    for run in harness_runs:
+        condition = run["condition"]
+        for row in load_csv(Path(run["requests_csv"])):
+            row["phase"] = run["phase"]
+            row["cycle"] = str(run["cycle"])
+            metrics = request_metrics(probe_rows, row)
+            metrics["condition"] = condition
+            windows[condition].append(metrics)
+    return windows
+
+
+def aggregate_cells(windows, expected_tokens, min_valid):
+    cells = {condition: {} for condition in ("a", "b", "c")}
+    for condition, rows in windows.items():
+        for cycle in sorted({row["cycle"] for row in rows}):
+            selected = [row for row in rows if row["cycle"] == cycle]
+            valid = [row for row in selected
+                     if request_is_valid(row, expected_tokens)]
+            cell = {
+                "requests": len(selected),
+                "valid": len(valid),
+                "included": len(valid) >= min_valid,
+                "energy_j_per_request": None,
+                "duration_s": None,
+                "power_w": None,
+                "j_per_token": None,
+                "ttft_s": None,
+            }
+            if valid:
+                energy_j = sum(row["energy_j"] for row in valid)
+                covered_s = sum(row["covered_s"] for row in valid)
+                tokens = sum(int(row["eval_count"]) for row in valid)
+                ttfts = [row["ttft_s"] for row in valid
+                         if row["ttft_s"] is not None]
+                cell["energy_j_per_request"] = round(
+                    energy_j / len(valid), 6)
+                cell["duration_s"] = round(
+                    statistics.mean(row["window_s"] for row in valid), 6)
+                cell["power_w"] = (round(energy_j / covered_s, 4)
+                                   if covered_s else None)
+                cell["j_per_token"] = (round(energy_j / tokens, 6)
+                                       if tokens else None)
+                cell["ttft_s"] = (round(statistics.mean(ttfts), 6)
+                                  if ttfts else None)
+            cells[condition][cycle] = cell
+    return cells
+
+
+def paired_differences(cells, minuend, subtrahend, key):
+    values = []
+    per_cycle = {}
+    for cycle in sorted(set(cells[minuend]) & set(cells[subtrahend])):
+        left = cells[minuend][cycle]
+        right = cells[subtrahend][cycle]
+        if not (left["included"] and right["included"]):
+            continue
+        if left[key] is None or right[key] is None:
+            continue
+        difference = left[key] - right[key]
+        per_cycle[str(cycle)] = round(difference, 6)
+        values.append(difference)
+    return values, per_cycle
+
+
+def summarize_differences(values):
+    n = len(values)
+    summary = {
+        "n": n,
+        "mean": None,
+        "cycle_sd": None,
+        "half_width": None,
+        "lo": None,
+        "hi": None,
+        "t_crit": None,
+        "positive": 0,
+        "negative": 0,
+        "zero": 0,
+        "interval_available": False,
+    }
+    if n == 0:
+        return summary
+    mean = statistics.mean(values)
+    summary["mean"] = round(mean, 6)
+    summary["positive"] = sum(1 for value in values if value > 0)
+    summary["negative"] = sum(1 for value in values if value < 0)
+    summary["zero"] = n - summary["positive"] - summary["negative"]
+    if n >= MIN_PAIRED_CYCLES:
+        sd = statistics.stdev(values)
+        crit = t_critical(n - 1)
+        half = crit * sd / math.sqrt(n)
+        summary.update({
+            "cycle_sd": round(sd, 6),
+            "half_width": round(half, 6),
+            "lo": round(mean - half, 6),
+            "hi": round(mean + half, 6),
+            "t_crit": crit,
+            "interval_available": True,
+        })
+    return summary
+
+
+def classify(interval, threshold):
+    """Verdetto sulla posizione dell'intervallo, non sulla significativita'."""
+    if not interval["interval_available"]:
+        return "non conclusivo: meno di 4 cicli pairati validi"
+    lo = interval["lo"]
+    hi = interval["hi"]
+    if lo > threshold or hi < -threshold:
+        return "effetto rilevante: l'intero intervallo supera la soglia"
+    if -threshold < lo and hi < threshold:
+        return "equivalenza entro soglia: l'intero intervallo sta nella banda"
+    return "non conclusivo: l'intervallo attraversa un bordo della soglia"
+
+
+def cycles_needed(interval, threshold):
+    """Cicli per una semi-ampiezza <= soglia/2; usa l'ampiezza, non il segno."""
+    if not interval["interval_available"] or interval["cycle_sd"] is None:
+        return None
+    target = threshold / 2.0
+    sd = interval["cycle_sd"]
+    if sd == 0:
+        return interval["n"]
+    n = max(interval["n"], MIN_PAIRED_CYCLES)
+    for _ in range(100):
+        needed = max(n, math.ceil((t_critical(n - 1) * sd / target) ** 2))
+        if needed <= n:
+            return n
+        n = needed
+    return n
+
+
+def pooled_telemetry(runs):
+    if not runs:
+        return None
+
+    def median_field(name):
+        values = [run[name] for run in runs if run.get(name) is not None]
+        return round(statistics.median(values), 6) if values else None
+
+    cpu_seconds = [run["observer_cpu_seconds"] for run in runs
+                   if run.get("observer_cpu_seconds") is not None]
+    return {
+        "runs": len(runs),
+        "interval_median_s": median_field("interval_median_s"),
+        "sweep_duty": median_field("sweep_duty"),
+        "process_scan_median_s": median_field("process_scan_median_s"),
+        "process_scan_duty": median_field("process_scan_duty"),
+        "observer_cpu_pct_mean": median_field("observer_cpu_pct_mean"),
+        "observer_cpu_seconds_sum": (round(sum(cpu_seconds), 4)
+                                     if cpu_seconds else None),
+    }
+
+
+def analyze(args, probe_rows, driven_rows, harness_runs, baselines,
+            probe_cpu_s, wall_s, executed_order):
     offset_values = [
         row["mono_mid_ns"] / 1e9 - row["ts_100ns"] / 1e7
         for row in probe_rows
@@ -529,27 +772,26 @@ def analyze(args, sampler, probe_rows, driven_rows, harness_runs,
         "drift_ms": round((max(offset_values) - min(offset_values)) * 1000, 3),
     }
 
-    condition_a = [request_metrics(probe_rows, row) for row in driven_rows]
-    condition_b = []
-    telemetry_summary = []
-    for run in harness_runs:
-        rows = load_csv(Path(run["requests_csv"]))
-        for row in rows:
-            row["phase"] = run["phase"]
-            row["cycle"] = str(run["cycle"])
-            condition_b.append(request_metrics(probe_rows, row))
-        telemetry_summary.append({
-            "cycle": run["cycle"],
-            "exit": run["returncode"],
-            "elapsed_s": run["elapsed_s"],
-            **harness_telemetry_summary(Path(run["telemetry_csv"])),
-        })
+    try:
+        expected_tokens = int(args.options.get("num_predict"))
+    except (TypeError, ValueError):
+        expected_tokens = None
+    min_valid = math.ceil(0.75 * args.requests)
 
-    all_windows = condition_a + condition_b
+    windows = condition_windows(driven_rows, harness_runs, probe_rows)
+    cells = aggregate_cells(windows, expected_tokens, min_valid)
+
+    all_windows = []
+    for cycle in range(1, args.cycles + 1):
+        for condition in ("a", "b", "c"):
+            all_windows.extend(sorted(
+                (row for row in windows[condition] if row["cycle"] == cycle),
+                key=lambda row: row["request_index"],
+            ))
     windows_csv = Path(args.out_dir) / f"{args.tag}_windows.csv"
     columns = [
-        "phase", "cycle", "request_index", "status", "window_s", "ttft_s",
-        "prompt_eval_count", "eval_count", "done_reason",
+        "condition", "phase", "cycle", "request_index", "status", "window_s",
+        "ttft_s", "prompt_eval_count", "eval_count", "done_reason",
         "contained", "straddle", "negatives", "energy_j", "covered_s",
         "uncovered_ms", "power_w", "j_per_token",
     ]
@@ -559,60 +801,81 @@ def analyze(args, sampler, probe_rows, driven_rows, harness_runs,
         for row in all_windows:
             writer.writerow({key: row.get(key, "") for key in columns})
 
-    cycles = {}
-    for cycle in sorted({row["cycle"] for row in all_windows}):
-        a1 = [row for row in condition_a
-              if row["cycle"] == cycle and row["phase"].endswith("_a1")]
-        b = [row for row in condition_b if row["cycle"] == cycle]
-        a2 = [row for row in condition_a
-              if row["cycle"] == cycle and row["phase"].endswith("_a2")]
-        entry = {
-            "a1_power_w": mean_of([row["power_w"] for row in a1]),
-            "b_power_w": mean_of([row["power_w"] for row in b]),
-            "a2_power_w": mean_of([row["power_w"] for row in a2]),
-            "a1_jtok": mean_of([row["j_per_token"] for row in a1]),
-            "b_jtok": mean_of([row["j_per_token"] for row in b]),
-            "a2_jtok": mean_of([row["j_per_token"] for row in a2]),
-            "a1_n": len(a1), "b_n": len(b), "a2_n": len(a2),
-        }
-        if None not in (entry["a1_power_w"], entry["b_power_w"],
-                        entry["a2_power_w"]):
-            reference = (entry["a1_power_w"] + entry["a2_power_w"]) / 2.0
-            entry["delta_b_minus_a_w"] = round(
-                entry["b_power_w"] - reference, 4
-            )
-            entry["drift_a2_minus_a1_w"] = round(
-                entry["a2_power_w"] - entry["a1_power_w"], 4
-            )
-        if None not in (entry["a1_jtok"], entry["b_jtok"], entry["a2_jtok"]):
-            reference = (entry["a1_jtok"] + entry["a2_jtok"]) / 2.0
-            entry["delta_b_minus_a_jtok"] = round(
-                entry["b_jtok"] - reference, 6
-            )
-            entry["drift_a2_minus_a1_jtok"] = round(
-                entry["a2_jtok"] - entry["a1_jtok"], 6
-            )
-        cycles[str(cycle)] = entry
+    telemetry = {"b": [], "c": []}
+    for run in harness_runs:
+        telemetry[run["condition"]].append({
+            "cycle": run["cycle"],
+            "process_scan": run["process_scan"],
+            "exit": run["returncode"],
+            "elapsed_s": run["elapsed_s"],
+            **harness_telemetry_summary(Path(run["telemetry_csv"])),
+        })
 
-    deltas = [entry.get("delta_b_minus_a_w") for entry in cycles.values()
-              if entry.get("delta_b_minus_a_w") is not None]
-    drifts = [entry.get("drift_a2_minus_a1_w") for entry in cycles.values()
-              if entry.get("drift_a2_minus_a1_w") is not None]
-    signal = max((abs(value) for value in deltas), default=None)
-    drift = max((abs(value) for value in drifts), default=None)
-    paired = [entry for entry in cycles.values()
-              if entry.get("delta_b_minus_a_w") is not None
-              and entry.get("drift_a2_minus_a1_w") is not None]
-    if signal is None or drift is None:
-        verdict = "non calcolabile: finestre mancanti"
-    elif (signal < SCALE_W
-          and all(abs(entry["delta_b_minus_a_w"])
-                  <= abs(entry["drift_a2_minus_a1_w"]) for entry in paired)):
-        verdict = ("non distinguibile dal drift: |delta| < 1,0 W in ogni "
-                   "ciclo e non supera |A2 - A1| dello stesso ciclo")
-    else:
-        verdict = ("il delta supera il drift o la scala di 1,0 W: "
-                   "riportare l'intervallo, non una stima puntuale")
+    conditions = {}
+    for condition in ("a", "b", "c"):
+        rows = windows[condition]
+        valid = [row for row in rows
+                 if request_is_valid(row, expected_tokens)]
+        energy_j = sum(row["energy_j"] for row in valid)
+        covered_s = sum(row["covered_s"] for row in valid)
+        tokens = sum(int(row["eval_count"]) for row in valid)
+        ttfts = [row["ttft_s"] for row in valid if row["ttft_s"] is not None]
+        conditions[condition] = {
+            "windows": len(rows),
+            "valid_windows": len(valid),
+            "included_cells": sum(1 for cell in cells[condition].values()
+                                  if cell["included"]),
+            "energy_j_per_request": (round(energy_j / len(valid), 4)
+                                     if valid else None),
+            "duration_s": (round(statistics.mean(
+                row["window_s"] for row in valid), 4) if valid else None),
+            "power_w": (round(energy_j / covered_s, 4)
+                        if covered_s else None),
+            "j_per_token": (round(energy_j / tokens, 6) if tokens else None),
+            "ttft_s": (round(statistics.mean(ttfts), 6) if ttfts else None),
+            "harness_telemetry": pooled_telemetry(
+                telemetry.get(condition, [])),
+        }
+
+    contrast_specs = (
+        ("b_minus_c", "b", "c"),
+        ("b_minus_a", "b", "a"),
+        ("c_minus_a", "c", "a"),
+    )
+    metric_specs = (
+        ("energy_j_per_request", T_ENERGY_J, "primary"),
+        ("duration_s", T_DURATION_S, "primary"),
+        ("j_per_token", None, "secondary"),
+        ("power_w", None, "secondary"),
+        ("ttft_s", None, "secondary"),
+    )
+    contrasts = {}
+    for name, minuend, subtrahend in contrast_specs:
+        entry = {}
+        for key, threshold, role in metric_specs:
+            values, per_cycle = paired_differences(
+                cells, minuend, subtrahend, key)
+            interval = summarize_differences(values)
+            item = {
+                "role": role,
+                "threshold": threshold,
+                "per_cycle": per_cycle,
+                **interval,
+            }
+            if threshold is not None:
+                item["verdict"] = classify(interval, threshold)
+                item["recommended_cycles"] = cycles_needed(
+                    interval, threshold)
+            entry[key] = item
+        contrasts[name] = entry
+
+    cycles = {}
+    for cycle in range(1, args.cycles + 1):
+        cycles[str(cycle)] = {
+            "order": "".join(cycle_order(cycle)).upper(),
+            "cells": {condition: cells[condition].get(cycle)
+                      for condition in ("a", "b", "c")},
+        }
 
     pre = baselines["pre"]
     post = baselines["post"]
@@ -630,24 +893,20 @@ def analyze(args, sampler, probe_rows, driven_rows, harness_runs,
         "settle_post": baselines["settle_post"],
     }
 
-    a_power = mean_of([row["power_w"] for row in condition_a])
-    b_power = mean_of([row["power_w"] for row in condition_b])
-    a_jtok = mean_of([row["j_per_token"] for row in condition_a])
-    b_jtok = mean_of([row["j_per_token"] for row in condition_b])
-    pooled = {
-        "a_windows": len(condition_a),
-        "b_windows": len(condition_b),
-        "a_power_w": a_power,
-        "b_power_w": b_power,
-        "a_power_median_w": median_of([row["power_w"] for row in condition_a]),
-        "b_power_median_w": median_of([row["power_w"] for row in condition_b]),
-        "a_jtok": a_jtok,
-        "b_jtok": b_jtok,
-        "delta_power_w": (round(b_power - a_power, 4)
-                          if None not in (a_power, b_power) else None),
-        "delta_jtok": (round(b_jtok - a_jtok, 6)
-                       if None not in (a_jtok, b_jtok) else None),
-    }
+    n_rule = {}
+    for key in ("energy_j_per_request", "duration_s"):
+        item = contrasts["b_minus_c"][key]
+        needed = item["recommended_cycles"]
+        n_rule[key] = {
+            "threshold": item["threshold"],
+            "target_half_width": item["threshold"] / 2.0,
+            "achieved_half_width": item["half_width"],
+            "met": (item["half_width"] is not None
+                    and item["half_width"] <= item["threshold"] / 2.0),
+            "recommended_cycles": (min(needed, MAX_CYCLES)
+                                   if needed is not None else None),
+            "beyond_cap": (needed is not None and needed > MAX_CYCLES),
+        }
 
     summary = {
         "tag": args.tag,
@@ -660,14 +919,40 @@ def analyze(args, sampler, probe_rows, driven_rows, harness_runs,
             "options": args.options,
             "keep_alive": args.keep_alive,
             "keep_alive_sent": parse_keep_alive(args.keep_alive),
-            "requests_per_phase": args.requests,
+            "requests_per_condition": args.requests,
             "request_interval_s": args.request_interval,
             "tail_s": args.tail,
             "cycles": args.cycles,
+            "order_sequences": ["".join(seq).upper() for seq in SEQUENCES],
+            "order_executed": executed_order,
+            "process_scan": {"b": "full", "c": "off"},
             "probe_interval_s": args.probe_interval,
             "baseline_windows": args.baseline_windows,
             "baseline_seconds": args.baseline_seconds,
             "harness": str(args.harness),
+            "expected_eval_count": expected_tokens,
+            "min_valid_per_cell": min_valid,
+        },
+        "preregistration": {
+            "primary_metrics": ["energy_j_per_request", "duration_s"],
+            "primary_contrast": "b_minus_c",
+            "secondary_contrasts": ["b_minus_a", "c_minus_a"],
+            "thresholds": {
+                "energy_j_per_request": T_ENERGY_J,
+                "duration_s": T_DURATION_S,
+            },
+            "valid_window": ("status == ok, eval_count == num_predict "
+                             "quando dichiarato, eval_count > 0"),
+            "cell_inclusion": (f"almeno {min_valid} finestre valide "
+                               f"su {args.requests}"),
+            "cycle_inclusion": "listwise: entrambe le celle incluse",
+            "interval": "t al 95%, df = n-1, minimo 4 cicli pairati",
+            "verdict_rule": ("rilevante se l'intervallo e' tutto oltre "
+                             "+soglia o tutto oltre -soglia; equivalente se "
+                             "tutto dentro la banda; altrimenti non "
+                             "conclusivo"),
+            "n_rule": ("pilota 6 cicli; se la semi-ampiezza B-C supera "
+                       "soglia/2, run definitivo da capo a 12, poi 18"),
         },
         "probe": {
             "rows": len(probe_rows),
@@ -678,20 +963,16 @@ def analyze(args, sampler, probe_rows, driven_rows, harness_runs,
             "offset": offset,
         },
         "baseline": baseline,
-        "pooled": pooled,
+        "conditions": conditions,
+        "contrasts": contrasts,
+        "n_rule": n_rule,
         "cycles": cycles,
-        "criterion": {
-            "scale_w": SCALE_W,
-            "max_abs_delta_w": signal,
-            "max_abs_drift_w": drift,
-            "verdict": verdict,
-        },
-        "harness": telemetry_summary,
+        "harness_telemetry": telemetry,
         "harness_runs": harness_runs,
         "files": {
             "probe_csv": str(Path(args.out_dir) / f"{args.tag}_probe.csv"),
             "driven_requests_glob": str(
-                Path(args.out_dir) / f"{args.tag}_requests_probe_c*.csv"
+                Path(args.out_dir) / f"{args.tag}_requests_probe_c*_a.csv"
             ),
             "windows_csv": str(windows_csv),
             "summary_json": str(Path(args.out_dir) / f"{args.tag}_summary.json"),
@@ -721,7 +1002,7 @@ def main():
     parser.add_argument("--request-interval", type=float, default=6.0)
     parser.add_argument("--request-timeout", type=float, default=120.0)
     parser.add_argument("--tail", type=float, default=2.0)
-    parser.add_argument("--cycles", type=int, default=3)
+    parser.add_argument("--cycles", type=int, default=6)
     parser.add_argument("--probe-interval", type=float, default=0.1)
     parser.add_argument("--baseline-windows", type=int, default=3)
     parser.add_argument("--baseline-seconds", type=float, default=30.0)
@@ -732,6 +1013,8 @@ def main():
         parser.error("--requests must be >= 1")
     if args.cycles < 1:
         parser.error("--cycles must be >= 1")
+    if args.cycles > MAX_CYCLES:
+        parser.error(f"--cycles must be <= {MAX_CYCLES}")
     if args.baseline_windows < 1:
         parser.error("--baseline-windows must be >= 1")
     for name in ("request_interval", "request_timeout", "probe_interval",
@@ -773,6 +1056,7 @@ def main():
     baselines = {}
     driven_rows = []
     harness_runs = []
+    executed_order = []
     errors = []
     state = {"api_ps_start": api_ps(args.api)}
     try:
@@ -806,20 +1090,26 @@ def main():
             sampler, "pre", args.baseline_windows, args.baseline_seconds
         )
         for cycle in range(1, args.cycles + 1):
-            print(f"\nCiclo {cycle}/{args.cycles}", flush=True)
-            driven_rows.extend(drive_requests(
-                args, sampler, f"c{cycle}_a1", cycle,
-                out_dir / f"{args.tag}_requests_probe_c{cycle}_a1.csv",
-            ))
-            sampler.set_phase(f"c{cycle}_b", cycle)
-            run = run_harness(args, out_dir, args.tag, cycle)
-            harness_runs.append(run)
-            if run["returncode"] != 0:
-                errors.append(f"harness ciclo {cycle}: exit {run['returncode']}")
-            driven_rows.extend(drive_requests(
-                args, sampler, f"c{cycle}_a2", cycle,
-                out_dir / f"{args.tag}_requests_probe_c{cycle}_a2.csv",
-            ))
+            order = cycle_order(cycle)
+            print(f"\nCiclo {cycle}/{args.cycles}: ordine "
+                  f"{'-'.join(order).upper()}", flush=True)
+            for condition in order:
+                if condition == "a":
+                    driven_rows.extend(drive_requests(
+                        args, sampler, f"c{cycle}_a", cycle,
+                        out_dir / f"{args.tag}_requests_probe_c{cycle}_a.csv",
+                    ))
+                    continue
+                sampler.set_phase(f"c{cycle}_{condition}", cycle)
+                run = run_harness(
+                    args, out_dir, args.tag, cycle, condition)
+                harness_runs.append(run)
+                if run["returncode"] != 0:
+                    errors.append(
+                        f"harness ciclo {cycle} {condition}: "
+                        f"exit {run['returncode']}"
+                    )
+            executed_order.append("".join(order).upper())
         print("\nBaseline post: settling", flush=True)
         baselines["settle_post"] = settle(sampler, args.settle_max_s)
         print("Baseline post: 3 finestre", flush=True)
@@ -844,12 +1134,23 @@ def main():
         errors.append(
             f"{row['phase']} r{row['request_index']}: {row['status']}"
         )
+    for run in harness_runs:
+        requests_csv = Path(run["requests_csv"])
+        if not requests_csv.is_file():
+            errors.append(f"{run['phase']}: CSV delle richieste assente")
+            continue
+        for row in load_csv(requests_csv):
+            if row["status"] != "ok":
+                errors.append(
+                    f"{run['phase']} r{row['request_index']}: "
+                    f"{row['status']}"
+                )
     if sampler.start_error:
         errors.append(f"sonda: {sampler.start_error}")
 
     summary, _ = analyze(
-        args, sampler, probe_rows, driven_rows, harness_runs, baselines,
-        cpu_s, wall_s,
+        args, probe_rows, driven_rows, harness_runs, baselines,
+        cpu_s, wall_s, executed_order,
     )
     summary["errors"] = errors
     summary["state"] = state
@@ -862,15 +1163,24 @@ def main():
           f"(range {summary['baseline']['pre_range_w']} W)")
     print(f"baseline post {summary['baseline']['post_w']} W "
           f"(drift {summary['baseline']['drift_w']} W)")
-    print(f"pooled A {summary['pooled']['a_power_w']} W, "
-          f"B {summary['pooled']['b_power_w']} W, "
-          f"delta {summary['pooled']['delta_power_w']} W")
-    for cycle, entry in summary["cycles"].items():
-        print(f"ciclo {cycle}: A1 {entry.get('a1_power_w')} W, "
-              f"B {entry.get('b_power_w')} W, A2 {entry.get('a2_power_w')} W, "
-              f"delta B-A {entry.get('delta_b_minus_a_w')} W, "
-              f"drift A2-A1 {entry.get('drift_a2_minus_a1_w')} W")
-    print(f"criterio: {summary['criterion']['verdict']}")
+    for condition in ("a", "b", "c"):
+        item = summary["conditions"][condition]
+        print(f"{condition.upper()}: {item['valid_windows']}/"
+              f"{item['windows']} finestre valide, "
+              f"{item['energy_j_per_request']} J/richiesta, "
+              f"{item['duration_s']} s")
+    for name, entry in summary["contrasts"].items():
+        for key in ("energy_j_per_request", "duration_s"):
+            item = entry[key]
+            span = (f"[{item['lo']}, {item['hi']}]"
+                    if item["interval_available"] else "intervallo assente")
+            print(f"{name} {key}: media {item['mean']} {span} "
+                  f"n={item['n']} -> {item['verdict']}")
+    for key, item in summary["n_rule"].items():
+        print(f"n rule {key}: semi-ampiezza {item['achieved_half_width']} "
+              f"(target {item['target_half_width']}), "
+              f"cicli consigliati {item['recommended_cycles']}"
+              f"{' (oltre il tetto)' if item['beyond_cap'] else ''}")
     print(f"sonda: {summary['probe']['rows']} righe, "
           f"CPU {summary['probe']['cpu_pct_one_core']}% di un core")
     print(f"file: {summary_path.resolve()}")
