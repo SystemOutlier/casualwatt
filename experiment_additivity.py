@@ -53,6 +53,10 @@ Vincoli operativi:
   * i processi busy-loop sono figli di questo processo, non dell'albero
     Ollama: restano fuori dal numeratore e dentro il denominatore, che e'
     esattamente il punto del test;
+  * il carico dichiarato deve essere quello reale: prima di ogni prova B/C si
+    misura quanta CPU hanno consumato i busy-loop e il run si ferma se sono
+    meno della meta' dell'atteso (una sandbox che limita la CPU del gruppo
+    lascerebbe N processi vivi con molto meno di N core);
   * il sampler della sessione e questo harness costano CPU in tutte le
     condizioni: e' un carico comune, dichiarato, non una correzione.
 
@@ -130,23 +134,43 @@ def _cpu_seconds_of(pid: int) -> float:
 
 
 def _start_busy(ctx, n_procs: int, settle_s: float):
-    """Avvia N busy-loop e verifica che stiano davvero consumando CPU."""
+    """Avvia N busy-loop e verifica che consumino davvero N core.
+
+    Un processo vivo non basta. In un ambiente che limita la CPU del gruppo di
+    processi (job object, power throttling, sandbox) N processi possono restare
+    vivi e consumare in totale meno di un core: la condizione B misurerebbe un
+    carico diverso da quello dichiarato, con N solo nel nome. Il controllo
+    misura i ``cpu_times`` di TUTTI i processi sulla finestra di assestamento e
+    rifiuta il carico se la somma e' sotto meta' dell'atteso.
+    """
     stop = ctx.Event()
     procs = [ctx.Process(target=_busy_loop, args=(stop,), daemon=True)
              for _ in range(n_procs)]
     for p in procs:
         p.start()
-    deadline = time.monotonic() + max(float(settle_s), 0.0)
-    while time.monotonic() < deadline:
+
+    probe_s = max(float(settle_s), 2.0)
+    c_start = [_cpu_seconds_of(p.pid) for p in procs]
+    t_start = time.monotonic()
+    while time.monotonic() - t_start < probe_s:
         time.sleep(0.05)
+    elapsed = time.monotonic() - t_start
+    c_end = [_cpu_seconds_of(p.pid) for p in procs]
+
     for p in procs:
         if not p.is_alive():
             _stop_busy(procs, stop)
             raise RuntimeError(f"processo busy-loop {p.pid} morto all'avvio")
-    if sum(max(_cpu_seconds_of(p.pid), 0.0) for p in procs) <= 0.0:
+    consumed = sum(max(c_end[i] - c_start[i], 0.0) for i in range(n_procs))
+    expected = n_procs * elapsed
+    if consumed < 0.5 * expected:
         _stop_busy(procs, stop)
-        raise RuntimeError("i busy-loop non hanno consumato CPU: carico non "
-                           "verificato, la condizione B non misurerebbe nulla")
+        raise RuntimeError(
+            f"i {n_procs} busy-loop hanno consumato {consumed:.2f} s di CPU in "
+            f"{elapsed:.1f} s (atteso ~{expected:.1f} s): l'ambiente limita la "
+            "CPU di questo gruppo di processi, quindi la condizione B non "
+            "avrebbe il carico dichiarato. Lanciare l'harness da un terminale "
+            "normale, non da una sandbox che limita la CPU.")
     return procs, stop
 
 
