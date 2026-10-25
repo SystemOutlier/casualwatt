@@ -1,0 +1,346 @@
+{
+  "tag": "harness_overhead_20261025",
+  "created_utc": "2026-10-25T15:43:37.567+00:00",
+  "config": {
+    "model": "llama3.2:1b",
+    "prompt": "Scrivi un testo lungo e dettagliato sul mare, almeno duecento parole.",
+    "options": {
+      "num_predict": 64,
+      "temperature": 0
+    },
+    "keep_alive": "-1",
+    "keep_alive_sent": -1,
+    "requests_per_phase": 4,
+    "request_interval_s": 6.0,
+    "tail_s": 2.0,
+    "cycles": 3,
+    "probe_interval_s": 0.1,
+    "baseline_windows": 3,
+    "baseline_seconds": 30.0,
+    "harness": "monitor_ollama.py"
+  },
+  "probe": {
+    "rows": 5157,
+    "wall_s": 515.138,
+    "cpu_s": 1.609,
+    "cpu_pct_one_core": 0.312,
+    "offset": {
+      "pairs": 5157,
+      "median_s": 16.571367,
+      "drift_ms": 7.993
+    }
+  },
+  "baseline": {
+    "pre_w": 14.3609,
+    "pre_range_w": 1.4328,
+    "pre_min_w": 13.7852,
+    "pre_max_w": 15.2181,
+    "post_w": 13.4171,
+    "post_range_w": 0.9347,
+    "drift_w": -0.9438,
+    "settle_pre": {
+      "elapsed_s": 35.004,
+      "p_now_w": 15.7792,
+      "p_prev_w": 15.761,
+      "stable": true
+    },
+    "settle_post": {
+      "elapsed_s": 35.024,
+      "p_now_w": 13.4622,
+      "p_prev_w": 13.0404,
+      "stable": true
+    }
+  },
+  "pooled": {
+    "a_windows": 24,
+    "b_windows": 12,
+    "a_power_w": 28.2835,
+    "b_power_w": 27.4859,
+    "a_power_median_w": 28.3719,
+    "b_power_median_w": 27.3431,
+    "a_jtok": 1.2854,
+    "b_jtok": 1.3292,
+    "delta_power_w": -0.7976,
+    "delta_jtok": 0.0438
+  },
+  "cycles": {
+    "1": {
+      "a1_power_w": 28.4618,
+      "b_power_w": 27.5247,
+      "a2_power_w": 27.649,
+      "a1_jtok": 1.2449,
+      "b_jtok": 1.3526,
+      "a2_jtok": 1.3378,
+      "a1_n": 4,
+      "b_n": 4,
+      "a2_n": 4,
+      "delta_b_minus_a_w": -0.5307,
+      "drift_a2_minus_a1_w": -0.8128,
+      "delta_b_minus_a_jtok": 0.06125,
+      "drift_a2_minus_a1_jtok": 0.0929
+    },
+    "2": {
+      "a1_power_w": 28.699,
+      "b_power_w": 27.0998,
+      "a2_power_w": 28.2615,
+      "a1_jtok": 1.3327,
+      "b_jtok": 1.3109,
+      "a2_jtok": 1.2557,
+      "a1_n": 4,
+      "b_n": 4,
+      "a2_n": 4,
+      "delta_b_minus_a_w": -1.3805,
+      "drift_a2_minus_a1_w": -0.4375,
+      "delta_b_minus_a_jtok": 0.0167,
+      "drift_a2_minus_a1_jtok": -0.077
+    },
+    "3": {
+      "a1_power_w": 28.6437,
+      "b_power_w": 27.8331,
+      "a2_power_w": 27.9858,
+      "a1_jtok": 1.2744,
+      "b_jtok": 1.324,
+      "a2_jtok": 1.2669,
+      "a1_n": 4,
+      "b_n": 4,
+      "a2_n": 4,
+      "delta_b_minus_a_w": -0.4816,
+      "drift_a2_minus_a1_w": -0.6579,
+      "delta_b_minus_a_jtok": 0.05335,
+      "drift_a2_minus_a1_jtok": -0.0075
+    }
+  },
+  "criterion": {
+    "scale_w": 1.0,
+    "max_abs_delta_w": 1.3805,
+    "max_abs_drift_w": 0.8128,
+    "verdict": "il delta supera il drift o la scala di 1,0 W: riportare l'intervallo, non una stima puntuale"
+  },
+  "harness": [
+    {
+      "cycle": 1,
+      "exit": 0,
+      "elapsed_s": 38.228,
+      "rows": 67,
+      "interval_median_s": 0.503,
+      "sweep_median_s": 0.049,
+      "sweep_max_s": 0.133,
+      "sweep_duty": 0.097416,
+      "observer_cpu_pct_mean": 10.1657,
+      "observer_cpu_pct_max": 22.5,
+      "observer_cpu_seconds": 3.3271
+    },
+    {
+      "cycle": 2,
+      "exit": 0,
+      "elapsed_s": 37.589,
+      "rows": 66,
+      "interval_median_s": 0.503,
+      "sweep_median_s": 0.0525,
+      "sweep_max_s": 0.147,
+      "sweep_duty": 0.104374,
+      "observer_cpu_pct_mean": 11.6576,
+      "observer_cpu_pct_max": 25.7,
+      "observer_cpu_seconds": 3.7899
+    },
+    {
+      "cycle": 3,
+      "exit": 0,
+      "elapsed_s": 37.266,
+      "rows": 66,
+      "interval_median_s": 0.503,
+      "sweep_median_s": 0.047,
+      "sweep_max_s": 0.119,
+      "sweep_duty": 0.093439,
+      "observer_cpu_pct_mean": 10.7818,
+      "observer_cpu_pct_max": 20.8,
+      "observer_cpu_seconds": 3.4681
+    }
+  ],
+  "harness_runs": [
+    {
+      "cycle": 1,
+      "phase": "c1_b",
+      "command": [
+        "C:\\Users\\Massimo\\AppData\\Local\\Python\\pythoncore-3.14-64\\python.exe",
+        "monitor_ollama.py",
+        "--interval",
+        "0.5",
+        "--requests",
+        "4",
+        "--request-interval",
+        "6.0",
+        "--request-timeout",
+        "120.0",
+        "--tail",
+        "2.0",
+        "--model",
+        "llama3.2:1b",
+        "--prompt",
+        "Scrivi un testo lungo e dettagliato sul mare, almeno duecento parole.",
+        "--options-json",
+        "{\"num_predict\": 64, \"temperature\": 0}",
+        "--keep-alive",
+        "-1",
+        "--run-id",
+        "harness_overhead_20261025_b1",
+        "--output",
+        "experiment_results\\harness_overhead_20261025_telemetry_b1.csv",
+        "--requests-output",
+        "experiment_results\\harness_overhead_20261025_requests_b1.csv",
+        "--meta-output",
+        "experiment_results\\harness_overhead_20261025_meta_b1.json"
+      ],
+      "returncode": 0,
+      "elapsed_s": 38.228,
+      "telemetry_csv": "experiment_results\\harness_overhead_20261025_telemetry_b1.csv",
+      "requests_csv": "experiment_results\\harness_overhead_20261025_requests_b1.csv",
+      "meta_json": "experiment_results\\harness_overhead_20261025_meta_b1.json",
+      "log": "experiment_results\\harness_overhead_20261025_harness_b1.log",
+      "stdout": "| server 3 runner 1 (  0.3% host) | RSS  1555.6 MB | client 1 | api ok (1 modelli)\n16:38:16 | dt 0.51 s | sweep 0.09 s | CPU sistema  59.9% | server 3 runner 1 ( 35.1% host) | RSS  1555.7 MB | client 1 | api ok (1 modelli)\n16:38:16 | dt 0.51 s | sweep 0.09 s | CPU sistema  78.8% | server 3 runner 1 ( 48.7% host) | RSS  1555.7 MB | client 1 | api ok (1 modelli)\n16:38:17 | dt 0.49 s | sweep 0.08 s | CPU sistema  82.1% | server 3 runner 1 ( 49.7% host) | RSS  1555.7 MB | client 1 | api ok (1 modelli)\n16:38:17 | dt 0.51 s | sweep 0.08 s | CPU sistema  80.8% | server 3 runner 1 ( 50.4% host) | RSS  1555.7 MB | client 1 | api ok (1 modelli)\n16:38:18 | dt 0.49 s | sweep 0.07 s | CPU sistema  80.6% | server 3 runner 1 ( 48.8% host) | RSS  1555.7 MB | client 1 | api ok (1 modelli)\n16:38:18 | dt 0.51 s | sweep 0.11 s | CPU sistema  83.7% | server 3 runner 1 ( 48.4% host) | RSS  1555.7 MB | client 1 | api ok (1 modelli)\n16:38:19 | dt 0.49 s | sweep 0.07 s | CPU sistema  84.8% | server 3 runner 1 ( 47.0% host) | RSS  1555.8 MB | client 1 | api ok (1 modelli)\n16:38:19 | dt 0.51 s | sweep 0.03 s | CPU sistema  55.9% | server 3 runner 1 ( 16.9% host) | RSS  1555.8 MB | client 1 | api ok (1 modelli)\n16:38:20 | dt 0.50 s | sweep 0.06 s | CPU sistema  15.0% | server 3 runner 1 (  0.0% host) | RSS  1555.8 MB | client 1 | api ok (1 modelli)\n16:38:20 | dt 0.49 s | sweep 0.05 s | CPU sistema  28.8% | server 3 runner 1 (  0.2% host) | RSS  1555.8 MB | client 1 | api ok (1 modelli)\n16:38:21 | dt 0.51 s | sweep 0.03 s | CPU sistema  21.7% | server 3 runner 1 (  0.2% host) | RSS  1555.8 MB | client 1 | api ok (1 modelli)\nTerminato. Righe: 67 | intervallo mediano 0.503 s (min 0.488, max 0.512) | richieste 4 (ok 4, fallite 0) | deadline perse: 0 | API fallite: 0/33 | file: C:\\Users\\Massimo\\Documents\\CasualWatt\\CWProject\\experiment_results\\harness_overhead_20261025_telemetry_b1.csv | meta: C:\\Users\\Massimo\\Documents\\CasualWatt\\CWProject\\experiment_results\\harness_overhead_20261025_meta_b1.json\n",
+      "stderr": ""
+    },
+    {
+      "cycle": 2,
+      "phase": "c2_b",
+      "command": [
+        "C:\\Users\\Massimo\\AppData\\Local\\Python\\pythoncore-3.14-64\\python.exe",
+        "monitor_ollama.py",
+        "--interval",
+        "0.5",
+        "--requests",
+        "4",
+        "--request-interval",
+        "6.0",
+        "--request-timeout",
+        "120.0",
+        "--tail",
+        "2.0",
+        "--model",
+        "llama3.2:1b",
+        "--prompt",
+        "Scrivi un testo lungo e dettagliato sul mare, almeno duecento parole.",
+        "--options-json",
+        "{\"num_predict\": 64, \"temperature\": 0}",
+        "--keep-alive",
+        "-1",
+        "--run-id",
+        "harness_overhead_20261025_b2",
+        "--output",
+        "experiment_results\\harness_overhead_20261025_telemetry_b2.csv",
+        "--requests-output",
+        "experiment_results\\harness_overhead_20261025_requests_b2.csv",
+        "--meta-output",
+        "experiment_results\\harness_overhead_20261025_meta_b2.json"
+      ],
+      "returncode": 0,
+      "elapsed_s": 37.589,
+      "telemetry_csv": "experiment_results\\harness_overhead_20261025_telemetry_b2.csv",
+      "requests_csv": "experiment_results\\harness_overhead_20261025_requests_b2.csv",
+      "meta_json": "experiment_results\\harness_overhead_20261025_meta_b2.json",
+      "log": "experiment_results\\harness_overhead_20261025_harness_b2.log",
+      "stdout": "| server 3 runner 1 (  0.5% host) | RSS  1559.2 MB | client 1 | api ok (1 modelli)\n16:39:39 | dt 0.50 s | sweep 0.03 s | CPU sistema  17.1% | server 3 runner 1 (  0.3% host) | RSS  1559.2 MB | client 1 | api ok (1 modelli)\n16:39:39 | dt 0.50 s | sweep 0.08 s | CPU sistema  36.3% | server 3 runner 1 ( 21.2% host) | RSS  1559.2 MB | client 1 | api ok (1 modelli)\n16:39:40 | dt 0.49 s | sweep 0.07 s | CPU sistema  72.0% | server 3 runner 1 ( 49.2% host) | RSS  1559.2 MB | client 1 | api ok (1 modelli)\n16:39:40 | dt 0.51 s | sweep 0.08 s | CPU sistema  68.2% | server 3 runner 1 ( 49.6% host) | RSS  1559.2 MB | client 1 | api ok (1 modelli)\n16:39:41 | dt 0.49 s | sweep 0.07 s | CPU sistema  71.4% | server 3 runner 1 ( 49.6% host) | RSS  1559.2 MB | client 1 | api ok (1 modelli)\n16:39:41 | dt 0.51 s | sweep 0.07 s | CPU sistema  66.3% | server 3 runner 1 ( 48.8% host) | RSS  1559.2 MB | client 1 | api ok (1 modelli)\n16:39:42 | dt 0.49 s | sweep 0.10 s | CPU sistema  72.4% | server 3 runner 1 ( 48.2% host) | RSS  1559.2 MB | client 1 | api ok (1 modelli)\n16:39:42 | dt 0.50 s | sweep 0.05 s | CPU sistema  70.8% | server 3 runner 1 ( 43.7% host) | RSS  1559.2 MB | client 1 | api ok (1 modelli)\n16:39:43 | dt 0.50 s | sweep 0.04 s | CPU sistema  19.3% | server 3 runner 1 (  0.5% host) | RSS  1559.2 MB | client 1 | api ok (1 modelli)\n16:39:43 | dt 0.49 s | sweep 0.04 s | CPU sistema  27.7% | server 3 runner 1 (  1.1% host) | RSS  1559.2 MB | client 1 | api ok (1 modelli)\n16:39:44 | dt 0.50 s | sweep 0.03 s | CPU sistema  14.1% | server 3 runner 1 (  0.3% host) | RSS  1559.2 MB | client 1 | api ok (1 modelli)\nTerminato. Righe: 66 | intervallo mediano 0.503 s (min 0.487, max 0.511) | richieste 4 (ok 4, fallite 0) | deadline perse: 0 | API fallite: 0/33 | file: C:\\Users\\Massimo\\Documents\\CasualWatt\\CWProject\\experiment_results\\harness_overhead_20261025_telemetry_b2.csv | meta: C:\\Users\\Massimo\\Documents\\CasualWatt\\CWProject\\experiment_results\\harness_overhead_20261025_meta_b2.json\n",
+      "stderr": ""
+    },
+    {
+      "cycle": 3,
+      "phase": "c3_b",
+      "command": [
+        "C:\\Users\\Massimo\\AppData\\Local\\Python\\pythoncore-3.14-64\\python.exe",
+        "monitor_ollama.py",
+        "--interval",
+        "0.5",
+        "--requests",
+        "4",
+        "--request-interval",
+        "6.0",
+        "--request-timeout",
+        "120.0",
+        "--tail",
+        "2.0",
+        "--model",
+        "llama3.2:1b",
+        "--prompt",
+        "Scrivi un testo lungo e dettagliato sul mare, almeno duecento parole.",
+        "--options-json",
+        "{\"num_predict\": 64, \"temperature\": 0}",
+        "--keep-alive",
+        "-1",
+        "--run-id",
+        "harness_overhead_20261025_b3",
+        "--output",
+        "experiment_results\\harness_overhead_20261025_telemetry_b3.csv",
+        "--requests-output",
+        "experiment_results\\harness_overhead_20261025_requests_b3.csv",
+        "--meta-output",
+        "experiment_results\\harness_overhead_20261025_meta_b3.json"
+      ],
+      "returncode": 0,
+      "elapsed_s": 37.266,
+      "telemetry_csv": "experiment_results\\harness_overhead_20261025_telemetry_b3.csv",
+      "requests_csv": "experiment_results\\harness_overhead_20261025_requests_b3.csv",
+      "meta_json": "experiment_results\\harness_overhead_20261025_meta_b3.json",
+      "log": "experiment_results\\harness_overhead_20261025_harness_b3.log",
+      "stdout": "| server 3 runner 1 (  0.5% host) | RSS  1559.6 MB | client 1 | api ok (1 modelli)\n16:41:02 | dt 0.51 s | sweep 0.04 s | CPU sistema  14.5% | server 3 runner 1 (  0.6% host) | RSS  1559.6 MB | client 1 | api ok (1 modelli)\n16:41:03 | dt 0.49 s | sweep 0.07 s | CPU sistema  48.0% | server 3 runner 1 ( 36.5% host) | RSS  1559.6 MB | client 1 | api ok (1 modelli)\n16:41:03 | dt 0.50 s | sweep 0.12 s | CPU sistema  77.0% | server 3 runner 1 ( 46.2% host) | RSS  1559.6 MB | client 1 | api ok (1 modelli)\n16:41:04 | dt 0.51 s | sweep 0.07 s | CPU sistema  73.0% | server 3 runner 1 ( 49.3% host) | RSS  1559.6 MB | client 1 | api ok (1 modelli)\n16:41:04 | dt 0.49 s | sweep 0.07 s | CPU sistema  74.0% | server 3 runner 1 ( 49.5% host) | RSS  1559.6 MB | client 1 | api ok (1 modelli)\n16:41:05 | dt 0.50 s | sweep 0.07 s | CPU sistema  68.8% | server 3 runner 1 ( 48.5% host) | RSS  1559.6 MB | client 1 | api ok (1 modelli)\n16:41:05 | dt 0.50 s | sweep 0.07 s | CPU sistema  67.7% | server 3 runner 1 ( 49.5% host) | RSS  1559.6 MB | client 1 | api ok (1 modelli)\n16:41:06 | dt 0.49 s | sweep 0.06 s | CPU sistema  46.8% | server 3 runner 1 ( 22.2% host) | RSS  1559.6 MB | client 1 | api ok (1 modelli)\n16:41:06 | dt 0.50 s | sweep 0.05 s | CPU sistema  22.6% | server 3 runner 1 (  0.6% host) | RSS  1559.6 MB | client 1 | api ok (1 modelli)\n16:41:07 | dt 0.50 s | sweep 0.03 s | CPU sistema  26.0% | server 3 runner 1 (  0.0% host) | RSS  1559.6 MB | client 1 | api ok (1 modelli)\n16:41:07 | dt 0.50 s | sweep 0.03 s | CPU sistema  16.1% | server 3 runner 1 (  0.6% host) | RSS  1559.6 MB | client 1 | api ok (1 modelli)\nTerminato. Righe: 66 | intervallo mediano 0.503 s (min 0.486, max 0.509) | richieste 4 (ok 4, fallite 0) | deadline perse: 0 | API fallite: 0/32 | file: C:\\Users\\Massimo\\Documents\\CasualWatt\\CWProject\\experiment_results\\harness_overhead_20261025_telemetry_b3.csv | meta: C:\\Users\\Massimo\\Documents\\CasualWatt\\CWProject\\experiment_results\\harness_overhead_20261025_meta_b3.json\n",
+      "stderr": ""
+    }
+  ],
+  "files": {
+    "probe_csv": "experiment_results\\harness_overhead_20261025_probe.csv",
+    "driven_requests_glob": "experiment_results\\harness_overhead_20261025_requests_probe_c*.csv",
+    "windows_csv": "experiment_results\\harness_overhead_20261025_windows.csv",
+    "summary_json": "experiment_results\\harness_overhead_20261025_summary.json"
+  },
+  "errors": [],
+  "state": {
+    "api_ps_start": {
+      "ok": true,
+      "models": [
+        {
+          "name": "llama3.2:1b",
+          "size_bytes": 1519292251,
+          "size_vram_bytes": 0,
+          "expires_at": "2319-02-04T16:21:18.723817007+01:00"
+        }
+      ]
+    },
+    "warmup": [
+      {
+        "request_index": 1,
+        "status": "ok",
+        "window_s": 2.983054,
+        "eval_count": 64,
+        "done_reason": "length"
+      },
+      {
+        "request_index": 2,
+        "status": "ok",
+        "window_s": 3.248376,
+        "eval_count": 64,
+        "done_reason": "length"
+      }
+    ],
+    "api_ps_after_warmup": {
+      "ok": true,
+      "models": [
+        {
+          "name": "llama3.2:1b",
+          "size_bytes": 1519292251,
+          "size_vram_bytes": 0,
+          "expires_at": "2319-02-04T16:22:25.506979607+01:00"
+        }
+      ]
+    },
+    "api_ps_end": {
+      "ok": true,
+      "models": [
+        {
+          "name": "llama3.2:1b",
+          "size_bytes": 1519292251,
+          "size_vram_bytes": 0,
+          "expires_at": "2319-02-04T16:28:45.772916307+01:00"
+        }
+      ]
+    }
+  }
+}
