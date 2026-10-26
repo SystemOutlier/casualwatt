@@ -47,9 +47,10 @@ Fonti primarie, in ordine di autorita':
 ## Stato corrente del lavoro
 
 P1 (baseline), P2 (token e terminazione), P3 (geometria e modello), P4
-(incertezza e validazione) sono **congelati**. P5 (schema CSV e runner) e P6
-(esecuzione e analisi) sono **aperti**. P6 contiene P6.1 (pavimento di tempo a
-muro) e P6.2 (obblighi del pilota), derivati, e tre requisiti adottati come
+(incertezza e validazione) e P5 (schema CSV e runner, 2026-10-26) sono
+**congelati**. P6 (esecuzione e analisi) e' **aperto**. P6 contiene P6.1
+(pavimento di tempo a muro) e P6.2 (obblighi del pilota), derivati, e tre
+requisiti adottati come
 vincolanti: P6.3 (audit idle), P6.4 (simulazione Monte Carlo) e P6.6 (prova di
 attribuzione ripetibile, 2026-10-25, con la banda di concordanza ancora da
 congelare prima del primo run).
@@ -60,9 +61,10 @@ provvisoria, rinviata ai dati del pilota P2.9 e da chiudere **prima** della
 campagna principale (protocollo P1.7, P1.13). La formula non si tocca nel
 frattempo.
 
-**Il codice sorgente di produzione resta bloccato fino al congelamento di P5.**
-Si puo' leggere, verificare e analizzare; non si implementa la v4 prima che P5
-sia chiuso. Lo stato aggiornato e' nella tabella in testa al protocollo, non qui.
+**Il codice sorgente di produzione e' sbloccato dal congelamento di P5**
+(2026-10-26): la v4 si implementa contro il protocollo congelato, non contro la
+descrizione che ne dava questo file. Lo stato aggiornato e' nella tabella in
+testa al protocollo, non qui.
 
 ---
 
@@ -172,18 +174,22 @@ indefiniti.
 - `cwEnergyModular/` — codice di produzione. `energy/emi_backend.py` (contatore
   EMI via ctypes/SetupAPI), `energy/energy_session.py` (canali, integrazione di
   finestra, interpolazione ai bordi), `energy/local_energy.py` (campi per riga),
-  `casualwatt_csv_export.py` (`CSV_COLUMNS`, righe 17-181).
+  `casualwatt_csv_export.py` (`CSV_COLUMNS`, righe 17-182;
+  `BLOCK_SUMMARY_COLUMNS`, 189-204; `POINT_SUMMARY_COLUMNS`, 206-215), e il
+  runner v4 `benchmark_v4.py` (sequenza di blocco di P1.5).
 - **I test stanno in due posti**: `cwEnergyModular/tests/` (345) e direttamente in
   `cwEnergyModular/` (`test_answer_type_evaluation.py`, 35;
   `test_synthetic_window.py`, 2; `test_validazione_valutazione.py`, 22);
   345 + 59 = 404. Ogni test ha una docstring che
   dice *perche'* esiste e quale relazione matematica o fisica verifica, non solo
   cosa fa.
-  L'Appendice D della tesi ne elenca 294 mentre la suite e' a 401: va
-  rigenerata con `cwEnergyModular/tools/dump_tests_latex.py` (rinvio dichiarato
-  al freeze di P5, insieme alle altre righe non committate). I 17 test di
-  `tests/test_protocollo_p4_geometry.py` (2026-10-26, quinto turno di revisione
-  esterna) congelano la geometria di copertura di P4.7 e la scala di `budget_pred`
+  L'Appendice D della tesi e' stata rigenerata il 2026-10-26 con
+  `cwEnergyModular/tools/dump_tests_latex.py`: 404 node id, 401 passati, 3
+  saltati, docstring 404/404. Il file generato
+  (`Tesi-latex/qoder-bozza/generated/test_suite_appD.tex`) sta fuori da git.
+  I 17 test di `tests/test_protocollo_p4_geometry.py` (2026-10-26, quinto turno
+  di revisione esterna) congelano la geometria di copertura di P4.7 e la scala
+  di `budget_pred`
   di P4.6 senza hardware né dati: sono i test da eseguire quando qualcuno propone
   di cambiare i vertici dell'inviluppo o la formula del budget.
 - **Alla radice del repo stanno 35 script `.py` tracciati**: sono gli harness
