@@ -6,6 +6,10 @@ Materiale valutato: `metodiLoc.DOCX` (radice del repository, non tracciato),
 Ogni affermazione di questo file e' verificata il 25/10/2026 contro il codice,
 un artefatto tracciato o il protocollo congelato.
 
+Seguito operativo: `metodi_per_dominio_20261025_spec.md` traduce questa
+valutazione nella specifica dei metodi e delle catene di fallback per dominio,
+inclusi cloud e rete.
+
 ## 1. Verdetto
 
 L'impianto del documento e' corretto e coincide in gran parte con cio' che
