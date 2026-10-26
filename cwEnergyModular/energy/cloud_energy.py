@@ -15,11 +15,20 @@ Strategia (sezione 9 della specifica):
 L'energia risultante (kWh -> J) ha confine: server-side datacenter
 (usage GPU + PUE). La quota EMBODIED di EcoLogits NON entra in energy_j: e' un
 impatto GWP separato, come dichiarato nelle note di ogni stima. Esclude rete e
-client. NOTE B4: llm_impacts (0.11.3) usa solo output_token_count e
-request_latency -> i token di input NON sono inclusi nella stima; la latenza
-passata include la rete end-to-end (sovrastima d'attesa dichiarata); il valore
-principale e' la MEDIA del range EcoLogits, con min/max nei campi
-energy_min_j / energy_max_j.
+client. NOTE B4: llm_impacts usa solo output_token_count e request_latency ->
+i token di input NON sono inclusi nella stima. RETTIFICA 26-10-2026 (Punto #119):
+la latenza end-to-end che passiamo NON produce una "sovrastima d'attesa"
+sistematica -- EcoLogits la consuma soltanto attraverso il termine server, via
+`generation_latency = min(request_latency, gpu_latency)`
+(`impacts/llm.py:100-102`, unico punto d'uso `:574`), dove `gpu_latency` e' la
+regressione interna del motore. Oltre l'incrocio la porzione di rete e di coda
+viene SCARTATA e l'energia non cambia (verificato: identica all'ultima cifra per
+request_latency 2,0 / 3,6 / 5 / 10 / 30 / 120 s, 32 token output,
+openai/gpt-4o-mini). Il termine e' quindi un **clamp**, non una deriva: la riga
+deve poter dire quale dei due termini vincola. Il valore principale e' la MEDIA
+del range EcoLogits, con min/max nei campi energy_min_j / energy_max_j -- e quel
+range e' `parameter_pue_ignorance_range` (propagazione dei parametri registrati e
+delle bande PUE/WUE del provider), non incertezza statistica del modello.
 """
 from __future__ import annotations
 
@@ -164,18 +173,31 @@ def estimate_cloud_energy(
                 f"token di input ({int(prompt_tokens)}) NON inclusi nella stima: "
                 "llm_impacts usa solo output_token_count + request_latency"
             )
-            # B4: la latenza MISURATA passata a EcoLogits include il tempo di
-            # rete client->server: la stima server-side ne risulta lievemente
-            # sovrastimata per la porzione d'attesa (dichiarato, non corretto).
+            # B4 + Rettifica #119 (26-10-2026): la latenza MISURATA arriva al
+            # motore ma viene usata SOLO come min(request_latency, gpu_latency)
+            # nel termine server (impacts/llm.py:100-102, :574). Quindi la porzione
+            # di rete e di coda non e' una sovrastima sistematica: sopra
+            # l'incrocio il motore usa la propria regressione e il tempo extra
+            # viene scartato (verificato: energia identica per request_latency
+            # 2,0 -> 120 s, 32 token, openai/gpt-4o-mini). Il testo della nota e'
+            # stato corretto perche' asseriva una deriva unidirezionale.
             notes.append(
-                f"request_latency={float(duration_s):.3f}s MISURATA end-to-end: "
-                "include la latenza di rete, non solo il tempo server-side"
+                f"request_latency={float(duration_s):.3f}s MISURATA end-to-end "
+                "(include rete e coda): EcoLogits la usa solo come "
+                "min(request_latency, gpu_latency) nel termine server, quindi "
+                "oltre la soglia interna il tempo di rete NON entra nella stima "
+                "(clamp, non sovrastima; termine vincolante non registrato in "
+                "riga -- campo cloud_latency_binding, vedi spec C5)"
             )
             if kwh_lo is not None and kwh_hi is not None and kwh_hi > kwh_lo:
                 notes.append(
                     "valore principale = MEDIA del range EcoLogits "
                     f"[{kwh_lo:.6g}, {kwh_hi:.6g}] kWh; min/max salvati in "
-                    "cloud_energy_min_j / cloud_energy_max_j"
+                    "cloud_energy_min_j / cloud_energy_max_j; "
+                    "cloud_energy_band_semantics=parameter_pue_ignorance_range "
+                    "(propagazione dei parametri registrati e delle bande PUE/WUE "
+                    "del provider, NON deviazione standard ne' confidenza del "
+                    "modello)"
                 )
             energy_j = round(kwh * 3_600_000.0, 6)
             e_min_j = round(kwh_lo * 3_600_000.0, 6) if kwh_lo is not None else None
