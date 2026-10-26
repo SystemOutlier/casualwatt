@@ -3329,3 +3329,120 @@ colonne esistenti (`CSV_COLUMNS`, `:17-108`): P5 le aggiunga come campi nuovi.
 già mappata qui sopra, quindi non è una colonna nuova, ma P5 dichiari che è una
 quantità derivata e da dove si calcola — `u_bias,b` ne dipende e senza quella
 dichiarazione torna ambiguo.
+
+
+---
+
+## Emenda 8 (2026-10-26) — P1.6: il blocco invalidato si sostituisce; P2.9: la quadratura resta
+
+Emenda sostanziale, proposta e approvata prima del pilota di P6.2. Chiude le
+due decisioni che il dossier del 26-10 aveva registrato come aperte (P1.6 e
+P2.9). Il testo congelato non è riscritto: le due formulazioni in conflitto
+sono **sostituite da questa sezione datata**, con l'indicazione esatta di ciò
+che cessa di valere.
+
+### P1.6 — Guasto del contatore in una finestra di baseline
+
+Testo che cessava di valere, registrato per provenienza:
+
+- `:221-222` — "Se una finestra ha delta negativo, contatore resettato o
+  lettura non finita: si ripete una volta; alla seconda si invalida il
+  blocco": il retry **di singola finestra** non esiste in nessuna
+  implementazione e non viene introdotto. `calibrate_idle` continua a
+  sollevare sulla **prima** finestra anomala
+  (`energy/energy_session.py:2548` → `raise` a `:2553` quando la
+  finestra non è leggibile — contatore non disponibile, che **non** è
+  un guasto sostituibile: senza contatore ripetere non serve — e
+  `:2561` → `raise` a `:2562-2563` per delta negativo o contatore
+  resettato), senza retry interni; la **lettura non finita** non è
+  intercettata dal `raise` (`NaN < 0` è falso) e lo diventa nel runner,
+  dove la terna si riduce sotto tre repliche pulite;
+- anello 2 di P4.9 (`:2092`) — "`counter_invalid`: il blocco si ripete una
+  volta, poi si scarta e si dichiara": la ripetizione **dell'intero blocco**
+  esiste, ma non "una volta" sulla stessa cella in coda al punto: diventa la
+  regola di sostituzione qui sotto, e la formulazione di P4.9 si intende
+  allineata a essa.
+
+Regola vigente, dal primo run:
+
+1. un blocco la cui calibrazione (pre o post) fallisce per **guasto tecnico
+   del contatore** — delta negativo, contatore resettato, lettura non finita
+   — è **invalidato alla prima occorrenza**;
+2. il blocco invalidato è **sostituito una sola volta** da un blocco
+   completo nuovo dello **stesso punto di disegno**, con **nonce nuovi**;
+3. la posizione del sostituto è **estratta a sorte dal resto del batch**
+   con un **seme dichiarato in config**; il seme e la posizione estratta
+   sono registrati nel log del run. Se nel batch non resta posto, il
+   sostituto va **in coda**;
+4. se anche il sostituto fallisce per guasto tecnico, il blocco è
+   dichiarato **mancante**: non c'è una terza esecuzione;
+5. la sostituzione è riservata ai guasti tecnici del contatore.
+   `pre_unstable`, `pre_range_w`, drift e gli altri flag di **qualità**
+   **non** generano sostituzione: restano solo flag, perché sostituire un
+   blocco perché la baseline era rumorosa significhrebbe selezionare i
+   blocchi buoni dopo aver visto il risultato — lo stesso divieto da cui
+   nasce la regola delle soglie congelate prima dei dati;
+6. la stessa regola vale su **pilota, campagna e gate**: è una regola
+   sull'esecuzione dei blocchi, non su una configurazione;
+7. il numero di blocchi invalidati per batch ha un **tetto `K`**, letto da
+   config **senza alcun valore di default**: se il valore manca, il runner
+   si rifiuta di partire. Al superamento di `K` il run **si ferma con
+   messaggio** che dichiara il conteggio. `K` è un parametro del run, come
+   le soglie: va dichiarato e registrato prima dei dati.
+
+Motivazione della forma (perché sostituire il blocco e non ripetere la
+finestra): la statistica congelata di P1.3/F.1 è la mediana di **tre
+finestre**; ripetere una singola finestra fuori dalla terna produrrebbe una
+terna con una finestra di provenienza diversa, e ripetere la calibrazione
+intera costerebbe 90 s e cambierebbe la statistica (terne nuove, non la
+stessa terna con una finestra sostituita). La sostituzione di un blocco
+completo conserva intatta la struttura 3 pre + 3 post e sposta il costo su
+un'unità che il protocollo già definisce per intero.
+
+Un blocco invalidato non produce righe di richiesta e non entra in nessuna
+analisi: lascia però una riga di **riepilogo di blocco** con il motivo
+(`invalid_reason`) e l'attempt, perché un'invalidazione registrata solo nel
+log non è verificabile da un terzo.
+
+Campi nuovi in **coda** allo schema (F.17, senza modificare nomi o ordine
+delle colonne esistenti; riga, riepilogo di blocco, e stessa regola su
+pilota, campagna e gate):
+
+| campo | tipo | valore |
+|---|---|---|
+| `block_attempt` | intero | `1` il blocco di piano, `2` il suo sostituto |
+| `invalid_reason` | stringa | vuota se il blocco è valido; token del guasto tecnico sulla riga del blocco invalidato: `delta_negativo` (il reset si manifesta come delta decrescente, `energy/energy_session.py:1079-1083`), `lettura_non_finita` (la terna si riduce sotto tre per valori non finiti), `replica_non_positiva` (finestra a zero o sotto: contatore fermo o ripartito) |
+| `replaced_block_id` | stringa | il `block_id` del blocco invalidato che il sostituto rimpiazza; vuota altrove |
+
+Distinzione dichiarata: `invalid_reason` (nuovo, **di blocco**, P1.6 come
+emendata) non è `invalid_reasons` (P2.5, **di richiesta**, motivi di
+invalidità della terminazione, oggi nelle note di riga). I due campi non si
+sovrascrivono.
+
+### P2.9 / P1.7 — Forma di combinazione di `budget_base_w`
+
+`budget_base_w = sqrt(half_range_pre_w^2 + half_drift_w^2)` **resta**, come
+congelato in P1.7/F.4 (`math.hypot` di `block_baseline` in
+`cwEnergyModular/benchmark_v4.py`). La decisione operativa provvisoria di
+P1.7 è chiusa **in questa direzione**:
+
+- la quadratura di due termini non negativi è dichiarata **proxy di
+  incertezza standard** impiegato nei pesi `w_b = 1/budget_fit_b^2` (F.9):
+  è l'interpretazione sotto cui la quadratura è applicata, non la
+  dichiarazione che `half_range_pre_w` e `half_drift_w` siano deviazioni
+  standard — P1.7 continua a chiamarli semi-range conservativi, e a `n = 3`
+  non si stima una varianza;
+- la quadratura **non è un limite massimo**: il rapporto con la somma
+  aritmetica resta fra `1/sqrt(2)` e `1` (P1.7, 24-10);
+- la **somma aritmetica non è adottata**;
+- per le soglie del gate che richiedano una garanzia più forte si applicherà
+  un **fattore di copertura separato**, dichiarato come tale, senza toccare
+  la formula del budget;
+- il pilota di P6.2 **descrive** la distribuzione di `half_range_pre_w` e di
+  `u_within,b`: non modifica queste regole e non decide la forma di
+  combinazione.
+
+Il commento e la docstring dell'implementazione (`block_baseline`,
+`benchmark_v4.py`) dichiarano la stessa cosa: combinazione in quadratura di
+due semi-ampiezze, proxy conservativo, non incertezza standard né limite
+massimo.
