@@ -124,6 +124,81 @@ CSV_COLUMNS: List[str] = [
     # (tempo CPU perso); cpu_time_resolution_s e' il tick OSSERVATO dei
     # cpu_times, contro cui la finestra va confrontata.
     "worker_exit_in_window", "cpu_time_resolution_s",
+    # ---- P5 (#42): lotto 1, scritto dal runner v4 ------------------------
+    # engine_tree_changed e' il flag del protocollo che invalida la quota;
+    # worker_exit_in_window resta il nome storico dello STESSO insieme (D4:
+    # non sono due prove indipendenti). Le identita' rendono l'insieme
+    # confrontabile a posteriori, non solo il booleano.
+    "engine_tree_changed", "tree_identity_start", "tree_identity_end",
+    "tree_born", "tree_lost",
+    # Provenienza della quota e validita' dichiarata. cpu_time_share=0 con
+    # valid=0 e' "non calcolata", non "nessuna CPU usata"; source dice perche'.
+    "cpu_share_source", "cpu_time_share_valid",
+    # Bordo di misura: istanti UTC, base di dt_W, spread delle letture e
+    # timestamps 100 ns del driver EMI ai due estremi. Con emi_edge_source
+    # l'energia della riga e' revisionabile senza il file di run.
+    "edge_start_utc", "edge_end_utc", "edge_time_source", "edge_spread_s",
+    "dt_W_s", "emi_ts_start_100ns", "emi_ts_end_100ns", "emi_edge_source",
+    # P1.5/P1.14: baseline pre (applicata) e post (diagnostica, mai
+    # sottratta), le tre repliche di ciascuna e i derivati del budget base.
+    "baseline_pre_w", "baseline_post_w", "pre_windows_w", "post_windows_w",
+    "pre_range_w", "dP", "half_range_pre_w", "half_drift_w",
+    "budget_base_w", "budget_base_j", "settle_pre_s", "settle_post_s",
+    # Chiavi stabili di collegamento fra righe grezze e riepiloghi derivati
+    # (block_summary.csv / point_summary.csv): il join non usa l'ordine.
+    "block_id", "point_id", "batch_id",
+    # Livello dei token dichiarato per riga: 'per-request' in v4; vuoto =
+    # non dichiarato (righe storiche), non "per richiesta" per default.
+    "tokens_level", "n_inferenze",
+    # D2: provenienza dei bordi del segmento del LLM Judge. judge_energy_j e
+    # judge_window_s esistono gia'; qui si aggiunge COME e' stata letta la
+    # sua energia e l'interpolazione resta un numero verificabile accanto
+    # alla lettura diretta, non un valore implicito.
+    "judge_energy_edge_source", "judge_energy_interp_j",
+    "judge_edge_start_utc", "judge_edge_end_utc", "judge_edge_spread_s",
+    "judge_emi_ts_start_100ns", "judge_emi_ts_end_100ns",
+    # Emenda 8 (P1.6): tracciabilita' della sostituzione di un blocco invalidato
+    # per guasto TECNICO del contatore. block_attempt = "1" piano, "2" sostituto;
+    # invalid_reason = token del guasto ("delta_negativo" | "lettura_non_finita"
+    # | "replica_non_positiva"), VUOTA se il blocco e' valido; replaced_block_id
+    # = id del blocco invalidato che questo sostituto rimpiazza, vuota altrove.
+    # Attenzione al nome: invalid_reason (di blocco) non e' invalid_reasons
+    # (di richiesta, P2.5, oggi nelle note). Accodate in coda: niente rinomine,
+    # niente riordini (D4), migrazione per nome via ensure_header.
+    "block_attempt", "invalid_reason", "replaced_block_id",
+]
+
+
+# ---- P5 (#42), lotto 2: riepiloghi derivati, non righe di richiesta ------
+# Congelati per nome e collocazione nella proposta P5 (p5_proposta:360-368).
+# I campi di misura del blocco sono scritti dal runner v4; quelli di analisi
+# (r_A, r_B, u_edge_j, ...) restano celle vuote finche' l'analisi non li
+# calcola: vuoto = non ancora calcolato, mai zero inventato.
+BLOCK_SUMMARY_COLUMNS: List[str] = [
+    "batch_id", "point_id", "block_id", "block_kind", "pair_id",
+    "order_seed", "dt_nominal_s", "dt_tick_s", "p_peak_w",
+    "settle_pre_s", "settle_post_s",
+    "baseline_pre_w", "baseline_post_w", "pre_windows_w", "post_windows_w",
+    "pre_range_w", "dP", "half_range_pre_w", "half_drift_w",
+    "budget_base_w", "budget_base_j",
+    "u_edge_j", "budget_fit_j", "budget_pred_j", "u_bias_j", "bias_w",
+    "z_resid", "cooldown_timeout", "negative_increment",
+    "design_deviation", "design_deviation_count", "r_A", "r_B",
+    # Emenda 8 (P1.6): le tre colonne in coda, stesso ordine delle righe grezze.
+    # Il riepilogo di un blocco invalidato esiste: porta le chiavi d'identita',
+    # block_attempt, invalid_reason e replaced_block_id, e le celle di misura
+    # Vuote ("non calcolata"), non zero.
+    "block_attempt", "invalid_reason", "replaced_block_id",
+]
+
+POINT_SUMMARY_COLUMNS: List[str] = [
+    "batch_id", "point_id",
+    "err_rel", "intervallo_conf", "pred_nonpositive",
+    "coverage_tier", "coverage_tier_design", "coverage_tier_fit",
+    "hull_margin_tok", "hull_margin_design_tok", "sparse_support",
+    "thin_support", "out_of_coverage", "bootstrap_seed",
+    "validation_bias_pass", "control_unstable", "chain_status",
+    "share_E0", "delta_sens",
 ]
 
 
@@ -137,6 +212,11 @@ def ensure_header(path: Path) -> None:
     (celle vuote per i campi nuovi): niente perdita di dati, niente righe
     disallineate.
     """
+    _ensure_header_columns(Path(path), CSV_COLUMNS)
+
+
+def _ensure_header_columns(path: Path, columns: List[str]) -> None:
+    """``ensure_header`` per uno schema esplicito (righe o riepilogo)."""
     path = Path(path)
     path.parent.mkdir(parents=True, exist_ok=True)
     if path.exists() and path.stat().st_size > 0:
@@ -144,16 +224,16 @@ def ensure_header(path: Path) -> None:
             with open(path, "r", newline="", encoding="utf-8-sig") as fh:
                 rows = list(csv.reader(fh))
             first = rows[0] if rows else None
-            if first == CSV_COLUMNS:
+            if first == columns:
                 return
             # header esistente che contiene TUTTE le colonne richieste in
             # ordine? allora è valido: nessuna riscrittura necessaria
-            if first and len(first) >= len(CSV_COLUMNS) and \
-                    all(first[i] == col for i, col in enumerate(CSV_COLUMNS)):
+            if first and len(first) >= len(columns) and \
+                    all(first[i] == col for i, col in enumerate(columns)):
                 return
             # migrazione: riaccoda le colonne nuove nello schema canonico
-            if first and any(c in CSV_COLUMNS for c in first):
-                merged_cols = list(CSV_COLUMNS) + [c for c in first if c not in CSV_COLUMNS]
+            if first and any(c in columns for c in first):
+                merged_cols = list(columns) + [c for c in first if c not in columns]
                 migrated = [merged_cols]
                 for r in rows[1:]:
                     lookup = dict(zip(first, r))
@@ -164,7 +244,7 @@ def ensure_header(path: Path) -> None:
         except Exception:
             pass
     with open(path, "w", newline="", encoding="utf-8-sig") as fh:
-        csv.writer(fh).writerow(CSV_COLUMNS)
+        csv.writer(fh).writerow(columns)
 
 
 def export_results_csv(records: List[Dict], path: Path, mode: str = "a") -> int:
@@ -183,6 +263,29 @@ def export_results_csv(records: List[Dict], path: Path, mode: str = "a") -> int:
         for rec in records:
             row = {k: rec.get(k, "") for k in CSV_COLUMNS}
             writer.writerow(row)
+            written += 1
+    return written
+
+
+def export_summary_csv(records: List[Dict], path: Path, columns: List[str],
+                       mode: str = "a") -> int:
+    """Accoda uno dei riepiloghi derivati (block/point) con schema esplicito.
+
+    I riepiloghi stanno in file separati dalle righe grezze (D3): le righe
+    grezze restano append-only nel CSV dei risultati, i riepiloghi si
+    collegano per ``batch_id``/``point_id``/``block_id``. Le colonne vuote
+    dichiarano "non calcolato", non zero.
+    """
+    path = Path(path)
+    _ensure_header_columns(path, columns)
+    written = 0
+    open_mode = "a" if mode == "a" else "w"
+    with open(path, open_mode, newline="", encoding="utf-8-sig") as fh:
+        if open_mode == "w":
+            csv.writer(fh).writerow(columns)
+        writer = csv.DictWriter(fh, fieldnames=columns, extrasaction="ignore")
+        for rec in records:
+            writer.writerow({k: rec.get(k, "") for k in columns})
             written += 1
     return written
 
