@@ -16,19 +16,39 @@ L'energia risultante (kWh -> J) ha confine: server-side datacenter
 (usage GPU + PUE). La quota EMBODIED di EcoLogits NON entra in energy_j: e' un
 impatto GWP separato, come dichiarato nelle note di ogni stima. Esclude rete e
 client. NOTE B4: llm_impacts usa solo output_token_count e request_latency ->
-i token di input NON sono inclusi nella stima. RETTIFICA 26-10-2026 (Punto #119):
-la latenza end-to-end che passiamo NON produce una "sovrastima d'attesa"
-sistematica -- EcoLogits la consuma soltanto attraverso il termine server, via
+i token di input NON sono inclusi nella stima.
+
+RETTIFICA 26-10-2026 (Punto #119, ecologits 0.11.1; sonda tracciata
+`probe_ecologits_clamp_20261026.py`, output
+`experiment_results/ecologits_clamp_console_20261026.txt`): la latenza
+end-to-end che passiamo NON produce una "sovrastima d'attesa" sistematica --
+EcoLogits la consuma soltanto attraverso il termine server, via
 `generation_latency = min(request_latency, gpu_latency)`
-(`impacts/llm.py:100-102`, unico punto d'uso `:574`), dove `gpu_latency` e' la
-regressione interna del motore. Oltre l'incrocio la porzione di rete e di coda
-viene SCARTATA e l'energia non cambia (verificato: identica all'ultima cifra per
-request_latency 2,0 / 3,6 / 5 / 10 / 30 / 120 s, 32 token output,
-openai/gpt-4o-mini). Il termine e' quindi un **clamp**, non una deriva: la riga
-deve poter dire quale dei due termini vincola. Il valore principale e' la MEDIA
-del range EcoLogits, con min/max nei campi energy_min_j / energy_max_j -- e quel
-range e' `parameter_pue_ignorance_range` (propagazione dei parametri registrati e
-delle bande PUE/WUE del provider), non incertezza statistica del modello.
+(`impacts/llm.py:100-102`, unico punto d'uso `:574`): il termine e' un **clamp**,
+non una deriva. Oltre l'incrocio la porzione di rete e di coda viene SCARTATA e
+l'energia resta bit-identica.
+CONSEGUENZA PER LA RIGA: sopra la soglia essa dichiara una latenza MISURATA che
+NON ha influito sul numero, e la stima diventa **insensibile** alla lentezza del
+provider -- il rischio reale e' la sottostima, non la sovrastima. Va corretto il
+metodo, non il numero: la riga deve poter dire quale dei due termini vincola.
+
+RETTIFICA DELLA RETTIFICA, stessa data: la soglia NON e' la regressione
+`alpha*P_active + beta*BATCH_SIZE + gamma` (`:14-16`), che e' il ramo usato solo
+quando `tps is None` (`:94-95`). `llm_impacts` inietta `tps` e `ttft` dalla
+scheda del modello (`tracers/utils.py:121-122`) e TUTTI i 344 modelli del
+registro hanno un `deployment`; il ramo di produzione e' quindi
+`latency_per_token = 1/tps` (`:97`) e la soglia e'
+`gpu_latency = n_out/tps + ttft` (`:99`). Verificato eseguendo, su
+openai/gpt-4o-mini (tps 33,0, ttft 0,6): soglia 1,5697 s a 32 token con energia
+identica da 1,57 s a 120 s (3,176229044667e-06 kWh); soglia 3,6303 s a 100 token
+identica da 3,70 s a 120 s (8,929622014584e-06 kWh, +42,881% sul valore a
+0,20 s); soglia 6,6606 s a 200 token identica da 10 s a 120 s
+(1,739049402917e-05 kWh, +40,892%).
+
+Il valore principale e' la MEDIA del range EcoLogits, con min/max nei campi
+energy_min_j / energy_max_j -- e quel range e'
+`parameter_pue_ignorance_range` (propagazione dei parametri registrati e delle
+bande PUE/WUE del provider), non incertezza statistica del modello.
 """
 from __future__ import annotations
 
@@ -165,7 +185,7 @@ def estimate_cloud_energy(
                 "NON fa parte dell'energia stimata in cloud_energy_j (e' un "
                 "impatto GWP separato)"
             )
-            # B4: llm_impacts (verificato su ecologits 0.11.3) accetta solo
+            # B4: llm_impacts (verificato su ecologits 0.11.1) accetta solo
             # output_token_count e request_latency -> i TOKEN DI INPUT NON
             # sono inclusi nella stima; il conteggio resta nel campo CSV
             # cloud_input_tokens a scopo dichiarativo.
@@ -177,17 +197,25 @@ def estimate_cloud_energy(
             # motore ma viene usata SOLO come min(request_latency, gpu_latency)
             # nel termine server (impacts/llm.py:100-102, :574). Quindi la porzione
             # di rete e di coda non e' una sovrastima sistematica: sopra
-            # l'incrocio il motore usa la propria regressione e il tempo extra
-            # viene scartato (verificato: energia identica per request_latency
-            # 2,0 -> 120 s, 32 token, openai/gpt-4o-mini). Il testo della nota e'
+            # l'incrocio il motore usa la propria soglia interna e il tempo
+            # extra viene scartato in silenzio. La soglia di produzione NON e' la
+            # regressione alpha*P+beta*B+gamma, perche' llm_impacts inietta tps e
+            # ttft dalla scheda del modello (tracers/utils.py:121-122; tutti i 344
+            # modelli registrati hanno un deployment) -> gpu_latency = n_out/tps +
+            # ttft (impacts/llm.py:97-99). Verificato eseguendo
+            # probe_ecologits_clamp_20261026.py: identica all'ultima cifra da
+            # 1,57 s a 120 s a 32 token, da 3,70 s a 120 s a 100 token, da 10 s a
+            # 120 s a 200 token su openai/gpt-4o-mini. Il testo della nota e'
             # stato corretto perche' asseriva una deriva unidirezionale.
             notes.append(
                 f"request_latency={float(duration_s):.3f}s MISURATA end-to-end "
                 "(include rete e coda): EcoLogits la usa solo come "
-                "min(request_latency, gpu_latency) nel termine server, quindi "
-                "oltre la soglia interna il tempo di rete NON entra nella stima "
-                "(clamp, non sovrastima; termine vincolante non registrato in "
-                "riga -- campo cloud_latency_binding, vedi spec C5)"
+                "min(request_latency, n_out/tps + ttft) nel termine server "
+                "(tps/ttft della scheda del modello), quindi oltre la soglia "
+                "il tempo di rete NON entra nella stima: l'energia resta un "
+                "plateau -- clamp, non sovrastima; soglia e termine vincolante non "
+                "registrati in riga -- campi cloud_latency_used_s e "
+                "cloud_latency_binding, vedi spec C5)"
             )
             if kwh_lo is not None and kwh_hi is not None and kwh_hi > kwh_lo:
                 notes.append(
