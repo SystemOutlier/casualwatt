@@ -96,11 +96,12 @@ stanno solo le regole che un agente puo' violare senza accorgersene.
   post-trattamento e condizionarvi l'estimatore renderebbe la correzione
   dipendente dall'esito che deve correggere (P1.14, motivazione causale).
 - **Nessun troncamento.** Gli incrementi negativi si conservano con il flag
-  `negative_increment`. La produzione attuale tronca due volte
-  (`energy/local_energy.py:300` e `:309-310`); la v4 non lo fa e la differenza
-  va dichiarata. La regola non nasce con la v4: era gia' DP-A nella specifica
-  `METODI_E_FORMULE.md` del 21-10 (`Ê_att = E_pkg^raw − E_base`, "firmata, mai
-  clampata"), documento che sta in `Tesi-latex/` e quindi **fuori da git**: la
+  `negative_increment`. La produzione attuale applica un clamp a zero in
+  quattro punti (`energy/local_energy.py:493`, `:500`, `:518`, `:536`); la v4
+  non lo fa e la differenza va dichiarata. La regola non nasce con la v4: era
+  gia' DP-A nella specifica `METODI_E_FORMULE.md` del 21-10
+  (`Ê_att = E_pkg^raw − E_base`, "firmata, mai clampata"), documento che sta in
+  `Tesi-latex/` e quindi **fuori da git**: la
   citazione e' di provenienza, non e' un riferimento consultabile nel repo. Il
   codice di produzione e' dunque in ritardo di una generazione di metodo rispetto
   alla specifica. Uno zero legittimo e' dichiarato, non inventato: baseline non
@@ -141,7 +142,7 @@ stanno solo le regole che un agente puo' violare senza accorgersene.
 ## Comandi di verifica
 
 ```
-pytest cwEnergyModular          # 151 raccolti: 148 passati, 3 saltati (4,6 s)
+pytest cwEnergyModular          # 368 raccolti: 365 passati, 3 saltati (9,2 s)
 ```
 
 **Mai `pytest` nudo dalla radice**: la raccolta viene interrotta da 6 errori in
@@ -169,14 +170,15 @@ indefiniti.
 - `cwEnergyModular/` — codice di produzione. `energy/emi_backend.py` (contatore
   EMI via ctypes/SetupAPI), `energy/energy_session.py` (canali, integrazione di
   finestra, interpolazione ai bordi), `energy/local_energy.py` (campi per riga),
-  `casualwatt_csv_export.py` (`CSV_COLUMNS`, righe 17-108).
-- **I test stanno in due posti**: `cwEnergyModular/tests/` (114) e direttamente in
+  `casualwatt_csv_export.py` (`CSV_COLUMNS`, righe 17-169).
+- **I test stanno in due posti**: `cwEnergyModular/tests/` (309) e direttamente in
   `cwEnergyModular/` (`test_answer_type_evaluation.py`, 35;
-  `test_synthetic_window.py`, 2); 114 + 37 = 151. Ogni test ha una docstring che
+  `test_synthetic_window.py`, 2; `test_validazione_valutazione.py`, 22);
+  309 + 59 = 368. Ogni test ha una docstring che
   dice *perche'* esiste e quale relazione matematica o fisica verifica, non solo
   cosa fa.
-  L'Appendice D della tesi li elenca tutti e 151 con provenienza: se cambia la
-  suite, va rigenerata con `cwEnergyModular/tools/dump_tests_latex.py`.
+  L'Appendice D della tesi li elenca con provenienza: con la suite ora a 294 voci
+  va rigenerata con `cwEnergyModular/tools/dump_tests_latex.py`.
 - **Alla radice del repo stanno 23 script `.py` tracciati**: sono gli harness
   degli esperimenti (`emi_50ms_probe.py`, `emi_resolution_check.py`,
   `four_way_test.py`, `srum.py`, `srum_emi_cross.py`, `observer_cost_probe.py`,
@@ -209,9 +211,15 @@ indefiniti.
 ## Scrittura accademica
 
 - Usare le chiavi esistenti di `references.bib`; **mai inventare una citazione**.
-  Le voci marcate `IN VERIFICA` (`dalerci2026move`, `mlenergy2025`) non vanno
+  Le voci marcate `IN VERIFICA` (`dalerci2026move`) non vanno
   citate finche' non sono verificate alla fonte primaria. Ogni voce ha una `note`
-  con gli ancoraggi e la data della verifica.
+  con gli ancoraggi e la data della verifica. `mlenergy2025` **non e' piu' IN
+  VERIFICA**: verificata 26-10-2026 alla fonte primaria (Chung et al.,
+  arXiv:2505.06371, NeurIPS 2025 D&B Spotlight). Attenzione alla confusione
+  gia' commessa: `mlenergy2025` e' il *ML.ENERGY Benchmark* (J/token in steady
+  state, misura con Zeus), `tschand2025mlperfpower` e' *MLPerf Power*
+  (arXiv:2410.12032, J/campione, strumentazione certificata) e non fornisce
+  J/token.
 - Mantenere distinta in ogni tabella l'energia **misurata** da quella
   **attribuita**: l'attribuzione e' una procedura con una sua assunzione
   dichiarata (quota di tempo CPU come proxy della quota di energia), non una
