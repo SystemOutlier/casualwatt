@@ -266,7 +266,26 @@ def test_P2_colonna_csv_accodata_senza_cambiare_ordine():
             # P3: quota senza clamp e anomalia dichiarata
             "cpu_time_share_raw", "share_anomaly",
             # P5: integrita' del numeratore e tick osservato
-            "worker_exit_in_window", "cpu_time_resolution_s"]
+            "worker_exit_in_window", "cpu_time_resolution_s",
+            # P5 (#42): lotto 1 del runner v4 e bordi del giudice (D2)
+            "engine_tree_changed", "tree_identity_start", "tree_identity_end",
+            "tree_born", "tree_lost",
+            "cpu_share_source", "cpu_time_share_valid",
+            "edge_start_utc", "edge_end_utc", "edge_time_source",
+            "edge_spread_s", "dt_W_s",
+            "emi_ts_start_100ns", "emi_ts_end_100ns", "emi_edge_source",
+            "baseline_pre_w", "baseline_post_w",
+            "pre_windows_w", "post_windows_w",
+            "pre_range_w", "dP", "half_range_pre_w", "half_drift_w",
+            "budget_base_w", "budget_base_j",
+            "settle_pre_s", "settle_post_s",
+            "block_id", "point_id", "batch_id",
+            "tokens_level", "n_inferenze",
+            "judge_energy_edge_source", "judge_energy_interp_j",
+            "judge_edge_start_utc", "judge_edge_end_utc", "judge_edge_spread_s",
+            "judge_emi_ts_start_100ns", "judge_emi_ts_end_100ns",
+            # Emenda 8 (P1.6): tentativo, causa d'invalidazione, id sostituito.
+            "block_attempt", "invalid_reason", "replaced_block_id"]
     assert CSV_COLUMNS[-len(CODA):] == CODA
     assert CSV_COLUMNS[:6] == [
         "run_id", "session_id", "timestamp_start", "timestamp_end",

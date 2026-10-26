@@ -118,7 +118,26 @@ def test_colonne_e_export(tmp_path):
     assert CSV_COLUMNS[i + 2:] == [
         "package_energy_raw_j", "active_energy_raw_j", "active_valid",
         "cpu_time_share_raw", "share_anomaly",
-        "worker_exit_in_window", "cpu_time_resolution_s"]
+        "worker_exit_in_window", "cpu_time_resolution_s",
+        # P5 (#42): coda del runner v4 e provenienza dei bordi del giudice.
+        "engine_tree_changed", "tree_identity_start", "tree_identity_end",
+        "tree_born", "tree_lost",
+        "cpu_share_source", "cpu_time_share_valid",
+        "edge_start_utc", "edge_end_utc", "edge_time_source",
+        "edge_spread_s", "dt_W_s",
+        "emi_ts_start_100ns", "emi_ts_end_100ns", "emi_edge_source",
+        "baseline_pre_w", "baseline_post_w",
+        "pre_windows_w", "post_windows_w",
+        "pre_range_w", "dP", "half_range_pre_w", "half_drift_w",
+        "budget_base_w", "budget_base_j",
+        "settle_pre_s", "settle_post_s",
+        "block_id", "point_id", "batch_id",
+        "tokens_level", "n_inferenze",
+        "judge_energy_edge_source", "judge_energy_interp_j",
+        "judge_edge_start_utc", "judge_edge_end_utc", "judge_edge_spread_s",
+        "judge_emi_ts_start_100ns", "judge_emi_ts_end_100ns",
+        # Emenda 8 (P1.6): tracciabilita' della sostituzione, in coda.
+        "block_attempt", "invalid_reason", "replaced_block_id"]
 
     p = tmp_path / "out.csv"
     export_results_csv([{"run_id": "r1", "cpu_share_window_s": 1.5,

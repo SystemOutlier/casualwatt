@@ -92,7 +92,7 @@ def _profile(method, n_samples=3, con_energia=True):
 
 # ------------------------------------------------------------------ 1
 def test_colonna_esiste_una_sola_volta_ed_e_in_coda():
-    """energy_calculation_method compare una volta e apre il blocco di provenienza accodato il 24/10."""
+    """energy_calculation_method apre la coda: provenienza 24/10, P2/P5, lotto 1, bordi del giudice, Emenda 8."""
     assert CSV_COLUMNS.count("energy_calculation_method") == 1
     # 24/10: il contratto alt_lhm §3 accoda i grezzi dopo il canale. La coda
     # si verifica come LISTA (stessa lezione del test in test_energy_corrections).
@@ -102,7 +102,28 @@ def test_colonna_esiste_una_sola_volta_ed_e_in_coda():
             "cpu_share_window_s", "cpu_busy_capacity_cores",
             "package_energy_raw_j", "active_energy_raw_j", "active_valid",
             "cpu_time_share_raw", "share_anomaly",
-            "worker_exit_in_window", "cpu_time_resolution_s"]
+            "worker_exit_in_window", "cpu_time_resolution_s",
+            # P5 (#42): lotto 1 del runner v4, accodato senza riordino.
+            "engine_tree_changed", "tree_identity_start", "tree_identity_end",
+            "tree_born", "tree_lost",
+            "cpu_share_source", "cpu_time_share_valid",
+            "edge_start_utc", "edge_end_utc", "edge_time_source",
+            "edge_spread_s", "dt_W_s",
+            "emi_ts_start_100ns", "emi_ts_end_100ns", "emi_edge_source",
+            "baseline_pre_w", "baseline_post_w",
+            "pre_windows_w", "post_windows_w",
+            "pre_range_w", "dP", "half_range_pre_w", "half_drift_w",
+            "budget_base_w", "budget_base_j",
+            "settle_pre_s", "settle_post_s",
+            "block_id", "point_id", "batch_id",
+            "tokens_level", "n_inferenze",
+            # D2: provenienza dei bordi del segmento del LLM Judge.
+            "judge_energy_edge_source", "judge_energy_interp_j",
+            "judge_edge_start_utc", "judge_edge_end_utc",
+            "judge_edge_spread_s",
+            "judge_emi_ts_start_100ns", "judge_emi_ts_end_100ns",
+            # Emenda 8 (P1.6): tracciabilita' della sostituzione, in coda.
+            "block_attempt", "invalid_reason", "replaced_block_id"]
     assert CSV_COLUMNS[-len(CODA):] == CODA
     # il blocco storico non si e' mosso: keep_alive_sent era la coda del 23/10
     assert CSV_COLUMNS[-len(CODA) - 1] == "keep_alive_sent"
