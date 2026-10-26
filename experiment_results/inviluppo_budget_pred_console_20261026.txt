@@ -1,0 +1,103 @@
+==============================================================================
+Harness P4: inviluppo di progetto, margini, dimensionalita' di budget_pred
+quinto turno di revisione esterna (revisione tecnica di P4.docx, 2026-10-26)
+==============================================================================
+
+--- Verifica 1: l'insieme di disegno e' quello di P3.5 ---
+  punti di P3.5 (righe 954-963): 10
+    [(8.0, 4.0), (32.0, 32.0), (32.0, 128.0), (32.0, 256.0), (128.0, 32.0), (128.0, 128.0), (128.0, 256.0), (512.0, 32.0), (512.0, 128.0), (512.0, 256.0)]
+  punti assunti dalla revisione (§1.1): 10
+    [(8.0, 4.0), (8.0, 32.0), (8.0, 128.0), (8.0, 256.0), (32.0, 4.0), (32.0, 32.0), (32.0, 128.0), (32.0, 256.0), (512.0, 32.0), (512.0, 256.0)]
+  nella revisione ma non nel disegno: [(8.0, 32.0), (8.0, 128.0), (8.0, 256.0), (32.0, 4.0)]
+  nel disegno ma non nella revisione: [(128.0, 32.0), (128.0, 128.0), (128.0, 256.0), (512.0, 128.0)]
+  => (32,4) non e' un punto di disegno: True
+  => la revisione lavora su un insieme con 4 punti inventati e 4 omessi
+  [OK ] verifica 1 -- insieme di disegno confrontato con P3.5
+
+--- Verifica 2: i vertici dell'inviluppo di progetto ---
+  vertici calcolati (catena monotona, nessuna libreria): [(8.0, 4.0), (512.0, 32.0), (512.0, 256.0), (32.0, 256.0)]
+  vertici dichiarati da P4.7:1827 e P4.14:2225        : ((8.0, 4.0), (512.0, 32.0), (512.0, 256.0), (32.0, 256.0))
+  vertici proposti dalla revisione (§1.1)             : ((8.0, 4.0), (32.0, 4.0), (512.0, 32.0), (512.0, 256.0), (8.0, 256.0))
+  tutti i 10 punti dentro o sull'inviluppo: True
+  margine di (32,32) = 21.2372 token (il protocollo scrive 21,2 a riga 1830)
+  (32,32) e' un vertice? False
+  vertici proposti che non sono punti di disegno: [(32.0, 4.0), (8.0, 256.0)]
+  [OK ] verifica 2 -- inviluppo = i quattro vertici dichiarati, (32,32) dentro
+
+--- Verifica 3: i quattro margini pubblicati ---
+  punto          perpendic.   pubblicato   dal vertice
+  (12,32)        1.3273       1.33         28.2843   
+  (256,192)      64.0000      64.00        232.9635  
+  (32,32)        21.2372      21.24        36.8782   
+  (128,128)      107.7031     107.70       160.0000  
+  => su (12,32) il rapporto fra le due metriche e' 21.3 (il protocollo
+     scrive 21,3 a riga 1888): 28.2843 contro 1.3273
+  [OK ] verifica 3 -- margini 1,33 / 64,0 / 21,24 / 107,7 rigenerati
+
+--- Verifica 4: fascia e flag sui punti notevoli ---
+  produzione reale (P4.7:1848)       (12,32)      fascia A  margine    1.327  thin_support True
+  produzione, N_out misurato 31,8    (12,31.8)    fascia A  margine    1.346  thin_support True
+  conferma alta (P3.5)               (256,192)    fascia A  margine   64.000  thin_support False
+  alto prefill, basso decode         (256,8)      fascia B  margine   -9.763  thin_support False
+  fuori box in N_in                  (600,32)     fascia C  margine  -88.000  thin_support False
+  fuori box in N_out                 (128,300)    fascia C  margine  -44.000  thin_support False
+  => la revisione (§1.2) scrive che (12,31,8) 'cade pienamente
+     all'interno del Livello A': il margine e' 1.327 token, sotto la
+     soglia di 2, quindi thin_support = True. Il flag non e' opzionale:
+     e' la quinta emenda di P4.7 (righe 1851-1855 e 1907).
+  [OK ] verifica 4 -- fasce A/B/C e thin_support sul punto operativo
+
+--- Verifica 5: dimensionalita' di budget_pred_b ---
+  formula congelata: budget_pred^2 = budget_fit^2 + u_edge^2 + u_bias^2
+  budget_pred(0,050 / 0,002 / 0,001 J) = 0.050049975 J
+  stessi ingressi x 1000               = 50.049975025 J (rapporto 1000.000000000)
+  occorrenze di 'u_model' nel protocollo: 0 (grep su 3455 righe)
+  termini di budget_pred: budget_fit_b, u_edge,b, u_bias,b -- tutti [J]
+
+  sostituzione proposta u_model = budget_fit * 1,96:
+    (a) u_edge = 0: il rapporto e' una costante, per costruzione
+      budget_fit     0.001 J: congelato  0.001000 -> proposto  0.002200 (x 2.200364)
+      budget_fit      0.01 J: congelato  0.010000 -> proposto  0.022004 (x 2.200364)
+      budget_fit      0.05 J: congelato  0.050000 -> proposto  0.110018 (x 2.200364)
+      budget_fit         1 J: congelato  1.000000 -> proposto  2.200364 (x 2.200364)
+      budget_fit       100 J: congelato 100.000000 -> proposto 220.036361 (x 2.200364)
+    (b) u_edge > 0: il rapporto scende sotto quella costante
+      budget_fit      0.05 J, u_edge     0.002 J: x 2.198969
+      budget_fit         1 J, u_edge       0.5 J: x 2.018237
+      budget_fit      0.05 J, u_edge      0.05 J: x 1.709035
+  => con u_edge = 0 il rapporto e' identico per ogni blocco e vale
+     sqrt(1 + 1,96^2) = 2.200364: un allargamento del 120.0% che non
+     dipende dai dati, perche' u_model e' proporzionale a budget_fit.
+     Con u_edge > 0 il fattore e' minore, quindi la sostituzione non e'
+     nemmeno conservativa in modo uniforme: allarga di piu' i blocchi
+     con il bordo piccolo, che non sono i blocchi piu' incerti.
+
+  bootstrap di P4.8 (riga 1983): Y*_b = f(x_b;theta^) + budget_fit_b * z*_b
+    f = 1.2500 J, budget_fit = 0.0500 J, z* = -1.3700 (adimensionale)
+    Y* = 1.181500 J  -> il prodotto budget_fit*z* e' in joule, non c'e'
+    nessun termine adimensionale da riscalare
+
+  P4.8 righe 1987-1989, testo congelato: 'Standardizzare per
+  budget_fit_b invece che per una sigma stimata ... non assume
+  gaussianita' dei residui fisici su 33 punti'. Il quantile 1,96 e' il
+  quantile normale: adottarlo reintroduce l'ipotesi che il testo esclude.
+  [OK ] verifica 5 -- budget_pred omogeneo in [J]; la proposta inflaziona x 2,2004
+
+==============================================================================
+esito complessivo: 5/5 verifiche superate
+==============================================================================
+
+Conclusione di metodo. D1 e' costruito su un insieme di disegno che
+non e' quello di P3.5: quattro punti inventati, quattro omessi. Con
+l'insieme reale l'inviluppo ha i quattro vertici che il protocollo
+dichiara, e i quattro margini pubblicati si rigenerano a 0,01 token.
+D2 corregge una formula che nel protocollo non esiste: budget_pred ha
+tre termini, tutti in joule, e l'incertezza di modello passa dal
+bootstrap, che moltiplica z* per budget_fit_b e resta in joule. La
+sostituzione proposta inflazionerebbe ogni budget_pred di un fattore
+2,2004 a u_edge nullo (e di meno quando u_edge pesa, quindi in modo
+non uniforme), senza contenuto dai dati e con un quantile normale che
+P4.8 rifiuta. D3 e R1 citano testo assente: nessuna notazione C5 in P4,
+nessun test di Breusch-Pagan o White in tutto il protocollo, e la
+fallacia 'p grande = assenza' e' gia' scritta come motivo del
+riferimento permutazionale (P3.9 righe 1058 e 1076-1078).
