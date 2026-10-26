@@ -103,11 +103,12 @@ numero**, non per collocazione: *locale* se il numero viene da un elemento
 sensibile del dominio fisico, *remoto* se viene da un modello applicato a una
 grandezza non energetica letta dal client.
 
-Il criterio non e' la geografia, e il caso che lo verifica e' C0 (§3.4 riga 589):
+Il criterio non e' la geografia, e il caso che lo verifica e' C0 (§3.4, riga C0):
 inferenza su nodo noleggiato con NVML eseguito **la'**. Per collocazione e'
 remoto, per natura e' M1/M2 del dominio `gpu_dedicated`. **Sta nel blocco
 locale**, con l'host che ha prodotto il numero scritto nella riga (`endpoint`).
-§2.1 (righe 283-288) lo descriveva gia' come eccezione nominata; questa sezione
+§2.1, nel paragrafo "L'eccezione ha un nome e un confine", lo descriveva gia'
+come eccezione nominata; questa sezione
 ne fa la regola, perche' la partizione non e' una sistemistica dei paragrafi:
 decide quali obblighi di etichetta gravano su una colonna e quale parola si puo'
 scrivere accanto al suo numero.
@@ -116,17 +117,17 @@ scrivere accanto al suo numero.
 
 | | **blocco locale** | **blocco remoto (cloud + rete)** |
 |---|---|---|
-| origine del numero | elemento sensibile del dominio: contatore cumulativo (M1) o integrale di potenza dello stesso dominio (M2) — righe 273-274 | grandezza non energetica letta dal client — token, byte, latenza — convertita da un modello: EcoLogits (C2/C4/C3), il fit C5, il coefficiente J/bit (T1/T2) |
-| scala M1-M4 | si' | **no**, per dichiarazione gia' scritta a righe 278-281: l'unita' e' il byte o il token, non il dominio |
+| origine del numero | elemento sensibile del dominio: contatore cumulativo (M1) o integrale di potenza dello stesso dominio (M2) — §2.1, righe M1 e M2 | grandezza non energetica letta dal client — token, byte, latenza — convertita da un modello: EcoLogits (C2/C4/C3), il fit C5, il coefficiente J/bit (T1/T2) |
+| scala M1-M4 | si' | **no**, per dichiarazione gia' scritta in §2.1 ("Le stime cloud e rete non stanno su questa scala"): l'unita' e' il byte o il token, non il dominio |
 | token di riga | `energy_calculation_method`, `package_window_source`, `idle_provenance`, `baseline_backend` (campo di P1.3, non ancora nel codice), `measurement_boundary` | `cloud_energy_method` con i campi di provenienza di §6; `network_energy_coefficient_j_per_bit` e `network_measurement_boundary` (D13) |
-| G4 | non superato **oggi**: W1 (riga 596, `[A]` in acquisto) arbitrera' la scala assoluta del sistema | **non superabile per costruzione** — vedi la prima conseguenza |
+| G4 | non superato **oggi**: W1 (§3.4, riga W1, `[A]` in acquisto) arbitrera' la scala assoluta del sistema | **non superabile per costruzione** — vedi la prima conseguenza |
 | parola ammessa | "funzionamento verificato"; "validato" solo con i sei anelli di P4.9 (`protocollo_v4_20261024.md:2084-2114`) | "stima", sempre con confine e provenienza; **"validato" mai** |
-| catene | §4, righe 673-700 (`emi-counter` → `power-integration` → …, `nvml-*`, RAPL) | §6 (riga 801) e §7 (riga 949) |
+| catene | §4, tabella delle catene, righe 1-15 (`emi-counter` → `power-integration` → …, `nvml-*`, RAPL) | §6 e §7, riga di apertura di ciascuno |
 
 ### Prima conseguenza: per il blocco remoto "non validato" e' statuto, non lavoro in corso
 
 Va scritto perche' somiglia a un deficit temporaneo e non lo e'. W1 misura il
-sistema completo a monte dell'alimentatore del client (riga 596); non esiste
+sistema completo a monte dell'alimentatore del client (§3.4, riga W1); non esiste
 strumento, nella portata del progetto, che misuri l'energia del server di un
 provider o il tratto di rete fra client e datacenter. Il riferimento piu' vicino
 per la rete sarebbe il contatore del package, che pero' include tutto il resto
@@ -136,13 +137,13 @@ rete sara' mai promossa, e la priorita' 6 di §12 (acquisto di W1) cambia lo
 stato del blocco locale, non quello del remoto.
 
 Il precedente metrologico e' lo stesso del locale ed e' la ragione per cui la
-parte "confronto" non sostituisce G4: regola 4 (righe 753-765) — due numeri che
+parte "confronto" non sostituisce G4: regola 4 di §5 — due numeri che
 derivano dalla stessa fonte concordano per costruzione. Vale per la terna EMI /
 LHM / SRUM sullo stesso `MSR_PKG_ENERGY_STATUS` 0x611 e vale per C2 contro C5 se
 i coefficienti del fit nascono dalle tabelle di ML.ENERGY
 (`metodo_analitico_cloud_20261026.md:505-511`): sono una lettura sola.
 
-Ne segue un obbligo di stesura: la regola 6 (riga 769, nessuna percentuale
+Ne segue un obbligo di stesura: la regola 6 di §5 (nessuna percentuale
 di accuratezza per configurazione) per il blocco remoto vale a tempo
 indeterminato, per il locale solo finche' non arriva W1.
 
@@ -153,41 +154,49 @@ Tre obblighi, non uno stile:
 - la somma fra blocchi non e' una misura di nessun dominio; la riga la presenta
   con le sue addende nominate, perche' "somma di M1 + stima + stima" e' una
   grandezza con la terza incertezza piu' larga delle tre ma il linguaggio della
-  prima (regola 2, riga 746; regola 5 di §3.0, riga 359);
+  prima (regola 2 di §5; regola 5 di §3.0);
 - la rete **non si somma alla serie cloud in una colonna unica**
   (`metodo_analitico_cloud_20261026.md:38`): sono due confini diversi, il
   server-side datacenter e la sola NIC del client, e una colonna unica renderebbe
   non separabile un difetto di attribuzione da un difetto di scala;
 - ogni colonna porta il proprio metodo e il proprio confine anche quando vale
-  zero: regola 9 (righe 777-795) e il punto 5 della lista dei lavori.
+  zero: regola 9 di §5 e il punto 5 della lista in fondo a questa sezione.
 
 ### Esempio, con i numeri e il confine di ciascuno
 
-Una riga del pilota con geometria `N_out = 32`, `OLLAMA_HOST` locale per il
-package e endpoint remoto per la parte cloud:
+Una riga **composita, costruita a scopo illustrativo**: i tre valori vengono da
+tre origini diverse -- un pilota di misura, una sonda del motore di stima,
+un'aritmetica del coefficiente -- e non da una singola esecuzione.
+Geometria `N_out = 32` per la parte cloud, finestra di 10,059 s per la parte
+locale, 1,0 MB nominali per la rete:
 
 | colonna | valore | natura | confine dichiarato |
 |---|---|---|---|
-| `package_energy_j` (via `E_active`) | **232,623 J** su finestra 10,059 s | M1, `emi-counter` | package Intel: include core, uncore e iGPU (PP1) |
+| `active_energy_j` (l'`E_active` dell'analisi) | **232,623 J** su finestra 10,059 s | M1, `emi-counter` | package Intel: include core, uncore e iGPU (PP1) |
 | `cloud_energy_j` | **11,43 J** (`3,176229044667e-06` kWh) | C2, stima | server-side datacenter, sola generazione; input esclusi |
 | `network_energy_j` | **0,285 J** per 1,0 MB transitati | T1, stima x coefficiente | sola NIC del client |
 
-Il primo numero viene da `MSR_PKG_ENERGY_STATUS` letto con IOCTL (§3.1 riga 376 e
-`energy/emi_backend.py:7-16`); il secondo viene da un registro di terzi, ed e'
+Il primo numero viene da `MSR_PKG_ENERGY_STATUS` letto con IOCTL (§3.1, riga E1,
+e `energy/emi_backend.py:7-16`) ed e' il valore A del pilota di additivita'
+(`experiment_results/additivity_20261025_analisi.md:51-52`); il secondo viene da
+un registro di terzi, ed e'
 l'uscita della sonda tracciata
 (`experiment_results/ecologits_clamp_console_20261026.txt:6,14`), dove la latenza
 di 1,60 s misurata produce lo stesso identico numero di 1,5697 s perche' il
-`min()` del motore ha gia' clampato; il terzo e' aritmetica del coefficiente
-dichiarato (`3,4e-8 J/bit`, `config.py:341`), **non una misura di questo host**:
-nessun run ha misurato 1,0 MB su questa macchina, e il valore sta qui come
-conversione del confine. `end_to_end_energy_j` sara' la loro somma, e la riga
+`min()` del motore ha gia' clampato (la conversione da kWh a joule e' `1 kWh =
+3,6e6 J`); il terzo e' aritmetica del coefficiente
+dichiarato (`3,4e-8 J/bit`, `config.py:341`, per `8,388608e6 bit`), **non una
+misura di questo host**: nessun run ha misurato 1,0 MB su questa macchina, e il
+valore sta qui come conversione del confine. `end_to_end_energy_j` sara' la loro
+somma, e la riga
 dovra' dire che somma di tre nature e'.
 
 ### Controesempio: un numero che sembra conservativo e non lo e'
 
 La riga con `request_latency = 1,60 s` dichiara un'attesa **maggiore** del punto
 di plateau, e la tentazione e' leggerla come cautelativa: piu' tempo, piu'
-energia. Il numero e' identico a quello di 1,5697 s (righe 14-17 della consolle)
+energia. Il numero e' identico a quello di 1,5697 s
+(`experiment_results/ecologits_clamp_console_20261026.txt:14-17`)
 perche' sopra la soglia il tempo misurato viene scartato, non sommato. Una stima
 che scarta il dato peggiore non e' conservativa: e' **insensibile** alla lentezza
 reale del provider, e il suo errore va nella direzione opposta a quella che
@@ -196,10 +205,12 @@ sembra. Per questo il punto 3 della lista porta `cloud_latency_used_s`,
 
 ### Che cosa questo punto non chiude
 
-- la **catena** del blocco remoto e' ancora scritta in due versioni: §6 riga 801
-  dice `C1 → C2 → C4 → C3 → unavailable`, `metodo_analitico_cloud_20261026.md:29`
-  e la tabella di §3.4 dicono `C1 → C2 → C4 → C3 → C5 → unavailable` e il
-  documento C5 dichiara di superare §6 solo per il cloud (`:12-14`). E'
+- la **catena** del blocco remoto e' ancora scritta in due versioni: §6, alla sua
+  prima riga, scrive `C1 → C2 → C4 → C3 → unavailable`, mentre
+  `metodo_analitico_cloud_20261026.md:29` e la sua tabella §1 scrivono
+  `C1 → C2 → C4 → C3 → C5 → unavailable`; la riga C5 **non esiste** nella tabella
+  di §3.4 di questo documento. Il documento C5 dichiara di superare §6 solo per il
+  cloud (`:12-14`). E'
   un'incoerenza fra due testi normativi dello stesso progetto, dichiarata qui e
   **non** corretta in silenzio: si allinea nel punto 2;
 - i campi di provenienza cloud (punto 3), il coefficiente J/bit e il confine di
@@ -208,12 +219,40 @@ sembra. Per questo il punto 3 della lista porta `cloud_latency_used_s`,
   (D1-D2, D7-D9, D14-D15) restano aperti — questo punto decide solo **a quale
   blocco** appartengono e quindi quale vocabolario di etichette usano.
 
-**Ancoraggi di questa sezione.** Riferimenti di riga all'**albero di lavoro**
-alle 14:58 del 26-10-2026, non a un commit, con la stessa salvaguardia
-dichiarata in testa al documento (righe 21-31): il file era gia' stato modificato
-da una sessione parallela nove minuti prima di questa scrittura, e i numeri
-citati vanno riverificati al gate di P5.
+### I punti della definizione finale, e il loro stato
 
+| # | punto | blocco | stato al 26-10-2026 |
+|---|---|---|---|
+| 1 | partizione locale / remoto | trasversale | **chiuso** -- questa sezione |
+| 2 | catena cloud con C5, allineamento fra §6 e la tabella di §3.4 | remoto | aperto |
+| 3 | campi di provenienza della stima cloud (D3, D12, i campi della latenza clampata) | remoto | aperto |
+| 4 | coefficiente J/bit e confine di rete (D8, D13, D16; F7) | remoto | aperto |
+| 5 | zero contro `N/A` nel blocco remoto (D4; F1 e F9 aperti, F2 chiuso in `HEAD`) | remoto | aperto |
+| 6 | CPU/package: fallback, `external_counter`, package multipli, lessico di G0 (D1, D9, D11, D14, D15; F8, F10, F11) | locale | aperto |
+| 7 | GPU, NPU e i mai-esercitati (D2, D5, D6, D7; F3, F6) | locale | aperto |
+| 8 | attribuzione al processo: M3, non un metodo (§8, P6.6) | locale | aperto |
+| 9 | allineamento di §9, §10, §11, §12 contro i punti chiusi | trasversale | aperto |
+
+L'ordine non e' la classifica di urgenza di §12, che resta quella: e' la
+sequenza di lavoro scelta il 26-10-2026, e parte dal blocco remoto perche' e' li'
+che stanno le decisioni aperte e l'unica incoerenza fra due testi normativi del
+progetto.
+
+**Ancoraggi di questa sezione.** I riferimenti *a questo documento* sono
+localizzatori di sezione (riga C0, riga W1, riga E1, regola 4 di §5, tabella
+delle catene di §4), **non numeri di riga**: piu' sessioni scrivono su questo
+stesso percorso -- lo dichiara il paragrafo "Data e albero delle verifiche" in
+testa al documento -- e un numero di riga qui sarebbe falso alla modifica
+successiva. I numeri di riga restano solo dove l'ancoraggio e' un file gia'
+committato e non conteso: `protocollo_v4_20261024.md:2084-2114`,
+`metodo_analitico_cloud_20261026.md:12-14,29,38,505-511`,
+`experiment_results/ecologits_clamp_console_20261026.txt:6,14-17`,
+`experiment_results/additivity_20261025_analisi.md:51-52`. Fra i sorgenti,
+`energy/emi_backend.py:7-16` e `config.py:341` sono su file **puliti** nell'albero
+di lavoro del 26-10-2026 (`git status`: le modifiche non committate sono su
+`energy/energy_session.py`, `energy/local_energy.py`,
+`casualwatt_csv_export.py`); dove si cita uno di quei tre, il numero va
+riverificato al gate di P5.
 
 ---
 
