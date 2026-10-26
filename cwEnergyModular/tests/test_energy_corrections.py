@@ -285,7 +285,11 @@ def test_P2_colonna_csv_accodata_senza_cambiare_ordine():
             "judge_edge_start_utc", "judge_edge_end_utc", "judge_edge_spread_s",
             "judge_emi_ts_start_100ns", "judge_emi_ts_end_100ns",
             # Emenda 8 (P1.6): tentativo, causa d'invalidazione, id sostituito.
-            "block_attempt", "invalid_reason", "replaced_block_id"]
+            "block_attempt", "invalid_reason", "replaced_block_id",
+            # Delta cloud (spec C5 §4, 26-10-2026): banda e termini della stima.
+            "cloud_input_tokens_included", "cloud_pue_applied",
+            "cloud_pue_source", "cloud_latency_used_s",
+            "cloud_latency_threshold_s", "cloud_latency_binding"]
     assert CSV_COLUMNS[-len(CODA):] == CODA
     assert CSV_COLUMNS[:6] == [
         "run_id", "session_id", "timestamp_start", "timestamp_end",

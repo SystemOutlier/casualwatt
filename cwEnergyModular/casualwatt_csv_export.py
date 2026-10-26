@@ -166,6 +166,18 @@ CSV_COLUMNS: List[str] = [
     # (di richiesta, P2.5, oggi nelle note). Accodate in coda: niente rinomine,
     # niente riordini (D4), migrazione per nome via ensure_header.
     "block_attempt", "invalid_reason", "replaced_block_id",
+    # P5 / spec C5 §4 (26-10-2026): i sei campi che dicono COME e' stato prodotto
+    # il numero cloud, non solo quanto vale. `cloud_input_tokens_included`:
+    # False per EcoLogits (llm_impacts accetta solo i token di output), True per
+    # l'analitico C5. `cloud_pue_applied` / `cloud_pue_source`: PUE del catalogo
+    # provider EcoLogits, oppure assunzione hyperscale dichiarata.
+    # `cloud_latency_used_s` / `_threshold_s`: la latenza entrata nel calcolo e la
+    # soglia del termine server min(request, n_out/tps+ttft); soglia vuota = non
+    # determinabile dalla scheda. `cloud_latency_binding`: True = ha vincolato la
+    # soglia del server (latenza misurata troncata, rete e coda fuori), False =
+    # ha vincolato la latenza misurata. Accodate in coda: niente riordini.
+    "cloud_input_tokens_included", "cloud_pue_applied", "cloud_pue_source",
+    "cloud_latency_used_s", "cloud_latency_threshold_s", "cloud_latency_binding",
 ]
 
 
