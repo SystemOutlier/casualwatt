@@ -76,7 +76,7 @@ from __future__ import annotations
 
 import time
 from dataclasses import dataclass, field
-from typing import List, Optional
+from typing import Dict, List, Optional
 
 import psutil
 
@@ -167,7 +167,44 @@ class LocalEnergyResult:
     cpu_time_resolution_s: Optional[float] = None
     # True se un processo presente a t_start non era piu' leggibile a t_end:
     # il suo tempo CPU non e' nel numeratore e la finestra non e' integra.
+    # Non e' una prova indipendente da ``engine_tree_changed``: sotto la
+    # definizione congelata (protocollo v4) descrivono lo STESSO insieme --
+    # questo e' il nome storico, l'altro quello che governa l'invalidazione.
     worker_exit_in_window: bool = False
+    # ---- P5: bordo di misura e integrita' dell'albero ---------------------
+    # True quando l'insieme delle identita' a t_end non e' un sovrainsieme di
+    # quello a t_start: un worker e' sparito (o il PID e' stato riusato).
+    # In quel caso la sua CPU non e' nel numeratore e s e' sottostimato in una
+    # direzione sola: la quota NON si calcola, non si sostituisce con un
+    # fallback che eredita la stessa perdita.
+    engine_tree_changed: bool = False
+    tree_born: str = ""                 # identita' nate, "pid:create_time;..."
+    tree_lost: str = ""                 # identita' perse, stesso formato
+    # Provenienza della quota: direct-edge | samples-fallback |
+    # not-computed-tree-changed | not-observable. Un numero senza provenienza
+    # non dice da dove viene.
+    cpu_share_source: str = ""
+    # False quando la quota non e' una stima utilizzabile: albero cambiato,
+    # denominatore nullo, numeratore non osservabile o d_ollama > d_busy.
+    # ``cpu_time_share = 0.0`` non basta: da solo e' indistinguibile da
+    # "nessuna CPU usata".
+    cpu_time_share_valid: bool = False
+    # Baseline del blocco (P_pre, mediana di tre finestre) applicata a questa
+    # riga; None = si usa lo stato della sessione. P_post non entra mai qui.
+    baseline_pre_w: Optional[float] = None
+    # Finestra ENERGETICA dai bordi del contatore, distinta dalla finestra
+    # CPU: dt_W_s e' il tempo su cui e' stato letto il contatore,
+    # cpu_share_window_s quello su cui sono stati letti i cpu_times.
+    dt_W_s: float = 0.0
+    # emi-counter-ts | python-monotonic | python-window ("" = non dichiarato)
+    edge_time_source: str = ""
+    edge_spread_s: Optional[float] = None
+    emi_ts_start_100ns: Optional[int] = None
+    emi_ts_end_100ns: Optional[int] = None
+    # direct-ioctl | buffer-interp | samples-fallback | unavailable
+    emi_edge_source: str = ""
+    edge_start_utc: str = ""
+    edge_end_utc: str = ""
 
 
 class CasualWattLocalEnergyProfiler:
@@ -187,6 +224,12 @@ class CasualWattLocalEnergyProfiler:
         direct_busy_delta: Optional[float] = None,
         worker_exit_in_window: bool = False,
         exclude_windows: Optional[List[tuple]] = None,
+        edge_start: Optional[Dict[str, object]] = None,
+        edge_end: Optional[Dict[str, object]] = None,
+        baseline_pre_w: Optional[float] = None,
+        engine_tree_changed: bool = False,
+        tree_born: str = "",
+        tree_lost: str = "",
     ) -> LocalEnergyResult:
         """Profilazione causale della finestra [t_start, t_end].
 
@@ -201,9 +244,47 @@ class CasualWattLocalEnergyProfiler:
         attribuita al modello valutato). Le finestre escluse riducono dt,
         sottraggono il tempo busy Ollama e accorciano la coda dei campioni per
         lo share CPU — tutto dichiarato nelle note.
+
+        edge_start / edge_end: bordo di misura (``read_measurement_edge``).
+        Quando ci sono entrambi, la finestra energetica e' quella del
+        contatore: l'energia e' la differenza diretta dei due valori (una
+        IOCTL per bordo, nessuna interpolazione) e ``dt_W_s`` e' la differenza
+        dei timestamp 100 ns del PKG. Se il contatore manca, l'energia torna
+        al buffer e ``emi_edge_source`` lo dichiara. Con sottofinestre escluse
+        la differenza diretta non puo' scorporarle: si usa il percorso buffer,
+        gia' ridotto, e lo dichiara.
+
+        baseline_pre_w: P_pre del blocco (P1.5). Sostituisce lo stato
+        mutabile della sessione, cosi' le righe dello stesso blocco sono
+        confrontabili; P_post non entra mai nella sottrazione.
+
+        engine_tree_changed: se True un worker presente a t_start non c'era
+        piu' a t_end (o il PID e' stato riusato). La quota non si calcola:
+        ``cpu_time_share = 0.0`` con ``cpu_time_share_valid = False`` e
+        ``cpu_share_source = "not-computed-tree-changed"``. Gli ingressi
+        grezzi (d_ollama, d_busy, identita' nate/perse) restano nella riga.
         """
         res = LocalEnergyResult()
+        notes: List[str] = []
         dt = max(t_end - t_start, 1e-6)
+
+        # ---- P5: la finestra energetica e' quella del contatore ------------
+        # I bordi sono letti sullo stesso orologio del buffer (monotono, prima
+        # dell'IOCTL): usarli come estremi dell'energia evita che dt e
+        # integrazione descrivano due intervalli diversi. Senza bordi resta la
+        # finestra Python di sempre, dichiarata.
+        has_edges = edge_start is not None and edge_end is not None
+        if has_edges:
+            win_start = float(edge_start.get("t_counter_mono", t_start))
+            win_end = float(edge_end.get("t_counter_mono", t_end))
+            if win_end > win_start:
+                t_start, t_end = win_start, win_end
+                dt = win_end - win_start
+            else:
+                has_edges = False
+                notes.append(
+                    "bordi di misura non ordinati (t_start >= t_end): "
+                    "finestra Python usata, nessun dt dai contatori")
 
         # ---- scorporo sottofinestre escluse (es. LLM Judge) ----------------
         excl = sorted(
@@ -223,9 +304,34 @@ class CasualWattLocalEnergyProfiler:
             notes_excl = ""
 
         res.duration_s = dt
+        res.dt_W_s = round(dt, 6)
+        if has_edges:
+            dt_w, edge_time_source = self._edge_dt_w(edge_start, edge_end)
+            if excl_s > 0:
+                # l'esclusione e' misurata in secondi monotoni, dt_W in un'altra
+                # base: si usa la finestra Python gia' ridotta, dichiarata.
+                dt_w = max((t_end - t_start) - excl_s, 1e-6)
+                edge_time_source = "python-monotonic"
+            elif dt_w is None:
+                # nessun timestamp utilizzabile sui bordi: la finestra Python
+                # resta l'unico intervallo dichiarabile.
+                dt_w = max(t_end - t_start, 1e-6)
+                edge_time_source = "python-monotonic"
+            res.dt_W_s = round(dt_w, 6)
+            res.duration_s = res.dt_W_s
+            res.edge_time_source = edge_time_source
+            res.edge_start_utc = str(edge_start.get("t_wall_utc", "") or "")
+            res.edge_end_utc = str(edge_end.get("t_wall_utc", "") or "")
+            res.edge_spread_s = max(
+                float(edge_start.get("edge_spread_s", 0.0) or 0.0),
+                float(edge_end.get("edge_spread_s", 0.0) or 0.0),
+            )
+            res.emi_ts_start_100ns = self._edge_counter_ts(edge_start)
+            res.emi_ts_end_100ns = self._edge_counter_ts(edge_end)
+        else:
+            res.edge_time_source = "python-window"
 
         samples: List[SystemSample] = self.session.samples_between(t_start, t_end)
-        notes: List[str] = []
         if notes_excl:
             notes.append(notes_excl)
         
@@ -238,6 +344,16 @@ class CasualWattLocalEnergyProfiler:
 
         idle_power_w = self.session.idle_power_w
         idle_proven = getattr(self.session, "idle_provenance", None)
+        if baseline_pre_w is not None:
+            # P1.5: P_pre del blocco, non lo stato mutabile della sessione.
+            # Il valore viene dal runner, che ha gia' calibrato (3 x >=30 s,
+            # mediana); il post non entra mai qui.
+            idle_power_w = float(baseline_pre_w)
+            res.baseline_pre_w = round(float(baseline_pre_w), 6)
+            notes.append(
+                f"baseline del blocco P_pre={float(baseline_pre_w):.3f} W "
+                "applicata a questa riga (override dello stato di sessione)"
+            )
         if idle_power_w is None:
             # B3: NESSUNA micro-calibrazione in mezzo al benchmark (blocca e
             # avviene a macchina calda -> sovrastima P_idle). Se l'utente non
@@ -288,21 +404,69 @@ class CasualWattLocalEnergyProfiler:
         # nessuna interpolazione sui campioni a ~0,25-0,5 s. Il percorso sui
         # campioni resta SOLO come fallback dichiarato nelle note.
         e_package: Optional[float] = None
+        # P5: con la coppia di bordi e nessuna sottofinestra da scorporare,
+        # l'energia e' la DIFFERENZA dei due valori del contatore: nessuna
+        # interpolazione fra campioni, nessun percorso sul buffer. Se il
+        # contatore manca si torna al buffer e il token lo dichiara.
+        if has_edges and not excl:
+            e_edge = self._edge_energy_j(edge_start, edge_end)
+            if e_edge is not None:
+                e_package = e_edge
+                res.emi_edge_source = "direct-ioctl"
+                notes.append(
+                    "energia package = differenza del contatore fra i due "
+                    "bordi (una IOCTL per bordo, nessuna interpolazione)")
+                # I grezzi della riga devono essere quelli dei BORDI, non
+                # quelli interpolati dal buffer: il campo cita il numero
+                # effettivamente letto agli estremi.
+                pkg_raw_0 = self._edge_raw_pwh(edge_start)
+                pkg_raw_1 = self._edge_raw_pwh(edge_end)
+                if pkg_raw_0 is not None and pkg_raw_1 is not None:
+                    res.raw_start = pkg_raw_0
+                    res.raw_end = pkg_raw_1
+                    res.raw_unit = "pWh"
+                    res.domain = "pkg"
+            else:
+                edge_reason = (
+                    str(edge_start.get("counter_error") or "")
+                    or str(edge_end.get("counter_error") or "")
+                    or "valore assente o non crescente"
+                )
+                notes.append(
+                    "differenza diretta del contatore non disponibile ai "
+                    f"bordi ({edge_reason}): energia dal buffer a 0,05 s "
+                    "(interpolazione dichiarata, emi_edge_source=buffer-interp)")
         exact_fn = getattr(self.session, "package_energy_exact_between", None)
-        if callable(exact_fn):
+        if e_package is None and callable(exact_fn):
             try:
                 e_package = exact_fn(t_start, t_end, excl)
             except Exception as exc:  # mai un crash: degrada al fallback
                 notes.append(f"lettura esatta contatore fallita ({type(exc).__name__})")
                 e_package = None
+            if e_package is not None and has_edges:
+                res.emi_edge_source = "buffer-interp"
+                if excl:
+                    notes.append(
+                        "sottofinestre escluse: la differenza diretta fra i "
+                        "bordi non puo' scorporarle; energia dal buffer gia' "
+                        "ridotto (emi_edge_source=buffer-interp)")
         if e_package is not None and e_package >= 0.0:
             res.package_window_source = "exact-counter"
-            _edge_txt = (
-                "window read exactly at t_start/t_end from the 0.05 s "
-                + ("cumulative EMI counter buffer (no integration)"
-                   if method == "emi-counter"
-                   else "integration counter")
-            )
+            if not res.emi_edge_source:
+                res.emi_edge_source = "buffer-interp"
+            if res.emi_edge_source == "direct-ioctl":
+                _edge_txt = (
+                    "window read exactly as the difference of the counter at "
+                    "the two measurement edges (one IOCTL per edge; no "
+                    "interpolation, no integration)"
+                )
+            else:
+                _edge_txt = (
+                    "window read exactly at t_start/t_end from the 0.05 s "
+                    + ("cumulative EMI counter buffer (no integration)"
+                       if method == "emi-counter"
+                       else "integration counter")
+                )
             res.cpu_attribution_method = (
                 f"{method}; cpu-time-share attribution, ESTIMATE "
                 "(E_attiva * d_ollama/d_busy; share of system BUSY time, "
@@ -317,6 +481,7 @@ class CasualWattLocalEnergyProfiler:
             )
             if pkg_first is not None and pkg_last is not None and pkg_last >= pkg_first:
                 res.package_window_source = "samples-fallback"
+                res.emi_edge_source = "samples-fallback"
                 notes.append(
                     "fallback dichiarato: E_package da campioni interpolati "
                     f"(~{self.session.interval_s}s) perche' il contatore esatto "
@@ -342,6 +507,7 @@ class CasualWattLocalEnergyProfiler:
             else:
                 e_package = 0.0
                 res.package_window_source = "unavailable"
+                res.emi_edge_source = "unavailable"
                 notes.append(
                     "nessun campione package nella finestra: misurazione locale "
                     "dichiarata indisponibile (metodo attivo: "
@@ -356,9 +522,13 @@ class CasualWattLocalEnergyProfiler:
         # [t_start, t_last_active] mentre E_package copriva tutta la
         # finestra: E_attiva accumulava P_idle * durata_coda (sovrastima).
         # Ora le due grandezze coprono lo STESSO intervallo:
-        #     baseline = P_idle * dt_effettiva   (dt gia' ridotto delle
-        #     sottofinestre escluse, coerenza B2)
-        res.baseline_energy_j = round(res.idle_power_w * dt, 6)
+        #     baseline = P_idle * dt_W_s   (finestra del contatore, gia'
+        #     ridotta delle sottofinestre escluse, coerenza B2)
+        # Con i bordi di misura dt_W_s e' il tempo dei timestamp del
+        # contatore, non la finestra Python: baseline ed energia restano
+        # sullo stesso intervallo fisico.
+        res.baseline_energy_j = round(
+            res.idle_power_w * float(res.dt_W_s or dt), 6)
         # La sottrazione si conserva con il segno: active_energy_j resta
         # troncato a zero per compatibilita' con i CSV gia' scritti, ma la
         # riga dichiara ora il valore grezzo e la validita' della grandezza.
@@ -383,7 +553,8 @@ class CasualWattLocalEnergyProfiler:
             )
 
         # ---- B2: cpu busy sugli intervalli NON esclusi (coerenza) ---------
-        if direct_busy_delta is not None and direct_busy_delta >= 0.0:
+        busy_direct = (direct_busy_delta is not None and direct_busy_delta >= 0.0)
+        if busy_direct:
             # Denominatore letto agli stessi estremi del numeratore (una sola
             # chiamata): e' la lettura coerente con direct_cpu_delta. Con
             # sottofinestre escluse copre il segmento di inferenza, non le
@@ -409,7 +580,8 @@ class CasualWattLocalEnergyProfiler:
 
         # delta CPU-time albero Ollama: preferisce letture esatte agli estremi
         # [t_start, t_end] (direct_cpu_delta), fallback ai campioni se assente
-        if direct_cpu_delta is not None and direct_cpu_delta >= 0:
+        cpu_direct = (direct_cpu_delta is not None and direct_cpu_delta >= 0)
+        if cpu_direct:
             d_ollama = direct_cpu_delta
             notes.append("cpu-time Ollama da lettura esatta agli estremi [t_start, t_end]")
         elif excl:
@@ -421,13 +593,28 @@ class CasualWattLocalEnergyProfiler:
                     d_ollama += max(p.ollama_cpu_seconds - q.ollama_cpu_seconds, 0.0)
         else:
             d_ollama = self._ollama_cpu_delta(samples)
-        if d_ollama is None:
+        d_ollama_observed = d_ollama is not None
+        if not d_ollama_observed:
             d_ollama = 0.0
-            notes.append("cpu-time Ollama non osservabile: share = 0 (conservativo)")
-        # Il denominatore si dichiara: intervallo del rapporto = finestra
-        # energetica (dt, gia' ridotto delle esclusioni) e capacita' = core
-        # logici su cui e' aggregato cpu_busy_seconds.
-        res.cpu_share_window_s = round(dt, 6)
+            notes.append(
+                "cpu-time Ollama non osservabile: share = 0.0 con "
+                "cpu_time_share_valid=False (conservativo, nessun valore "
+                "inventato)")
+        # Il denominatore si dichiara: intervallo del rapporto = tratto in cui
+        # sono stati letti i cpu_times (t_cpu_mid sui bordi, altrimenti la
+        # finestra energetica) e capacita' = core logici su cui e' aggregato
+        # cpu_busy_seconds. Con i bordi la disuguaglianza d_busy <= core *
+        # cpu_share_window_s torna verificabile.
+        share_win = dt
+        if has_edges:
+            try:
+                mid0 = float(edge_start.get("t_cpu_mid"))
+                mid1 = float(edge_end.get("t_cpu_mid"))
+            except (TypeError, ValueError):
+                mid0 = mid1 = 0.0
+            if mid1 > mid0:
+                share_win = mid1 - mid0
+        res.cpu_share_window_s = round(share_win, 6)
         res.cpu_busy_capacity_cores = int(psutil.cpu_count(logical=True) or 0)
         # Il rapporto si calcola GREZZO: un clamp silenzioso a [0,1] rendeva
         # indistinguibile un d_ollama > d_busy (contabilita' incoerente, es.
@@ -443,22 +630,76 @@ class CasualWattLocalEnergyProfiler:
                 anomalies.append("d_busy>capacita'")
             if d_ollama > dt_cpu_busy:
                 anomalies.append("d_ollama>d_busy")
-        res.cpu_time_share_raw = (
-            round(share_raw, 6) if share_raw is not None else None
-        )
+        res.engine_tree_changed = bool(engine_tree_changed)
+        res.tree_born = str(tree_born or "")
+        res.tree_lost = str(tree_lost or "")
         # La colonna porta UNA anomalia (la prima per gravita': denominatore
         # nullo, denominatore impossibile, numeratore maggiore del denominatore);
         # le note le portano tutte, cosi' nessuna viene persa.
         res.share_anomaly = anomalies[0] if anomalies else ""
         share = 0.0 if share_raw is None else min(max(share_raw, 0.0), 1.0)
         res.cpu_time_share = round(share, 6)
-        res.ollama_active_energy_j = round(active * share, 6)
-        for anomaly in anomalies:
+        if engine_tree_changed:
+            # D1: la riga resta, con gli ingressi grezzi e i flag. Il valore
+            # convenzionale zero non e' una stima: la quota non si calcola e
+            # non alimenta ne' l'attribuzione ne' il confronto (P6.6).
+            res.cpu_share_source = "not-computed-tree-changed"
+            res.cpu_time_share_raw = None
+            res.share_anomaly = ""
+            res.cpu_time_share = 0.0
+            res.ollama_active_energy_j = 0.0
+            res.cpu_time_share_valid = False
             notes.append(
-                f"anomalia dello share ({anomaly}): d_ollama={d_ollama:.6f} s, "
-                f"d_busy={dt_cpu_busy:.6f} s, capacita'={capacity_s:.6f} s; "
-                "cpu_time_share resta limitato a [0,1]"
+                "engine_tree_changed=True (persi: "
+                f"{res.tree_lost or '-'}; nati: {res.tree_born or '-'}): "
+                "la quota non si calcola, cpu_time_share=0.0 e "
+                "ollama_active_energy_j=0.0 con cpu_time_share_valid=False; "
+                "d_ollama_cpu_s e d_busy_s restano ingressi grezzi, non una "
+                "stima (la riga non entra nel confronto di concordanza)")
+        else:
+            res.cpu_time_share_raw = (
+                round(share_raw, 6) if share_raw is not None else None
             )
+            if not d_ollama_observed:
+                res.cpu_share_source = "not-observable"
+            elif cpu_direct and busy_direct:
+                res.cpu_share_source = "direct-edge"
+            else:
+                res.cpu_share_source = "samples-fallback"
+            # D5: valida solo se il denominatore esiste, il numeratore e'
+            # osservabile e la quota non e' stata clampata da un rapporto
+            # incoerente. L'anomalia di capacita' resta un flag, non invalida
+            # il rapporto (d_busy e' comunque il denominatore misurato).
+            res.cpu_time_share_valid = bool(
+                d_ollama_observed
+                and share_raw is not None
+                and d_ollama <= dt_cpu_busy + 1e-9
+            )
+            # D1: una riga non valida conserva il numero convenzionale ma non
+            # alimenta l'attribuzione.
+            res.ollama_active_energy_j = (
+                round(active * share, 6)
+                if res.cpu_time_share_valid else 0.0
+            )
+            for anomaly in anomalies:
+                notes.append(
+                    f"anomalia dello share ({anomaly}): d_ollama={d_ollama:.6f} s, "
+                    f"d_busy={dt_cpu_busy:.6f} s, capacita'={capacity_s:.6f} s; "
+                    "cpu_time_share resta limitato a [0,1]"
+                )
+
+        # D4: i due nomi descrivono lo stesso insieme, ma solo
+        # ``engine_tree_changed`` (passato dal runner v4) invalida la quota.
+        # Il percorso storico passa solo ``worker_exit_in_window``: qui non si
+        # cambia il numero che ha sempre prodotto, ma lo si dichiara non
+        # valido e lo si dice, invece di lasciar credere che sia integro.
+        if worker_exit_in_window and not engine_tree_changed:
+            res.cpu_time_share_valid = False
+            notes.append(
+                "worker_exit_in_window=True con engine_tree_changed=False: il "
+                "chiamante non ha passato il flag v4; la quota e' stata "
+                "calcolata come nel percorso storico e cpu_time_share_valid e' "
+                "False (stima non integra, non usare nel confronto)")
 
         # ---- integrita' della finestra: processo sparito e quantizzazione --
         res.worker_exit_in_window = bool(worker_exit_in_window)
@@ -466,15 +707,20 @@ class CasualWattLocalEnergyProfiler:
             notes.append(
                 "worker_exit_in_window=True: un processo dell'albero presente "
                 "a t_start non era piu' leggibile a t_end; il suo tempo CPU "
-                "non e' nel numeratore e la finestra non e' integra"
-            )
+                "non e' nel numeratore e la finestra non e' integra. D4: sotto "
+                "la definizione congelata e' lo STESSO insieme di "
+                "engine_tree_changed (nome storico vs nome del protocollo, non "
+                "due prove indipendenti); l'invalidazione e' governata da "
+                "engine_tree_changed, che il runner v4 passa esplicitamente")
         res.cpu_time_resolution_s = getattr(
             self.session, "cpu_time_resolution_s", None)
         if (res.cpu_time_resolution_s
-                and dt < 30.0 * float(res.cpu_time_resolution_s)):
+                and (res.cpu_share_window_s or dt)
+                < 30.0 * float(res.cpu_time_resolution_s)):
             notes.append(
-                f"finestra {dt:.3f} s < 30 x risoluzione osservata dei "
-                f"cpu_times ({float(res.cpu_time_resolution_s):.4f} s): il "
+                f"finestra {res.cpu_share_window_s or dt:.3f} s < 30 x "
+                f"risoluzione osservata dei cpu_times "
+                f"({float(res.cpu_time_resolution_s):.4f} s): il "
                 "delta CPU puo' essere quantizzato"
             )
         
@@ -492,8 +738,10 @@ class CasualWattLocalEnergyProfiler:
                     break
             res.ollama_pids_used = ",".join(str(p) for p in pids_used) if pids_used else ""
         
-        # Nota esplicita se share=0
-        if share == 0.0 and res.n_samples_in_window > 0:
+        # Nota esplicita se share=0 (non quando la quota e' invalidata: in quel
+        # caso la nota dell'invalidazione e' quella che spiega lo zero).
+        if (share == 0.0 and res.n_samples_in_window > 0
+                and not engine_tree_changed and d_ollama_observed):
             notes.append(
                 f"cpu_time_share=0: d_ollama_cpu_s={d_ollama:.6f}, "
                 f"d_busy_s={dt_cpu_busy:.6f}, n_samples={len(samples)}"
@@ -645,14 +893,106 @@ class CasualWattLocalEnergyProfiler:
                 "on Linux with RAPL"
             ),
         }.get(method, method)
+        if res.emi_edge_source == "direct-ioctl":
+            win_txt = (
+                "energy window read as the direct difference of the counter "
+                "at the two measurement edges (dt "
+                f"{res.dt_W_s:.3f} s from {res.edge_time_source}; edge spread "
+                f"{float(res.edge_spread_s or 0.0):.3f} s); CPU-time window "
+                f"{res.cpu_share_window_s:.3f} s from t_cpu_mid")
+        else:
+            win_txt = (
+                f"window interpolation over {len(samples)} samples @ "
+                f"{self.session.interval_s}s")
         res.measurement_boundary = (
-            f"client-host system boundary; window interpolation over {len(samples)} "
-            f"samples @ {self.session.interval_s}s; CPU source: {src_desc}"
+            f"client-host system boundary; {win_txt}; CPU source: {src_desc}"
         )
         res.notes = notes
         return res
 
     # ------------------------------------------------------------------ util
+    # ------------------------------------------------- bordi di misura (P5)
+    @staticmethod
+    def _edge_counter(edge: Optional[Dict[str, object]]) -> Optional[dict]:
+        """Record del contatore package dentro un bordo, o None."""
+        if not edge:
+            return None
+        cnt = edge.get("counter")
+        return cnt if isinstance(cnt, dict) else None
+
+    @classmethod
+    def _edge_counter_ts(cls, edge: Optional[Dict[str, object]]) -> Optional[int]:
+        """Timestamp 100 ns del record PKG al bordo (None se non EMI)."""
+        cnt = cls._edge_counter(edge)
+        if not cnt:
+            return None
+        ts = cnt.get("ts_100ns")
+        try:
+            return int(ts) if ts is not None else None
+        except (TypeError, ValueError):
+            return None
+
+    @classmethod
+    def _edge_raw_pwh(cls, edge: Optional[Dict[str, object]]) -> Optional[float]:
+        """Valore grezzo del contatore (pWh) al bordo, per la tracciabilita'."""
+        cnt = cls._edge_counter(edge)
+        if not cnt:
+            return None
+        raw = cnt.get("pkg_pwh")
+        try:
+            return float(raw) if raw is not None else None
+        except (TypeError, ValueError):
+            return None
+
+    @classmethod
+    def _edge_dt_w(cls, edge_start: Optional[Dict[str, object]],
+                   edge_end: Optional[Dict[str, object]]):
+        """Tempo fra i due bordi e la base usata, dichiarata.
+
+        Preferisce la differenza dei timestamp 100 ns del PKG (stessa base
+        dell'energia: la finestra e' quella del contatore); se manca, usa la
+        differenza dei tempi monotoni presi prima delle IOCTL. Ritorna
+        ``(None, "python-window")`` quando nessuna delle due e' utilizzabile:
+        il chiamante decide il fallback e non inventa un dt.
+        """
+        if not edge_start or not edge_end:
+            return None, "python-window"
+        ts0 = cls._edge_counter_ts(edge_start)
+        ts1 = cls._edge_counter_ts(edge_end)
+        if ts0 is not None and ts1 is not None and ts1 > ts0:
+            return (ts1 - ts0) / 1e7, "emi-counter-ts"
+        try:
+            m0 = float(edge_start.get("t_counter_mono"))
+            m1 = float(edge_end.get("t_counter_mono"))
+        except (TypeError, ValueError):
+            return None, "python-window"
+        if m1 > m0:
+            return m1 - m0, "python-monotonic"
+        return None, "python-window"
+
+    @classmethod
+    def _edge_energy_j(cls, edge_start: Optional[Dict[str, object]],
+                       edge_end: Optional[Dict[str, object]]) -> Optional[float]:
+        """Differenza diretta del contatore package fra i due bordi [J].
+
+        Nessuna interpolazione: e' il valore del contatore a fine finestra
+        meno quello a inizio finestra. Ritorna None se un bordo non ha il
+        contatore o se il valore non cresce (lettura non utilizzabile): il
+        chiamante torna al buffer e lo dichiara.
+        """
+        cnt0 = cls._edge_counter(edge_start)
+        cnt1 = cls._edge_counter(edge_end)
+        if cnt0 is None or cnt1 is None:
+            return None
+        try:
+            j0 = float(cnt0["pkg_j"])
+            j1 = float(cnt1["pkg_j"])
+        except (KeyError, TypeError, ValueError):
+            return None
+        if j1 < j0:
+            return None
+        return j1 - j0
+
     @staticmethod
     def probe_cpu_time_resolution(
         pid: Optional[int] = None,

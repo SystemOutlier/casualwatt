@@ -27,6 +27,7 @@ import sys
 import threading
 import time
 from dataclasses import dataclass, field
+from datetime import datetime, timezone
 from typing import Dict, List, Optional
 
 import psutil
@@ -1745,22 +1746,25 @@ class EnergySession:
     # ------------------------------------------------------------------ util
     @staticmethod
     def _system_busy_seconds() -> float:
-        """Secondi CPU busy aggregati di sistema (non-idle)."""
+        """Secondi CPU busy aggregati di sistema (non-idle), da UNA lettura.
+
+        Le due letture precedenti (``cpu_times()`` per l'idle e
+        ``cpu_times(percpu=True)`` per il totale) prendevano numeratore e
+        denominatore del denominatore in due istanti diversi: fra le due
+        chiamate il sistema poteva aver accumulato tempo, e il busy risultava
+        sottostimato di quella quantita'. Qui totale e idle vengono dalla
+        STESSA chiamata per-core, quindi ``busy = totale - idle`` e' una
+        differenza fra grandezze dello stesso istante. La media di
+        ``cpu_times()`` non serve: i campi sono gia' cumulati per core.
+        """
         try:
-            ct = psutil.cpu_times()
-            idle = getattr(ct, "idle", 0.0)
-            ncpu = max(psutil.cpu_count(logical=True) or 1, 1)
-            total_all_cores = sum(
-                v for v in ct if isinstance(v, (int, float))
-            ) * 0  # placeholder, calcolato sotto
-            # busy = (totale per core) - idle, su tutte le CPU logiche
-            per_core_total = 0.0
-            for c in psutil.cpu_times(percpu=True):
-                per_core_total += sum(
-                    v for v in c if isinstance(v, (int, float))
-                )
-            del total_all_cores, ncpu
-            return max(per_core_total - idle * 1.0, 0.0) if idle is not None else per_core_total
+            per_core = psutil.cpu_times(percpu=True)
+            total = 0.0
+            idle = 0.0
+            for c in per_core:
+                total += sum(v for v in c if isinstance(v, (int, float)))
+                idle += float(getattr(c, "idle", 0.0) or 0.0)
+            return max(total - idle, 0.0)
         except Exception:
             return 0.0
 
@@ -1804,20 +1808,115 @@ class EnergySession:
         """PID dell'albero del motore (compatibilita': solo i PID, ordinati)."""
         return [w.pid for w in cls.find_worker_tree()]
 
-    @classmethod
-    def read_cpu_edge(cls) -> Dict[str, object]:
-        """Legge numeratore e denominatore dello share nello stesso istante.
+    # ------------------------------------------------- bordo di misura (P5)
+    @staticmethod
+    def _wall_utc(t_wall: float) -> str:
+        """Istante di parete in UTC ISO con i millisecondi.
 
-        Ritorna ``{"tree": [...], "worker": {identita': secondi}, "busy": s}``.
-        Le cpu_times dei worker e il tempo busy di sistema sono letti
-        consecutivamente dentro questa chiamata: fra le due non c'e' inferenza
-        ne' attesa. Lo scarto residuo e' il tempo di enumerazione e lettura dei
-        processi, che va dichiarato e non azzerato.
+        I bordi servono a ricostruire la finestra anche dopo il run: con i
+        soli secondi due bordi consecutivi di un blocco rapido sarebbero
+        indistinguibili.
         """
-        tree = cls.find_worker_tree()
+        return datetime.fromtimestamp(
+            float(t_wall), tz=timezone.utc).isoformat(timespec="milliseconds")
+
+    def read_counter_edge(self) -> Dict[str, object]:
+        """Una IOCTL sul contatore, con l'istante e il timestamp del record.
+
+        Ritorna ``counter`` (None se il canale non e' aperto o la lettura
+        fallisce) e, in ogni caso, ``counter_error`` con la ragione: un bordo
+        senza contatore e' un fatto dichiarato, non un bordo "sincrono"
+        presunto. ``t_mono`` e' preso PRIMA dell'IOCTL, come fa il sampler
+        (``_emi_loop``): cosi' l'istante e' confrontabile con il buffer.
+        """
+        t_wall = time.time()
+        t_mono = time.monotonic()
+        counter = None
+        err = ""
+        try:
+            backend = getattr(self._source, "_emi", None)
+            if backend is None:
+                err = "backend EMI non aperto"
+            else:
+                domains = (backend.read_domains()
+                           if hasattr(backend, "read_domains") else None)
+                if domains is None:
+                    err = "read_domains() -> None"
+                else:
+                    pkg = domains["pkg"]
+                    pp1 = domains.get("pp1")
+                    counter = {
+                        "pkg_j": float(pkg[0]),
+                        "pkg_pwh": pkg[2],
+                        "ts_100ns": pkg[1],
+                        "pp1_j": (float(pp1[0]) if pp1 is not None else None),
+                    }
+        except Exception as exc:  # noqa: BLE001 - il bordo degrada, non crasha
+            err = f"{type(exc).__name__}: {exc}"
+        return {
+            "counter": counter,
+            "counter_error": err,
+            "t_wall": t_wall,
+            "t_mono": t_mono,
+            "t_wall_utc": self._wall_utc(t_wall),
+        }
+
+    def read_measurement_edge(self, include_counter: bool = True) -> Dict[str, object]:
+        """Contatore, albero, cpu_times e busy nello stesso bordo.
+
+        Ordine: contatore per primo (la finestra energetica e' la sua), poi le
+        letture CPU. Lo scarto fra i due e' ``edge_spread_s``; ``t_cpu_mid``
+        e' il centro del tratto CPU, non un istante magico. Il contatore e'
+        opzionale solo per i chiamanti storici che leggono il solo lato CPU
+        (``read_cpu_edge``): quei bordi dichiarano ``counter_error``.
+        """
+        t_before = time.monotonic()
+        if include_counter:
+            cnt = self.read_counter_edge()
+        else:
+            t_wall = time.time()
+            cnt = {
+                "counter": None,
+                "counter_error": "non richiesto (include_counter=False)",
+                "t_wall": t_wall,
+                "t_mono": t_before,
+                "t_wall_utc": self._wall_utc(t_wall),
+            }
+        t_cpu_before = time.monotonic()
+        tree = self.find_worker_tree()
         worker = read_worker_cpu_times(tree)
-        busy = cls._system_busy_seconds()
-        return {"tree": tree, "worker": worker, "busy": busy}
+        busy = self._system_busy_seconds()
+        t_after = time.monotonic()
+        return {
+            "tree": tree,
+            "worker": worker,
+            "busy": busy,
+            "counter": cnt["counter"],
+            "counter_error": cnt["counter_error"],
+            "t_wall": cnt["t_wall"],
+            "t_wall_utc": cnt["t_wall_utc"],
+            "t_counter_mono": cnt["t_mono"],
+            "t_before": t_before,
+            "t_cpu_mid": (t_cpu_before + t_after) / 2.0,
+            "t_after": t_after,
+            "edge_spread_s": t_after - t_before,
+        }
+
+    def read_cpu_edge(self) -> Dict[str, object]:
+        """Alias storico del bordo CPU: le tre chiavi di sempre.
+
+        Non legge il contatore: il percorso di produzione attuale
+        (``benchmark_unified``, ``experiment_additivity``) non paga l'IOCTL in
+        piu' e continua a leggere numeratore e denominatore nello stesso
+        istante. Chi vuole anche l'energia dal bordo usa
+        ``read_measurement_edge``.
+        """
+        edge = self.read_measurement_edge(include_counter=False)
+        return {
+            "tree": edge["tree"],
+            "worker": edge["worker"],
+            "busy": edge["busy"],
+        }
 
     @classmethod
     def _ollama_tree_stats(cls, pids: List[int]) -> Dict[str, float]:
@@ -2271,6 +2370,40 @@ class EnergySession:
         )
 
     # ------------------------------------------------------------ calibrazione
+    def settle_idle(self, window_s: float = 10.0, tolerance_w: float = 0.5,
+                    timeout_s: float = 120.0, step_s: float = 1.0) -> Optional[float]:
+        """Attende la stazionarieta' della potenza e ritorna i secondi attesi.
+
+        Criterio di P1.5: due medie consecutive su finestre di ``window_s``
+        differiscono meno di ``tolerance_w``. La potenza di ogni finestra e'
+        energia esatta sulla finestra divisa per la durata: la stessa
+        grandezza che usano la calibrazione e il profilo, non una media dei
+        campioni. Il criterio e' la stazionarieta', non l'uguaglianza con
+        ``P_pre``: il post deve poter mostrare il drift.
+
+        Tetto ``timeout_s``. Al tetto ritorna ``None``: il chiamante lo
+        dichiara (``settle_pre_s`` vuoto), non inventa un tempo di
+        stabilizzazione che non ha osservato.
+
+        La prima finestra puo' non essere leggibile (buffer appena avviato):
+        in quel caso si aspetta, senza contare un ``prev`` inesistente.
+        """
+        t0 = time.monotonic()
+        prev: Optional[float] = None
+        while True:
+            now = time.monotonic()
+            elapsed = now - t0
+            e_window = self.package_energy_exact_between(now - window_s, now)
+            current = (float(e_window) / window_s
+                       if e_window is not None and window_s > 0 else None)
+            if (prev is not None and current is not None
+                    and abs(current - prev) < tolerance_w):
+                return round(elapsed, 3)
+            prev = current
+            if elapsed >= timeout_s:
+                return None
+            time.sleep(max(min(step_s, timeout_s - elapsed), 0.0))
+
     def calibrate_idle(self, seconds: Optional[float] = None) -> float:
         """Calibrazione idle empirica via backend energetico (spec §5).
 
