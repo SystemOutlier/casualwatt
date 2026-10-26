@@ -604,12 +604,15 @@ implementato e C3 come proxy dichiarato.
 Cosa **e'** `cloud_energy_j` (C2/C3/C4): una stima dell'energia del server-side
 datacenter — **solo della generazione**, perche' il motore accetta numero di
 token di **output** e latenza e i token di input non entrano nel calcolo
-(`energy/cloud_energy.py:159-166`); `prompt_tokens` e' un argomento della
+(`energy/cloud_energy.py:188-195`); `prompt_tokens` e' un argomento della
 funzione e finisce in una nota dichiarativa, non nella formula
-(`:109-116`, `:163-166`), mentre il conteggio resta nel campo `cloud_input_tokens`
-a solo scopo dichiarativo (`:162`). Il valore principale e' la **media** del
-range, con min/max nei campi `cloud_energy_min_j` / `cloud_energy_max_j`
-(`energy/cloud_energy.py:117-200`).
+(`:138-146`, `:162-168`), mentre il conteggio resta nel campo `cloud_input_tokens`
+a solo scopo dichiarativo (`:192-195`; il campo e' scritto in
+`benchmark_unified.py:1121` e dichiarato in `casualwatt_csv_export.py:47`). Il
+valore principale e' la **media** del
+range (`_range_of`, `:94`, prelevata a `:172`), con min/max nei campi
+`cloud_energy_min_j` / `cloud_energy_max_j` (`:230-238`; funzione completa
+`energy/cloud_energy.py:138-254`).
 
 La conseguenza si deve scrivere, non la si puo' inferire dal numero: una
 richiesta con prompt lungo e output breve e' sottostimata, perche' il prefill e'
@@ -625,22 +628,36 @@ Cosa **non e'**:
 - non e' energia della richiesta completa: esclude i token di input, come
   dichiarato nella definizione sopra;
 - la latenza passata e' end-to-end, quindi include la rete. **RETTIFICA
-  26-10-2026 (Punto #119):** il testo originale diceva che la stima server-side
-  "ne risulta lievemente sovrastimata, dichiarato e non corretto". E' falso come
-  affermazione unidirezionale: `request_latency` entra in EcoLogits in un solo
-  punto (`impacts/llm.py:574`) e sempre attraverso `min(request_latency,
-  gpu_latency)` (`:100-102`), con `gpu_latency = n_out * (alpha*P_active +
-  beta*64 + gamma)` (`:14-16`, `:31`) -- e `llm_impacts` non accetta ne' `tps`
-  ne' `ttft` (`tracers/utils.py:62-67`), quindi il percorso di produzione e'
-  sempre quello della regressione. Sopra la soglia interna il tempo di rete e
-  di coda viene **scartato**, non sommato: `probe_ecologits_clamp_20261026.py`
-  misura l'energia bit-identica da 1,6 s a 120 s a 32 token output
-  (`3,176229045e-06` kWh) e da 10 s a 120 s a 200 token
-  (`1,739049403e-05` kWh). Il termine e' quindi un **clamp**: nel regime lento
-  la riga dichiara una latenza misurata che non ha influito sul numero, e il
-  rischio non e' la sovrastima bensi' l'insensibilita' alla lentezza reale del
-  provider. Serve `cloud_latency_used_s` con `cloud_latency_binding =
-  measured | internal-estimate` (riga sotto).
+  26-10-2026 (Punto #119), con seconda rettifica nella stessa data:** il testo
+  originale diceva che la stima server-side "ne risulta lievemente sovrastimata,
+  dichiarato e non corretto". E' falso come affermazione unidirezionale:
+  `request_latency` entra in EcoLogits in un solo punto (`impacts/llm.py:574`) e
+  sempre attraverso `min(request_latency, gpu_latency)` (`:100-102`). La soglia del
+  percorso di produzione e' `gpu_latency = n_out/tps + ttft` (`:97` + `:99`),
+  perche' `llm_impacts` inietta `tps` e `ttft` dalla scheda del modello
+  (`tracers/utils.py:121-122`) e **tutti i 344 modelli del registro hanno un
+  `deployment`**; la regressione `n_out * (alpha*P_active + beta*64 + gamma)`
+  (`:14-16`, `:31`, ramo `:95`) e' quella usata **solo quando `tps is None`** e qui
+  non compare mai. La prima stesura di questa rettifica asseriva il contrario:
+  guardava la sola firma di `llm_impacts` (`tracers/utils.py:62-68`), che in effetti
+  non espone `tps` fra gli argomenti, e ne concludeva che il ramo interno fosse
+  sempre la regressione. La firma non e' il percorso interno, e la conclusione era
+  sbagliata.
+  Sopra la soglia il tempo di rete e di coda viene **scartato**, non sommato.
+  Misura (`probe_ecologits_clamp_20261026.py`, output tracciato
+  `experiment_results/ecologits_clamp_console_20261026.txt`, ecologits 0.11.1,
+  `openai/gpt-4o-mini` con tps 33,0 e ttft 0,6): energia bit-identica da 1,57 s a
+  120 s a 32 token (`3,176229044667e-06` kWh, +50,807% sul valore a 0,20 s), da
+  3,70 s a 120 s a 100 token (`8,929622014584e-06` kWh, +42,881%), da 10 s a 120 s
+  a 200 token (`1,739049402917e-05` kWh, +40,892%). L'incrocio e' esatto alla
+  soglia, non approssimativo: a 200 token la misura di 6,6606 s -- arrotondata, e
+  quindi di 6 microsecondi sotto 6,6606060606 s -- restituisce ancora
+  `1,739048929432e-05`, un valore diverso dal plateau.
+  Il termine e' quindi un **clamp**: nel regime lento la riga dichiara una latenza
+  misurata che non ha influito sul numero, e il rischio non e' la sovrastima
+  bensi' l'insensibilita' alla lentezza reale del provider. Servono
+  `cloud_latency_used_s`, `cloud_latency_binding` e la soglia nella riga stessa
+  (righe sotto).
 - non e' una lettura del contatore del server, e non e' validata.
 
 **I campi che rendono una stima cloud confrontabile.** Un numero prodotto da un
@@ -649,12 +666,13 @@ input e con quale versione. I campi proposti per P5:
 
 | campo | che cosa fissa | stato oggi |
 |---|---|---|
-| `ecologits_version` | la versione del motore e dei suoi fattori: le stime cambiano fra versioni, quindi due righe con versioni diverse non sono la stessa misura | la versione e' nel token `method` (`energy/cloud_energy.py:189-191`), non in un campo |
+| `ecologits_version` | la versione del motore e dei suoi fattori: le stime cambiano fra versioni, quindi due righe con versioni diverse non sono la stessa misura | **precisazione 26-10-2026: il campo ESISTE a livello di run (`benchmark_unified.py:1235`, colonna `RUN_METADATA_COLUMNS` in `casualwatt_csv_export.py:305-316`) e la versione e' anche nel token `method` per riga (`energy/cloud_energy.py:239-241`); **non** e' una colonna per riga di `CSV_COLUMNS`. Lo scarto reale e' la granularita', non l'assenza. 0.11.1 installata, dichiarata a `:188` |
 | `cloud_calls_count` | quante chiamate HTTP compongono la riga | non contato; `llm_impacts` produce il valore per una chiamata (`completion_tokens`, `duration_s`) |
 | `cloud_input_tokens_included` | `false`, finche' il motore non accetta `prompt_tokens`: rende leggibile l'esclusione senza leggere le note | il conteggio esiste (`cloud_input_tokens`) ma il flag no |
-| `cloud_hardware_mismatch` | se il modello stimato (o il proxy) non e' quello richiesto | la discrepanza e' in `hw_profile` + nota (`:147-152`) |
+| `cloud_hardware_mismatch` | se il modello stimato (o il proxy) non e' quello richiesto | la discrepanza e' in `hw_profile` + nota (`energy/cloud_energy.py:176-181`, `:242`) |
 | `cloud_quantization_assumed` | la quantizzazione che il modello di stima assume | non registrato |
-| `cloud_latency_used_s` | la latenza **effettivamente consumata** dal motore, cioe' `min(request_latency, gpu_latency)` -- non quella che abbiamo misurato | non registrato; senza di esso una riga puo' dichiarare 8 s di attesa mentre il numero ne usa 1,6 (`probe_ecologits_clamp_20261026.py`) |
+| `cloud_latency_used_s` | la latenza **effettivamente consumata** dal motore, cioe' `min(request_latency, n_out/tps + ttft)` -- non quella che abbiamo misurato | non registrato; senza di esso una riga puo' dichiarare 8 s di attesa mentre il numero ne usa al massimo 1,57 (32 token, `probe_ecologits_clamp_20261026.py`) |
+| `cloud_latency_threshold_s` | la soglia `n_out/tps + ttft` del modello stimato, con `tps`/`ttft` della scheda EcoLogits e la loro fonte | non registrato; senza di esso il `min` non e' verificabile da chi legge la riga |
 | `cloud_latency_binding` | quale dei due termini vincola: `measured` (la rete conta) o `internal-estimate` (la rete e' stata scartata) | non registrato |
 | `cloud_energy_band_semantics` | cosa significa la banda min/max: `parameter_pue_ignorance_range` per EcoLogits (propagazione dei parametri registrati e delle bande PUE/WUE), `calibration-semi-range` per un fit nostro | la banda esiste (`cloud_energy_min_j`/`_max_j`) ma il suo tipo no: senza etichetta e' letta come confidenza del modello |
 
@@ -856,7 +874,7 @@ nessuno ritrova.
 | F1 | contatori NIC illeggibili -> `network_energy_j = 0` | `energy/network_energy.py:73` | un guasto diventa uno zero numerico; la nota lo dice, la colonna no | D4 + regola 9 |
 | F2 | cloud non stimabile -> `cloud_energy_j = 0` mentre il metodo dice `unavailable` | `benchmark_unified.py:1101` (`est.energy_j or 0.0`) | la colonna energia contraddice il token di metodo | D4 + regola 9 |
 | F3 | GPU senza token di metodo stabile e senza baseline idle | `casualwatt_csv_export.py:63`, `:77`; `energy/local_energy.py:525-535` | GPU non confrontabile per riga; energia whole-device | D2 per il token; la baseline e' priorita' 9 di §12 e chiede hardware che questo host non ha |
-| F4 | proxy cloud non distinto nel token di metodo | `energy/cloud_energy.py:117-200` | C2 e C3 hanno la stessa etichetta; il proxy e' solo nelle note | D3 |
+| F4 | proxy cloud non distinto nel token di metodo | `energy/cloud_energy.py:138-254` | C2 e C3 hanno la stessa etichetta; il proxy e' solo nelle note | D3 |
 | F5 | LHM Energy non dimostrato contatore, e assente sul host | `energy/energy_session.py:770-830`; `lhm_gui_report_20261023_analisi.md:46-99` | non entra nella catena (corretto), ma il token esiste | D9 + criterio di promozione L1 (§3.1) |
 | F6 | RAPL, AMD e macOS mai esercitati | `energy/rapl_backend.py:45-48`; `energy/energy_session.py:206-212` | "implementato" non e' "provato"; 3 test saltati | non si chiude con codice (§11): D11 rende leggibile la ragione, le priorita' 7 e 10 di §12 portano l'hardware |
 | F7 | coefficiente di rete senza fonte primaria | `config.py:333-343` | numero pubblicabile solo come ipotesi dichiarata | D8 + piano di §7 |
@@ -977,17 +995,24 @@ Codice (letto il 25-26/10, righe verificate):
 - `energy/local_energy.py:122-132` (campi per riga), `:152-156`
   (`d_ollama_cpu_s`, `d_busy_s`), `:503-590` (GPU), `:525-535` (idle GPU e
   whole-device).
-- `energy/cloud_energy.py:1-23`, `:109-116` (`prompt_tokens` fra gli argomenti),
-  `:147-152` (proxy dichiarato), `:159-166` (input esclusi), `:189-191`
-  (versione EcoLogits dentro `method`), `:117-200` (EcoLogits, proxy, confini).
+- `energy/cloud_energy.py:1-52`, `:138-146` (`prompt_tokens` fra gli argomenti),
+  `:176-181` (proxy dichiarato), `:188-195` (input esclusi), `:196-219` (clamp di
+  latenza, Punto #119), `:239-241` (versione EcoLogits dentro `method`), `:138-254`
+  (EcoLogits, proxy, confini).
 - `cloud_estimator.py:192-219` (cache per `(provider, modello, tok_out,
   latenza)`).
 - `energy/network_energy.py:44-55` (somma delle interfacce non-loopback),
   `:63-90` (delta NIC), `:73` (guasto -> 0), `:93-107` (payload).
 - `config.py:333-341` (confine e conversione dichiarati nel commento), `:341`
   (valore del coefficiente).
-- `benchmark_unified.py:1101` (`est.energy_j or 0.0` -> cloud 0), `:474` (zero
-  local mode), `:466-476`.
+- `benchmark_unified.py:1141-1145` (`cloud_j = est.energy_j`: il vecchio `or 0.0`
+  e' rimosso dal commit `027609c`), `:500-634` (`_finalize_energy_fields`: `"N/A"`
+  per componente assente, `end_to_end_energy_j = "N/A"`, nota con il nome della
+  componente mancante, derivati di efficienza non calcolati su denominatore
+  fittizio), `:467-474` (zero di confine in local mode, regola 12.1 -- **non**
+  toccato), `:1269-1277` (`_j_log`, log N/A-aware),
+  `tests/test_cloud_energy_none_preservato.py` (9 test, blocca `None -> "N/A"`
+  **e** `0.0 -> 0.0`).
 - `casualwatt_csv_export.py:17-108` (schema), `:44`, `:46`, `:63`, `:77`,
   `:110-111` (capacita' `d_busy_s <= core x finestra`).
 - `cw_probe.py` (sonda di sola lettura, **non tracciata in git**: `:9` machine,

@@ -45,7 +45,7 @@ citata sbagliata e sopra un percorso di proxy che oggi non funziona.
 | L1 = `llm_impacts`, `E_req = PUE · E_server` | `cloud_energy.py:5-13`, spec §3.4 C2 (riga 405), DT-1 (`DECISIONI.md:254-258`) | nessuno; la proposta non dice che il PUE è **del provider**, non nostro (1,09–1,20, `tracers/utils.py:146-177`, registrato in `DECISIONI.md:246-252`) |
 | L2 = modello analitico prefill/decoding | DT-3 (`DECISIONI.md:268-280`) e spec §6 righe 667-672 | **regressione**: vedi §5 |
 | L3 = `E_rete = B_tot · 8 · ε_bit` | `network_energy.py:63-107`, `config.py:341-343`, spec §7 righe 708-732, D8/D13 | nessuno |
-| Incertezza `min / nominal / max` | spec §6 righe 610-612, NOTE B4 (`cloud_energy.py:18-22`) | **regressione**: vedi §3.4 |
+| Incertezza `min / nominal / max` | spec §6 righe 610-612, NOTE B4 (`cloud_energy.py:18-19`; semantica della banda `:48-51`) | **regressione**: vedi §3.4 |
 | Colonne di tracciabilità (`cloud_method`, `calibration_sources`, `measurement_boundary`, `energy_available`) | D12 (righe 867), D13 (868), regola 9 (righe 584-592) | in parte nuovo: `cloud_provenance` con i valori `C2 / M4 (Fonte A+B) / M4 (Ipotesi)` mescola due scale, vedi §3.5 |
 | "mai `0.0` per dato sconosciuto" | D4 (riga 859), F2/F9 (righe 839, 846) | **già scritto nel DOCX**, e già violato nel codice: vedi §4 |
 
@@ -154,7 +154,7 @@ Questo ha due effetti che la proposta non gestisce:
 
 1. DT-1 (`DECISIONI.md:254-258`) dice "valore primario = intervallo [min,max]
    EcoLogits"; il codice in produzione prende la **media** come valore primario
-   (`cloud_energy.py:20-22`, `:174-179`, spec §6 righe 610-612). Le due cose si
+   (`cloud_energy.py:48-51`, `:220-230`, spec §6 righe 610-612). Le due cose si
    riconciliano solo dichiarando che la banda è di assunzione, non di misura — che è
    anche l'unica lettura compatibile con la regola di linguaggio "semi-range
    conservativi, mai deviazione standard" (AGENTS.md, "Linguaggio dell'incertezza").
@@ -228,7 +228,8 @@ Sono anteriori alla proposta e la rendono prematura: la proposta assume un Tier 
 proxy che nel codice non arriva a produrre un numero.
 
 1. **Le regole di proxy sono morte sulla versione installata.** `_MODEL_PROXY_RULES`
-   (`cloud_energy.py:33-38`) e il fallback di famiglia (`:100-106`) puntano tutti al
+   (`cloud_energy.py:61-67`) e il fallback di famiglia (`_candidate_models`,
+   `:122-135`) puntano tutti al
    provider `openrouter`, che non esiste nel registro di `ecologits` 0.11.1 installato:
    i provider sono 6 — cohere 11, huggingface_hub 176, mistralai 46, anthropic 10,
    google_genai 22, openai 79 modelli (344 entrate totali, `data/models.json`). Prova:
@@ -239,57 +240,90 @@ proxy che nel codice non arriva a produrre un numero.
    Conseguenza: la catena effettiva C2 → C4 → C3 si riduce a C2 → unavailable, e la
    spec §6 righe 601-602 descrive uno stato di fatto più buono del reale.
 2. **Un dato sconosciuto diventa un numero.** `cloud_j = est.energy_j or 0.0`
-   (`benchmark_unified.py:1101`, difetto F2 della spec riga 839) scrive `0.0` mentre il
-   token di metodo dice `unavailable`; in local mode lo zero è legittimo ma il metodo
-   resta vuoto (`:466-476`, F9, riga 846). Entrambi violano D4 (riga 859) e la regola 9
-   (righe 584-592). Il DOCX lo diceva già ("il risultato deve rimanere mancante
-   (None), non diventare 0.0").
-3. **Etichetta di carbonio con scope sbagliato.** `cloud_energy.py:145` legge
+   (`benchmark_unified.py:1101` prima di `027609c`, difetto F2 della spec riga 839)
+   scriveva `0.0` mentre il token di metodo dice `unavailable`; in local mode lo zero
+   è legittimo ma il metodo resta vuoto (`:467-474`, F9, riga 846). Entrambi violavano
+   D4 (riga 859) e la regola 9 (righe 584-592). Il DOCX lo diceva già ("il risultato
+   deve rimanere mancante (None), non diventare 0.0").
+   **CHIUSO dal commit `027609c`**: il sito è ora `cloud_j = est.energy_j`
+   (`:1145`, con il commento che nomina F2 a `:1141`), e `_finalize_energy_fields`
+   pubblica `"N/A"` per la componente assente, `end_to_end_energy_j = "N/A"` e una nota
+   che dice quale componente manca; i derivati di efficienza non usano più un
+   denominatore fittizio. Nove test offline in
+   `cwEnergyModular/tests/test_cloud_energy_none_preservato.py` bloccano **entrambe**
+   le direzioni: `None -> "N/A"` e `0.0 -> 0.0` (perché la regola 12.1 non venga
+   cancellata da una correzione troppo zelante — un `if not cloud_j` al posto del vecchio
+   `or 0.0` avrebbe distrutto gli zeri di confine).
+3. **Etichetta di carbonio con scope sbagliato.** `cloud_energy.py:174` legge
    `res.gwp`, che in EcoLogits è `gwp_usage + gwp_embodied` (`impacts/llm.py:608`),
-   mentre l'energia esclude l'embodied (`cloud_energy.py:15-17`, `:153-158`). A valle,
+   mentre l'energia esclude l'embodied (`cloud_energy.py:15-17`, `:182-187`). A valle,
    `benchmark_unified.py:1110` etichetta il valore "ecologits gwp (server-side,
    scope-2 incl. PUE)" e `:1113-1116` ne deriva un'intensità come `carbon / energia`:
    un quoziente fra scope misti, che non è l'intensità della mix elettrica.
-4. **Ancora di versione non vera.** Le note citano "llm_impacts (0.11.3)"
-   (`cloud_energy.py:18`, `:159`) e un commento dichiara "verificato su ecologits
-   0.11.3", mentre l'installazione è 0.11.1 e la versione utile finisce solo nel token
-   `method` (`:189-191`), non in un campo (`ecologits_version`, D12).
+   (Ancoraggi riallineati il 26-10-2026 dopo i commit `027609c` e `9ef63ac`: la riga
+   era `:1110`/`:1113-1116` prima di `027609c`, ora `benchmark_unified.py:1154` e
+   `:1157-1163`.)
+4. **Ancora di versione non vera.** Le note citavano "llm_impacts (0.11.3)" e un
+   commento dichiarava "verificato su ecologits 0.11.3", mentre l'installazione è
+   0.11.1. **Parzialmente chiuso dal commit di questa rettifica**: il commento ora
+   dichiara 0.11.1 (`cloud_energy.py:188`), versione stampata da
+   `probe_ecologits_clamp_20261026.py`. Resta aperto il difetto di forma: la versione
+   utile finisce solo nel token `method` (`:239-241`), non in un campo
+   `ecologits_version` (D12).
 5. **Il proxy richiede il casing registrato.** 41 nomi llama-family in
    `huggingface_hub`, con la forma esatta `meta-llama/Meta-Llama-3.1-8B-Instruct`: la
    risoluzione del proxy non è "stessa famiglia", è match di stringa, e va fissata
    con la lista reale, non con una regola a memoria.
 6. **La "sovrastima d'attesa" dichiarata ha il segno sbagliato** (sonda tracciata
-   `probe_ecologits_clamp_20261026.py`, eseguita il 26-10-2026 su ecologits **0.11.1**).
-   `request_latency` ha **un solo** punto d'uso inside il motore — `impacts/llm.py:574`
-   — e passa sempre attraverso `generation_latency`, che a `:100-102` è un `min`
-   fra la misura e la regressione interna
-   (`gpu_latency = n_out · (α·P_active + β·64 + γ)`, costanti a `:14-16`,
-   `BATCH_SIZE = 64` a `:31`). Sopra la soglia interna la nostra misura **non entra
-   più nel numero**, e il valore pubblicato resta bit-identico:
+   `probe_ecologits_clamp_20261026.py`, output tracciato
+   `experiment_results/ecologits_clamp_console_20261026.txt`, eseguita il 26-10-2026
+   su ecologits **0.11.1**).
+   `request_latency` ha **un solo** punto d'uso dentro il motore — `impacts/llm.py:574`
+   — e passa sempre attraverso `generation_latency`, che a `:100-102` è un `min` fra
+   la misura e la soglia interna del motore. Sopra la soglia la nostra misura **non
+   entra più nel numero**, e il valore pubblicato resta bit-identico.
+   La soglia interna, nel percorso di produzione, è `n_out / tps + ttft`
+   (`:97` + `:99`), perché `llm_impacts` inietta `tps` e `ttft` dalla scheda del
+   modello (`tracers/utils.py:121-122`) e **tutti i 344 modelli del registro hanno un
+   `deployment`** (conteggio stampato dalla sonda). La regressione
+   `α·P_active + β·BATCH_SIZE + γ` (`:14-16`, `:95`) è il ramo usato **solo quando
+   `tps is None`**: qui non compare mai.
+   Su `openai/gpt-4o-mini` (`deployment = {tps: 33.0, ttft: 0.6}`):
 
-   | `output_token_count` | soglia interna (P=8 / 18 / 28 B) | comportamento osservato |
-   | --- | --- | --- |
-   | 32 (geometria del progetto) | 1,4357 / 1,6528 / 1,8699 s | energia identica da 1,6 s fino a 120 s (`3,176229045e-06` kWh); +59,69% fra 0,05 s e la soglia, poi **piatta** |
-   | 200 | 8,9731 / 10,3301 / 11,6871 s | identica da 10 s a 120 s (`1,739049403e-05` kWh) |
+   | `output_token_count` | soglia `n_out/tps + ttft` | energia pubblicata alla soglia (plateau) | comportamento osservato |
+   | --- | --- | --- | --- |
+   | 32 (geometria del progetto) | 1,5697 s | `3,176229044667e-06` kWh | identica da 1,57 s a 120 s; +50,807% sul valore a 0,20 s (`2,106153287091e-06`) |
+   | 100 | 3,6303 s | `8,929622014584e-06` kWh | identica da 3,70 s a 120 s; +42,881% sul valore a 0,20 s (`6,249697772159e-06`) |
+   | 200 | 6,6606 s | `1,739049402917e-05` kWh | identica da 10 s a 120 s; +40,892% sul valore a 0,20 s (`1,234314554432e-05`) |
 
-   Rettifica della formulazione precedente di questo punto: la sonda non passa `tps`
-   perché `llm_impacts` **non lo accetta** (`tracers/utils.py:62-67`, i soli argomenti
-   sono provider, modello, `output_token_count`, `request_latency`, zona) — quindi il
-   percorso di produzione è *sempre* quello della regressione, e i numeri "tps 33 →
-   stima 3,64 s / 8,24632535e-06 kWh" che stavano qui non erano riproducibili dal
-   percorso reale e sono sostituiti dalle misure della tabella.
-   La Nota B4 (`cloud_energy.py`), la sua ripetizione in
-   `metodi_per_dominio_20261025_spec.md:627-628` ("sovrastimata") e la paraphrase in
-   `cap03_metodologia_misura.tex:619-622` descrivono una sovrastima che nel regime
+   L'incrocio è esatto, non approssimativo: a `output_token_count = 200` la misura di
+   6,6606 s — arrotondata, e quindi di 6·10⁻⁶ s **sotto** la soglia 6,6606060606 s —
+   dà ancora `1,739048929432e-05` kWh, mentre a 10 s il valore è il plateau
+   `1,739049402917e-05`. Il termine che vincola cambia all'ultima cifra della soglia.
+
+   Rettifica di una rettifica precedente (commit `9ef63ac`): in quella versione di
+   questo punto sostenevo che `llm_impacts` non accetta `tps`, e che di conseguenza il
+   percorso di produzione fosse sempre la regressione; cancellai i numeri "tps 33 →
+   3,64 s" che stavano nel testo. L'affermazione è **falsa nella conseguenza**: è vero
+   che la firma di `llm_impacts` (`tracers/utils.py:62-68`) non espone `tps`, ma la
+   funzione lo legge dalla scheda del modello e lo passa a `compute_llm_impacts`
+   (`:121-122`), quindi il ramo `1/tps` è quello che gira a ogni chiamata di
+   produzione. I numeri "tps 33 → soglia 3,63 s" che avevo cancellato erano **giusti**
+   (riga 100 token della tabella) e ora sono riproducibili dalla sonda; resta da
+   correggere solo che il valore `8,24632535e-06` kWh era il **minimo** della banda,
+   non la media (la media a 3,7 s è `8,929622014584e-06`).
+   La Nota B4 e la sua rettifica (`cloud_energy.py:21-46`, nota per riga `:196-219`),
+   la sua ripetizione in
+   `metodi_per_dominio_20261025_spec.md:630-660` ("sovrastimata") e la paraphrase in
+   `cap03_metodologia_misura.tex` (paragrafo "Tre limiti di \texttt{C2}", righe
+   `:670-701`, verificata il 26-10-2026)
+   descrivevano una sovrastima che nel regime
    lento non esiste: lì la rete viene **sostituita in silenzio** dalla stima del
    modello, e il numero diventa **insensibile** alla lentezza del provider — rischio
    opposto (sottostima) e, per la tesi, più grave: la riga dichiara una latenza misurata
    che non ha influito sul numero. Serve un campo che porti la latenza *effettivamente
    usata* (`cloud_latency_used_s`) e il termine vincolante (`cloud_latency_binding =
-   measured | internal-estimate`), oltre alla correzione dei tre testi. Nota: la
-   soglie osservate sul valor pubblicato sono più basse di quella del ramo `P=28`
-   perché il numero che pubblichiamo è la media dei due rami della banda: il
-   documento riporta l'intervallo di misura, non un modello analitico del motore.
+   measured | internal-estimate`), oltre alla correzione dei tre testi.
 
 ---
 
@@ -352,7 +386,7 @@ cloud e locale nella stessa tesi sarebbe l'incoerenza più visibile di tutte.
 | 1 | tre livelli L1/L2/L3 | L1 e L3 già implementati e già normati; L2 **non** può entrare nella catena senza emenda |
 | 2 | calibrazione a cascata (Fonte A ML.ENERGY, B SweetSpot, C Zeus locale) | A: fonte citata sbagliata, esiste ma con boundary H100/vLLM/steady-state; B: forma attribuita non pubblicata, i θ sono per-modello; C: micro-benchmark locale **non arbitra un provider remoto**, è un anello di plausibilità |
 | 3 | incertezza min/nominal/max da EcoLogits | il range esiste ma è propagazione di assunzioni sui parametri e sul PUE: non è un'incertezza statistica; insufficiente da solo |
-| 4 | tre validazioni (sensibilità, cross L1-L2, sanity check) | condivisibili e non ancora eseguite; `n_out=0` è già gestito con `max(...,1)` (`cloud_energy.py:136`) |
+| 4 | tre validazioni (sensibilità, cross L1-L2, sanity check) | condivisibili e non ancora eseguite; `n_out=0` è già gestito con `max(...,1)` (`cloud_energy.py:165`), e il pavimento di latenza con `max(..., 0.05)` (`:166`) |
 | 5 | colonne di tracciabilità | in gran parte già D12/D13; `cloud_provenance` con `M4` mescola due scale |
 | 6 | punti di forza e limiti dichiarati | i limiti del DOCX sono più onesti di quelli della proposta: la versione estesa ha perso il divieto di attribuire formule agli autori e la clausola "None, non 0.0" |
 
@@ -392,8 +426,10 @@ cloud e locale nella stessa tesi sarebbe l'incoerenza più visibile di tutte.
 - I θ della Tabella 5 di SweetSpot sono letti nell'HTML di arXiv:2602.05695, non
   nell'edizione ACM; prima di ripubblicarli va verificata l'edizione camera-ready.
 - L'accesso efetivo al dataset gated `ml-energy/benchmark-v3` (richiesta da fare).
-- `ecologits` 0.11.3: le note del codice parlano di una versione che in questo
-  ambiente non è installata; le verifiche qui sopra valgono per 0.11.1.
+- La versione di `ecologits` dichiarata dalle note del codice (0.11.3) non è quella
+  installata: le verifiche qui sopra valgono per **0.11.1**, la versione stampata il
+  26-10-2026 da `probe_ecologits_clamp_20261026.py`. Il commento in
+  `cloud_energy.py:188` è stato allineato con questa rettifica.
 - Il numero MÖVE/Dalerci resta non trovato nell'estrazione, come già registrato in
   DT-4 (`DECISIONI.md:286-290`).
 
