@@ -332,8 +332,27 @@ def estimate_cloud_energy(
     # Pavimenti applicati al motore: il token di output minimo (1) e la latenza
     # minima (0,05 s). Stanno in due variabili perche' il valore realmente usato
     # deve comparire anche nella diagnostica della latenza, non solo nella call.
-    n_out = max(int(completion_tokens), 1)
-    lat_req = max(float(duration_s), 0.05)
+    raw_n_out = int(completion_tokens)
+    raw_lat_s = float(duration_s)
+    n_out = max(raw_n_out, 1)
+    lat_req = max(raw_lat_s, 0.05)
+    # Un pavimento e' una scelta di questo codice, non una proprieta' del motore:
+    # quando scatta, il numero e' prodotto da un ingresso diverso da quello
+    # misurato. Senza la nota la riga lascerebbe credere che 0 token o una
+    # latenza di 3 ms siano entrati nel calcolo cosi' come sono stati osservati.
+    floor_notes: List[str] = []
+    if raw_n_out < 1:
+        floor_notes.append(
+            "floor applied: output_token_count clamped to 1 "
+            f"(conteggio misurato {raw_n_out}); il pavimento e' di questo "
+            "codice, non un valore del motore"
+        )
+    if raw_lat_s < 0.05:
+        floor_notes.append(
+            "floor applied: request_latency clamped to 0.05 s "
+            f"(misurati {raw_lat_s:.3f} s); la stima usa 0,05 s benche' la "
+            "richiesta sia stata piu' rapida"
+        )
     last_errors: List[str] = []
     for prov, mdl in _candidate_models(eco_provider, model_name):
         if not mdl:
@@ -352,7 +371,7 @@ def estimate_cloud_energy(
         kwh_lo, kwh_hi, kwh = _range_of(getattr(res, "energy", None))
         if kwh and kwh > 0:
             gwp_kg = _value_of(getattr(res, "gwp", None))
-            notes = []
+            notes = list(floor_notes)
             if (prov, mdl) != (eco_provider, model_name):
                 notes.append(
                     f"proxy dichiarato: '{model_name}' non e' registrato in "
@@ -455,5 +474,8 @@ def estimate_cloud_energy(
     return CloudEnergyResult(
         energy_j=None,
         method="unavailable (model not registered in ecologits)",
-        notes=last_errors[:4] or ["nessuna stima possibile"],
+        # I pavimenti restano dichiarati anche quando la stima non riesce: sono
+        # stati applicati agli argomenti del tentativo, e il lettore deve poterli
+        # vedere senza dedurli dal fatto che il numero manca.
+        notes=floor_notes + (last_errors[:4] or ["nessuna stima possibile"]),
     )

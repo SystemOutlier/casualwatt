@@ -4,7 +4,7 @@ cloud_estimator.py — Facade di stima cloud richiesto dalla specifica.
 
 Ri-esporta ``estimate_cloud_energy`` dal sottosistema ``energy/`` e aggiunge:
 * ``get_cloud_models()``  : lettura modelli dai provider configurati (sez. 6);
-* ``CloudEnergyEstimator``: wrapper stateless usato da benchmark_unified.
+* ``CloudEnergyEstimator``: wrapper con cache delle stime, una istanza per run.
 Nessuna formula propria: tutta la stima passa da EcoLogits (energy/cloud_energy),
 compresa la traduzione CasualWatt -> EcoLogits del nome del provider, che sta
 la' perche' il badge e la stima devono usare la stessa mappa.
@@ -193,7 +193,22 @@ def get_cloud_models(timeout_s: float = 15.0) -> List[Dict]:
 
 
 class CloudEnergyEstimator:
-    """Wrapper con caching delle stime per (provider, model, tok_out, latenza)."""
+    """Wrapper con caching delle stime per (provider, model, tok_out, latenza, zona).
+
+    La cache vive quanto l'istanza: finche' ``query_cloud`` ne creava una nuova a
+    ogni richiesta, ogni chiamata entrava con la cache vuota e il dizionario non
+    veniva mai riletto. Un colpo si ha solo quando provider, modello, token di
+    output, latenza arrotondata al centesimo e zona di mix coincidono: con
+    latenze misurate e' raro, e la cache non e' un risparmio di calcolo
+    garantito, ma un'istanza per run evita di ricostruire lo stesso risultato
+    quando la stessa richiesta si ripete.
+
+    La chiave NON contiene ``prompt_tokens``: ``llm_impacts`` accetta solo
+    ``output_token_count`` e ``request_latency``, quindi i token di input non
+    entrano nella stima (restano nel CSV come dichiarazione). La zona invece
+    entra, perche' cambia il mix elettrico e con esso il carbonio: senza di essa
+    un colpo fra due zone diverse restituirebbe il carbonio della prima.
+    """
 
     def __init__(self) -> None:
         self._cache: Dict[tuple, CloudEnergyResult] = {}
@@ -207,7 +222,8 @@ class CloudEnergyEstimator:
         duration_s: float,
         electricity_mix_zone: Optional[str] = None,
     ) -> CloudEnergyResult:
-        key = (provider, model_name, int(completion_tokens), round(float(duration_s), 2))
+        key = (provider, model_name, int(completion_tokens),
+               round(float(duration_s), 2), electricity_mix_zone)
         if key in self._cache:
             return self._cache[key]
         res = estimate_cloud_energy(
