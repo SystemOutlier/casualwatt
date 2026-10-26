@@ -497,24 +497,56 @@ def _basic_record(run_id, session_id, model_name, model_label, provider, mode,
     return rec
 
 
-def _finalize_energy_fields(rec: Dict, local_j: float, network_j: float, cloud_j: float,
-                            evalres) -> None:
+def _finalize_energy_fields(rec: Dict, local_j: Optional[float], network_j: Optional[float],
+                            cloud_j: Optional[float], evalres) -> None:
     """Applica le regole 12.1/12.2 e i derivati ECE/EPCL.
 
     Con valutazione saltata/N/A (regime senza ground truth) i derivati di
     accuratezza restano 'N/A': mai sostituiti con 0 o valori fittizi.
-    """
-    rec["local_energy_j"] = round(local_j, 9)
-    rec["network_energy_j"] = round(network_j, 9)
-    rec["cloud_energy_j"] = round(cloud_j, 9)
-    rec["end_to_end_energy_j"] = round(local_j + network_j + cloud_j, 9)
 
+    Le componenti energetiche sono `Optional[float]` per lo stesso motivo: una
+    componente **non stimata** (es. stima cloud fallita, richiesta cloud mai
+    partita) e' `None` e si scrive `"N/A"`, non `0.0`. Uno zero e' un costo
+    misurato nullo; `None` e' l'assenza di una stima. Confonderli farebbe
+    apparire la riga priva di costo energetico e abbasserebbe le medie di
+    `end_to_end_energy_j`, di `energy_per_output_token_j` e degli indici di
+    efficienza (ECE/EPCL) calcolati su di essa. Il `0.0` legittimo resta solo
+    dove e' la definizione del confine di misura a dichiararlo (regola 12.1:
+    rete e cloud sono zero *per boundary* nella modalita' locale), e arriva
+    comunque come valore esplicito del chiamante, non come fallback dell'`or`.
+    """
+    components = (("local_energy_j", local_j),
+                  ("network_energy_j", network_j),
+                  ("cloud_energy_j", cloud_j))
+    missing = [name for name, val in components if val is None]
+
+    for name, val in components:
+        rec[name] = round(val, 9) if val is not None else "N/A"
+
+    if missing:
+        # e2e non e' calcolabile: una somma parziale non e' un end-to-end
+        rec["end_to_end_energy_j"] = "N/A"
+        new_note = (
+            "end_to_end_energy_j=N/A perche' la/e componente/i "
+            f"{', '.join(missing)} non e/sono stata/e stimata/e; "
+            "nessun 0.0 inventato (regola: zero dichiarato, mai fallback)"
+        )
+        existing = rec.get("notes", "")
+        rec["notes"] = f"{existing}; {new_note}" if existing else new_note
+    else:
+        rec["end_to_end_energy_j"] = round(local_j + network_j + cloud_j, 9)
+
+    # e2e numerico disponibile? "N/A" e' una stringa e non entra nei derivati
     e2e = rec["end_to_end_energy_j"]
+    e2e_j = e2e if isinstance(e2e, (int, float)) else None
     try:
         out_tok = int(rec.get("output_tokens") or 0)
     except (TypeError, ValueError):
         out_tok = 0
-    rec["energy_per_output_token_j"] = round(e2e / out_tok, 9) if out_tok > 0 else ""
+    if e2e_j is None:
+        rec["energy_per_output_token_j"] = "N/A"
+    else:
+        rec["energy_per_output_token_j"] = round(e2e / out_tok, 9) if out_tok > 0 else ""
 
     n_correct = getattr(evalres, "n_correct_links", None)
     acc_comp = getattr(evalres, "acc_comp", None)
@@ -532,16 +564,18 @@ def _finalize_energy_fields(rec: Dict, local_j: float, network_j: float, cloud_j
     if is_correct is None:
         rec["energy_per_correct_answer_j"] = "N/A"
     elif is_correct:
-        rec["energy_per_correct_answer_j"] = round(e2e, 9)
+        rec["energy_per_correct_answer_j"] = (
+            round(e2e_j, 9) if e2e_j is not None else "N/A"
+        )
     else:
         rec["energy_per_correct_answer_j"] = ""  # risposta errata: non definita
     # ECE per joule: accuratezza composita / energia end-to-end (J) — dichiarato
-    if acc_comp is None:
+    if acc_comp is None or e2e_j is None:
         rec["ece_per_joule"] = "N/A"
     else:
         rec["ece_per_joule"] = round(acc_comp / e2e, 9) if e2e > 0 else ""
     # EPCL: Joule per causal link corretto (lower is better)
-    if n_correct is None:
+    if n_correct is None or e2e_j is None:
         rec["epcl_j_per_link"] = "N/A"
     elif basis != "f1_triples":
         rec["epcl_j_per_link"] = "N/A"
@@ -580,13 +614,19 @@ def _finalize_energy_fields(rec: Dict, local_j: float, network_j: float, cloud_j
     except Exception:
         rec["acc_comp_weights"] = ""
 
-    rec["local_energy_kwh"] = round(rec["local_energy_j"] / 3_600_000.0, 12)
-    rec["cloud_energy_kwh"] = round(rec["cloud_energy_j"] / 3_600_000.0, 12)
+    rec["local_energy_kwh"] = (
+        round(local_j / 3_600_000.0, 12) if local_j is not None else "N/A"
+    )
+    rec["cloud_energy_kwh"] = (
+        round(cloud_j / 3_600_000.0, 12) if cloud_j is not None else "N/A"
+    )
     try:
         ci_val = float(rec["local_carbon_intensity_gco2eq_kwh"])
     except (TypeError, ValueError):
         ci_val = 0.0
-    rec["local_emissions_gco2eq"] = round(rec["local_energy_kwh"] * ci_val, 9)
+    rec["local_emissions_gco2eq"] = (
+        round(rec["local_energy_kwh"] * ci_val, 9) if local_j is not None else "N/A"
+    )
 
 
 # ---------------------------------------------------------------------------
@@ -1098,7 +1138,11 @@ def run_unified_benchmark(
                             getattr(evalres, "lexical_similarity", None)),
                         semantic_threshold=getattr(evalres, "semantic_threshold", ""),
                     )
-                    cloud_j = est.energy_j or 0.0
+                    # Difetto F2: `est.energy_j or 0.0` trasformava l'assenza di
+                    # stima (None) in un costo zero. `or` scatta anche su 0.0
+                    # legitimo, ma qui il danno e' l'altro: la riga apparirebbe
+                    # a costo cloud nullo e la somma end-to-end sarebbe bassa.
+                    cloud_j = est.energy_j
                     if est.energy_j is None:
                         rec["cloud_energy_method"] = est.method
                         rec["notes"] = "; ".join(est.notes)
@@ -1129,7 +1173,7 @@ def run_unified_benchmark(
                     rec["notes"] = (rec["notes"] + "; " + extra).strip("; ")
                     log(
                         f"[OK cloud] {prov_id}/{model} | {pr['id']} | {resp_data['duration_s']:.2f}s | "
-                        f"cloud={cloud_j:.3f} J net={net_res.energy_j:.5f} J "
+                        f"cloud={_j_log(cloud_j)} J net={net_res.energy_j:.5f} J "
                         f"client={local_j:.2f} J | acc={_acc_log(evalres)}"
                     )
                 except Exception as exc:
@@ -1139,7 +1183,11 @@ def run_unified_benchmark(
                         timestamp_end=datetime.now(timezone.utc).isoformat(timespec="seconds"),
                         notes=f"ERRORE richiesta cloud: {type(exc).__name__}: {exc}",
                     )
-                    _finalize_energy_fields(rec, 0.0, 0.0, 0.0, evalres_placeholder())
+                    # In modalita' cloud la stima cloud non esiste affatto: la
+                    # richiesta non e' mai arrivata al provider. `None`, non 0.0.
+                    # (Rete e locale restano 0.0 perche' qui e' il chiamante a
+                    # dichiararli: la sessione di misura non e' partita.)
+                    _finalize_energy_fields(rec, 0.0, 0.0, None, evalres_placeholder())
                     log(f"[ERRORE cloud] {prov_id}/{model} | {pr['id']} | {type(exc).__name__}: {exc}")
                 records.append(rec)
                 done += 1
@@ -1216,6 +1264,15 @@ def _acc_log(evalres) -> str:
     if v is None:
         return "N/A"
     return f"{v:.2f} ({getattr(evalres, 'eval_mode', '?')})"
+
+
+def _j_log(v) -> str:
+    """Joule per il log, N-A-aware: una stima assente si scrive 'N/A', mai 0.000.
+
+    Esiste perche' il formato `:.3f` su `None` solleva TypeError e il ramo di
+    log non deve mascherare l'assenza della stima come un costo nullo.
+    """
+    return "N/A" if v is None else f"{v:.3f}"
 
 
 def _flush_incremental(records: List[Dict], log) -> None:
