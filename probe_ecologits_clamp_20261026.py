@@ -18,12 +18,17 @@ una latenza misurata la quale NON ha influito sul numero.
 
 Cosa stampa, e perche' conta:
   1. la soglia `gpu_latency` **del percorso di produzione**: `llm_impacts` inietta
-     `tps` e `ttft` dalla scheda del modello (`tracers/utils.py:121-122`), e TUTTI
-     i 344 modelli registrati nel pacchetto hanno un `deployment` (verificato
-     leggendo `data/models.json`). La regressione `alpha*P + beta*B + gamma`
-     (`impacts/llm.py:14-16`) e' il ramo che si usa solo senza deployment: qui non
-     compare mai. Sarebbe un ancoraggio falso, e la correzione iniziale di questo
-     punto lo dava come tale -- errore rettificato da questa sonda.
+     `tps` e `ttft` dalla scheda del modello (`tracers/utils.py:121-122`). La
+     regressione `alpha*P + beta*B + gamma` (`impacts/llm.py:14-16`) e' il ramo che
+     si usa quando quel valore manca.
+     TERZA RETTIFICA, 26-10-2026 (`probe_ecologits_gpu_steps_moe_20261026.py`,
+     sezione D): le due stesure precedenti di questo punto asserivano che il ramo a
+     regressione "qui non compare mai", perche' contavano i `deployment` (344 su 344)
+     invece dei `tps` (non nulli su 157). Su 187 schede il ramo vivo e' proprio la
+     regressione -- fra cui `meta-llama/Meta-Llama-3.1-70B-Instruct`, usata come
+     esempio in `energy/cloud_energy.py`. La soglia di questo run resta
+     `n_out/tps + ttft` perche' `gpt-4o-mini` e' una delle 157 con `tps`; i numeri che
+     seguono non cambiano, cambia la generalizzazione.
   2. l'energia al crescere della latenza, con il delta rispetto alla latenza di
      riferimento di 0,2 s usata dalle tabelle in `experiment_results/`, per mostrare
      che da un punto in poi e' **bit-identica al plateau**, non "pressappoco";
@@ -94,9 +99,12 @@ def main() -> None:
     print(f"ecologits installato: {getattr(ecologits, '__version__', 'unknown')}")
     dep = deployment(PROV, MDL)
     tot = json.load(open(REGISTRY, encoding="utf-8"))["models"]
-    print(f"registro: {len(tot)} modelli, "
-          f"{sum(1 for m in tot if m.get('deployment'))} con deployment "
-          f"(tps/ttft iniettati da tracers/utils.py:121-122)")
+    con_dep = sum(1 for m in tot if m.get("deployment"))
+    con_tps = sum(1 for m in tot if (m.get("deployment") or {}).get("tps") is not None)
+    print(f"registro: {len(tot)} modelli, {con_dep} con deployment, "
+          f"{con_tps} con `tps` non nullo (tps/ttft iniettati da "
+          f"tracers/utils.py:121-122; senza `tps` la soglia e' la regressione "
+          f"`impacts/llm.py:95`, non n_out/tps+ttft)")
     print(f"deployment di {PROV}/{MDL}: {dep}")
     for n_out in (32, 100, 200):
         run(n_out, dep["tps"], dep["ttft"])

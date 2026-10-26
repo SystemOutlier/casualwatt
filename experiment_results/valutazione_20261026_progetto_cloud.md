@@ -284,10 +284,18 @@ proxy che nel codice non arriva a produrre un numero.
    entra più nel numero**, e il valore pubblicato resta bit-identico.
    La soglia interna, nel percorso di produzione, è `n_out / tps + ttft`
    (`:97` + `:99`), perché `llm_impacts` inietta `tps` e `ttft` dalla scheda del
-   modello (`tracers/utils.py:121-122`) e **tutti i 344 modelli del registro hanno un
-   `deployment`** (conteggio stampato dalla sonda). La regressione
-   `α·P_active + β·BATCH_SIZE + γ` (`:14-16`, `:95`) è il ramo usato **solo quando
-   `tps is None`**: qui non compare mai.
+   modello (`tracers/utils.py:121-122`) **quando la scheda porta quel valore**. La
+   regressione `α·P_active + β·BATCH_SIZE + γ` (`:14-16`, `:95`) è il ramo usato
+   quando `tps is None`.
+   **Rettifica (26-10-2026, sonda tracciata
+   `probe_ecologits_gpu_steps_moe_20261026.py`, sezione D).** Nella stesura di questa
+   valutazione il ramo a regressione era dichiarato "qui non compare mai", contando i
+   `deployment` e non i `tps`: il `deployment` esiste su 344 schede, `tps` non nullo
+   solo su **157**. Su 187 schede -- fra cui
+   `huggingface_hub/meta-llama/Meta-Llama-3.1-70B-Instruct`, che ha
+   `deployment = {tps: None, ttft: None}` -- il ramo vivo è la regressione, e la sua
+   soglia a 200 token vale 17,4612 s. La tabella che segue resta valida: è fatta su
+   `gpt-4o-mini`, che è una delle 157 con `tps`.
    Su `openai/gpt-4o-mini` (`deployment = {tps: 33.0, ttft: 0.6}`):
 
    | `output_token_count` | soglia `n_out/tps + ttft` | energia pubblicata alla soglia (plateau) | comportamento osservato |
