@@ -3399,10 +3399,17 @@ stessa terna con una finestra sostituita). La sostituzione di un blocco
 completo conserva intatta la struttura 3 pre + 3 post e sposta il costo su
 un'unità che il protocollo già definisce per intero.
 
-Un blocco invalidato non produce righe di richiesta e non entra in nessuna
-analisi: lascia però una riga di **riepilogo di blocco** con il motivo
+Un blocco invalidato lascia una riga di **riepilogo di blocco** con il motivo
 (`invalid_reason`) e l'attempt, perché un'invalidazione registrata solo nel
-log non è verificabile da un terzo.
+log non è verificabile da un terzo. Le **righe di richiesta** dipendono dal
+punto del guasto: se esso avviene nella calibrazione **pre** il blocco non ne
+ha prodotte, e nessuna riga entra nel CSV; se avviene nella calibrazione
+**post** le `m` richieste sono già avvenute e le loro righe restano nel CSV
+append-only **con una nota dichiarata di invalidazione P1.6**, perché
+buttarle perderebbe l'unica evidenza diretta del guasto — ma non entrano in
+nessuna analisi, mai. In entrambi i casi il blocco invalidato non contribuisce
+alla copertura del punto: la cella è coperta dal solo sostituto riuscito, o
+dichiarata mancante.
 
 Campi nuovi in **coda** allo schema (F.17, senza modificare nomi o ordine
 delle colonne esistenti; riga, riepilogo di blocco, e stessa regola su
