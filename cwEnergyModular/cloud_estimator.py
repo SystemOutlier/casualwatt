@@ -5,7 +5,9 @@ cloud_estimator.py — Facade di stima cloud richiesto dalla specifica.
 Ri-esporta ``estimate_cloud_energy`` dal sottosistema ``energy/`` e aggiunge:
 * ``get_cloud_models()``  : lettura modelli dai provider configurati (sez. 6);
 * ``CloudEnergyEstimator``: wrapper stateless usato da benchmark_unified.
-Nessuna formula propria: tutta la stima passa da EcoLogits (energy/cloud_energy).
+Nessuna formula propria: tutta la stima passa da EcoLogits (energy/cloud_energy),
+compresa la traduzione CasualWatt -> EcoLogits del nome del provider, che sta
+la' perche' il badge e la stima devono usare la stessa mappa.
 """
 from __future__ import annotations
 
@@ -21,16 +23,17 @@ except Exception:  # pragma: no cover
 
 # riusa il motore eco-logits del pacchetto energy (import relativo NON serve
 # qui: questo modulo sta nella root, quindi import assoluto del subpackage)
-from energy.cloud_energy import CloudEnergyResult, estimate_cloud_energy
+from energy.cloud_energy import (  # noqa: F401
+    ECOLOGITS_PROVIDER_MAP,
+    CloudEnergyResult,
+    estimate_cloud_energy,
+)
 
-# Mappatura provider CasualWatt -> provider EcoLogits (per verifica registrazione)
-_ECLOGITS_PROVIDER_MAP = {
-    "google": "google_genai",
-    "openai": "openai",
-    "anthropic": "anthropic",
-    "huggingface": "huggingface_hub",
-    # groq e openrouter non hanno modelli registrati in EcoLogits 0.11.x
-}
+# Mappatura provider CasualWatt -> provider EcoLogits. Un solo esemplare, in
+# energy/cloud_energy.py: la usano il badge della GUI e la stima, e finche'
+# erano due copie il badge diceva "registrato" mentre la riga diceva
+# "unavailable" (google e huggingface, verificato 26-10-2026).
+_ECLOGITS_PROVIDER_MAP = ECOLOGITS_PROVIDER_MAP
 
 
 def _check_ecologits_registration(provider_id: str, model_name: str) -> bool:

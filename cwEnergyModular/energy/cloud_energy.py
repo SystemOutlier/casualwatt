@@ -12,6 +12,23 @@ Strategia (sezione 9 della specifica):
 3. se anche il proxy fallisce, ritorna ``energy_j=None`` con metodo
    esplicitamente "unavailable": nessuna formula inventata fuori EcoLogits.
 
+RETTIFICA 26-10-2026 (proxy irraggiungibile, verificata eseguendo su ecologits
+0.11.1). La catena dichiarata C1 -> C2 -> C3 (proxy) -> "unavailable" non
+arrivava mai a C3: tutte le regole di proxy puntavano al provider "openrouter",
+che nel registro non esiste -- i provider di EcoLogits 0.11.1 sono ``anthropic,
+cohere, google_genai, huggingface_hub, mistralai, openai``. Ogni richiesta Groq o
+OpenRouter usciva quindi "unavailable" con il messaggio del provider
+sconosciuto, e la nota "proxy dichiarato" non veniva mai scritta. Il proxy vive
+ora nel registro Hugging Face, con l'id esatto della scheda: il motore usa la
+scheda di quel modello (acceleratore di riferimento), non l'hardware del
+provider, e la riga lo dichiara.
+Nello stesso punto si chiude la seconda falla: la mappa CasualWatt -> EcoLogits
+("google" -> "google_genai", "huggingface" -> "huggingface_hub") era applicata
+al solo badge della GUI, non alla stima, per cui una richiesta Google valida
+usciva "unavailable" mentre la GUI mostrava il modello come registrato. La mappa
+ora vive in un solo posto (``ECOLOGITS_PROVIDER_MAP``) ed e' applicata
+all'ingresso di ``estimate_cloud_energy``, prima di interrogare il registro.
+
 L'energia risultante (kWh -> J) ha confine: server-side datacenter
 (usage GPU + PUE). La quota EMBODIED di EcoLogits NON entra in energy_j: e' un
 impatto GWP separato, come dichiarato nelle note di ogni stima. Esclude rete e
@@ -70,12 +87,32 @@ from typing import List, Optional
 
 warnings.filterwarnings("ignore", category=DeprecationWarning)
 
-# Proxy dichiarati: sottostringa nome richiesto -> (provider_ecologits, modello)
+# Mappatura CasualWatt -> provider EcoLogits. Vive qui, non nella facade, perche'
+# la usano due percorsi -- il badge della GUI e la stima -- e finche' erano due
+# copie divergevano: "google" risultava registrato nella GUI e "unavailable"
+# nella riga. Un solo posto, una sola traduzione.
+ECOLOGITS_PROVIDER_MAP = {
+    "google": "google_genai",
+    "openai": "openai",
+    "anthropic": "anthropic",
+    "huggingface": "huggingface_hub",
+    # groq e openrouter non hanno modelli registrati in EcoLogits 0.11.x: si
+    # raggiungono solo con un proxy dichiarato (vedi _MODEL_PROXY_RULES).
+}
+
+# Proxy dichiarati: sottostringa del nome richiesto -> (provider_ecologits, modello).
+# Il provider NON e' "openrouter": quello non esiste nel registro, e finora ha
+# reso il ramo proxy irraggiungibile (rettifica 26-10-2026, verificata eseguendo).
+# Gli id sono quelli esatti del registro Hugging Face; il motore ne usa la scheda
+# hardware, che e' un acceleratore di riferimento e non l'hardware del provider --
+# la riga lo dichiara come equivalenza di classe.
 _MODEL_PROXY_RULES = [
-    ("llama-3.1-8b-instant", ("openrouter", "meta-llama/llama-3.1-8b-instruct")),
-    ("llama-3.3-70b-versatile", ("openrouter", "meta-llama/llama-3.3-70b-instruct")),
-    ("gemma2-9b-it", ("openrouter", "google/gemma-2-9b-it")),
-    ("mixtral-8x7b", ("openrouter", "mistralai/mixtral-8x7b-instruct-v0.1")),
+    ("llama-3.1-8b-instant", ("huggingface_hub", "meta-llama/Meta-Llama-3.1-8B-Instruct")),
+    # 3.3-70B non e' nel registro: il piu' vicino per classe di parametri e'
+    # 3.1-70B. Non e' lo stesso modello, e la nota lo dice.
+    ("llama-3.3-70b-versatile", ("huggingface_hub", "meta-llama/Meta-Llama-3.1-70B-Instruct")),
+    ("gemma2-9b-it", ("huggingface_hub", "google/gemma-2-9b-it")),
+    ("mixtral-8x7b", ("huggingface_hub", "mistralai/Mixtral-8x7B-Instruct-v0.1")),
 ]
 
 
@@ -132,19 +169,54 @@ def _value_of(node) -> Optional[float]:
 
 
 def _candidate_models(provider: str, model_name: str):
+    """Coppie (provider EcoLogits, modello) da provare, senza ripetizioni.
+
+    La prima e' la richiesta tradotta; poi l'eventuale regola di proxy; poi il
+    fallback di famiglia. Il dedup non e' cosmetico: senza, la stessa coppia
+    fallita compariva due volte nelle note della riga.
+    """
     m = (model_name or "").lower()
-    yield provider, model_name
+    seen = set()
+
+    def _unique(pair):
+        if not pair[1] or pair in seen:
+            return None
+        seen.add(pair)
+        return pair
+
+    first = _unique((provider, model_name))
+    if first:
+        yield first
     for key, repl in _MODEL_PROXY_RULES:
         if key in m:
-            yield repl
+            pair = _unique(repl)
+            if pair:
+                yield pair
             break
-    # fallback generico per famiglia
+    # fallback generico per famiglia. Anche qui il provider e' huggingface_hub
+    # (openrouter non esiste nel registro) e la taglia conta: mandare un 70B su
+    # una scheda da 8B sarebbe un errore di classe di un ordine di grandezza,
+    # non un'approssimazione.
+    fam = None
     if "llama" in m:
-        yield ("openrouter", "meta-llama/llama-3.1-8b-instruct")
+        if "405b" in m:
+            fam = ("huggingface_hub", "meta-llama/Meta-Llama-3.1-405B-Instruct")
+        elif any(s in m for s in ("70b", "72b")):
+            fam = ("huggingface_hub", "meta-llama/Meta-Llama-3.1-70B-Instruct")
+        else:
+            fam = ("huggingface_hub", "meta-llama/Meta-Llama-3.1-8B-Instruct")
     elif "gemma" in m:
-        yield ("openrouter", "google/gemma-2-9b-it")
-    elif "mistral" in m or "mixtral" in m:
-        yield ("openrouter", "mistralai/mistral-7b-instruct-v0.1")
+        fam = ("huggingface_hub", "google/gemma-2-9b-it")
+    elif "mixtral" in m:
+        fam = ("huggingface_hub",
+               "mistralai/Mixtral-8x22B-Instruct-v0.1" if "22b" in m
+               else "mistralai/Mixtral-8x7B-Instruct-v0.1")
+    elif "mistral" in m:
+        fam = ("huggingface_hub", "mistralai/Mistral-7B-Instruct-v0.1")
+    if fam:
+        pair = _unique(fam)
+        if pair:
+            yield pair
 
 
 def estimate_cloud_energy(
@@ -155,7 +227,14 @@ def estimate_cloud_energy(
     provider: str = "groq",
     electricity_mix_zone: Optional[str] = None,
 ) -> CloudEnergyResult:
-    """Stima EcoLogits [J] per una chiamata cloud. Non produce mai valori finti."""
+    """Stima EcoLogits [J] per una chiamata cloud. Non produce mai valori finti.
+
+    Il provider in ingresso e' l'id CasualWatt ("google", "huggingface", ...):
+    viene tradotto in quello di EcoLogits qui, all'ingresso, perche' il registro
+    conosce solo i propri nomi. La traduzione e' la stessa che la GUI usa per il
+    badge (``ECOLOGITS_PROVIDER_MAP``), cosi' "registrato" e "stimabile" non
+    possono piu' divergere.
+    """
     try:
         from ecologits.tracers.utils import llm_impacts
         import ecologits
@@ -166,8 +245,10 @@ def estimate_cloud_energy(
             notes=[f"import ecologits fallito: {type(exc).__name__}"],
         )
 
+    eco_provider = ECOLOGITS_PROVIDER_MAP.get((provider or "").strip().lower(),
+                                              provider)
     last_errors: List[str] = []
-    for prov, mdl in _candidate_models(provider, model_name):
+    for prov, mdl in _candidate_models(eco_provider, model_name):
         if not mdl:
             continue
         try:
@@ -185,11 +266,13 @@ def estimate_cloud_energy(
         if kwh and kwh > 0:
             gwp_kg = _value_of(getattr(res, "gwp", None))
             notes = []
-            if (prov, mdl) != (provider, model_name):
+            if (prov, mdl) != (eco_provider, model_name):
                 notes.append(
-                    f"proxy dichiarato: '{model_name}' non registrato in EcoLogits; "
-                    f"usato modello di pari classe '{mdl}' ({prov}) con latenza "
-                    "misurata reale"
+                    f"proxy dichiarato: '{model_name}' non e' registrato in "
+                    f"EcoLogits (provider {eco_provider}); usato '{mdl}' di {prov} "
+                    "come equivalente di classe (stessa fascia di parametri, NON "
+                    "lo stesso modello) con la latenza misurata reale della "
+                    "richiesta"
                 )
             notes.append(
                 "confine: inference server-side datacenter (usage+PUE), esclude "
