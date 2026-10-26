@@ -331,15 +331,37 @@ MONITOR_INTERVAL_S = 0.5  # frequenza campionamento energy tracker
 
 # ---------------------------------------------------------------------------
 # Stima energia di rete (sezione 9/12.2) — coefficiente dichiarato (B5)
-# J/bit per trasmissione dati; confine reale della misura: SOLO la NIC del
-# client (delta bytes su interfaccia), NON l'intero accesso FTTx o il core di
-# rete. Il valore conservativo 3,4e-8 J/bit (~270 J/GB ~ 7,6e-5 kWh/GB) e'
-# allineato a quella sola porzione; fonte bibliografica specifica non ancora
-# fissata nel progetto (segnalato, NON modificato senza fonte). Il campo CSV
-# network_energy_coefficient_j_per_bit riporta il valore usato per riga.
+# J/bit applicato ai bit transitati sulla NIC del client: e' un'intensita' di
+# percorso "trasmissione + commutazione" verso la rete di un cloud pubblico,
+# non l'energia della NIC del client ne' la sola energia di trasporto.
+#
+# Valore: 2,7e-6 J/bit (2,7 uJ/bit = 21.600 J/GB decimale = 6,0e-3 kWh/GB).
+# Fonte primaria verificata il 26-10-2026: J. Baliga, R. W. A. Ayre,
+# K. Hinton, R. S. Tucker, "Green Cloud Computing: Balancing Energy in
+# Processing, Storage, and Transport", Proc. IEEE 99(1):149-167, 2011,
+# DOI 10.1109/JPROC.2010.2060451, eq. (2) p. 7, valore a p. 8.
+# Confine della fonte: trasmissione E commutazione per un cloud pubblico
+# (metro Ethernet, switch LAN del data center, BNG, provider edge, gateway del
+# data center, router di core, WDM), con ridondanza x2, raffreddamento x1.5 e
+# utilizzazione < 50% x2. La rete di accesso e' esclusa esplicitamente dalla
+# fonte; server, storage e processing sono esclusi. E' una stima da modello
+# (datasheet dei costruttori, Tab. 4), non una misura, e la fonte non pubblica
+# un intervallo di incertezza.
+#
+# Il coefficiente e' documentato con un perimetro dichiarato, NON validato per
+# CasualWatt. I numeri che circolano come "intervallo di sensibilita'" sono
+# scenari con perimetri diversi, non limiti dello stesso estimando:
+#   - 0,46 uJ/bit = scenario "cloud privato" del medesimo articolo (eq. 1, p. 7);
+#   - 27 uJ/bit   = Aslan et al. 2018, 0,06 kWh/GB riferito al 2015, perimetro
+#                   "core + accesso fisso", esclusi data center e dispositivi
+#                   di bordo; stima da aggiornamento di Krug et al. 2014 su dati
+#                   BT UK, non una misura;
+#   - 20,0 uJ/bit = nessuna fonte nel repository: non va usato come limite.
+# Il campo CSV network_energy_coefficient_j_per_bit riporta il valore usato per
+# riga; network_measurement_boundary riporta il confine applicato.
 # ---------------------------------------------------------------------------
 NETWORK_ENERGY_COEFFICIENT_J_PER_BIT = float(
-    os.getenv("CW_NET_J_PER_BIT", "3.4e-8")
+    os.getenv("CW_NET_J_PER_BIT", "2.7e-6")
 )
 
 # GPU integrata: DEPRECATA (correzione A3). Il sensore 'CPU Package' di LHM
