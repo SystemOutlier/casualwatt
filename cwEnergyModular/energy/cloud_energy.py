@@ -127,6 +127,14 @@ class CloudEnergyResult:
     # principale resta la MEDIA del range, dichiarata come tale nelle note.
     energy_min_j: Optional[float] = None
     energy_max_j: Optional[float] = None
+    # P5 / spec C5 §4 (26-10-2026): come il numero e' stato prodotto, non solo
+    # quanto vale. Senza questi campi la riga porta una latenza misurata che
+    # potrebbe non aver influito sul risultato, e un PUE che nessuno ha scritto.
+    pue_applied: Optional[float] = None
+    pue_source: str = ""          # "provider_catalog_ecologits" | ""
+    latency_used_s: Optional[float] = None
+    latency_threshold_s: Optional[float] = None
+    latency_binding: str = ""     # "request_latency" | "gpu_latency" | ""
     notes: List[str] = field(default_factory=list)
 
 
@@ -166,6 +174,80 @@ def _value_of(node) -> Optional[float]:
         return float(val)
     except Exception:
         return None
+
+
+def _provider_pue(eco_provider: str):
+    """PUE che il motore applica, e come e' stato riassunto in un numero solo.
+
+    EcoLogits lo prende dal catalogo del provider (``PROVIDER_CONFIG_MAP``):
+    valore puntuale per OpenAI/Google/Mistral/Cohere, banda per Anthropic e
+    Hugging Face. Il campo scalare della riga porta il punto medio; la banda non
+    si perde, perche' e' la stessa che separa ``energy_min_j`` da
+    ``energy_max_j``. Ritorna (valore, descrizione) o (None, "") se non
+    determinabile -- meglio un campo vuoto che un PUE inventato.
+    """
+    try:
+        from ecologits.tracers.utils import PROVIDER_CONFIG_MAP
+
+        pue = PROVIDER_CONFIG_MAP[eco_provider].datacenter_pue
+    except Exception:
+        return None, ""
+    lo = getattr(pue, "min", None)
+    hi = getattr(pue, "max", None)
+    if lo is not None and hi is not None:
+        try:
+            return (float(lo) + float(hi)) / 2.0, (
+                f"punto medio della banda [{float(lo)}, {float(hi)}]")
+        except Exception:
+            return None, ""
+    try:
+        return float(pue), "valore puntuale"
+    except Exception:
+        return None, ""
+
+
+def _latency_diagnostics(eco_provider: str, model_name: str,
+                         output_tokens: float, request_latency: float):
+    """Riproduce il clamp del motore sulla latenza: ``min(request, gpu_latency)``.
+
+    ``gpu_latency`` e' la soglia del termine server. Quando la scheda del modello
+    ha ``tps`` la soglia e' ``n_out/tps + ttft``; altrimenti e' la regressione
+    del motore, e in quel caso la si chiede al motore stesso con una latenza
+    richiesta infinita -- cosi' i coefficienti restano quelli del pacchetto
+    installato e non una copia nostra che invecchia. Ritorna
+    ``(usata, soglia, termine)`` con termine ``"request_latency"`` (nessun
+    troncamento) o ``"gpu_latency"`` (tempo di rete e di coda scartati), e
+    ``(None, None, "")`` se non e' determinabile.
+    """
+    try:
+        from ecologits.tracers.utils import models
+        from ecologits.impacts import llm as _eco_llm
+
+        md = models.find_model(eco_provider, model_name)
+        if md is None:
+            return None, None, ""
+        dep = getattr(md, "deployment", None)
+        tps = getattr(dep, "tps", None) if dep else None
+        ttft = getattr(dep, "ttft", None) if dep else None
+        if tps is not None:
+            threshold = float(output_tokens) / float(tps) + (float(ttft) if ttft else 0.0)
+        else:
+            params = getattr(getattr(md, "architecture", None), "parameters", None)
+            active = getattr(params, "active", params)
+            threshold = float(_eco_llm.generation_latency(
+                model_active_parameter_count=float(active),
+                output_token_count=float(output_tokens),
+                batch_size=_eco_llm.BATCH_SIZE,
+                latency_alpha=_eco_llm.LATENCY_ALPHA,
+                latency_beta=_eco_llm.LATENCY_BETA,
+                latency_gamma=_eco_llm.LATENCY_GAMMA,
+                request_latency=1e9, tps=None, ttft=ttft))
+        used = min(float(request_latency), threshold)
+        binding = ("request_latency" if float(request_latency) < threshold
+                   else "gpu_latency")
+        return used, threshold, binding
+    except Exception:
+        return None, None, ""
 
 
 def _candidate_models(provider: str, model_name: str):
@@ -247,6 +329,11 @@ def estimate_cloud_energy(
 
     eco_provider = ECOLOGITS_PROVIDER_MAP.get((provider or "").strip().lower(),
                                               provider)
+    # Pavimenti applicati al motore: il token di output minimo (1) e la latenza
+    # minima (0,05 s). Stanno in due variabili perche' il valore realmente usato
+    # deve comparire anche nella diagnostica della latenza, non solo nella call.
+    n_out = max(int(completion_tokens), 1)
+    lat_req = max(float(duration_s), 0.05)
     last_errors: List[str] = []
     for prov, mdl in _candidate_models(eco_provider, model_name):
         if not mdl:
@@ -255,8 +342,8 @@ def estimate_cloud_energy(
             res = llm_impacts(
                 provider=prov,
                 model_name=mdl,
-                output_token_count=max(int(completion_tokens), 1),
-                request_latency=max(float(duration_s), 0.05),
+                output_token_count=n_out,
+                request_latency=lat_req,
                 electricity_mix_zone=electricity_mix_zone,
             )
         except Exception as exc:  # provider sconosciuto in eco, ecc.
@@ -288,36 +375,46 @@ def estimate_cloud_energy(
                 f"token di input ({int(prompt_tokens)}) NON inclusi nella stima: "
                 "llm_impacts usa solo output_token_count + request_latency"
             )
-            # B4 + Rettifica #119 (26-10-2026): la latenza MISURATA arriva al
-            # motore ma viene usata SOLO come min(request_latency, gpu_latency)
-            # nel termine server (impacts/llm.py:100-102, :574). Quindi la porzione
-            # di rete e di coda non e' una sovrastima sistematica: sopra
-            # l'incrocio il motore usa la propria soglia interna e il tempo
-            # extra viene scartato in silenzio. La soglia di produzione NON e' in
-            # generale la regressione alpha*P+beta*B+gamma, perche' llm_impacts inietta
-            # tps e ttft dalla scheda del modello (tracers/utils.py:121-122) ->
-            # gpu_latency = n_out/tps + ttft (impacts/llm.py:97-99). ATTENZIONE,
-            # seconda rettifica 26-10-2026 (probe_ecologits_gpu_steps_moe_20261026.py,
-            # sezione D): il deployment esiste su tutti i 344 modelli ma `tps` e' non
-            # nullo solo su 157, quindi su 187 schede (fra cui il 70B) il ramo vivo e'
-            # la regressione :94-95. La nota pubblicata qui sotto cita la forma
-            # n_out/tps + ttft: e' la forma del ramo usato negli esperimenti condotti
-            # su gpt-4o-mini, non una proprieta' di tutte le schede.
-            # Verificato eseguendo
-            # probe_ecologits_clamp_20261026.py: identica all'ultima cifra da
-            # 1,57 s a 120 s a 32 token, da 3,70 s a 120 s a 100 token, da 10 s a
-            # 120 s a 200 token su openai/gpt-4o-mini. Il testo della nota e'
-            # stato corretto perche' asseriva una deriva unidirezionale.
+            # Rettifica #119 (26-10-2026) e seconda rettifica: la latenza MISURATA
+            # arriva al motore ma viene usata solo come min(request_latency,
+            # gpu_latency) nel termine server (impacts/llm.py:100-102, :574).
+            # Sopra l'incrocio il tempo di rete e di coda viene scartato: e' un
+            # clamp, non una sovrastima. La soglia e' n_out/tps + ttft quando la
+            # scheda ha tps (157 schede su 344: sonda
+            # probe_ecologits_gpu_steps_moe_20261026.py, sezione D), altrimenti la
+            # regressione :94-95. La stesura precedente citava n_out/tps + ttft
+            # come forma universale: era falsa per la maggioranza delle schede.
+            pue, pue_kind = _provider_pue(prov)
+            lat_used, lat_thr, binding = _latency_diagnostics(
+                prov, mdl, n_out, lat_req)
             notes.append(
-                f"request_latency={float(duration_s):.3f}s MISURATA end-to-end "
-                "(include rete e coda): EcoLogits la usa solo come "
-                "min(request_latency, n_out/tps + ttft) nel termine server "
-                "(tps/ttft della scheda del modello), quindi oltre la soglia "
-                "il tempo di rete NON entra nella stima: l'energia resta un "
-                "plateau -- clamp, non sovrastima; soglia e termine vincolante non "
-                "registrati in riga -- campi cloud_latency_used_s e "
-                "cloud_latency_binding, vedi spec C5)"
+                f"request_latency={lat_req:.3f}s MISURATA end-to-end (include rete e "
+                "coda): EcoLogits la usa solo come min(request_latency, soglia del "
+                "termine server) -- clamp, non sovrastima; oltre la soglia il tempo "
+                "di rete non entra e l'energia resta un plateau"
             )
+            if lat_thr is not None:
+                notes.append(
+                    f"latenza entrata nel calcolo: {lat_used:.3f}s su una soglia di "
+                    f"{lat_thr:.3f}s (n_out/tps + ttft se la scheda ha tps, "
+                    "altrimenti la regressione del motore); termine vincolante: "
+                    + ("latenza misurata, nessun troncamento"
+                       if binding == "request_latency"
+                       else "soglia del server -- latenza misurata troncata, rete e "
+                            "coda NON entrano nella stima")
+                )
+            else:
+                notes.append(
+                    "soglia del termine server non determinabile dalla scheda "
+                    "(tps assente e parametri non scalari): termine vincolante non "
+                    "registrato per questa riga"
+                )
+            if pue is not None:
+                notes.append(
+                    f"PUE applicato: {pue:.3f} ({pue_kind}), catalogo provider "
+                    "EcoLogits; la banda del provider, dove esiste, resta visibile "
+                    "in cloud_energy_min_j / cloud_energy_max_j"
+                )
             if kwh_lo is not None and kwh_hi is not None and kwh_hi > kwh_lo:
                 notes.append(
                     "valore principale = MEDIA del range EcoLogits "
@@ -343,6 +440,13 @@ def estimate_cloud_energy(
                 hw_profile=f"{prov}/{mdl}",
                 carbon_gco2eq=carbon_g,
                 country_code=zone,
+                pue_applied=pue,
+                pue_source=("provider_catalog_ecologits" if pue is not None else ""),
+                latency_used_s=(
+                    round(lat_used, 6) if lat_used is not None else None),
+                latency_threshold_s=(
+                    round(lat_thr, 6) if lat_thr is not None else None),
+                latency_binding=binding,
                 notes=notes,
             )
         errs = getattr(res, "errors", None) or []

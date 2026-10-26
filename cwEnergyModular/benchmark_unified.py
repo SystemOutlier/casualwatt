@@ -364,6 +364,33 @@ def _na_or(v):
     return "N/A" if v is None else v
 
 
+def _cloud_estimate_fields(est) -> Dict:
+    """Colonne della stima cloud: valore, banda e COME il numero e' stato prodotto.
+
+    Le sei colonne diagnostiche sono il delta P5 della spec C5 (§4, 26-10-2026):
+    senza di esse la riga porta una latenza misurata che potrebbe non aver
+    influito sull'energia e un PUE che nessuno ha scritto. Un campo assente e'
+    "N/A"; `cloud_input_tokens_included` invece e' un fatto del motore -- False
+    per EcoLogits, che accetta solo token di output, True per l'analitico C5 --
+    e resta False anche quando la stima non riesce, perche' il motore tentato e'
+    comunque EcoLogits.
+    """
+    binding = getattr(est, "latency_binding", "") or ""
+    return {
+        "cloud_energy_min_j": _na_or(getattr(est, "energy_min_j", None)),
+        "cloud_energy_max_j": _na_or(getattr(est, "energy_max_j", None)),
+        "cloud_input_tokens_included": False,
+        "cloud_pue_applied": _na_or(getattr(est, "pue_applied", None)),
+        "cloud_pue_source": getattr(est, "pue_source", "") or "",
+        "cloud_latency_used_s": _na_or(getattr(est, "latency_used_s", None)),
+        "cloud_latency_threshold_s": _na_or(
+            getattr(est, "latency_threshold_s", None)),
+        # True = ha vincolato la soglia del server (latenza misurata troncata:
+        # rete e coda fuori dal numero). Vuoto = termine non determinabile.
+        "cloud_latency_binding": (binding == "gpu_latency") if binding else "",
+    }
+
+
 def _resolve_eval_mode(prompt: Dict, explicit: Optional[str] = None) -> str:
     """Sceglie il regime di valutazione in base ai dati RICEVUTI dal test.
 
@@ -472,6 +499,14 @@ def _basic_record(run_id, session_id, model_name, model_label, provider, mode,
         "network_total_bytes": 0,
         "network_energy_coefficient_j_per_bit": config.NETWORK_ENERGY_COEFFICIENT_J_PER_BIT,
         "network_measurement_boundary": "not-applicable (local mode)" if mode == "local" else "",
+        # Cloud: sulla riga locale il valore e' zero PER CONFINE (regola 12.1) e i
+        # campi della stima restano VUOTI, non "N/A": nessun motore cloud e' stato
+        # interrogato, quindi non c'e' ne' una banda ne' una latenza da descrivere.
+        # Sulla riga cloud li scrive _cloud_estimate_fields.
+        "cloud_energy_min_j": "", "cloud_energy_max_j": "",
+        "cloud_input_tokens_included": "", "cloud_pue_applied": "",
+        "cloud_pue_source": "", "cloud_latency_used_s": "",
+        "cloud_latency_threshold_s": "", "cloud_latency_binding": "",
         # carbonio: zona/fonte sempre dichiarate
         "local_carbon_intensity_gco2eq_kwh": ci.gco2eq_per_kwh,
         "local_carbon_intensity_zone": ci.zone,
@@ -1143,6 +1178,10 @@ def run_unified_benchmark(
                     # legitimo, ma qui il danno e' l'altro: la riga apparirebbe
                     # a costo cloud nullo e la somma end-to-end sarebbe bassa.
                     cloud_j = est.energy_j
+                    # Banda e diagnostica della stima: min/max dello stesso range
+                    # di cui cloud_energy_j e' la media, piu' i termini che hanno
+                    # prodotto il numero (PUE, latenza usata/soglia/vincolo).
+                    rec.update(_cloud_estimate_fields(est))
                     if est.energy_j is None:
                         rec["cloud_energy_method"] = est.method
                         rec["notes"] = "; ".join(est.notes)

@@ -11,8 +11,8 @@ blocca entrambe le cose e verifica che la migrazione dell'header non inventi
 un livello dei token per le righe vecchie.
 
 Che cosa verifica:
-  1. le 39 colonne P5 -- piu' le 3 di Emenda 8 in coda, per 42 -- sono in
-     coda, una sola volta, nell'ordine dichiarato,
+  1. le 39 colonne P5 -- piu' le 3 di Emenda 8 e le 6 del delta cloud C5 in
+     coda, per 48 -- sono in coda, una sola volta, nell'ordine dichiarato,
      subito dopo ``cpu_time_resolution_s``;
   2. un CSV vecchio con tre sole colonne viene migrato all'header corrente
      senza perdere i valori (il join e' per nome, non per posizione);
@@ -58,6 +58,10 @@ TAIL = [
     "judge_emi_ts_start_100ns", "judge_emi_ts_end_100ns",
     # Emenda 8 (P1.6): tracciabilita' della sostituzione, accodate in coda.
     "block_attempt", "invalid_reason", "replaced_block_id",
+    # Delta cloud (spec C5 §4, 26-10-2026): banda della stima e i termini che
+    # l'hanno prodotta. In coda, dopo le colonne di Emenda 8.
+    "cloud_input_tokens_included", "cloud_pue_applied", "cloud_pue_source",
+    "cloud_latency_used_s", "cloud_latency_threshold_s", "cloud_latency_binding",
 ]
 
 

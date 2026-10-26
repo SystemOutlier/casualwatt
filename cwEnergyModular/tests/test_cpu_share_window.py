@@ -137,7 +137,11 @@ def test_colonne_e_export(tmp_path):
         "judge_edge_start_utc", "judge_edge_end_utc", "judge_edge_spread_s",
         "judge_emi_ts_start_100ns", "judge_emi_ts_end_100ns",
         # Emenda 8 (P1.6): tracciabilita' della sostituzione, in coda.
-        "block_attempt", "invalid_reason", "replaced_block_id"]
+        "block_attempt", "invalid_reason", "replaced_block_id",
+        # C5: diagnostica della stima cloud, accodata per ultima.
+        "cloud_input_tokens_included", "cloud_pue_applied",
+        "cloud_pue_source", "cloud_latency_used_s",
+        "cloud_latency_threshold_s", "cloud_latency_binding"]
 
     p = tmp_path / "out.csv"
     export_results_csv([{"run_id": "r1", "cpu_share_window_s": 1.5,
