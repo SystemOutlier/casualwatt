@@ -21,18 +21,64 @@ esterne sono verificate al 25-26/10/2026, le fonti esterne alla fonte primaria
 con la data scritta accanto a ciascuna. Gli ancoraggi `file:riga` puntano
 pero' all'**albero di lavoro**, non a un commit: la branca `emenda-8` porta
 modifiche non committate su `energy/energy_session.py`, `energy/local_energy.py`,
-`casualwatt_csv_export.py`, `AGENTS.md` e su alcuni test (848 righe aggiunte
-rispetto a HEAD alla data di questa stesura). Un numero di riga citato da un
-albero sporco non e' riproducibile da chi clone il repository: gli ancoraggi di
-questo documento vanno ricontrollati contro il commit che P5 congela. E' un
-limite dichiarato, non un risultato.
+`casualwatt_csv_export.py`, `AGENTS.md` e su vari test (1313 righe aggiunte e 186
+rimosse rispetto a HEAD alle 14:14 del 26/10 -- dodici minuti prima erano 1275 e
+168: il conteggio cresce mentre questo documento si scrive). Un numero di riga
+citato da un albero sporco non e'
+riproducibile da chi clone il repository: gli ancoraggi di questo documento vanno
+ricontrollati contro il commit che P5 congela. E' un limite dichiarato, non un
+risultato, e la nota di salvaguardia resta: le modifiche non si stashano ne' si
+resettano, si rivalidano e si committano in modo atomico al gate di P5.
 
-Due cose, inoltre, non sono a posto e qui si segnalano invece di aggirarsi:
-`cw_probe.py`, citato in §4.1 come fonte delle ragioni di G0, **non e' tracciato**
-(ne' il suo output `cw_probe_windows.json`), mentre AGENTS.md richiede che un
-harness il cui esito e' citato venga committato; e lo stato dell'albero appena
-descritto convive male con il congelamento del codice. Nessuna delle due si
-risolve scrivendo documenti: serve una decisione esplicita.
+Un effetto visibile dell'albero sporco, registrato qui perche' e' uno stato e non
+una ipotesi: `python -m pytest cwEnergyModular -q` alle 14:14 da' **1 failed, 364
+passed, 3 skipped**, e il fallimento e' `tests/test_dump_node_id.py::
+test_il_frammento_piu_lunguo_del_verbale_sta_in_un_segmento` -- un test di
+impaginazione dell'Appendice D, non di misura. Cade perche' i 351 insert non
+committati di `test_validazione_valutazione.py` aggiungono casi parametrizzati con
+etichette stringa lunghe ("free_text fallback lessicale sopra 0.85"), che finiscono
+per intero nel node id e quindi nella prima colonna della tabella LaTeX; il
+generatore inserisce punti di capo su underscore e trattini
+(`tools/dump_tests_latex.py:69-83`) ma non sugli spazi. La stessa condizione e'
+gia' descritta, dal loro autore, nel commento non committato di
+`tests/test_dump_node_id.py`: "un parametro stringa lungo finisce node-id per
+intero ... e il guard cade, come e' caduto il 26/10 alla prima esecuzione di
+questi test". Su `HEAD` l'etichetta incriminata non esiste: `git show
+HEAD:cwEnergyModular/test_validazione_valutazione.py` non contiene nessuno dei
+parametri stringa aggiunti nell'albero di lavoro, e il commit `027609c` riporta la
+suite a "343 passati + 3 saltati". Nessuna catena di questo documento
+dipende da quel test, e nessun numero di misura e' toccato.
+
+Il fallimento e' chiuso nella stessa seduta, e chiuso dalla parte giusta: le
+etichette parametrizzate di `test_validazione_valutazione.py` sono state riscritte
+con l'underscore al posto dello spazio (`free_text_fallback_lessicale_sopra_0.85` e
+via cosi'), perche' il generatore spezza su underscore e trattini (`:69-83`) e non
+sugli spazi. Il limite del guard resta **26 caratteri, invariato**: nessuna soglia e'
+stata mossa per far passare un test, e' stato accorciato l'identificatore che la
+sfondava. A valle della riscrittura `pytest cwEnergyModular` raccoglie **368 = 365
+passati + 3 saltati**.
+
+Una cosa e' sistemata, e qui si registra per non lasciare un falso allarme: la
+sonda citata in §4.1 come fonte delle ragioni di G0 era fuori dal repository. Ora
+`probes/cw_probe.py` e il suo output `probes/cw_probe_windows.json` sono
+**tracciati** (commit `bb32e26`, 26/10: `mv` senza riscrittura, byte identici al
+file del 25/10), perche' AGENTS.md chiede che un harness il cui esito e' citato
+sia riproducibile. Con lo stesso criterio, alle 14:20, e' tracciata anche la
+seconda sonda di oggi -- `probe_ecologits_release_drift_20261026.py` con il suo
+output `experiment_results/ecologits_drift_console_20261026.txt` (commit `ef25987`)
+-- perche' il numero di deriva fra release che §6 ora cita e' prodotto li', non da
+una lettura. Con le verifiche obbligate di fine sessione (CVE-2020-12912, `perf`,
+deriva EcoLogits, EMI su Windows 10: §3.1 e §Appendice "Fonti esterne") restano
+aperte, perche' non chiudibili senza macchina o senza scelta, il kernel 5.11 di
+arrivo del powercap AMD, la release che porta gli eventi RAPL AMD in `perf`, e i
+parametri della presa intelligente non ancora scelta.
+Nello stato dell'albero resta invece un secondo effetto
+collaterale da tenere d'occhio: su questi stessi percorsi sta lavorando in
+parallelo un'altra sessione (i commit `027609c`, `9ef63ac`, `6948e0d` di oggi
+mattina toccano codice, test e questa stessa specifica). Due editors sullo
+stesso file significano che un ancoraggio `file:riga` qui citato puo' spostare il
+numero senza che questo documento cambi: al gate di P5 gli ancoraggi si
+riverificano, uno per uno, e non si ereditano.
 
 **Fonti.** Codice in `cwEnergyModular/`; protocollo v4; gli artefatti tracciati
 in `experiment_results/`; `PIATTAFORME_METODI.md` e `METODI_E_FORMULE.md` in
@@ -93,6 +139,8 @@ sistema completo solo come riferimento esterno.
 
 Conseguenza operativa: una misura CPU valida resta valida anche se GPU e NPU
 non hanno telemetria; l'assenza di un dominio non degrada gli altri.
+
+---
 
 ## 1.5 Partizione fra blocco locale e blocco remoto
 
@@ -365,7 +413,7 @@ non si ripetono in ogni tabella, e §5 li traduce nella riga del CSV.
 
 | id | interfaccia e unita' | livello | confine | etichetta | stato |
 |---|---|---|---|---|---|
-| E1 | canale energia di Windows letto via IOCTL sul device enumerato per GUID `{45bd8344-...}`; record PKG in pWh (1 pWh = 3,6e-9 J), timestamp per dominio; il canale si nomina dal metadato del driver (`RAPL_Package0_PKG`), **non dal produttore** | M1 | package; non include VRM, display, alimentatore | `emi-counter` | [I][V] su i9-13900HK; [P] su AMD e su Windows 10, probe non eseguito |
+| E1 | canale energia di Windows letto via IOCTL sul device enumerato per GUID `{45bd8344-...}`; record PKG in pWh (1 pWh = 3,6e-9 J), timestamp per dominio; il canale si nomina dal metadato del driver (`RAPL_Package0_PKG`), **non dal produttore** | M1 | package; non include VRM, display, alimentatore | `emi-counter` | [I][V] su i9-13900HK; [P] su AMD e su Windows 10, probe non eseguito. Nota 26/10: l'interfaccia e' **documentata** da Windows 10 (EMI v1) e da 1809 (v1+v2), il GUID e' quello di `emi.h` / `GUID_DEVICE_ENERGY_METER`, e l'unita' `EmiMeasurementUnitPicowattHour` con `AbsoluteEnergy` cumulativo "with some arbitrary zero-point" e' la definizione che sta dietro M1 (§3.1, fonte Microsoft) |
 | E2 | stesso canale, dominio PP1 (`RAPL_Package0_PP1`) | M1 sub-dominio | grafica integrata **su Intel**, sottoinsieme di PKG; informativo | campo `igpu_energy_j` | [I][V] a riposo |
 | E3 | stesso canale, dominio DRAM (`RAPL_Package0_DRAM`) | M1, dominio distinto | memoria; **non e' un sottoinsieme di PKG**; sul host client legge spesso zero | si riporta a parte, mai somma implicita | [I][V] |
 | L1 | LHM, sensore `SensorType.Energy` | M1/M2 **non determinato** | se e' un contatore hardware e' M1; se LHM lo integra e' M2 | `librehardwaremonitor-energy` | [I] codice, [A] sul host (solo batteria in LHM 0.9.6) |
@@ -436,7 +484,7 @@ Precisazioni.
   zone sotto `/sys/class/powercap/`, leggere `name` per ciascuna
   (`energy/rapl_backend.py:48`, `:98-104` — il metodo esiste gia' ma non viene
   usato per selezionare), sommare **i package distinti** e deduplicare i canali
-  specchiati; `cw_probe.py:92-126` lo fa gia' in sola lettura e stampa tutte le
+  specchiati; `probes/cw_probe.py:92-126` lo fa gia' in sola lettura e stampa tutte le
   zone con la loro leggibilita'. Il secondo limite e' la nota del backend, che
   dice "richiede root o gruppo `power`" (`energy/rapl_backend.py:63`): il
   gruppo `power` non compare in nessuna fonte letta il 26/10, mentre il codice
@@ -459,11 +507,29 @@ Precisazioni.
   RAPL con incremento dichiarato di 15,3 uJ (documentazione kernel v5.9,
   `kernel.org/doc/html/v5.9/hwmon/amd_energy.html`), supportato su Family 17h
   modello 30h e sulle 19h/1Ah elencate nel README `amd/amd_energy`, quindi
-  prima su EPYC che su Ryzen client; e i contatori letti via `perf`, per il
-  quale **non ho verificato la versione esatta del kernel** e resta una riga da
-  confermare alla fonte. La restrizione dipermessi sui nodi hwmon e' reale, ma
-  l'associazione con CVE-2020-12912 **non e' stata verificata**: non si scrive
-  finche' non lo e'.
+  prima su EPYC che su Ryzen client; e i contatori letti via `perf`.
+  **Verifica 26-10-2026, alla fonte, di due righe che prima erano scoperte.**
+  (a) La restrizione di permessi sui nodi hwmon **e'** legata a CVE-2020-12912:
+  lo dichiara il README del driver, nella repository ufficiale AMD
+  (`github.com/amd/amd_energy`: "To address CVE-2020-12912, the visibility of the
+  `energy[N]_input` attributes is restricted to owner and groups only"). Il
+  numero CVE corrisponde al lato **AMD** degli attacchi PLATYPUS -- gli
+  identificatori Intel sono CVE-2020-8694 e CVE-2020-8695 -- quindi la restrizione
+  va citata sul percorso R3b (hwmon AMD) e **non** attaccata a powercap/`intel-rapl`,
+  che e' un'altra interfaccia e un altro fornitore. Corrobora, senza essere la
+  fonte del numero: la documentazione pratica di Weaver (`web.eece.maine.edu`,
+  "Reading RAPL energy measurements from Linux") scrive che il driver AMD hwmon
+  "senza controlli di permesso" fu **rimosso** in Linux 5.13 (commit `9049572fb`)
+  "anche per ragioni di sicurezza".
+  (b) Sui contatori via `perf` la situazione verificata e' piu' stretta di quanto
+  questo documento scrivesse: l'interfaccia `perf_event` per gli eventi
+  `power/energy-*` esiste **dal kernel 3.14** e richiede root o
+  `perf_paranoid < 1` (Weaver, 26/10); gli eventi RAPL **AMD** pero' sono materia
+  di serie di patch del 2024 -- metriche RAPL per Zen (`lkml`, Ian Rogers, 01/03
+  2024) e contatori RAPL per core (`lwn.net/Articles/979104`, 2024) -- e non
+  risultano in una release di kernel documentata alla fonte. Il percorso `perf` su
+  AMD resta **[P] con la versione non chiusa**, e la riga di §3.4 non lo usa come
+  fallback finche' la versione non e' quella del kernel del host di prova.
 - **X1.** `energy-file` e' un canale dichiarato per test e integrazione. Non e'
   un fallback di produzione. La sua prevalenza su EMI e LHM non e' una
   precedenza di merito ma di selezione: se la variabile e' impostata, il codice
@@ -618,12 +684,18 @@ Precisazioni.
   ne determinano la leggibilita': risoluzione e passo di quantizzazione, finestra
   di media interna, e offset o deriva a basso carico. Nessuno di questi e' noto
   per un modello specifico finche' non se ne legge il datasheet, quindi qui
-  restano un obbligo di verifica, non un numero. Sul host corrente il vincolo si applica:
-  la macchina e' un portatile e P1.4 congela "alimentatore collegato [...] stato
-  batteria registrato" (`experiment_results/protocollo_v4_20261024.md:177-178`),
-  quindi la presa misurerebbe anche l'eventuale carica. Una presa su un desktop
-  senza batteria da' un riferimento di sistema piu' pulito, ma resta senza
-  separazione di dominio.
+  restano un obbligo di verifica, non un numero.
+  Il terzo vincolo pero' **su questo host non si applica**, e la correzione e'
+  di oggi: `GetSystemPowerStatus` restituisce `BatteryFlag = 128` (nessuna
+  batteria installata) e `Win32_Battery` non restituisce nessuna istanza
+  (verificato sull'host il 26/10; il probe registra `manufacturer = GEEKOM`,
+  `model = Mini IT13`, `probes/cw_probe_windows.json`). La macchina e' un mini
+  PC alimentato in rete, non un portatile: per la presa intelligente non esiste
+  una carica da confondere con il carico, e il confine di sistema e' il piu'
+  pulito che si possa ottenere senza wattometro. P1.4 continua a chiedere di
+  registrare lo stato batteria (`protocollo_v4_20261024.md:177-178`): su questa
+  macchina la registrazione da' "assente", che va scritto, non omesso. Su un
+  host con batteria, invece, il vincolo torna e la presa misura anche la carica.
 - Il coefficiente `3,4e-8 J/bit` (`config.py:333-343`) e' un'ipotesi
   dichiarata, non un valore misurato ne' validato: il commento del codice lo
   dice esplicitamente ("fonte bibliografica specifica non ancora fissata"). Il
@@ -658,12 +730,12 @@ colonna "oggi" dice cosa fa il codice al 26/10, non cosa dovrebbe fare.
 | 17 | Rete | delta NIC -> contabilita' payload -> `unavailable` | campo `network_*` | delta NIC; se illeggibile restituisce 0 (difetto F1) |
 | 18 | Sistema completo | wattometro (riferimento); in attesa, presa intelligente come riferimento provvisorio d'ordine di grandezza | `wall` / `smart-plug` (mai in una catena di dominio) | non disponibile nessuno dei due |
 | 19 | Qualsiasi altra combinazione | `unavailable` | `unavailable` | caso residuo dichiarato, non aggirato |
-| 20 | Macchina virtuale (hypervisor), `cpu_package` | nessun contatore di dominio -> `unavailable` con ragione `vm` | `unavailable` | `cw_probe.py:31-58` rileva hypervisor flag, `systemd-detect-virt`, DMI; il contatore del guest non e' quello del package fisico |
-| 21 | WSL2, `cpu_package` | contatore non esposto al guest -> `unavailable` con ragione `vm` (WSL2 e' una VM) | `unavailable` | il probe distingue `microsoft` nel release (`cw_probe.py:41`) |
+| 20 | Macchina virtuale (hypervisor), `cpu_package` | nessun contatore di dominio -> `unavailable` con ragione `vm` | `unavailable` | `probes/cw_probe.py:31-58` rileva hypervisor flag, `systemd-detect-virt`, DMI; il contatore del guest non e' quello del package fisico |
+| 21 | WSL2, `cpu_package` | contatore non esposto al guest -> `unavailable` con ragione `vm` (WSL2 e' una VM) | `unavailable` | il probe distingue `microsoft` nel release (`probes/cw_probe.py:41`) |
 | 22 | Container (Docker) su host con contatore | RAPL/EMI **dell'host**, se il mount lo consente -> `unavailable` con ragione `permission_denied` | `rapl` / `emi-counter` con confine "host, non container" | l'energia letta e' dell'host condiviso: attribuirla al container e' M3, non M1 |
-| 23 | Windows ARM, `cpu_package` | nessun canale verificato -> `unavailable` con ragione `driver_missing` | `unavailable` | EMI e LHM non verificati su ARM; `cw_probe.py` segna il machine (`platform.machine()`) |
+| 23 | Windows ARM, `cpu_package` | nessun canale verificato -> `unavailable` con ragione `driver_missing` | `unavailable` | EMI e LHM non verificati su ARM; `probes/cw_probe.py` segna il machine (`platform.machine()`) |
 | 24 | Linux ARM / SBC, `cpu_package` | nessun contatore di dominio verificato -> `unavailable` con ragione `no_energy_domain` | `unavailable` | mai provato su hardware ARM: e' un'assenza **dichiarata**, non una dimostrazione; se un SBC espone powercap o hwmon, la riga 5 o la 7 si applicano |
-| 25 | `OLLAMA_HOST` non locale, `cpu_package` | **la misura locale non rappresenta l'inferenza**: `unavailable` con ragione `remote_endpoint`, piu' la riga cloud del server remoto | `unavailable` + campi cloud | il probe legge `OLLAMA_HOST` (`cw_probe.py:181`); senza questo flag la riga sembrerebbe locale |
+| 25 | `OLLAMA_HOST` non locale, `cpu_package` | **la misura locale non rappresenta l'inferenza**: `unavailable` con ragione `remote_endpoint`, piu' la riga cloud del server remoto | `unavailable` + campi cloud | il probe legge `OLLAMA_HOST` (`probes/cw_probe.py:181`); senza questo flag la riga sembrerebbe locale |
 | 26 | Piu' package/socket | enumerare le zone per `name`, sommare i package distinti, deduplicare i canali specchiati -> `unavailable` | `rapl` / `emi-counter` con dominio `package-0..N` | oggi il codice prende `intel-rapl:0` o il primo device EMI (F11) |
 
 Cinque regole valgono per tutte le righe:
@@ -695,7 +767,7 @@ ragione in un token:
 | `ambiguous_domain` | package multipli o canali specchiati non risolti | enumerare e deduplicare (F11) prima di sommare |
 
 La sonda che raccoglie queste evidenze esiste gia' ed e' di sola lettura:
-`cw_probe.py` rileva hypervisor e WSL (`:31-58`), elenca le zone powercap con
+`probes/cw_probe.py` rileva hypervisor e WSL (`:31-58`), elenca le zone powercap con
 la loro leggibilita' (`:92-126`), conta i device NVML e prova il contatore di
 energia (`:127-162`), legge `OLLAMA_HOST` (`:181-190`) e distingue `machine`
 (`:9`). Serve che il suo esito diventi un token della riga, non un file a parte
@@ -714,9 +786,10 @@ energia (`:127-162`), legge `OLLAMA_HOST` (`:181-190`) e distingue `machine`
 2. **Nessun doppio conteggio.** PKG + DRAM e PKG + PP0 + PP1 non si sommano;
    PP0/PP1 sono sottoinsiemi (`energy/emi_backend.py:28-30`). `igpu_energy_j` e
    `gpu_process_energy_j` restano informativi.
-3. **Nessuno zero inventato.** La regola completa e' la 9; qui resta solo
-   l'elenco dei due percorsi che oggi la violano: rete illeggibile e cloud non
-   stimabile restituiscono `0` al posto di `N/A` (§9, F1 e F2).
+3. **Nessuno zero inventato.** La regola completa e' la 9. Oggi la viola un solo
+   percorso: rete illeggibile restituisce `0` al posto di `N/A` (§9, F1,
+   `energy/network_energy.py:73`). Il cloud non lo viola piu': `None` arriva alla
+   riga come `"N/A"` dal commit `027609c` del 26/10 (§9, F2).
 4. **Un accordo fra due lettori dello stesso contatore non e' una validazione.**
    Il criterio non guarda le librerie ne' i percorsi di codice: guarda l'elemento
    sensibile. Due letture concordano per costruzione quando derivano dallo stesso
@@ -747,9 +820,19 @@ energia (`:127-162`), legge `OLLAMA_HOST` (`:181-190`) e distingue `machine`
    traffico). Un canale che non ha misurato non produce zero: produce `N/A` con
    il token di §4.1. La distinzione non si ricava dal valore — due righe con `0`
    sono identiche in coda — ma dai campi che lo accompagnano: uno zero senza
-   metodo e' un guasto, non un'assenza. Oggi la regola e' violata in due punti
-   (F1, F2) e resa illeggibile in un terzo (F9: lo zero e' legittimo, il metodo
-   e' vuoto). Vale per ogni dominio, non solo per rete e cloud.
+   metodo e' un guasto, non un'assenza. Oggi la regola e' violata in un punto
+   (F1: la rete illeggibile scrive `0`) e resta illeggibile in un terzo (F9: lo
+   zero cloud in local mode e' legittimo, il campo `cloud_energy_method` e'
+   vuoto). Il secondo violatore, F2, e' chiuso in codice il 26/10 dal commit
+   `027609c`: una stima assente diventa `"N/A"`, e lo `0.0` sopravvive solo
+   quando e' il confine dichiarato a produrlo. Vale per ogni dominio, non solo
+   per rete e cloud.
+   **Un nome solo:** il codice chiama questa regola "12.1" (perche' in
+   `benchmark_unified.py:502` rinvia alle regole del proprio verbale, non a
+   questo documento). E' la stessa regola con due numerazioni; P5 deve allineare
+   il token nel codice alla 9, perche' due tassonomie di numeri -- e non di
+   contenuti -- sono il modo piu' sicuro di disubbidire a una credendo di
+   obbedire all'altra.
 
 ---
 
@@ -793,16 +876,22 @@ Cosa **non e'**:
   dichiarato e non corretto". E' falso come affermazione unidirezionale:
   `request_latency` entra in EcoLogits in un solo punto (`impacts/llm.py:574`) e
   sempre attraverso `min(request_latency, gpu_latency)` (`:100-102`). La soglia del
-  percorso di produzione e' `gpu_latency = n_out/tps + ttft` (`:97` + `:99`),
-  perche' `llm_impacts` inietta `tps` e `ttft` dalla scheda del modello
-  (`tracers/utils.py:121-122`) e **tutti i 344 modelli del registro hanno un
-  `deployment`**; la regressione `n_out * (alpha*P_active + beta*64 + gamma)`
-  (`:14-16`, `:31`, ramo `:95`) e' quella usata **solo quando `tps is None`** e qui
-  non compare mai. La prima stesura di questa rettifica asseriva il contrario:
-  guardava la sola firma di `llm_impacts` (`tracers/utils.py:62-68`), che in effetti
-  non espone `tps` fra gli argomenti, e ne concludeva che il ramo interno fosse
-  sempre la regressione. La firma non e' il percorso interno, e la conclusione era
-  sbagliata.
+  percorso di produzione **dipende dalla scheda**: `llm_impacts` inietta `tps` e
+  `ttft` dal `deployment` del modello (`tracers/utils.py:121-122`) e quando ci sono
+  la soglia e' `gpu_latency = n_out/tps + ttft` (`:97` + `:99`); quando `tps` e'
+  nullo gira il ramo `latency_per_token = alpha*P_active + beta*64 + gamma`
+  (`:14-16`, `:31`, ramo `:95`). Contato dalla sonda tracciata
+  `probe_ecologits_gpu_steps_moe_20261026.py`: il `deployment` esiste su **tutti i
+  344** modelli, ma `tps` non e' nullo su **157** -- quindi su 187 schede, fra cui
+  `huggingface_hub/meta-llama/Meta-Llama-3.1-70B-Instruct`, il termine che
+  confronta la nostra misura e' la regressione, e la soglia a 200 token vale
+  17,4612 s. La prima stesura di questa rettifica asseriva il contrario: guardava
+  la sola firma di `llm_impacts` (`tracers/utils.py:62-68`), che in effetti non
+  espone `tps` fra gli argomenti, e ne concludeva che il ramo interno fosse sempre
+  la regressione. La seconda stesura, correggendo la prima, scriveva "tutti i 344
+  modelli hanno un `deployment`, quindi il ramo di produzione e' `1/tps`" -- e qui
+  scambiava la **presenza della chiave** per la **presenza del valore**. La firma
+  non e' il percorso interno, e nemmeno il metadato lo e': vanno contati i valori.
   Sopra la soglia il tempo di rete e di coda viene **scartato**, non sommato.
   Misura (`probe_ecologits_clamp_20261026.py`, output tracciato
   `experiment_results/ecologits_clamp_console_20261026.txt`, ecologits 0.11.1,
@@ -826,13 +915,13 @@ input e con quale versione. I campi proposti per P5:
 
 | campo | che cosa fissa | stato oggi |
 |---|---|---|
-| `ecologits_version` | la versione del motore e dei suoi fattori: le stime cambiano fra versioni, quindi due righe con versioni diverse non sono la stessa misura | **precisazione 26-10-2026: il campo ESISTE a livello di run (`benchmark_unified.py:1235`, colonna `RUN_METADATA_COLUMNS` in `casualwatt_csv_export.py:305-316`) e la versione e' anche nel token `method` per riga (`energy/cloud_energy.py:239-241`); **non** e' una colonna per riga di `CSV_COLUMNS`. Lo scarto reale e' la granularita', non l'assenza. 0.11.1 installata, dichiarata a `:188` |
+| `ecologits_version` | la versione del motore e dei suoi fattori: le stime cambiano fra versioni, quindi due righe con versioni diverse non sono la stessa misura | precisazione 26-10-2026: il campo **esiste** a livello di run (`benchmark_unified.py:1235`, colonna `RUN_METADATA_COLUMNS` in `casualwatt_csv_export.py:305-316`) e la versione e' anche nel token `method` per riga (`energy/cloud_energy.py:239-241`); **non** e' una colonna per riga di `CSV_COLUMNS`. Lo scarto reale e' la granularita', non l'assenza. 0.11.1 installata, dichiarata a `:188`; la deriva fra release e' misurata piu' sotto (§6) |
 | `cloud_calls_count` | quante chiamate HTTP compongono la riga | non contato; `llm_impacts` produce il valore per una chiamata (`completion_tokens`, `duration_s`) |
 | `cloud_input_tokens_included` | `false`, finche' il motore non accetta `prompt_tokens`: rende leggibile l'esclusione senza leggere le note | il conteggio esiste (`cloud_input_tokens`) ma il flag no |
 | `cloud_hardware_mismatch` | se il modello stimato (o il proxy) non e' quello richiesto | la discrepanza e' in `hw_profile` + nota (`energy/cloud_energy.py:176-181`, `:242`) |
-| `cloud_quantization_assumed` | la quantizzazione che il modello di stima assume | non registrato |
-| `cloud_latency_used_s` | la latenza **effettivamente consumata** dal motore, cioe' `min(request_latency, n_out/tps + ttft)` -- non quella che abbiamo misurato | non registrato; senza di esso una riga puo' dichiarare 8 s di attesa mentre il numero ne usa al massimo 1,57 (32 token, `probe_ecologits_clamp_20261026.py`) |
-| `cloud_latency_threshold_s` | la soglia `n_out/tps + ttft` del modello stimato, con `tps`/`ttft` della scheda EcoLogits e la loro fonte | non registrato; senza di esso il `min` non e' verificabile da chi legge la riga |
+| `cloud_quantization_assumed` | la quantizzazione che il modello di stima assume | non registrato. Il motore la fissa da sola, a `MODEL_QUANTIZATION_BITS = 16` (`impacts/llm.py:8`), e nessuno gliela chiede: la riga pubblicata quindi dichiara 16 bit **di default**, non per scelta. Non e' un dettaglio di secondo ordine perche' la memoria richiesta vale `1.2 * P_total * bit / 8` (`:120`) e da quella memoria esce il numero di GPU: su un 218B dichiarati, a 16 bit si chiedono 523,2 GB e 8 GPU, a 8 bit 261,6 GB e 4 GPU (contati dalla sonda tracciata `probe_ecologits_gpu_steps_moe_20261026.py`, sezione C). Il gradino 8 -> 4 e' il motivo per cui il numero che il documento `metodo_analitico_cloud_20261026.md` chiamava "fattore MoE 11,17" e' in realta' un confronto fra due quantizzazioni |
+| `cloud_latency_used_s` | la latenza **effettivamente consumata** dal motore, cioe' `min(request_latency, n_out/lat_per_token + ttft)` -- non quella che abbiamo misurato | non registrato; senza di esso una riga puo' dichiarare 8 s di attesa mentre il numero ne usa al massimo 1,57 (32 token, `probe_ecologits_clamp_20261026.py`) |
+| `cloud_latency_threshold_s` | la soglia interna del modello stimato, **con il ramo che la produce**: `n_out/tps + ttft` quando la scheda porta `tps` non nullo, la regressione `n_out * (alpha*P_active + beta*B + gamma) + ttft` quando non lo porta (`impacts/llm.py:94-97`), con `tps`/`ttft`/`alpha`/`beta`/`gamma` e la loro fonte | non registrato; senza di esso il `min` non e' verificabile da chi legge la riga. Righe omogenee non sono: `tps` e' nullo su 187 delle 344 schede del registro (contato dalla sonda `probe_ecologits_gpu_steps_moe_20261026.py`, sezione D), quindi il campo deve dire quale delle due formule ha prodotto la soglia, non solo quanto vale |
 | `cloud_latency_binding` | quale dei due termini vincola: `measured` (la rete conta) o `internal-estimate` (la rete e' stata scartata) | non registrato |
 | `cloud_energy_band_semantics` | cosa significa la banda min/max: `parameter_pue_ignorance_range` per EcoLogits (propagazione dei parametri registrati e delle bande PUE/WUE), `calibration-semi-range` per un fit nostro | la banda esiste (`cloud_energy_min_j`/`_max_j`) ma il suo tipo no: senza etichetta e' letta come confidenza del modello |
 
@@ -848,11 +937,33 @@ porta con se' N volte il confine di cui sopra (input esclusi, latenza
 end-to-end) e va scritta come tale. `cloud_calls_count` esiste per rendere
 visibile quante volte.
 
-La versione dei fattori va verificata, non assunta: le tabelle EcoLogits si
-muovono fra release e l'entita' del movimento non e' stata controllata alla
-fonte, quindi qui non si scrive nessun fattore di scala. Cio' che si scrive e'
-che due righe prodotte da versioni diverse del motore non si confrontano, e il
-campo esiste per farle distinguere (D12).
+La versione dei fattori va verificata, non assunta — e il 26/10 e' stata
+verificata eseguendo (`probe_ecologits_release_drift_20261026.py`, output
+tracciato `experiment_results/ecologits_drift_console_20261026.txt`). Fissata la
+formula -- `impacts/llm.py`, `tracers/utils.py`, `model_repository.py`,
+`_ecologits.py` e `data/electricity_mixes.json` sono **byte-identici** fra
+l'installazione (0.11.1) e la release 0.11.3 -- cio' che si muove sono i **dati
+del registro**: 344 modelli contro 342, di cui 30 presenti solo in 0.11.1 e 28
+solo in 0.11.3, e **129 dei 314 modelli comuni con contenuto diverso**. Il campo
+che si muove, sul modello della sonda (`openai/gpt-4o-mini`), e' `deployment`:
+`tps` passa da 33,0 a 79,0 e `ttft` da 0,6 a 0,54 s, quindi la soglia del clamp
+`n_out/tps + ttft` scende da 1,5697 s a 0,9451 s. La conseguenza numerica, sulla
+stessa chiamata (32 token di output, 8 s misurate, fattori di mix fissati a 1
+perche' non fanno parte del confronto): da `2,646857537222e-06` kWh a
+`2,240194986078e-06` kWh, rapporto **0,846360**, **-15,36%**.
+
+Tre limiti di quel numero, da scrivere insieme al numero: e' **una** coppia di
+release su **un** modello, non una legge sulla deriva; e' una differenza fra due
+**dati di input del motore**, non una differenza di accuratezza rispetto a una
+misura (non esiste un riferimento, §5 regola 6); e non e' simmetrica -- la stessa
+release puo' spostare un altro modello nella direzione opposta, perche' il
+termine che cambia e' una soglia. Cio' che si scrive per questo documento e'
+quindi una sola cosa, e vale anche senza il numero: **due righe prodotte da
+versioni diverse del motore non sono la stessa misura**, e il campo
+`ecologits_version` esiste per non farle sommare (D12). Il 30/28 di modelli
+presenti in una sola release aggiunge un secondo effetto, indipendente dalla
+scala: la stessa richiesta puo' essere C2 su una versione e cadere in proxy (C3)
+sull'altra, perche' il modello richiesto non e' piu' nel registro.
 
 Il proxy C3 e' ammesso solo se dichiarato: modello di pari classe secondo il
 criterio di §3.4, latenza reale, e la riga deve dire che il modello stimato non
@@ -1024,22 +1135,25 @@ colonne e parole distinte in ogni tabella.
 
 ## 9. Difetti e incoerenze trovate scrivendo questa specifica
 
-Nessuno e' corretto qui: il codice e' bloccato fino a P5. Sono registrati
-perche' P5 li chiuda o li dichiari, e la colonna **"chiuso da"** dice quale
-decisione di §10 li chiude — un difetto senza destinazione diventa un elenco che
-nessuno ritrova.
+Nessuno e' corretto **da** questa specifica: il codice e' bloccato fino a P5 e
+questo documento registra. La colonna **"chiuso da"** dice quale decisione di §10
+li chiude -- un difetto senza destinazione diventa un elenco che nessuno ritrova.
+La eccezione, e va scritta: **F2 e' chiuso nel codice di `HEAD`** dal commit
+`027609c` del 26/10, arrivato da un'altra sessione mentre questa specifica si
+scriveva. Non e' una correzione autorizzata da P5: e' un fix puntuale che
+preserva `None` invece di produrlo come zero, e va rivalidato al freeze.
 
 | # | difetto | dove | effetto | chiuso da |
 |---|---|---|---|---|
-| F1 | contatori NIC illeggibili -> `network_energy_j = 0` | `energy/network_energy.py:73` | un guasto diventa uno zero numerico; la nota lo dice, la colonna no | D4 + regola 9 |
-| F2 | cloud non stimabile -> `cloud_energy_j = 0` mentre il metodo dice `unavailable` | `benchmark_unified.py:1101` (`est.energy_j or 0.0`) | la colonna energia contraddice il token di metodo | D4 + regola 9 |
+| F1 | contatori NIC illeggibili -> `network_energy_j = 0` | `energy/network_energy.py:73` (nota "energia rete = 0 (dichiarato)", e la colonna resta `0`) | un guasto diventa uno zero numerico; la nota lo dice, la colonna no | D4 + regola 9 — **aperto** |
+| F2 | cloud non stimabile -> `cloud_energy_j = 0` mentre il metodo dice `unavailable` | era `benchmark_unified.py:1101` (`est.energy_j or 0.0`); oggi `:1145` passa `est.energy_j` nudo e `_finalize_energy_fields` `:500-537` scrive `"N/A"` | la colonna energia contraddiceva il token di metodo, e la somma end-to-end era bassa | **CHIUSO in `HEAD` dal commit `027609c`** (26/10), con `tests/test_cloud_energy_none_preservato.py` che blocca sia `None -> "N/A"` sia `0.0 -> 0.0`; da rivalidare al freeze P5 |
 | F3 | GPU senza token di metodo stabile e senza baseline idle | `casualwatt_csv_export.py:63`, `:77`; `energy/local_energy.py:525-535` | GPU non confrontabile per riga; energia whole-device | D2 per il token; la baseline e' priorita' 9 di §12 e chiede hardware che questo host non ha |
 | F4 | proxy cloud non distinto nel token di metodo | `energy/cloud_energy.py:138-254` | C2 e C3 hanno la stessa etichetta; il proxy e' solo nelle note | D3 |
 | F5 | LHM Energy non dimostrato contatore, e assente sul host | `energy/energy_session.py:770-830`; `lhm_gui_report_20261023_analisi.md:46-99` | non entra nella catena (corretto), ma il token esiste | D9 + criterio di promozione L1 (§3.1) |
 | F6 | RAPL, AMD e macOS mai esercitati | `energy/rapl_backend.py:45-48`; `energy/energy_session.py:206-212` | "implementato" non e' "provato"; 3 test saltati | non si chiude con codice (§11): D11 rende leggibile la ragione, le priorita' 7 e 10 di §12 portano l'hardware |
 | F7 | coefficiente di rete senza fonte primaria | `config.py:333-343` | numero pubblicabile solo come ipotesi dichiarata | D8 + piano di §7 |
 | F8 | una `CW_ENERGY_FILE` dimenticata fa misurare un file al posto del package | `energy/energy_session.py:182-197`, `:1419` | il metodo per riga e' `energy-file`, ma il run somiglia a una misura EMI finche' non si legge quella colonna | D14: etichetta **e** un flag booleano `external_counter` sulla riga, perche' un'etichetta testuale non e' un filtro |
-| F9 | local mode: `cloud_energy_j = 0` con metodo e confine vuoti | `benchmark_unified.py:466-476` | zero legittimo ma non dichiarato: non si distingue da una stima fallita | D4 + regola 9 |
+| F9 | local mode: `cloud_energy_j = 0.0` senza `cloud_energy_method` ne' `cloud_estimation_boundary` | `benchmark_unified.py:467` (commento "default rete/cloud a zero (regola 12.1)"), `:469` (lo zero), `:474` (il confine della **rete** c'e', quello del cloud no) | zero legittimo ma **solo a meta'**: la rete dichiara perche' non consuma, il cloud no, quindi lo zero cloud non si distingue da una stima fallita | D4 + regola 9 — **aperto** (la meta' rete e' gia' dichiarata) |
 | F10 | note e docstring attribuiscono il canale EMI a "Intel", mentre il codice non filtra per produttore | `energy/emi_backend.py:8`, `:43`, `:185-187`; `energy/energy_session.py:188-190` | su una macchina AMD la ragione di guasto direbbe "driver Intel assente" anche se il filtro non esiste; chi legge il log deduce un vincolo che il codice non impone | D11: il testo del motivo diventa indipendente dal produttore, e la verifica su AMD resta [P] |
 | F11 | selezione del primo device apribile / zona `intel-rapl:0` cablata | `energy/emi_backend.py:195-200`; `energy/rapl_backend.py:45-48` | su multi-die o multi-socket i canali specchiati rischiano di essere sommati o di scegliere il package sbagliato (CodeCarbon dichiara di scartare i canali specchiati sul proprio backend Windows EMI) | D15: enumerare per `name`, deduplicare, poi sommare i package distinti; ragione `ambiguous_domain` finche' non e' risolto (§4.1, riga 26) |
 
@@ -1052,14 +1166,14 @@ nessuno ritrova.
 | D1 | LHM resta fallback su Windows | **si'**, non come validazione: copre driver/permessi, non il registro; etichetta `power-integration` |
 | D2 | token GPU stabile | `gpu_energy_method` con `nvml-energy` / `nvml-power-integration` / `unavailable`, accanto a `gpu_idle_provenance` |
 | D3 | proxy cloud esplicito | token distinto (`ecologits-proxy`) o campo `cloud_model_proxy`; C3 non si presenta come C2 |
-| D4 | canale non disponibile -> N/A | rete e cloud: `N/A` con ragione, mai `0.0`; zero solo per local mode dichiarato |
+| D4 | canale non disponibile -> N/A | rete e cloud: `N/A` con ragione, mai `0.0`; zero solo per local mode dichiarato. Del cloud e' gia' cosi' in `HEAD` (`027609c`: `None -> "N/A"`, `0.0` sopravvive solo se lo produce il confine); resta la rete (F1) e il confine cloud vuoto in local mode (F9) |
 | D5 | macOS | `powermetrics` come [P] progettato, non selezionabile; nessuna dichiarazione di supporto |
 | D6 | NPU | disponibile solo dove esiste un dominio verificato (ANE via `powermetrics`, [P]); altrove `unavailable` e nessuna colonna finche' non esiste il backend |
 | D7 | NVML total energy | quando implementato, **sostituisce la potenza come canale primario**; la potenza resta fallback |
 | D8 | coefficiente J/bit | trovare la fonte primaria o declassarlo a ipotesi dichiarata; non chiamarlo "misurato" |
 | D9 | LHM Energy | entra nella catena solo se dimostrato contatore hardware; altrimenti resta fuori |
 | D10 | stima opt-in fuori catena (X2, §3.1) | `estimate-load-tdp` in un campo proprio (`energy_estimate_j`), **spento di default**, mai in `MEASURED_METHODS`, mai confrontato con i numeri delle catene. Non e' un livello di fallback e non colma un `unavailable` |
-| D11 | ragioni di G0 come token di riga | il lessico di §4.1 (`vm`, `remote_endpoint`, `permission_denied`, `driver_missing`, `no_energy_domain`, `counter_stale`, `ambiguous_domain`) prodotto da `cw_probe.py` dentro la riga, non in un file a parte; il testo del motivo **non nomina il produttore** (chiude F10) |
+| D11 | ragioni di G0 come token di riga | il lessico di §4.1 (`vm`, `remote_endpoint`, `permission_denied`, `driver_missing`, `no_energy_domain`, `counter_stale`, `ambiguous_domain`) prodotto da `probes/cw_probe.py` dentro la riga, non in un file a parte; il testo del motivo **non nomina il produttore** (chiude F10) |
 | D12 | campi della stima cloud | `ecologits_version`, `cloud_calls_count`, `cloud_input_tokens_included`, `cloud_hardware_mismatch`, `cloud_quantization_assumed`; una riga multi-round o multi-agente e' la **somma** delle stime per-chiamata (§6) |
 | D13 | confine codificato nel nome del campo rete | il coefficiente e il boundary token devono dire **client-NIC** (`network_energy_coefficient_j_per_bit` + `network_measurement_boundary`), cosi' una riga non e' confrontabile con cifre "per GB" di percorso completo (§7, D8) |
 | D14 | `energy-file` rende la riga non misurata | oltre all'etichetta, un flag booleano `external_counter` per riga: un canale esterno si filtra a livello di colonna, non si riconosce leggendo una stringa (chiude F8) |
@@ -1080,7 +1194,8 @@ nessuno ritrova.
   di P5 da congelare prima dei dati;
 - se una **presa intelligente** entri o no come riferimento di sistema: W2
   descrive cosa puo' dare e cosa non chiude, la scelta dipende dal datasheet
-  verificato e dal fatto che su un portatile la batteria e' dentro il confine;
+  verificato e dal confine batteria: su un portatile la carica entra nel conteggio
+  della presa, su questo host no (nessuna batteria, §3.4 W2).
 - la forma di combinazione di `budget_base_w`: resta la decisione operativa
   provvisoria di P1.7, rinviata ai dati del pilota P2.9.
 
@@ -1098,7 +1213,9 @@ presentano come lavoro in corso.
 
 **A. Senza hardware (si chiudono in P5).**
 
-1. **N/A al posto di zero** per ogni dominio (regola 9, D4): chiude F1, F2, F9.
+1. **N/A al posto di zero** per ogni dominio (regola 9, D4): chiude F1 e F9.
+   F2 -- la meta' cloud dello stesso difetto -- e' gia' chiusa in `HEAD` da
+   `027609c`, quindi P5 eredita la rete e il local mode, non il cloud.
    Un numero che dice "non misurato" non deve sembrare una misura.
 2. **Token GPU** (D2) e **criterio di promozione L1** (§3.1, D9): decidono la
    confrontabilita' futura delle colonne, e dopo il congelamento non si cambiano.
@@ -1117,8 +1234,11 @@ presentano come lavoro in corso.
    nonostante sia l'ultimo a entrare in gioco. In attesa, la **presa intelligente
    con misura di energia** (W2) e' un riferimento provvisorio **di sistema**:
    ordine di grandezza, intercetta un errore macroscopico, non separa domini e
-   non chiude G4; e su questo host, che e' un portatile con P1.4 che congela lo
-   stato batteria, include anche l'eventuale carica.
+   non chiude G4. Su questo host il confine batteria non si pone: la macchina e'
+   un GEEKOM Mini IT13 senza batteria (`BatteryFlag = 128`, `Win32_Battery` vuoto,
+   verificato 26/10, §3.4 W2), quindi la presa leggerebbe l'intero assorbito a
+   monte dell'alimentatore senza carica da escludere. Il P1.4 dello stato batteria
+   resta congelato per le macchine che hanno una batteria.
 7. **RAPL su Linux reale** (R1: il percorso Intel e' scritto, cablato su
    `intel-rapl:0`, e mai eseguito; 3 test saltati), **poi AMD** (R3, R3b: non
    implementati, da verificare alla fonte kernel) (F6).
@@ -1175,9 +1295,12 @@ Codice (letto il 25-26/10, righe verificate):
   **e** `0.0 -> 0.0`).
 - `casualwatt_csv_export.py:17-108` (schema), `:44`, `:46`, `:63`, `:77`,
   `:110-111` (capacita' `d_busy_s <= core x finestra`).
-- `cw_probe.py` (sonda di sola lettura, **non tracciata in git**: `:9` machine,
-  `:31-58` hypervisor/WSL, `:92-126` zone powercap con leggibilita',
-  `:127-162` NVML e tentativo di contatore energia, `:181-190` `OLLAMA_HOST`).
+- `probes/cw_probe.py` (sonda di sola lettura, **tracciata** dal commit `bb32e26`
+  del 26/10: `:9` machine, `:31-58` hypervisor/WSL, `:92-126` zone powercap con
+  leggibilita', `:127-162` NVML e tentativo di contatore energia, `:181-190`
+  `OLLAMA_HOST`) e il suo output `probes/cw_probe_windows.json` (EMI disponibile
+  con i quattro canali `RAPL_Package0_{PKG,DRAM,PP0,PP1}` senza amministratore,
+  NVML assente, `hypervisor_present = true` su macchina fisica).
 
 Dati e protocollo:
 
@@ -1186,6 +1309,11 @@ Dati e protocollo:
   requisiti per P5).
 - `experiment_results/additivity_20261025_analisi.md:51-73` (rapporti 0,845 e
   0,612, share 0,917 -> 0,832), `:78-79` (circa un core consegnato).
+- `probe_ecologits_release_drift_20261026.py` (sonda di sola lettura dei dati
+  EcoLogits: niente rete, niente contatori, niente chiavi) e il suo output
+  `experiment_results/ecologits_drift_console_20261026.txt` -- entrambi da
+  tracciare con il loro commit, perche' il numero di §6 (-15,36%) e' citato da
+  questo documento e un'analisi non tracciata e' un numero che nessuno rigenera.
 - `experiment_results/metodi_loc_20261025_valutazione.md` (valutazione del
   documento esterno), `experiment_results/lhm_gui_report_20261023_analisi.md:46-99`.
 
@@ -1198,8 +1326,57 @@ Fonti esterne, con la data della verifica alla fonte primaria:
   `kernel.org/doc/html/v5.9/hwmon/amd_energy.html`, verificata il 26/10.
 - Beyer & Wendler 2020 (LNCS 12079) per la non additivita' dei domini, come gia'
   citato in `energy/emi_backend.py:28-30`.
+- README ufficiale del driver AMD (`github.com/amd/amd_energy`) per la
+  restrizione di visibilita' degli `energy[N]_input`: la frase "To address
+  CVE-2020-12912 ..." letta il 26/10. E' la fonte **del legame CVE-interfaccia**;
+  il numero CVE come lato AMD di PLATYPUS (Intel = CVE-2020-8694/8695) viene da
+  `kasper-oswald.de/gb/research/cves-vulnerabilities/` (fra gli autori della
+  ricerca), verificato 26/10; il paper PLATYPUS (Butera, Lipp, Oswald et al.,
+  USENIX Security 2021, `platypusattack.com`) e' la fonte dell'attacco.
+- M. Weaver, "Reading RAPL energy measurements from Linux"
+  (`web.eece.maine.edu/~vweaver/projects/rapl/`), letta il 26/10: eventi
+  `power/energy-*` via `perf_event` dal kernel 3.14, con root o
+  `perf_paranoid < 1`; driver AMD hwmon "senza controlli di permesso" rimosso in
+  Linux 5.13 (commit `9049572fb`) "anche per ragioni di sicurezza". Fonte
+  tecnica di riferimento pratico, **non** peer-reviewed: perche' il codice di
+  stima di `perf` non sia una regressione serve il changelog del kernel.
+- Serie di patch 2024 per gli eventi RAPL AMD: `perf jevents: Add RAPL event
+  metric for AMD zen models` (LKML, 01/03/2024) e `Add per-core RAPL energy
+  counter support for AMD CPUs` (LWN, 20/06/2024). Sono proposte, non una release
+  verificata: per questo la riga (b) di §3.1 lascia il percorso `perf` su AMD a
+  [P] con la versione non chiusa.
+- Microsoft, "Energy Meter Interface" (Windows driver docs,
+  `learn.microsoft.com/windows-hardware/drivers/powermeter/energy-meter-interface`,
+  letta il 26/10): "Starting in Windows 10, drivers can implement the Energy
+  Metering Interface (EMI)"; GUID del device interface
+  **{45BD8344-7ED6-49cf-A440-C276C933B053}** definito in `emi.h`
+  (`GUID_DEVICE_ENERGY_METER`), che e' il GUID usato da `energy/emi_backend.py`;
+  EMI v1 su Windows 10 e v1+v2 "In Windows 10 Version 1809"; unita' da verificare
+  nel metadata, `EmiMeasurementUnitPicowattHour`; `AbsoluteEnergy` "total
+  accumulated energy in picowatt-hours **with some arbitrary zero-point**", da
+  differenziare fra due campioni. Sono le quattro proposizioni su cui poggia E1:
+  l'unita' pWh, il perche' del delta, il GUID, e il fatto che la disponibilità
+  dell'interfaccia parta da Windows 10 -- **non** che su una data build esista un
+  meter del package, che resta questione da sonda (stato [P] sulla riga).
+- EcoLogits: la deriva fra release non viene da una fonte esterna, e' **misurata**
+  (`probe_ecologits_release_drift_20261026.py` +
+  `experiment_results/ecologits_drift_console_20261026.txt`), confrontando
+  l'installazione 0.11.1 col wheel 0.11.3 scaricato da PyPI il 26/10. Il wheel
+  non e' tracciato: chi ripete la misura lo scarica con il probe stesso
+  (`pip download --no-deps ecologits==0.11.3`).
 
-Non citate perche' **non verificate alla fonte primaria**: il collegamento fra
-`perf`/AMD e una specifica versione di kernel, il legame con CVE-2020-12912, e
-qualsiasi fattore di scala fra release di EcoLogits. Restano verifiche obbligate
-prima di entrare in una riga.
+Non citate perche' **non verificate alla fonte primaria**, e ora l'elenco e' piu'
+corto di ieri: resta il kernel 5.11 come release di arrivo del powercap RAPL AMD
+(fonte Phoronix, non peer-reviewed, da confermare sul changelog del kernel), la
+release di kernel in cui gli eventi RAPL **AMD** entrano in `perf` (nel 2024 erano
+ancora serie di patch), e ogni parametro di una presa intelligente non ancora
+scelta (risoluzione, finestra di media, offset a basso carico).
+
+Sono chiuse invece, il 26/10, quattro verifiche che stavano aperte: il legame fra
+CVE-2020-12912 e la restrizione hwmon (README `amd/amd_energy`, e con la
+precisazione che il numero e' lato AMD, non Intel); la versione di kernel
+dell'interfaccia `perf` per gli eventi `power/energy-*` (3.14, con root o
+`perf_paranoid < 1`); l'entita' della deriva dei fattori EcoLogits fra 0.11.1 e
+0.11.3 (-15,36% su una chiamata misurata, §6); la disponibilita' documentata
+dell'interfaccia EMI a partire da Windows 10, con GUID, unita' pWh e natura
+cumulativa del contatore verificati sulla pagina Microsoft (§3.1, riga E1).
