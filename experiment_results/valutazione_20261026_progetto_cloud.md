@@ -44,7 +44,7 @@ citata sbagliata e sopra un percorso di proxy che oggi non funziona.
 |---|---|---|
 | L1 = `llm_impacts`, `E_req = PUE · E_server` | `cloud_energy.py:5-13`, spec §3.4 C2 (riga 405), DT-1 (`DECISIONI.md:254-258`) | nessuno; la proposta non dice che il PUE è **del provider**, non nostro (1,09–1,20, `tracers/utils.py:146-177`, registrato in `DECISIONI.md:246-252`) |
 | L2 = modello analitico prefill/decoding | DT-3 (`DECISIONI.md:268-280`) e spec §6 righe 667-672 | **regressione**: vedi §5 |
-| L3 = `E_rete = B_tot · 8 · ε_bit` | `network_energy.py:63-107`, `config.py:341-343`, spec §7 righe 708-732, D8/D13 | nessuno |
+| L3 = `E_rete = B_tot · 8 · ε_bit` | `network_energy.py:261-322`, `config.py:332-365`, spec §7, D8/D13 | **citazione e confine corretti il 26-10-2026** (Baliga et al., *Proc. IEEE* 99(1):149-167, 2011, DOI 10.1109/JPROC.2010.2060451): il valore resta documentato, non validato |
 | Incertezza `min / nominal / max` | spec §6 righe 610-612, NOTE B4 (`cloud_energy.py:18-19`; semantica della banda `:48-51`) | **regressione**: vedi §3.4 |
 | Colonne di tracciabilità (`cloud_method`, `calibration_sources`, `measurement_boundary`, `energy_available`) | D12 (righe 867), D13 (868), regola 9 (righe 584-592) | in parte nuovo: `cloud_provenance` con i valori `C2 / M4 (Fonte A+B) / M4 (Ipotesi)` mescola due scale, vedi §3.5 |
 | "mai `0.0` per dato sconosciuto" | D4 (riga 859), F2/F9 (righe 839, 846) | **già scritto nel DOCX**, e già violato nel codice: vedi §4 |
@@ -178,26 +178,43 @@ suffisso della scala M.
 
 ### 3.6 `ε_bit` della rete (L3)
 
-**Verdetto: nessun supporto primario per il valore di progetto, e un'incoerenza
-confine/valore da risolvere.** Ricontrollato alla fonte (26-10-2026):
+**Verdetto: il valore ha una fonte primaria, ma il confine non coincide con
+quello dei nostri byte — e il progetto citava un altro articolo.** Ricontrollato
+alla fonte (26-10-2026):
 
 | fonte | valore | confine dichiarato dagli autori | in J/bit |
 |---|---|---|---|
-| Aslan, Mayers, Koomey, France, *J. Industrial Ecology* 22(4):785-798 (2018), DOI 10.1111/jiec.12630, peer-reviewed | "0.06 kWh/GB for 2015"; stime pregresse "136 kWh/GB in 2000" … "0.004 kWh/GB in 2008", "vary up to 5 orders of magnitude" | "including the Internet Protocol (IP) core network and access networks only"; esclude data center e dispositivi utente | centrale 2,7e-8 |
+| **Baliga, Ayre, Hinton, Tucker, *Proc. IEEE* 99(1):149-167 (2011), DOI 10.1109/JPROC.2010.2060451** (verificata il 26-10-2026) | **2.7 μJ/bit** per un cloud pubblico (eq. 2 p. 7, valore a p. 8); **0.46 μJ/bit** per un cloud privato (eq. 1 p. 7) | trasmissione **e commutazione** verso un cloud pubblico: metro Ethernet, switch LAN del data center, BNG, provider edge, gateway del data center, router di core, WDM; ridondanza ×2, raffreddamento ×1.5, utilizzazione <50% ×2. **Rete di accesso esclusa esplicitamente**; server, storage e processing esclusi. Stima da datasheet (Tab. 4), nessun intervallo pubblicato | **2,7e-6** (pubblico) / 4,6e-7 (privato) |
+| Hinton, Baliga, Feng, Ayre, Tucker, *IEEE Network* 25(2):6-12 (2011), DOI 10.1109/MNET.2011.5730522 — **l'articolo che il repo citava** | ~10 nJ/bit IP, 1-3 nJ/bit SDH, <1 nJ/bit WDM | efficienza per **apparato**, non percorso | 1e-9–1e-8: **non** contiene 2,7 μJ/bit |
+| Aslan, Mayers, Koomey, France, *J. Industrial Ecology* 22(4):785-798 (2018), DOI 10.1111/jiec.12630, peer-reviewed | "0.06 kWh/GB for 2015"; stime pregresse "136 kWh/GB in 2000" … "0.004 kWh/GB in 2008", "vary up to 5 orders of magnitude" | "including the Internet Protocol (IP) core network and access networks only"; esclude data center e dispositivi utente; stima da aggiornamento di Krug et al. 2014 su dati BT UK | centrale **2,7e-5** |
 | Heinzelman et al., IEEE VTC 2000 / TWC 2002 (first-order radio model, Tabella 1) | `E_elec = 50 nJ/bit`, `ε_fs = 10 pJ/bit/m²` | elettronica di **un solo hop** su mote WSN, non una WAN | 5e-8 |
 | Keranidis et al., ACM SIGCOMM CCR 2014, DOI 10.1145/2581555.2581566 | 6,66-7,705 nJ/bit (NIC AR9380 in trasmissione) | solo il dispositivo NIC wireless — **non verificato alla fonte primaria** (PDF ACM 403), recuperato da snippet: citabile solo come da verificare | ~7e-9 |
 | Miller, *J. Lightwave Technology* 35(3):343-393 (2017), DOI 10.1109/JLT.2017.2647779 | "sub-femtojoule", target "~10 fJ/bit" | livello **dispositivo/componente**, l'autore avverte che non è l'energia di sistema per bit | 1e-14–1e-11 |
 
-Il coefficiente di progetto `3,4e-8 J/bit` = **272 J/GB** = `7,6e-5 kWh/GB` (aritmetica
-verificata, spec §7 righe 711-714, `config.py:333-343`) sta sopra Aslan e sotto il
-radio model: è compatibile con il confine "core + accesso", **non** con il confine
-"solo NIC del client" che il commento di `config.py:334-337` dichiara. Il DOCX già
-rifiutava il first-order radio model: corretto, e ora argomentato. La via supportata
-dalla verifica resta quella già scritta in D8 (riga 863): non esiste una fonte
-primaria con confine NIC-client, quindi il coefficiente va presentato come ipotesi
-dichiarata, e D13 (riga 868) impone che il nome del campo dica `client-NIC` così la
-riga non è confrontabile con cifre "per GB" di percorso completo. Nota relevante:
-EcoLogits dichiara di non includere rete ("We do not account for networking or storage
+Correzione di aritmetica: 0.06 kWh/GB vale **2,7e-5 J/bit** (= 216 J/MB, 27 μJ/bit),
+non 2,7e-8; nella tabella precedente la conversione era sbagliata di tre ordini di
+grandezza. L'errore contava perché rendeva Aslan apparentemente "coerente" con il
+vecchio valore di progetto.
+
+Il coefficiente adottato `2,7e-6 J/bit` = **21.600 J/GB** = `6,0e-3 kWh/GB`
+(aritmetica verificata; 1,0 MB decimale = 21,6 J, 1 MiB = 22,649 J) è quindi il
+valore di Baliga per il cloud pubblico. Il vecchio `3,4e-8 J/bit` (272 J/GB),
+privo di ancoraggio, è stato ritirato. Resta un'incoerenza di verso opposto
+rispetto a quella denunciata prima: la fonte **esclude la rete di accesso** e
+include gli switch del data center, mentre i nostri byte sono system-wide sul
+client e includono anche l'accesso. Non è una svista: sono due grandezze diverse
+(intensità di percorso × byte del client) e la riga deve dichiararlo in
+`network_measurement_boundary`.
+
+L'intervallo `[0,46; 20,0]` μJ/bit che circolava come "sensibilità" **non è una
+banda di incertezza**: `0,46` è lo scenario cloud privato dello stesso articolo e
+`20,0` non ha fonte nel repository (l'unico posto in cui compare è `config.py`).
+I due valori non sono limiti dello stesso estimando, perché i perimetri sono
+diversi e in direzioni opposte.
+
+La via supportata dalla verifica resta quella di D8: il coefficiente è
+**documentato e non validato**, e la fonte non è C2. Nota rilevante: EcoLogits
+dichiara di non includere rete ("We do not account for networking or storage
 primitives"), quindi `ε_bit` non può essere ancorato a C2.
 
 ### 3.7 "Senza TokenPowerBench"
@@ -413,9 +430,13 @@ cloud e locale nella stessa tesi sarebbe l'incoerenza più visibile di tutte.
    (§4): proxy `openrouter` morto, `or 0.0`, etichetta scope-2 su GWP usage+embodied,
    ancora 0.11.3 contro 0.11.1, casing del proxy. Nessuno di questi è una scelta di
    metodo: sono correzioni che valgono qualunque sia l'esito del punto 1.
-4. **`ε_bit`**: applicare D8 — declassare il coefficiente a ipotesi dichiarata e
-   adottare D13 (nome del campo che dice `client-NIC`). La ricerca di fonte è esaurita:
-   non c'è numero primario con quel confine.
+4. **`ε_bit`**: la fonte è stata trovata e verificata (Baliga et al., *Proc. IEEE*
+   99(1):149-167, 2011, DOI 10.1109/JPROC.2010.2060451); correggere la citazione e
+   il confine, ritirare `[0,46; 20,0]` μJ/bit come "intervallo di sensibilità" e
+   applicare D13 (il campo `network_measurement_boundary` dice **entrambi** i lati:
+   byte system-wide del client, percorso con accesso escluso). Il coefficiente resta
+   **documentato e non validato**: non è "misurato", e l'aritmetica del §3.6 va
+   corretta (Aslan vale 2,7e-5 J/bit, non 2,7e-8).
 5. **Soglia di copertura per le righe cloud non stimabili** (`cloud_validity_note`,
    `cloud_provenance` a token unico C1/C2/C3/C4/unavailable, natura della calibrazione
    in un campo separato).

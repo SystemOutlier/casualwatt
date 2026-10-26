@@ -1173,7 +1173,7 @@ def run_unified_benchmark(
                     rec["notes"] = (rec["notes"] + "; " + extra).strip("; ")
                     log(
                         f"[OK cloud] {prov_id}/{model} | {pr['id']} | {resp_data['duration_s']:.2f}s | "
-                        f"cloud={_j_log(cloud_j)} J net={net_res.energy_j:.5f} J "
+                        f"cloud={_j_log(cloud_j)} J net={_j_log(net_res.energy_j)} J "
                         f"client={local_j:.2f} J | acc={_acc_log(evalres)}"
                     )
                 except Exception as exc:

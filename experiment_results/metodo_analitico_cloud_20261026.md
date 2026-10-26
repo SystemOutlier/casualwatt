@@ -35,7 +35,7 @@ definizione di metodo, 26-10-2026: da essa vengono le adozioni A1 -- forma per f
 | C4 | EcoLogits `compute_llm_impacts` con parametri attivi reali e fonte | stima | come C2, sul modello richiesto | `ecologits-params` | [P] non implementato |
 | C3 | EcoLogits con proxy di pari classe | stima | come C2, su modello diverso da quello richiesto | `ecologits-proxy` (D3) | [I] **ma irraggiungibile**, vedi §7 |
 | **C5** | **modello analitico per classe, coefficienti con provenienza dichiarata** | **stima con boundary dichiarato** | **acceleratore di riferimento (H100), serving open-source, steady state; NON il hardware del provider** | **`analytic-class-fit` + token di calibrazione (§4)** | **[P] non implementato** |
-| T1/T2 | rete: delta contatori NIC / payload HTTP x coefficiente J/bit | stima, scala propria | solo NIC del client (D13) | campo `network_*`, **mai sommato a C-series in una colonna unica** | [I] |
+| T1/T2 | rete: delta contatori NIC / payload HTTP x coefficiente J/bit | stima, scala propria | byte system-wide del client x percorso trasmissione+commutazione fino al data center, accesso escluso (D13) | campo `network_*`, **mai sommato a C-series in una colonna unica** | [I] |
 
 C5 sta **dopo** C3 perche' il motore di stima nativo, anche su un gemello dichiarato,
 resta piu' ancorato del nostro fit: ha una regressione pubblicata su una fonte che
@@ -389,7 +389,15 @@ Quattro livelli di provenienza dei coefficienti, e **solo il primo autorizza la 
 | P1 | fit eseguito da noi su dati grezzi (serie di energia/timestamp), con hold-out | `fit-raw-holdout` | **si'** |
 | P2 | fit eseguito da altri, noi trascriviamo i coefficienti pubblicati con boundary e versione | `fit-published-transcribed` | no: "coefficiente pubblicato da [fonte]" |
 | P3 | valore di ordine di grandezza preso da letteratura con boundary diverso dal nostro | `value-adopted` | no: "valore adottato, boundary non confrontabile" |
-| P4 | nessun ancoraggio trovato dopo la ricerca di fonte | `hypothesis` | mai; e' un'ipotesi dichiarata (precedente: D8 per `eps_bit`) |
+| P4 | nessun ancoraggio trovato dopo la ricerca di fonte | `hypothesis` | mai; e' un'ipotesi dichiarata |
+
+Nota di riclassificazione (26-10-2026): `eps_bit` **non e' piu' un caso P4**. Il
+valore `2,7e-6 J/bit` e' stato verificato alla fonte primaria (Baliga, Ayre,
+Hinton, Tucker, *Proc. IEEE* 99(1):149-167, 2011, DOI
+10.1109/JPROC.2010.2060451) e ricade in P3 `value-adopted`: valore preso da
+letteratura con un confine diverso dal nostro (la fonte esclude la rete di
+accesso, i nostri byte sono system-wide sul client). Resta quindi non
+confrontabile con le cifre "per GB" di percorso completo, e resta non validato.
 
 Stato reale dei tre input che DT-5 nomina, verificato 26-10-2026:
 

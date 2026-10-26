@@ -204,9 +204,11 @@ Tre obblighi, non uno stile:
   grandezza con la terza incertezza piu' larga delle tre ma il linguaggio della
   prima (regola 2 di §5; regola 5 di §3.0);
 - la rete **non si somma alla serie cloud in una colonna unica**
-  (`metodo_analitico_cloud_20261026.md:38`): sono due confini diversi, il
-  server-side datacenter e la sola NIC del client, e una colonna unica renderebbe
-  non separabile un difetto di attribuzione da un difetto di scala;
+  (`metodo_analitico_cloud_20261026.md:38`): sono due confini diversi, la
+  generazione server-side e un'intensita' di percorso applicata ai byte osservati
+  sulla NIC del client (rete di accesso esclusa dalla fonte del coefficiente), e
+  una colonna unica renderebbe non separabile un difetto di attribuzione da un
+  difetto di scala;
 - ogni colonna porta il proprio metodo e il proprio confine anche quando vale
   zero: regola 9 di §5 e il punto 5 della lista in fondo a questa sezione.
 
@@ -222,7 +224,7 @@ locale, 1,0 MB nominali per la rete:
 |---|---|---|---|
 | `active_energy_j` (l'`E_active` dell'analisi) | **232,623 J** su finestra 10,059 s | M1, `emi-counter` | package Intel: include core, uncore e iGPU (PP1) |
 | `cloud_energy_j` | **11,43 J** (`3,176229044667e-06` kWh) | C2, stima | server-side datacenter, sola generazione; input esclusi |
-| `network_energy_j` | **0,285 J** per 1,0 MB transitati | T1, stima x coefficiente | sola NIC del client |
+| `network_energy_j` | **21,6 J** per 1,0 MB decimali transitati | T1, stima x coefficiente | byte system-wide del client x percorso trasmissione+commutazione, accesso escluso |
 
 Il primo numero viene da `MSR_PKG_ENERGY_STATUS` letto con IOCTL (§3.1, riga E1,
 e `energy/emi_backend.py:7-16`) ed e' il valore A del pilota di additivita'
@@ -233,7 +235,8 @@ l'uscita della sonda tracciata
 di 1,60 s misurata produce lo stesso identico numero di 1,5697 s perche' il
 `min()` del motore ha gia' clampato (la conversione da kWh a joule e' `1 kWh =
 3,6e6 J`); il terzo e' aritmetica del coefficiente
-dichiarato (`3,4e-8 J/bit`, `config.py:341`, per `8,388608e6 bit`), **non una
+dichiarato (`2,7e-6 J/bit`, `config.py:363`, per `8e6 bit` = 1,0 MB decimale;
+per 1 MiB, `8,388608e6 bit`, fanno 22,649 J), **non una
 misura di questo host**: nessun run ha misurato 1,0 MB su questa macchina, e il
 valore sta qui come conversione del confine. `end_to_end_energy_j` sara' la loro
 somma, e la riga
@@ -274,7 +277,7 @@ sembra. Per questo il punto 3 della lista porta `cloud_latency_used_s`,
 | 1 | partizione locale / remoto | trasversale | **chiuso** -- questa sezione |
 | 2 | catena cloud con C5, allineamento fra §6 e la tabella di §3.4 | remoto | aperto |
 | 3 | campi di provenienza della stima cloud (D3, D12, i campi della latenza clampata) | remoto | aperto |
-| 4 | coefficiente J/bit e confine di rete (D8, D13, D16; F7) | remoto | aperto |
+| 4 | coefficiente J/bit e confine di rete (D8, D13, D16; F7) | remoto | **fonte e confine corretti** il 26-10-2026; resta aperto il confronto empirico e il confine byte/coefficiente |
 | 5 | zero contro `N/A` nel blocco remoto (D4; F1 e F9 aperti, F2 chiuso in `HEAD`) | remoto | aperto |
 | 6 | CPU/package: fallback, `external_counter`, package multipli, lessico di G0 (D1, D9, D11, D14, D15; F8, F10, F11) | locale | aperto |
 | 7 | GPU, NPU e i mai-esercitati (D2, D5, D6, D7; F3, F6) | locale | aperto |
@@ -631,8 +634,8 @@ condizione di G1.
 | C2 | EcoLogits `llm_impacts`, modello registrato | stima | server-side datacenter (usage + PUE); esclude rete, client, embodied | `ecologits` | [I] non validato |
 | C3 | EcoLogits con proxy di pari classe dichiarato | stima | come C2, su un modello diverso da quello richiesto | `ecologits` + proxy in `hw_profile`/note | [I] |
 | C4 | EcoLogits `compute_llm_impacts` con i parametri attivi reali del modello, e la loro fonte, in config | stima | come C2, ma con il costo per token del modello **richiesto** invece che di un gemello registrato | `ecologits` con `model_params_source` | [P] non implementato |
-| T1 | delta contatori NIC del client x coefficiente J/bit | stima, scala propria | solo NIC client; non router intermedi ne' NIC del datacenter | campo `network_*` | [I] non validato |
-| T2 | byte del payload HTTP x coefficiente J/bit | stima, scala propria | solo body richiesta+risposta al socket del client | campo `network_*` | [I] |
+| T1 | delta contatori NIC del client x coefficiente J/bit | stima, scala propria | byte system-wide del client x percorso trasmissione+commutazione fino al data center, accesso escluso; ne' NIC del client ne' accesso sono contate | campo `network_*` | [I] non validato |
+| T2 | byte del payload HTTP x coefficiente J/bit | stima, scala propria | body richiesta+risposta al socket x lo stesso percorso; sottostima header, TLS e ritrasmissioni | campo `network_*` | [I] |
 | W1 | wattometro AC/DC esterno | riferimento | sistema completo a monte dell'alimentatore | non e' un livello runtime: e' **validazione off-line** | [A] in acquisto |
 | W2 | presa intelligente con misura di energia | riferimento provvisorio | intero sistema alimentato dalla presa; non e' un dominio | `smart-plug` (proposto, mai in una catena) | [A] non misurato, specifiche da verificare |
 
@@ -696,10 +699,12 @@ Precisazioni.
   registrare lo stato batteria (`protocollo_v4_20261024.md:177-178`): su questa
   macchina la registrazione da' "assente", che va scritto, non omesso. Su un
   host con batteria, invece, il vincolo torna e la presa misura anche la carica.
-- Il coefficiente `3,4e-8 J/bit` (`config.py:333-343`) e' un'ipotesi
-  dichiarata, non un valore misurato ne' validato: il commento del codice lo
-  dice esplicitamente ("fonte bibliografica specifica non ancora fissata"). Il
-  piano per identificarlo e' in §7.
+- Il coefficiente `2,7e-6 J/bit` (`config.py:332-362`) e' **documentato ma non
+  validato**: valore e perimetro vengono da una fonte primaria verificata il
+  26-10-2026 (Baliga, Ayre, Hinton, Tucker, *Proc. IEEE* 99(1):149-167, 2011,
+  DOI 10.1109/JPROC.2010.2060451), ma la fonte e' una stima da modello con la
+  rete di accesso esclusa, mentre i byte contati sono system-wide sul client. La
+  discrepanza di perimetro e' dichiarata, non risolta. Dettagli in §7.
 
 ---
 
@@ -786,10 +791,16 @@ energia (`:127-162`), legge `OLLAMA_HOST` (`:181-190`) e distingue `machine`
 2. **Nessun doppio conteggio.** PKG + DRAM e PKG + PP0 + PP1 non si sommano;
    PP0/PP1 sono sottoinsiemi (`energy/emi_backend.py:28-30`). `igpu_energy_j` e
    `gpu_process_energy_j` restano informativi.
-3. **Nessuno zero inventato.** La regola completa e' la 9. Oggi la viola un solo
-   percorso: rete illeggibile restituisce `0` al posto di `N/A` (§9, F1,
-   `energy/network_energy.py:73`). Il cloud non lo viola piu': `None` arriva alla
-   riga come `"N/A"` dal commit `027609c` del 26/10 (§9, F2).
+3. **Nessuno zero inventato.** La regola completa e' la 9. Il percorso della
+   rete illeggibile la violava fino al 26-10-2026: il tracker restituiva gia'
+   `None` con nota "energia rete = N/A" (`energy/network_energy.py:270-274`), ma
+   il log della riga formattava `net_res.energy_j` con `.5f`
+   (`benchmark_unified.py:1176`), che su `None` solleva `TypeError`: il blocco
+   `except` (`:1179`) trasformava una richiesta riuscita in riga d'errore con
+   locale e rete a `0.0` (`:1190`). Il campo `_j_log` (`:1269-1275`), gia'
+   disponibile per le altre grandezze, e' ora usato anche per la rete: `None`
+   arriva alla riga come `"N/A"` e la richiesta resta una riga valida.
+   Il cloud non lo viola piu' (commit `027609c` del 26/10, §9 F2).
 4. **Un accordo fra due lettori dello stesso contatore non e' una validazione.**
    Il criterio non guarda le librerie ne' i percorsi di codice: guarda l'elemento
    sensibile. Due letture concordano per costruzione quando derivano dallo stesso
@@ -989,22 +1000,36 @@ il metodo e il confine cloud restano vuoti: lo zero non e' dichiarato come
 La catena rete e' `T1 -> T2 -> unavailable`.
 
 T1 misura i byte con i contatori NIC del client nella finestra della richiesta
-e li converte in joule con il coefficiente dichiarato
-(`energy/network_energy.py:63-90`). Il confine e' **solo la NIC del client**:
-non i router intermedi, non la NIC del datacenter, non il core di rete. Il
-traffico degli altri processi nella stessa finestra e' rumore dichiarato, non
-sottratto. T1 somma tutte le interfacce non-loopback
-(`energy/network_energy.py:46-55`): con una VPN lo stesso pacchetto puo'
-comparire sia sull'interfaccia virtuale sia su quella fisica, e in quel caso va
-contato una volta sola oppure l'interfaccia va scelta esplicitamente. T2 usa i
-byte del payload HTTP quando i contatori non sono utilizzabili ma i byte sono
-noti (`:93-107`).
+e li moltiplica per il coefficiente dichiarato
+(`energy/network_energy.py:261-322`). Le due meta' del prodotto hanno confini
+diversi, e la discrepanza va scritta, non appianata:
+
+- i **byte** sono quelli delle interfacce sommate, system-wide: includono il
+  traffico di processi terzi, che non e' sottratto. Non sono "tutte le
+  interfacce": il loopback e' sempre escluso e, per default, si sommano le
+  **fisiche**, perche' sotto VPN lo stesso pacchetto compare sia
+  sull'adattatore tunnel sia su quello fisico che lo trasporta cifrato e
+  sommarli lo conterebbe due volte. L'eccezione e' dichiarata: quando le
+  fisiche non vedono alcun byte e le virtuali si' -- tipico di un host
+  Hyper-V, dove il traffico passa dallo switch virtuale -- si ricade su tutte
+  le non-loopback. Il campo `network_measurement_boundary` riporta i nomi
+  delle interfacce contate, cosi' una riga non e' confrontabile con un'altra
+  senza sapere che cosa ha contato;
+- il **coefficiente** e' un'intensita' di percorso "trasmissione + commutazione"
+  verso la rete di un cloud pubblico, con la **rete di accesso esclusa dalla
+  fonte** e con server, storage e processing esclusi.
+
+Ne segue che l'energia della NIC del client e quella della rete di accesso non
+sono contate da nessuno dei due lati, mentre l'energia del percorso fino agli
+switch LAN del data center entra come media di percorso, non come misura del
+singolo pacchetto. T2 usa i byte del payload HTTP quando i contatori non sono
+utilizzabili ma i byte sono noti (`energy/network_energy.py:324-348`).
 
 T1 e T2 hanno lo stesso coefficiente e **non** lo stesso numeratore:
 
 | | che cosa conta | effetto |
 |---|---|---|
-| T1 | tutti i byte transitati sulle interfacce del client nella finestra: header, ritrasmissioni, traffico di altre applicazioni | attribuisce alla richiesta byte che non sono suoi: sovrastima per attribuzione |
+| T1 | tutti i byte transitati sulle interfacce fisiche sommate nella finestra: header, ritrasmissioni, traffico di altre applicazioni | attribuisce alla richiesta byte che non sono suoi: sovrastima per attribuzione |
 | T2 | solo i body HTTP di richiesta e risposta al socket | trascura header, TLS, framing e ritrasmissioni: sottostima per costruzione |
 
 Per questo T1 e' il primario e T2 il fallback: il primo misura byte realmente
@@ -1012,15 +1037,79 @@ transitati, il secondo li ricostruisce da una parte della conversazione. Lo
 scarto fra i due non si corregge con un fattore inventato; se e' grande, e' un
 dato da riportare, non da normalizzare.
 
-Il numero e' una stima: i byte sono misurati, il coefficiente e' un'ipotesi.
-Non e' una misura diretta dell'energia di rete, e non e' validato.
+**Correzioni del 26-10-2026 al tracker** (tre, autorizzate come eccezione
+circoscritta al blocco di P5):
 
-**Che grandezza e', in termini leggibili.** `3,4e-8 J/bit` valgono **272 J/GB**
-con GB decimale (10^9 byte), cioe' `7,6e-5 kWh/GB`: e' l'aritmetica del valore
-dichiarato, e il commento del codice porta la stessa conversione arrotondata
-("~270 J/GB ~ 7,6e-5 kWh/GB", `config.py:333-341`). Il confine e' scritto nello
-stesso commento: **solo la NIC del client**, "NON l'intero accesso FTTx o il core
-di rete" (`config.py:334-337`).
+1. *Selezione delle interfacce.* La vecchia somma di tutte le non-loopback
+   contava due volte lo stesso pacchetto sotto VPN. Ora si sommano le fisiche,
+   con la ricaduta dichiarata descritta sopra; il confine riporta i nomi
+   (`energy/network_energy.py:184-214`, `:287-289`, `:312-319`). La natura
+   dell'interfaccia non si legge dall'alias -- su questo host "Ethernet 2" e' un
+   VirtualBox Host-Only e "(LAN)* 9" una Wi-Fi Direct -- quindi si usa la
+   descrizione del driver dal registro quando c'e' (`:97-160`) e il nome come
+   seconda via: il confine dice quale delle due ha deciso (`driver description,
+   else name` oppure `name only`). La lista non e' esaustiva: un tunnel con nome
+   e descrizione fuori elenco resta classificato come fisico e torna a contare
+   due volte -- con i soli contatori di psutil non e' riconoscibile, e il confine
+   elenca i nomi sommati proprio perche' il caso resti visibile. Le due letture
+   degradate non diventano zeri:
+   l'aggregato di ultima istanza dichiara che psutil vi include il loopback
+   senza separarlo (`:197-198`), e un bordo per-interfaccia con l'altro
+   aggregato attraversa due perimetri e vale `None` (`:275-284`).
+2. *`None` fino alla riga.* Il log usa `_j_log` (`benchmark_unified.py:1176`),
+   chiudendo F1: un contatore illeggibile non trasforma piu' una richiesta
+   riuscita in riga d'errore.
+3. *Delta negativo conservato.* Il valore applicato resta troncato a zero per
+   continuita' con i CSV gia' scritti, ma il grezzo firmato sta in
+   `upload_bytes_raw`/`download_bytes_raw`, con `negative_increment = True` e una
+   nota che dice perche' (`energy/network_energy.py:292-298`). La regola del
+   repository e' di non troncare: qui il troncamento resta **dichiarato**, ed e'
+   la v4 a toglierlo. Resta un obbligo di P5: le due colonne (grezzo e flag)
+   devono esistere nel CSV, altrimenti il troncamento torna indistinguibile da
+   un traffico nullo esattamente come lo zero di F2.
+
+Il numero e' una stima: i byte vengono da un contatore, il coefficiente e' un
+valore documentato con un perimetro dichiarato. Non e' una misura diretta
+dell'energia di rete e non e' validato per questa macchina.
+
+**Che grandezza e', in termini leggibili.** `2,7e-6 J/bit` (2,7 uJ/bit) valgono
+**21.600 J/GB** con GB decimale (10^9 byte), cioe' `6,0e-3 kWh/GB`; su 1,0 MB
+decimale sono **21,6 J**, su 1 MiB **22,649 J**. E' aritmetica, non una misura.
+
+**Fonte e confine, verificati il 26-10-2026.** Il valore sta in J. Baliga,
+R. W. A. Ayre, K. Hinton, R. S. Tucker, "Green Cloud Computing: Balancing
+Energy in Processing, Storage, and Transport", *Proc. IEEE* 99(1):149-167, 2011,
+DOI 10.1109/JPROC.2010.2060451, eq. (2) a p. 7 e valore a p. 8. Il confine della
+fonte e' **trasmissione e commutazione per un cloud pubblico**: metro Ethernet,
+switch LAN del data center, BNG, provider edge, gateway del data center, router
+di core e WDM, con ridondanza x2, raffreddamento x1.5 e utilizzazione sotto il
+50% x2 (il "fattore sei"). La **rete di accesso e' esclusa esplicitamente** dalla
+fonte, e cosi' server, storage e processing. E' una **stima da modello**,
+costruita su datasheet dei costruttori (Tab. 4), non una misura; la fonte non
+pubblica un intervallo di incertezza.
+
+Attenzione: la citazione che il repository portava fino al 26-10-2026
+(DOI 10.1109/MNET.2011.5730522) e' un altro articolo -- Hinton, Baliga, Feng,
+Ayre, Tucker, *Power Consumption and Energy Efficiency in the Internet*, IEEE
+Network 25(2):6-12, 2011 -- che riporta solo efficienze per apparato (circa
+10 nJ/bit sul livello IP, 1-3 nJ/bit SDH, sotto 1 nJ/bit WDM) e **non contiene
+2,7 uJ/bit**. Anche il confine dichiarato nel vecchio commento ("accesso, metro,
+core") era l'opposto di quello della fonte.
+
+**I numeri che sembravano un intervallo di sensibilita' sono scenari.**
+`0,46 uJ/bit` e' lo scenario "cloud privato" del medesimo articolo (eq. 1, p. 7):
+stessa famiglia di modello, perimetro e utilizzazione diversi. `27 uJ/bit`
+(0,06 kWh/GB) e' Aslan et al. 2018, riferito al **2015**, con perimetro "core +
+accesso fisso" ed esclusione di data center e dispositivi di bordo: e' una stima
+ottenuta aggiornando Krug et al. 2014 su dati di rete BT nel Regno Unito. Nessuno
+dei due e' un limite dello stesso estimando: i perimetri sono diversi e in
+direzioni opposte (Baliga include gli switch del data center ed esclude
+l'accesso; Aslan include l'accesso ed esclude il data center). `20,0 uJ/bit`,
+che circolava come estremo superiore, **non ha una fonte nel repository** e non
+va usato. L'intervallo `[0,46; 20,0]` uJ/bit va quindi ritirato come "intervallo
+di sensibilita'": al massimo si riportano come scenari esterni etichettati, mai
+come banda di incertezza del coefficiente.
+
 Da questo segue una cosa che va detta prima di qualunque confronto: le cifre
 "energia per GB di traffico" che circolano nella letteratura e nei white paper
 riguardano percorsi diversi dal nostro — accesso, datacenter, talvolta la
@@ -1028,15 +1117,17 @@ fabbricazione — e non sono un riferimento con cui validare questo coefficiente
 ne' in un senso ne' nell'altro. Il confronto ammissibile e' solo fra righe che
 dichiarano lo stesso confine.
 
-**Piano per il coefficiente.** (i) Cercare la fonte primaria di `3,4e-8 J/bit`
-— studio o documento che lo misuri con un confine compatibile con la sola NIC
-del client — e citarla con la data della verifica; (ii) se la fonte non esiste,
-il coefficiente resta un'ipotesi dichiarata e si presenta come tale, mai come
-"misurato" (D8); (iii) controllo empirico sull'host: A-B-A con payload noto e
-poi senza trasferimento, che da' un ordine di grandezza per questa macchina e
-questa rete, non un coefficiente validato, perche' il riferimento sarebbe il
-contatore del package e include tutto il resto. In ogni caso la riga porta il
-valore usato (`network_energy_coefficient_j_per_bit`, `config.py:341`).
+**Che cosa resta aperto (D8).** (i) Il coefficiente e' documentato, non
+validato: manca un confronto con un riferimento esterno (wattometro o presa) e
+manca la prova che il percorso di questa macchina somigli a quello modellato.
+(ii) La discrepanza fra byte system-wide e perimetro del coefficiente resta
+dichiarata, non corretta: correggerla richiede contatori per processo o per
+socket, oggi [P] (D16). (iii) Controllo empirico sull'host: A-B-A con payload
+noto e poi senza trasferimento, che da' un ordine di grandezza per questa
+macchina e questa rete, non un coefficiente validato, perche' il riferimento
+sarebbe il contatore del package e include tutto il resto. In ogni caso la riga
+porta il valore usato (`network_energy_coefficient_j_per_bit`, `config.py:363`)
+e il confine applicato (`network_measurement_boundary`).
 
 **Traffico concorrente: mitigazioni future [P], non oggi.** Oggi T1 attribuisce
 alla richiesta ogni byte transitato nella sua finestra, e il rumore degli altri
@@ -1069,9 +1160,10 @@ Due zeri che non vanno confusi (regola 9):
 - **zero legittimo**: local mode, nessuna chiamata cloud, nessun traffico;
   oggi il campo lo dichiara con `network_measurement_boundary =
   "not-applicable (local mode)"` (`benchmark_unified.py:474`);
-- **zero da guasto**: contatori NIC illeggibili. Oggi il codice scrive
-  "energia rete = 0 (dichiarato)" (`energy/network_energy.py:73`): e' un
-  numero al posto di un'assenza, e va corretto in P5 (D4).
+- **zero da guasto**: contatori NIC illeggibili. Il tracker restituisce `None`
+  con nota "energia rete = N/A" (`energy/network_energy.py:270-274`) e dal
+  26-10-2026 anche la riga lo riporta come `"N/A"` tramite `_j_log`
+  (`benchmark_unified.py:1176`), invece di finire nel ramo `except` con `0.0`.
 
 ---
 
@@ -1138,24 +1230,28 @@ colonne e parole distinte in ogni tabella.
 Nessuno e' corretto **da** questa specifica: il codice e' bloccato fino a P5 e
 questo documento registra. La colonna **"chiuso da"** dice quale decisione di §10
 li chiude -- un difetto senza destinazione diventa un elenco che nessuno ritrova.
-La eccezione, e va scritta: **F2 e' chiuso nel codice di `HEAD`** dal commit
+Due eccezioni vanno scritte. **F2 e' chiuso nel codice di `HEAD`** dal commit
 `027609c` del 26/10, arrivato da un'altra sessione mentre questa specifica si
-scriveva. Non e' una correzione autorizzata da P5: e' un fix puntuale che
-preserva `None` invece di produrlo come zero, e va rivalidato al freeze.
+scriveva. **F1 e F12 sono chiusi il 26-10-2026** da una correzione circoscritta
+autorizzata dall'utente sul perimetro di rete (`_j_log` al posto di `.5f`,
+selezione delle interfacce, delta firmato conservato): non e' l'apertura di P5,
+sono tre difetti della stessa catena riparati dove stavano. Entrambe le
+eccezioni vanno rivalidate al freeze.
 
 | # | difetto | dove | effetto | chiuso da |
 |---|---|---|---|---|
-| F1 | contatori NIC illeggibili -> `network_energy_j = 0` | `energy/network_energy.py:73` (nota "energia rete = 0 (dichiarato)", e la colonna resta `0`) | un guasto diventa uno zero numerico; la nota lo dice, la colonna no | D4 + regola 9 — **aperto** |
+| F1 | contatori NIC illeggibili -> la riga finisce a `network_energy_j = 0` | il tracker restituisce `None` + nota "N/A" (`energy/network_energy.py:270-274`), ma `benchmark_unified.py:1176` (`.5f` su `None` -> `TypeError`), `:1179` (`except`), `:1190` (locale e rete `0.0`) | un guasto diventava uno zero numerico, e una richiesta riuscita diventava una riga d'errore | **CHIUSO il 26-10-2026**: `:1176` usa `_j_log` (`:1269-1275`), il tracker resta intatto; `tests/test_rete_nic_confine.py` blocca sia il `None -> "N/A"` sia il testo di formattazione. Da rivalidare al freeze P5 |
 | F2 | cloud non stimabile -> `cloud_energy_j = 0` mentre il metodo dice `unavailable` | era `benchmark_unified.py:1101` (`est.energy_j or 0.0`); oggi `:1145` passa `est.energy_j` nudo e `_finalize_energy_fields` `:500-537` scrive `"N/A"` | la colonna energia contraddiceva il token di metodo, e la somma end-to-end era bassa | **CHIUSO in `HEAD` dal commit `027609c`** (26/10), con `tests/test_cloud_energy_none_preservato.py` che blocca sia `None -> "N/A"` sia `0.0 -> 0.0`; da rivalidare al freeze P5 |
 | F3 | GPU senza token di metodo stabile e senza baseline idle | `casualwatt_csv_export.py:63`, `:77`; `energy/local_energy.py:525-535` | GPU non confrontabile per riga; energia whole-device | D2 per il token; la baseline e' priorita' 9 di §12 e chiede hardware che questo host non ha |
 | F4 | proxy cloud non distinto nel token di metodo | `energy/cloud_energy.py:138-254` | C2 e C3 hanno la stessa etichetta; il proxy e' solo nelle note | D3 |
 | F5 | LHM Energy non dimostrato contatore, e assente sul host | `energy/energy_session.py:770-830`; `lhm_gui_report_20261023_analisi.md:46-99` | non entra nella catena (corretto), ma il token esiste | D9 + criterio di promozione L1 (§3.1) |
 | F6 | RAPL, AMD e macOS mai esercitati | `energy/rapl_backend.py:45-48`; `energy/energy_session.py:206-212` | "implementato" non e' "provato"; 3 test saltati | non si chiude con codice (§11): D11 rende leggibile la ragione, le priorita' 7 e 10 di §12 portano l'hardware |
-| F7 | coefficiente di rete senza fonte primaria | `config.py:333-343` | numero pubblicabile solo come ipotesi dichiarata | D8 + piano di §7 |
+| F7 | coefficiente di rete: citazione sbagliata e confine invertito rispetto alla fonte | `config.py:332-362`; `energy/network_energy.py:10-29` | il valore `2,7e-6` era giusto ma attribuito a un altro articolo (IEEE Network, DOI 10.1109/MNET.2011.5730522) e descritto con l'accesso incluso, mentre la fonte lo esclude; `0,46` e `20,0` uJ/bit attribuiti ad Aslan senza fonte per `20,0` | **corretto il 26-10-2026**: fonte Proc. IEEE 99(1):149-167, DOI 10.1109/JPROC.2010.2060451; accesso escluso; `0,46` = scenario cloud privato; `20,0` senza fonte. Resta aperto il confronto empirico (D8) |
 | F8 | una `CW_ENERGY_FILE` dimenticata fa misurare un file al posto del package | `energy/energy_session.py:182-197`, `:1419` | il metodo per riga e' `energy-file`, ma il run somiglia a una misura EMI finche' non si legge quella colonna | D14: etichetta **e** un flag booleano `external_counter` sulla riga, perche' un'etichetta testuale non e' un filtro |
 | F9 | local mode: `cloud_energy_j = 0.0` senza `cloud_energy_method` ne' `cloud_estimation_boundary` | `benchmark_unified.py:467` (commento "default rete/cloud a zero (regola 12.1)"), `:469` (lo zero), `:474` (il confine della **rete** c'e', quello del cloud no) | zero legittimo ma **solo a meta'**: la rete dichiara perche' non consuma, il cloud no, quindi lo zero cloud non si distingue da una stima fallita | D4 + regola 9 — **aperto** (la meta' rete e' gia' dichiarata) |
 | F10 | note e docstring attribuiscono il canale EMI a "Intel", mentre il codice non filtra per produttore | `energy/emi_backend.py:8`, `:43`, `:185-187`; `energy/energy_session.py:188-190` | su una macchina AMD la ragione di guasto direbbe "driver Intel assente" anche se il filtro non esiste; chi legge il log deduce un vincolo che il codice non impone | D11: il testo del motivo diventa indipendente dal produttore, e la verifica su AMD resta [P] |
 | F11 | selezione del primo device apribile / zona `intel-rapl:0` cablata | `energy/emi_backend.py:195-200`; `energy/rapl_backend.py:45-48` | su multi-die o multi-socket i canali specchiati rischiano di essere sommati o di scegliere il package sbagliato (CodeCarbon dichiara di scartare i canali specchiati sul proprio backend Windows EMI) | D15: enumerare per `name`, deduplicare, poi sommare i package distinti; ragione `ambiguous_domain` finche' non e' risolto (§4.1, riga 26) |
+| F12 | sotto VPN lo stesso pacchetto contato due volte (interfaccia tunnel + fisica che lo trasporta) | era la somma di tutte le non-loopback, senza selezione | il termine di rete si gonfia di un fattore che dipende dalla configurazione, e la riga non dice quali interfacce ha sommato | **CHIUSO il 26-10-2026**: fisiche per default, virtuali e tunnel escluse, ricaduta dichiarata su tutte le non-loopback quando le fisiche vedono 0 B; il confine riporta i nomi (`energy/network_energy.py:81-214`, `:261-322`); la lettura aggregata dichiara di non separare il loopback e sorgenti miste danno `None`, non `0.0`; `tests/test_rete_nic_confine.py` blocca i casi. Il delta negativo resta troncato nel valore applicato ma e' conservato in `upload_bytes_raw`/`download_bytes_raw` con `negative_increment`; le colonne CSV sono obbligo di P5 |
 
 ---
 
@@ -1170,12 +1266,12 @@ preserva `None` invece di produrlo come zero, e va rivalidato al freeze.
 | D5 | macOS | `powermetrics` come [P] progettato, non selezionabile; nessuna dichiarazione di supporto |
 | D6 | NPU | disponibile solo dove esiste un dominio verificato (ANE via `powermetrics`, [P]); altrove `unavailable` e nessuna colonna finche' non esiste il backend |
 | D7 | NVML total energy | quando implementato, **sostituisce la potenza come canale primario**; la potenza resta fallback |
-| D8 | coefficiente J/bit | trovare la fonte primaria o declassarlo a ipotesi dichiarata; non chiamarlo "misurato" |
+| D8 | coefficiente J/bit | **fonte trovata e verificata il 26-10-2026** (Baliga, Ayre, Hinton, Tucker, *Proc. IEEE* 99(1):149-167, 2011, DOI 10.1109/JPROC.2010.2060451): il coefficiente resta documentato e **non validato**, mai chiamato "misurato"; l'intervallo `[0,46; 20,0]` uJ/bit si ritira, perche' `0,46` e' lo scenario cloud privato dello stesso articolo e `20,0` non ha fonte |
 | D9 | LHM Energy | entra nella catena solo se dimostrato contatore hardware; altrimenti resta fuori |
 | D10 | stima opt-in fuori catena (X2, §3.1) | `estimate-load-tdp` in un campo proprio (`energy_estimate_j`), **spento di default**, mai in `MEASURED_METHODS`, mai confrontato con i numeri delle catene. Non e' un livello di fallback e non colma un `unavailable` |
 | D11 | ragioni di G0 come token di riga | il lessico di §4.1 (`vm`, `remote_endpoint`, `permission_denied`, `driver_missing`, `no_energy_domain`, `counter_stale`, `ambiguous_domain`) prodotto da `probes/cw_probe.py` dentro la riga, non in un file a parte; il testo del motivo **non nomina il produttore** (chiude F10) |
 | D12 | campi della stima cloud | `ecologits_version`, `cloud_calls_count`, `cloud_input_tokens_included`, `cloud_hardware_mismatch`, `cloud_quantization_assumed`; una riga multi-round o multi-agente e' la **somma** delle stime per-chiamata (§6) |
-| D13 | confine codificato nel nome del campo rete | il coefficiente e il boundary token devono dire **client-NIC** (`network_energy_coefficient_j_per_bit` + `network_measurement_boundary`), cosi' una riga non e' confrontabile con cifre "per GB" di percorso completo (§7, D8) |
+| D13 | confine codificato nel campo rete | `network_measurement_boundary` deve dichiarare **entrambi** i lati del prodotto: byte system-wide delle interfacce **effettivamente sommate** (per default le fisiche; virtuali e tunnel esclusi salvo la ricaduta dichiarata; loopback mai; nomi riportati nel campo) e intensita' di percorso trasmissione+commutazione con accesso escluso; cosi' una riga non e' confrontabile con cifre "per GB" che includono l'accesso o il data center (§7, D8) |
 | D14 | `energy-file` rende la riga non misurata | oltre all'etichetta, un flag booleano `external_counter` per riga: un canale esterno si filtra a livello di colonna, non si riconosce leggendo una stringa (chiude F8) |
 | D15 | package multipli e canali specchiati | enumerare le zone powercap per `name` e i device EMI per path, **deduplicare i canali specchiati**, poi sommare i package distinti; la nota sui permessi dice cosa verifica il codice (`os.access`, `energy/rapl_backend.py:81-83`), non "gruppo power" (chiude F11) |
 | D16 | traffico concorrente in finestra rete | oggi: rumore dichiarato, non sottratto. Se P5 vuole ridurlo, la via ammissibile e' la **finestra di rumore sottratta come termine scritto** (A-B-A a stessa durata, §7); i contatori per processo restano [P] finche' l'interfaccia non e' verificata alla fonte, e in ogni caso il risultato resta un'attribuzione con scala propria, mai un M1 |
@@ -1213,9 +1309,9 @@ presentano come lavoro in corso.
 
 **A. Senza hardware (si chiudono in P5).**
 
-1. **N/A al posto di zero** per ogni dominio (regola 9, D4): chiude F1 e F9.
-   F2 -- la meta' cloud dello stesso difetto -- e' gia' chiusa in `HEAD` da
-   `027609c`, quindi P5 eredita la rete e il local mode, non il cloud.
+1. **N/A al posto di zero** per ogni dominio (regola 9, D4): chiude F9.
+   F1 (rete) e' chiusa il 26-10-2026 con `_j_log`; F2 (cloud) e' chiusa in
+   `HEAD` da `027609c`. Resta il local mode, che P5 eredita.
    Un numero che dice "non misurato" non deve sembrare una misura.
 2. **Token GPU** (D2) e **criterio di promozione L1** (§3.1, D9): decidono la
    confrontabilita' futura delle colonne, e dopo il congelamento non si cambiano.
@@ -1251,8 +1347,11 @@ presentano come lavoro in corso.
    di hardware, e come tale si dichiara.
 10. **macOS `powermetrics`** solo con hardware Apple disponibile; fino ad allora
     [P] e nessuna colonna (D5, D6).
-11. **Fonte del coefficiente J/bit** o sua declassificazione esplicita (D8): e'
-    ricerca di fonte, non misura, e non dipende da hardware.
+11. **Validazione del coefficiente J/bit** (D8): la fonte e' stata trovata e
+    verificata il 26-10-2026, quindi il punto non e' piu' "ricerca di fonte" ma
+    "confronto con un riferimento": richiede il wattometro (W1) o la presa (W2),
+    oppure l'A-B-A sull'host come ordine di grandezza. Non dipende dal
+    congelamento di P5, ma non si chiude con la sola citazione.
 
 ---
 
@@ -1281,9 +1380,16 @@ Codice (letto il 25-26/10, righe verificate):
   (EcoLogits, proxy, confini).
 - `cloud_estimator.py:192-219` (cache per `(provider, modello, tok_out,
   latenza)`).
-- `energy/network_energy.py:44-55` (somma delle interfacce non-loopback),
-  `:63-90` (delta NIC), `:73` (guasto -> 0), `:93-107` (payload).
-- `config.py:333-341` (confine e conversione dichiarati nel commento), `:341`
+- `energy/network_energy.py:81-165` (loopback, marcatori di nome, descrizioni
+  dei driver dal registro, scelta delle interfacce con ricaduta dichiarata),
+  `:211-341` (risultato con grezzo firmato e nomi, `_read` per interfaccia,
+  `measure` con guasto e sorgenti miste -> `None` e confine con i nomi; `:263-277`
+  i due casi degradati; `:317-341` payload), `tests/test_rete_nic_confine.py`
+  (12 test: VPN contata una volta, ricaduta dichiarata, loopback escluso,
+  alias senza marcatori classificato dalla descrizione del driver, aggregato che
+  dichiara di non separarlo, letture di natura diversa -> `None`, delta
+  negativo conservato, `None` non formattato con `.5f`).
+- `config.py:332-362` (fonte, confine e conversioni dichiarati nel commento), `:363`
   (valore del coefficiente).
 - `benchmark_unified.py:1141-1145` (`cloud_j = est.energy_j`: il vecchio `or 0.0`
   e' rimosso dal commit `027609c`), `:500-634` (`_finalize_energy_fields`: `"N/A"`

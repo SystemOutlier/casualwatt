@@ -144,10 +144,13 @@ se la GPU non ha telemetria, e viceversa.
 | M3 | modello o attribuzione | quota di tempo CPU, quota di utilizzo GPU, EPI | una **quota**, non una lettura |
 | M4 | non disponibile | nessun canale utilizzabile | assenza dichiarata, con ragione |
 
-Le stime cloud (EcoLogits) e rete (coefficiente `3.4e-8 J/bit`,
-`cwEnergyModular/config.py:333-334`) stanno **fuori** da questa scala: non sono
-misure di un dominio locale e hanno campi propri. La scala M1-M4 e' una lente
-documentale; l'arbitro per riga resta il token di metodo del CSV. Non si
+Le stime cloud (EcoLogits) e rete (coefficiente `2.7e-6 J/bit`,
+`cwEnergyModular/config.py:363`) stanno **fuori** da questa scala: non sono
+misure di un dominio locale e hanno campi propri. Anche il coefficiente di rete
+e' documentato ma non validato (fonte: Baliga, Ayre, Hinton, Tucker, *Proc.
+IEEE* 99(1):149-167, 2011, DOI 10.1109/JPROC.2010.2060451, verificata il
+26-10-2026; confine trasmissione+commutazione, accesso escluso). La scala M1-M4 e'
+una lente documentale; l'arbitro per riga resta il token di metodo del CSV. Non si
 introduce una seconda tassonomia nel CSV.
 
 ### 4.3 Cinque controlli, e cosa abilita ciascuno

@@ -95,7 +95,7 @@ percentuali con i campi che abbiamo gia' deliberato (`cloud_energy_method`,
 | # | voce del documento | perche' non entra | ancoraggio |
 |---|---|---|---|
 | R1 | Tier 1 "**intercetta i token di input** (n_in) e output (n_out)" | falso, e contraddice la correzione **3.3 deliberata oggi**: `llm_impacts` accetta solo `output_token_count` + `request_latency` | firma verificata eseguendo la chiamata, 26-10-2026; nota B4 `cloud_energy.py:159-166` |
-| R2 | `eps_bit = 0.05e-6` J/bit, etichettato "**IEEE Green Communications**" | (a) e' un valore **diverso** da quello di produzione: 5,0e-8 contro 3,4e-8 = **+47,06%** sul termine di rete (400 J/GB contro 272 J/GB); (b) l'etichetta non e' una fonte primaria (nessun numero di standard, nessun DOI, nessun autore) e il progetto dichiara esplicitamente che la fonte **non c'e' ancora** | `config.py:339-342` ("fonte bibliografica specifica non ancora fissata nel progetto — segnalato, NON modificato senza fonte"), `energy/network_energy.py:25`, spec §7, D8/F7 riga 844 |
+| R2 | `eps_bit = 0.05e-6` J/bit, etichettato "**IEEE Green Communications**" | (a) e' un valore **diverso** da quello adottato: 5,0e-8 J/bit = **400 J/GB** contro `2,7e-6 J/bit` = **21.600 J/GB**, quindi il primo e' 54 volte piu' piccolo del secondo (−98,15% sul termine di rete) e adottarlo sposterebbe il confronto client-vs-cloud di quasi due ordini di grandezza; (b) l'etichetta non e' una fonte primaria (nessun numero di standard, nessun DOI, nessun autore) | `config.py:332-365`, `energy/network_energy.py:305-311`, spec §7, D8/F7 |
 | R3 | intere colonne "**Accuratezza Stimata (%)**" e "Margine di Errore (%)" (95-99, 1-5, 2-5, 70-85, 15-30, 90-95, 5-10, 70-80, 20-30, 50-70, 30-50, 85-90, 10-15) | nessuna misura nel repo le produce; e la nostra stessa dottrina dice che **la scala assoluta non e' arbitrata** (EMI/LHM/SRUM leggono tutti `MSR_PKG_ENERGY_STATUS` 0x611, wattmetro esterno assente), quindi "95-99% accurato" non e' semplicemente asseribile. Non e' linguaggio di incertezza del progetto | AGENTS.md ("confronto same-counter ≠ validazione", "Linguaggio dell'incertezza"), memoria di progetto "resta non arbitrata la scala assoluta" |
 | R4 | "CasualWatt (**LHM + PawnIO Driver**)", "campionamento **20 Hz** superando i blocchi **HVCI/VBS**" | claim **gia' refutati nel progetto**: PawnIO assente nel codice, driver Ring-0 mai caricato, e la riga di tabella "95-98%" e' la stessa che era gia' stata giudicata auto-smentita. Il canale principale reale e' **EMI via ctypes/SetupAPI, senza Admin e senza driver** | `DECISIONI.md:151`, `DECISIONI.md:554-564`, `energy/energy_session.py:210` (`CW_PRIMARY_CHANNEL = "emi"`); origine delle righe: `Tesi-latex/capMiei/genera_capitolo_pdf.py:40,167,189,214` (materiale legacy, fuori git) |
 | R5 | riga "macOS (`powermetrics`) — **Misurato**" | macOS e' **lavoro futuro** dichiarato; una riga di tabella di metodo che lo dia come coperto sovracompone il perimetro reale della tesi | `DECISIONI.md` sezione portabilita' (cap.12/conclusioni: "macOS come lavoro futuro", righe 725-729) |
@@ -141,10 +141,13 @@ va citato con questi avvertimenti.
 
 - **ISO 14044**: cercare la dichiarazione su `mlco2.github.io/ecologits` o nel repo
   `mlco2/ecologits`. Se non c'e', la conformita' ISO non si cita.
-- **`eps_bit`**: serve la fonte primaria se si vuole un valore **diverso** da 3,4e-8,
-  oppure si resta su 3,4e-8 dichiarato come ipotesi (D8) con la sensibilita' gia'
-  prevista. Il cambiamento del valore non e' una scelta di stile: sposta il termine di
-  rete del +47,06% e quindi il confronto client-vs-cloud.
+- **`eps_bit`**: risolto il 26-10-2026 — il valore adottato e' `2,7e-6 J/bit` e la
+  fonte primaria e' Baliga, Ayre, Hinton, Tucker, *Proc. IEEE* 99(1):149-167 (2011),
+  DOI 10.1109/JPROC.2010.2060451, eq. 2 p. 7 e valore a p. 8, con perimetro
+  "trasmissione + commutazione, **accesso escluso**". Ne `3,4e-8` ne il `0.05e-6`
+  del documento hanno fonte: non vanno usati. Resta aperta la discrepanza fra byte
+  system-wide del client e perimetro della fonte, e il coefficiente resta
+  **documentato ma non validato** (D8).
 - **Tabella 5 / MAPE 1,79% di SweetSpot**: Eq. 4 ed Eq. 5 sono state verificate alla
   fonte primaria oggi (arXiv:2602.05695v2, HTML); "Tabella 5" come numero di tabella e
   il perimetro 1B-9B restano da ricontrollare sulla versione **ICPE '26** (ACM risponde
@@ -157,7 +160,7 @@ va citato con questi avvertimenti.
 `cloud2.DOCX` (testo estratto, righe 1-138) - `ecologits` 0.11.1:
 `tracers/utils.py:89-94,111`, `data/models.json:136-141`, versione
 `ecologits.__version__` - `cwEnergyModular/`: `config.py:339-342`,
-`energy/network_energy.py:7,23-25,35`, `energy/energy_session.py:49-50,210`,
+`energy/network_energy.py:7,305-311`, `energy/energy_session.py:49-50,210`,
 `energy/cloud_energy.py:159-166`, `benchmark_unified.py:502,543,1101`,
 `evaluator.py:380,602` - `Tesi-latex/qoder-bozza/`: `DECISIONI.md:151,385,554-564,725-729`,
 `references.bib:66-78` - `experiment_results/`: `metodo_analitico_cloud_20261026.md`

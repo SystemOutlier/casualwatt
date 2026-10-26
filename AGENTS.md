@@ -144,7 +144,7 @@ stanno solo le regole che un agente puo' violare senza accorgersene.
 ## Comandi di verifica
 
 ```
-pytest cwEnergyModular          # 385 raccolti: 382 passati, 3 saltati (8,7 s)
+pytest cwEnergyModular          # 397 raccolti: 394 passati, 3 saltati (7,4 s)
 ```
 
 **Mai `pytest` nudo dalla radice**: la raccolta viene interrotta da 6 errori in
@@ -173,14 +173,14 @@ indefiniti.
   EMI via ctypes/SetupAPI), `energy/energy_session.py` (canali, integrazione di
   finestra, interpolazione ai bordi), `energy/local_energy.py` (campi per riga),
   `casualwatt_csv_export.py` (`CSV_COLUMNS`, righe 17-169).
-- **I test stanno in due posti**: `cwEnergyModular/tests/` (326) e direttamente in
+- **I test stanno in due posti**: `cwEnergyModular/tests/` (338) e direttamente in
   `cwEnergyModular/` (`test_answer_type_evaluation.py`, 35;
   `test_synthetic_window.py`, 2; `test_validazione_valutazione.py`, 22);
-  326 + 59 = 385. Ogni test ha una docstring che
+  338 + 59 = 397. Ogni test ha una docstring che
   dice *perche'* esiste e quale relazione matematica o fisica verifica, non solo
   cosa fa.
-  L'Appendice D della tesi li elenca con provenienza: con la suite ora a 294 voci
-  va rigenerata con `cwEnergyModular/tools/dump_tests_latex.py` (rinvio dichiarato
+  L'Appendice D della tesi ne elenca 294 mentre la suite e' a 394: va
+  rigenerata con `cwEnergyModular/tools/dump_tests_latex.py` (rinvio dichiarato
   al freeze di P5, insieme alle altre righe non committate). I 17 test di
   `tests/test_protocollo_p4_geometry.py` (2026-10-26, quinto turno di revisione
   esterna) congelano la geometria di copertura di P4.7 e la scala di `budget_pred`
