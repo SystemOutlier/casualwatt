@@ -407,6 +407,20 @@ controllare che la sezione esista e dica quello**. Tre dei quattro punti citano
 Nessun file di produzione è stato modificato. Nessun valore congelato è stato
 spostato. Nessuna soglia è stata aggiunta.
 
+**Il difetto che la verifica ha trovato nel protocollo, non nella revisione.**
+Controllando gli ancoraggi per scrivere questa valutazione è emerso che i quattro
+ancoraggi interni di riga del protocollo — tre nella tabella dei difetti (`:887`,
+`:928-929`, `:3007`) e uno in Emenda 8/P1.6 (`:2092`) — erano **tutti e quattro
+scaduti**: nessuno puntava più alla riga che nominava. Non producevano un errore
+visibile, perché un numero di riga sbagliato non fallisce: apre un'altra riga, e il
+lettore che non la confronta con la sezione non se ne accorge. Sono corretti nella
+nona emenda (`:930`, `:971-972`, `:3186`, `:2138`), insieme alla dichiarazione che
+scadranno di nuovo al prossimo inserimento. Il punto di metodo vale più della
+correzione: un documento che si emenda da sé non può usare come ancoraggio la
+propria numerazione di riga. L'ancoraggio stabile è la sezione; il numero di riga è
+un'indicazione valida alla revisione dichiarata. Renderlo verificabile da uno script,
+o sostituirlo con etichette stabili, è una **decisione aperta** e non è presa qui.
+
 ---
 
 ## 8. Ancoraggi
@@ -423,6 +437,20 @@ soglia si aggiunge" `:2075`; bootstrap P4.8 `:1969-2082`, sintetici `:1983`,
 non-gaussianità `:1987-1989`; catena a sei anelli P4.9 `:2084-2114`; campi
 obbligatori P4.12 `:2166-2180`; ancore P4.14 `:2224-2227`; formulario F.11
 `:2934`, F.13 `:3108`, F.14 `:3185-3186`.
+
+**Revisione a cui si riferiscono questi numeri di riga.** Sono quelli di
+`protocollo_v4_20261024.md` alla revisione `ceaebed` (3455 righe), cioè **prima**
+della nona emenda scritta in risposta a questo stesso turno. L'emendamento inserisce
+righe in quattro punti e sposta tutto ciò che sta sotto: **+1** dopo la lista degli
+artefatti di valutazione, **+35** dopo il registro dei turni (paragrafo del quinto
+turno, +16, e paragrafo sulla forma degli ancoraggi, +18), **+46** dopo la
+dichiarazione aggiunta in P4.7 (+11). Il protocollo passa da 3455 a 3501 righe. Un
+ancoraggio di questo artefatto va quindi letto alla revisione `ceaebed`
+(`git show ceaebed:experiment_results/protocollo_v4_20261024.md`), non a HEAD: la
+verifica è riproducibile, ma solo dichiarando la revisione. Verificato su due ancore
+di controllo: `cavagna2026sweetspot` 1966 → 2012 e `### P4.14` 2243 → 2289, entrambe
++46. È il difetto di forma registrato dalla nona emenda — l'ancoraggio stabile è la
+sezione, il numero di riga è indicativo.
 
 **Eseguito in questo turno**: `inviluppo_e_budget_pred_probe.py` (5/5 verifiche,
 exit 0), output `experiment_results/inviluppo_budget_pred_console_20261026.txt`;
