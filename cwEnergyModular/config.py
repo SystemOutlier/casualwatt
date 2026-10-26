@@ -359,9 +359,17 @@ MONITOR_INTERVAL_S = 0.5  # frequenza campionamento energy tracker
 #   - 20,0 uJ/bit = nessuna fonte nel repository: non va usato come limite.
 # Il campo CSV network_energy_coefficient_j_per_bit riporta il valore usato per
 # riga; network_measurement_boundary riporta il confine applicato.
+#
+# Provenienza. L'attribuzione a Baliga vale SOLO per il valore della fonte: se
+# CW_NET_J_PER_BIT lo sostituisce, quel numero e' un parametro dichiarato
+# dell'esperimento e la riga non deve citare l'articolo al suo posto (sarebbe una
+# citazione inventata sopra un dato). Il testo del confine lo costruisce
+# energy/network_energy.py (network_coefficient_provenance), unico punto che
+# scrive network_measurement_boundary; qui resta la costante di confronto.
 # ---------------------------------------------------------------------------
+NETWORK_ENERGY_COEFFICIENT_DEFAULT_J_PER_BIT = 2.7e-6
 NETWORK_ENERGY_COEFFICIENT_J_PER_BIT = float(
-    os.getenv("CW_NET_J_PER_BIT", "2.7e-6")
+    os.getenv("CW_NET_J_PER_BIT", str(NETWORK_ENERGY_COEFFICIENT_DEFAULT_J_PER_BIT))
 )
 
 # GPU integrata: DEPRECATA (correzione A3). Il sensore 'CPU Package' di LHM

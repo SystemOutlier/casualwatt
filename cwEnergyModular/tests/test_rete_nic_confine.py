@@ -38,6 +38,15 @@ I test non toccano la rete dell'host: le letture sono sintetiche, iniettate con
 del runner, perche' il difetto 3 vive dentro una f-string e non e' raggiungibile
 senza una chiamata cloud reale.
 
+4. **La fonte si cita solo per il suo valore.** Il confine della riga dice da
+   dove viene il coefficiente: con 2,7 uJ/bit cita Baliga et al. 2011 con
+   equazione e pagina, con un `CW_NET_J_PER_BIT` diverso dichiara il parametro e
+   tace la citazione. Attribuire l'articolo a un numero che non e' il suo e' una
+   citazione inventata sopra un dato. Qui stanno anche i due casi di zero
+   legittimo contro zero inventato: la riga locale, dove lo zero e' il confine
+   (regola 12.1), e la rete illeggibile in cloud, dove il valore e' `N/A` e lo
+   resta fino a `end_to_end_energy_j`.
+
 Esecuzione:  python -m pytest tests/test_rete_nic_confine.py -v
 """
 import sys
@@ -256,3 +265,87 @@ def test_il_log_della_riga_non_formatta_none_con_punto_fisso():
         encoding="utf-8")
     assert "net_res.energy_j:.5f" not in src
     assert "_j_log(net_res.energy_j)" in src
+
+
+# --- 4. provenienza del coefficiente, zero di confine -----------------------
+
+def test_il_confine_cita_baliga_solo_col_valore_della_fonte(monkeypatch):
+    """2,7 uJ/bit -> la riga cita l'articolo; un override -> non lo cita.
+
+    Il confine e' l'unico posto in cui la riga dichiara che cosa contiene il
+    joule di rete. Se citasse Baliga anche dopo un `CW_NET_J_PER_BIT` diverso,
+    attribuirebbe a una fonte un numero che non e' il suo, e due righe con
+    coefficienti diversi sembrerebbero confrontabili.
+    """
+    from energy.network_energy import (
+        NETWORK_ENERGY_COEFFICIENT_DEFAULT_J_PER_BIT as dflt,
+        network_coefficient_provenance,
+    )
+
+    same = network_coefficient_provenance(dflt)
+    assert "Baliga et al. 2011" in same
+    assert "DOI 10.1109/JPROC.2010.2060451" in same
+    assert "model estimate, not a measurement" in same
+
+    over = network_coefficient_provenance(1.0e-5)
+    # L'articolo puo' comparire solo per negarlo: nessun DOI ne' equazione,
+    # cioe' nessun ancoraggio bibliografico che lo leghi a questo valore.
+    assert "NOT Baliga et al. 2011" in over
+    assert "DOI" not in over and "eq. 2" not in over
+    assert "CW_NET_J_PER_BIT" in over
+
+    # e il confine della riga vera porta lo stesso testo: non e' una funzione
+    # parallela a quella usata in misura.
+    before = _sample({"Ethernet": (0, 0)})
+    after = _sample({"Ethernet": (1000, 1000)})
+    res = _measured(monkeypatch, before, after)
+    assert same in res.measurement_boundary
+
+
+def test_in_cloud_una_rete_non_letta_resta_na_fino_all_end_to_end(monkeypatch):
+    """Contatori NIC illeggibili: rete N/A e end-to-end N/A, mai 0,0 J.
+
+    Uno zero al posto di N/A abbasserebbe la somma end-to-end e i J/token della
+    riga, e nessuna colonna direbbe che la rete non e' stata misurata: la riga
+    sembrerebbe una richiesta senza costo di rete invece di una stima mancante.
+    """
+    import types
+
+    import benchmark_unified as bu
+
+    monkeypatch.setattr(NetworkEnergyTracker, "_read", staticmethod(lambda: None))
+    net_res = NetworkEnergyTracker().measure(lambda: "ok")[1]
+    assert net_res.energy_j is None
+
+    ev = types.SimpleNamespace(
+        n_correct_links=None, acc_comp=None, is_correct=None, acc_links_basis="",
+        acc_links=None, judge_score=None, cosine_sim=None)
+    rec = {"output_tokens": 10, "notes": "",
+           "local_carbon_intensity_gco2eq_kwh": 0}
+    bu._finalize_energy_fields(rec, 5.0, net_res.energy_j, 20.0, ev)
+    assert rec["network_energy_j"] == "N/A"
+    assert rec["end_to_end_energy_j"] == "N/A"
+    assert "network_energy_j" in rec["notes"]
+
+
+def test_la_riga_locale_dichiara_rete_zero_per_confine(monkeypatch):
+    """In locale non esiste un percorso di rete: 0,0 J e il confine lo dice.
+
+    Lo zero qui e' la definizione del perimetro (regola 12.1), non una lettura:
+    senza l'etichetta sarebbe indistinguibile da un contatore che ha osservato
+    zero byte in una richiesta cloud.
+    """
+    import types
+
+    import benchmark_unified as bu
+
+    monkeypatch.setattr(
+        bu, "get_carbon_intensity",
+        lambda zone=None: types.SimpleNamespace(
+            gco2eq_per_kwh=267.0, zone="IT", source="test-table", timestamp=0.0))
+    rec = bu._basic_record(
+        "R1", "S1", "llama", "llama", "ollama", "local", None,
+        {"id": "p1", "text": "p", "source": "manual", "ground_truth": "21"},
+        bu.evalres_placeholder())
+    assert rec["network_energy_j"] == 0.0
+    assert rec["network_measurement_boundary"] == "not-applicable (local mode)"
