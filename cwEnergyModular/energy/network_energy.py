@@ -10,10 +10,21 @@ moltiplica i bit per il coefficiente dichiarato in
 Cosa rappresenta il numero: un'intensita' di percorso applicata ai byte
 osservati sul client, non l'energia della NIC del client e non la sola energia
 di trasporto Internet. Il coefficiente (2,7 uJ/bit) e' la stima di modello di
-Baliga et al. (2011) per trasmissione + commutazione verso la rete di un cloud
-pubblico, con la rete di accesso esclusa; i byte, invece, sono system-wide e
-contengono tutto il traffico della macchina nella finestra, compreso quello di
-processi terzi, che non e' separabile e resta nel delta.
+Baliga, Ayre, Hinton e Tucker, "Green Cloud Computing: Balancing Energy in
+Processing, Storage, and Transport", Proc. IEEE 99(1):149-167, 2011,
+DOI 10.1109/JPROC.2010.2060451, eq. (2) p. 7, valore a p. 8, per trasmissione +
+commutazione verso la rete di un cloud pubblico, con la rete di accesso
+esclusa; i byte, invece, sono system-wide e contengono tutto il traffico della
+macchina nella finestra, compreso quello di processi terzi, che non e'
+separabile e resta nel delta.
+
+Il coefficiente si puo' sostituire con ``CW_NET_J_PER_BIT``. In quel caso il
+numero non e' piu' quello dell'articolo: e' un parametro dichiarato
+dell'esperimento, e il confine della riga lo scrive
+(``network_coefficient_provenance``) invece di attribuire a Baliga un valore che
+non e' il suo. Citare la fonte sopra un coefficiente diverso sarebbe una
+citazione inventata sopra un dato, e la riga non e' piu' confrontabile con una
+che usa 2,7 uJ/bit.
 
 Confini da non confondere:
   - byte: contatori del client, system-wide sulle interfacce sommate (per
@@ -27,7 +38,9 @@ Confini da non confondere:
   - l'energia della NIC del client e quella della rete di accesso non sono
     contate da nessuno dei due lati.
 Il campo ``measurement_boundary`` di ogni risultato dichiara il confine
-applicato.
+applicato e la provenienza del coefficiente: con 2,7 uJ/bit cita Baliga et al.
+2011, con un valore imposto da ``CW_NET_J_PER_BIT`` dice che il coefficiente e'
+un parametro e non attribuisce la stima all'articolo.
 
 Selezione delle interfacce (correzione del 2026-10-26). Lo stesso pacchetto,
 sotto VPN, compare due volte: sull'adattatore tunnel e su quello fisico che lo
@@ -70,9 +83,44 @@ from typing import Dict, List, Optional, Tuple
 import psutil
 
 try:
-    from config import NETWORK_ENERGY_COEFFICIENT_J_PER_BIT
+    from config import (
+        NETWORK_ENERGY_COEFFICIENT_DEFAULT_J_PER_BIT,
+        NETWORK_ENERGY_COEFFICIENT_J_PER_BIT,
+    )
 except Exception:  # pragma: no cover
+    NETWORK_ENERGY_COEFFICIENT_DEFAULT_J_PER_BIT = 2.7e-6
     NETWORK_ENERGY_COEFFICIENT_J_PER_BIT = 2.7e-6
+
+
+def network_coefficient_provenance(coefficient: float) -> str:
+    """Provenienza del coefficiente applicato, per il campo di confine.
+
+    Baliga et al. 2011 descrive un valore preciso (2,7 uJ/bit) e un perimetro
+    preciso: attribuirglielo quando la riga usa un altro numero significherebbe
+    citare la fonte sopra un dato che non e' il suo. Con ``CW_NET_J_PER_BIT``
+    diverso dal valore della fonte il confine dichiara il parametro e tace la
+    citazione; con il valore della fonte la porta per esteso, cosi' il lettore
+    sa che cosa contiene il joule che sta leggendo.
+    """
+    try:
+        same = abs(float(coefficient)
+                   - float(NETWORK_ENERGY_COEFFICIENT_DEFAULT_J_PER_BIT)) <= 1e-12
+    except (TypeError, ValueError):
+        same = False
+    if same:
+        return (
+            "source: Baliga et al. 2011 (Proc. IEEE 99(1):149-167, "
+            "DOI 10.1109/JPROC.2010.2060451, eq. 2 p. 7, value p. 8), "
+            "transmission+switching to a public cloud DC, access network "
+            "excluded by the source, servers/storage/processing excluded; "
+            "model estimate, not a measurement"
+        )
+    return (
+        "source: coefficient overridden via CW_NET_J_PER_BIT -- NOT Baliga et "
+        "al. 2011; the path intensity of this row is a declared parameter, not "
+        "the published model estimate, and the row is not comparable with one "
+        "using 2.7e-6 J/bit"
+    )
 
 
 # Nomi che identificano un loopback: non e' rete, non ha percorso ne'
@@ -311,11 +359,9 @@ class NetworkEnergyTracker:
         res.energy_j = round(bits * res.coefficient_j_per_bit, 9)
         res.measurement_boundary = (
             "client NIC byte delta over request window, interfaces "
-            f"[{res.interfaces}] ({scope}) x path intensity for "
-            "transmission+switching to a public cloud DC "
-            f"(coeff {res.coefficient_j_per_bit:.1e} J/bit, Baliga et al. 2011, "
-            "model estimate); access network excluded by the source, "
-            "servers/storage/processing excluded"
+            f"[{res.interfaces}] ({scope}) x path intensity "
+            f"({res.coefficient_j_per_bit:.1e} J/bit); "
+            + network_coefficient_provenance(res.coefficient_j_per_bit)
         )
         if res.total_bytes < 512:
             res.notes.append("traffico quasi nullo nella finestra: possibile proxy/cache")
@@ -341,8 +387,8 @@ class NetworkEnergyTracker:
             )
         res.measurement_boundary = (
             "HTTP payload accounting (request+response bodies) at client socket "
-            "level x path intensity for transmission+switching to a public cloud DC "
-            f"(coeff {res.coefficient_j_per_bit:.1e} J/bit, Baliga et al. 2011, "
-            "model estimate); access network excluded by the source"
+            "level x path intensity "
+            f"({res.coefficient_j_per_bit:.1e} J/bit); "
+            + network_coefficient_provenance(res.coefficient_j_per_bit)
         )
         return res
