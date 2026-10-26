@@ -1,5 +1,5 @@
 ecologits installato: 0.11.1
-registro: 344 modelli, 344 con deployment (tps/ttft iniettati da tracers/utils.py:121-122)
+registro: 344 modelli, 344 con deployment, 157 con `tps` non nullo (tps/ttft iniettati da tracers/utils.py:121-122; senza `tps` la soglia e' la regressione `impacts/llm.py:95`, non n_out/tps+ttft)
 deployment di openai/gpt-4o-mini: {'tps': 33.0, 'ttft': 0.6}
 
 === openai/gpt-4o-mini  output_token_count=32  tps=33.0 ttft=0.6  soglia interna n_out/tps+ttft = 1.5696969697 s ===

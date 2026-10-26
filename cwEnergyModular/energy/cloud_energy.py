@@ -45,6 +45,18 @@ identica da 3,70 s a 120 s (8,929622014584e-06 kWh, +42,881% sul valore a
 0,20 s); soglia 6,6606 s a 200 token identica da 10 s a 120 s
 (1,739049402917e-05 kWh, +40,892%).
 
+SECONDA RETTIFICA, 26-10-2026 (sonda tracciata
+`probe_ecologits_gpu_steps_moe_20261026.py`, sezioni D e F): la frase "TUTTI i 344
+modelli del registro hanno un `deployment`" e' vera, ma non e' il fatto che serviva.
+Il `deployment` esiste su 344 schede; il valore `tps` dentro di esso e' non nullo su
+**157**. Su 187 schede -- fra cui huggingface_hub/meta-llama/Meta-Llama-3.1-70B-
+Instruct, che e' il modello preso come esempio in questo modulo -- `tps` e' nullo, e
+il ramo di produzione torna la regressione `:94-95` con soglia 17,4612 s a 200 token
+(anch'essa rigenerata dalla sonda). L'errore metodologico che la prima stesura
+denunciava -- "la firma dell'API non e' il percorso interno" -- si e' ripresentato
+identico nella seconda: scambiare la PRESENZA di una chiave per la PRESENZA del suo
+valore. Vanno contati i valori, non i campi.
+
 Il valore principale e' la MEDIA del range EcoLogits, con min/max nei campi
 energy_min_j / energy_max_j -- e quel range e'
 `parameter_pue_ignorance_range` (propagazione dei parametri registrati e delle
@@ -198,11 +210,17 @@ def estimate_cloud_energy(
             # nel termine server (impacts/llm.py:100-102, :574). Quindi la porzione
             # di rete e di coda non e' una sovrastima sistematica: sopra
             # l'incrocio il motore usa la propria soglia interna e il tempo
-            # extra viene scartato in silenzio. La soglia di produzione NON e' la
-            # regressione alpha*P+beta*B+gamma, perche' llm_impacts inietta tps e
-            # ttft dalla scheda del modello (tracers/utils.py:121-122; tutti i 344
-            # modelli registrati hanno un deployment) -> gpu_latency = n_out/tps +
-            # ttft (impacts/llm.py:97-99). Verificato eseguendo
+            # extra viene scartato in silenzio. La soglia di produzione NON e' in
+            # generale la regressione alpha*P+beta*B+gamma, perche' llm_impacts inietta
+            # tps e ttft dalla scheda del modello (tracers/utils.py:121-122) ->
+            # gpu_latency = n_out/tps + ttft (impacts/llm.py:97-99). ATTENZIONE,
+            # seconda rettifica 26-10-2026 (probe_ecologits_gpu_steps_moe_20261026.py,
+            # sezione D): il deployment esiste su tutti i 344 modelli ma `tps` e' non
+            # nullo solo su 157, quindi su 187 schede (fra cui il 70B) il ramo vivo e'
+            # la regressione :94-95. La nota pubblicata qui sotto cita la forma
+            # n_out/tps + ttft: e' la forma del ramo usato negli esperimenti condotti
+            # su gpt-4o-mini, non una proprieta' di tutte le schede.
+            # Verificato eseguendo
             # probe_ecologits_clamp_20261026.py: identica all'ultima cifra da
             # 1,57 s a 120 s a 32 token, da 3,70 s a 120 s a 100 token, da 10 s a
             # 120 s a 200 token su openai/gpt-4o-mini. Il testo della nota e'
