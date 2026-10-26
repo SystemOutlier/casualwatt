@@ -244,13 +244,20 @@ def _ollama_infer_only(model: str, prompt: str, temperature: float,
 
 
 def query_cloud(provider_cfg: Dict, model: str, prompt: str, temperature: float,
-                timeout_s: float, max_tokens: int = 160):
+                timeout_s: float, max_tokens: int = 160,
+                estimator: Optional[CloudEnergyEstimator] = None):
     """POST chat/completions OpenAI-compatible.
 
     Ritorna (response_data, cloud_result, network_result) come da sezione 9.
+
+    ``estimator`` e' l'istanza del runner, cosi' la cache delle stime resta viva
+    per tutta la sessione: creandone una nuova a ogni richiesta la cache partiva
+    sempre vuota, e lo stesso motore ricalcolava dallo stesso ingresso. Se non
+    arriva (chiamate di prova), se ne crea una locale.
     """
     net = NetworkEnergyTracker()
-    estimator = CloudEnergyEstimator()
+    if estimator is None:
+        estimator = CloudEnergyEstimator()
 
     def _do_request():
         import json as _json
@@ -1057,7 +1064,8 @@ def run_unified_benchmark(
                 t_wall0 = time.time()
                 try:
                     resp_data, cloud_res, net_res = query_cloud(
-                        pcfg, model, pr["text"], temperature, timeout_s
+                        pcfg, model, pr["text"], temperature, timeout_s,
+                        estimator=cloud_estimator,
                     )
                     evalres = evaluate_response(
                         resp_data["text"], is_tool=bool(resp_data.get("tool_calls")),
