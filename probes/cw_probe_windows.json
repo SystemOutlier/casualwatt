@@ -1,0 +1,53 @@
+{
+  "python": "3.14.5",
+  "os": "Windows",
+  "release": "11",
+  "machine": "AMD64",
+  "colab": false,
+  "cpu_virt": {
+    "cpu": "Intel64 Family 6 Model 186 Stepping 2, GenuineIntel",
+    "manufacturer": "GEEKOM",
+    "model": "Mini IT13",
+    "hypervisor_present": true,
+    "vm_by_model_string": false,
+    "note": "hypervisor_present e' True anche su PC fisici con Hyper-V/WSL2: non indica una VM da solo"
+  },
+  "emi": {
+    "applicable": true,
+    "available": true,
+    "devices": 1,
+    "channels": [
+      "RAPL_Package0_PKG",
+      "RAPL_Package0_DRAM",
+      "RAPL_Package0_PP0",
+      "RAPL_Package0_PP1"
+    ],
+    "power_w_by_channel": {
+      "RAPL_Package0_PKG": 13.018,
+      "RAPL_Package0_DRAM": 0.0,
+      "RAPL_Package0_PP0": 7.576,
+      "RAPL_Package0_PP1": 0.171
+    },
+    "monotonic": true
+  },
+  "rapl": {
+    "applicable": false
+  },
+  "nvml": {
+    "available": false,
+    "error": "NVMLError_LibraryNotFound: NVML Shared Library Not Found"
+  },
+  "amd_gpu": {
+    "available": null,
+    "note": "amdsmi non installato (normale se non c'e' GPU AMD)"
+  },
+  "mac": {
+    "applicable": false
+  },
+  "ollama": {
+    "host": "http://0.0.0.0",
+    "is_local": true,
+    "version": null,
+    "reachable": false
+  }
+}
