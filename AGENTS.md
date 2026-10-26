@@ -6,7 +6,9 @@ il codice di produzione, i dati sperimentali e una tesi di laurea; le regole qui
 sotto esistono perche' ognuna di esse corrisponde a un errore gia' commesso o a
 una decisione gia' presa e documentata.
 
-I numeri e gli ancoraggi di questo file sono verificati al **24-10-2026**. Se un
+I numeri e gli ancoraggi di questo file sono verificati al **24-10-2026**; i tre
+conteggi (suite di test, script `.py` di radice, file di `experiment_results/`) sono
+riverificati al **26-10-2026** perche' erano stantii. Se un
 ancoraggio non torna, il file e' stantio: va corretto, non ignorato.
 
 Fonti primarie, in ordine di autorita':
@@ -142,7 +144,7 @@ stanno solo le regole che un agente puo' violare senza accorgersene.
 ## Comandi di verifica
 
 ```
-pytest cwEnergyModular          # 368 raccolti: 365 passati, 3 saltati (9,2 s)
+pytest cwEnergyModular          # 385 raccolti: 382 passati, 3 saltati (8,7 s)
 ```
 
 **Mai `pytest` nudo dalla radice**: la raccolta viene interrotta da 6 errori in
@@ -171,15 +173,20 @@ indefiniti.
   EMI via ctypes/SetupAPI), `energy/energy_session.py` (canali, integrazione di
   finestra, interpolazione ai bordi), `energy/local_energy.py` (campi per riga),
   `casualwatt_csv_export.py` (`CSV_COLUMNS`, righe 17-169).
-- **I test stanno in due posti**: `cwEnergyModular/tests/` (309) e direttamente in
+- **I test stanno in due posti**: `cwEnergyModular/tests/` (326) e direttamente in
   `cwEnergyModular/` (`test_answer_type_evaluation.py`, 35;
   `test_synthetic_window.py`, 2; `test_validazione_valutazione.py`, 22);
-  309 + 59 = 368. Ogni test ha una docstring che
+  326 + 59 = 385. Ogni test ha una docstring che
   dice *perche'* esiste e quale relazione matematica o fisica verifica, non solo
   cosa fa.
   L'Appendice D della tesi li elenca con provenienza: con la suite ora a 294 voci
-  va rigenerata con `cwEnergyModular/tools/dump_tests_latex.py`.
-- **Alla radice del repo stanno 23 script `.py` tracciati**: sono gli harness
+  va rigenerata con `cwEnergyModular/tools/dump_tests_latex.py` (rinvio dichiarato
+  al freeze di P5, insieme alle altre righe non committate). I 17 test di
+  `tests/test_protocollo_p4_geometry.py` (2026-10-26, quinto turno di revisione
+  esterna) congelano la geometria di copertura di P4.7 e la scala di `budget_pred`
+  di P4.6 senza hardware né dati: sono i test da eseguire quando qualcuno propone
+  di cambiare i vertici dell'inviluppo o la formula del budget.
+- **Alla radice del repo stanno 35 script `.py` tracciati**: sono gli harness
   degli esperimenti (`emi_50ms_probe.py`, `emi_resolution_check.py`,
   `four_way_test.py`, `srum.py`, `srum_emi_cross.py`, `observer_cost_probe.py`,
   `idle_floor_sensitivity.py`, `four_way_pi_audit.py`, ...). Questa e' la
@@ -189,7 +196,8 @@ indefiniti.
   `.gitignore`.
 - `cwEnergyModular/tools/` — 6 file tracciati: i generatori del materiale LaTeX
   (Appendici A, D, E), l'analisi di cadenza EMI, la validazione HWiNFO.
-- `experiment_results/` — dati sperimentali e analisi, tracciati (103 file). I
+- `experiment_results/` — dati sperimentali e analisi, tracciati (201 file: 200 in
+  radice, 1 in `codecarbon_four_way/`). I
   protocolli congelati stanno qui. Un artefatto nuovo entra con il proprio commit
   e con la propria analisi.
 - `cpuepower/`, `cpuepower2/` — toolkit sottoposto ad audit: i suoi numeri erano
