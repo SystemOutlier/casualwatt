@@ -1,0 +1,140 @@
+ecologits 0.11.1  --  C:\Users\Massimo\AppData\Local\Python\pythoncore-3.14-64\Lib\site-packages\ecologits\impacts\llm.py
+
+=== A. ancoraggi di sorgente (citati dal documento -> riga effettiva) ===
+  MODEL_QUANTIZATION_BITS  :8    effettiva :8    OK
+  GPU_MEMORY               :18   effettiva :18   OK
+  model_required_memory    :120  effettiva :120  OK
+  gpu_required_count       :139  effettiva :139  OK
+  f_E (gpu_energy)         :59   effettiva :59   OK
+  server_energy            :163  effettiva :163  OK
+  request_it_energy        :201  effettiva :201  OK
+  request_energy           :181  effettiva :181  OK
+  clamp di latenza         :100  effettiva :100  OK
+  ramo MoE in tracers      :89   effettiva :89   OK
+  attivo=total per i non-ParametersMoE :94   effettiva :94   OK
+
+=== B. costanti (nomi del modulo, non valori ritrascritti) ===
+  MODEL_QUANTIZATION_BITS  = 16
+  GPU_ENERGY_ALPHA         = 1.1665273170451914e-06
+  GPU_ENERGY_BETA          = -0.011205921025579175
+  GPU_ENERGY_GAMMA         = 4.052928146734005e-05
+  LATENCY_ALPHA            = 0.0006785088094353663
+  LATENCY_BETA             = 0.0003119310311688259
+  LATENCY_GAMMA            = 0.019473717579473387
+  GPU_MEMORY               = 80
+  SERVER_GPUS              = 8
+  SERVER_POWER             = 1.2
+  BATCH_SIZE               = 64
+
+=== C. gradino gpu_required_count(P_total, bits) ===
+   P_total   16b GB     /80   n      8b GB     /80   n   gradino atteso dal documento
+     12.90    30.96   0.387   1      15.48   0.194   1   OK
+     25.00    60.00   0.750   1      30.00   0.375   1   -
+     46.70   112.08   1.401   2      56.04   0.701   1   OK
+     70.55   169.32   2.116   4      84.66   1.058   2   OK
+    123.00   295.20   3.690   4     147.60   1.845   2   OK
+    218.00   523.20   6.540   8     261.60   3.270   4   OK
+    405.00   972.00  12.150  16     486.00   6.075   8   OK
+  Nota: `model_required_memory` usa i parametri TOTALI e i bit, `f_E` usa i TOTALI per
+  la memoria e gli ATTIVI per l'energia: due scale diverse nello stesso numero.
+
+=== D. registro (data/models.json) ===
+  modelli: 344   con `deployment`: 344   con `tps` non nullo: 157
+  MoE nel registro: 87, lette dal parser come: ParametersMoE=86, int=1
+  chiave `active_parameters` presente in 1 schede: cohere/command-a-plus-05-2026
+     ancoraggio nome della scheda     : documento dice :136, file dice :136 OK
+     ancoraggio chiave active_parameters: documento dice :140, file dice :140 OK
+     ancoraggio primo URL di fonte    : documento dice :146, file dice :146 OK
+  openai/gpt-4o-mini
+     json={"type": "dense", "parameters": {"min": 8, "max": 28}}  deployment={'tps': 33.0, 'ttft': 0.6}
+     parser: parameters=RangeValue -> active usato = 18.0 [8 - 28]
+  huggingface_hub/meta-llama/Meta-Llama-3.1-70B-Instruct
+     json={"type": "dense", "parameters": 70.55}  deployment={'tps': None, 'ttft': None}
+     parser: parameters=float -> active usato = 70.55
+  cohere/command-a-plus-05-2026
+     json={"type": "moe", "parameters": 218, "active_parameters": 25}  deployment={'tps': 26.8, 'ttft': 0.59}
+     parser: parameters=int -> active usato = 218
+  huggingface_hub/mistralai/Mixtral-8x7B-v0.1
+     json={"type": "moe", "parameters": {"total": 46.7, "active": 12.9}}  deployment={'tps': None, 'ttft': None}
+     parser: parameters=ParametersMoE -> active usato = 12.9
+
+=== E. f_E(P_active, B=64) e il fattore MoE sul termine per token ===
+  f_E(25)   = 5.476463e-05 Wh/token   (libreria 5.476463e-05, scarto 0.000e+00)
+  f_E(218)  = 1.646615e-04 Wh/token   (libreria 1.646615e-04, scarto 0.000e+00)
+  fattore   = 3.0067   (218/25 = 8.72 sarebbe l'attesa di chi ignora l'offset gamma)
+
+=== F. correzione 1 sul 70B: manca il moltiplicatore gpus_required (n_out=200, lat=2.0 s, 16 bit) ===
+  gpu_required_count = 4 (memoria 169.32 GB / 80 = 2.116 -> 2^ceil(log2(3)) = 4)   generation_latency = 2.0 s
+  E_server = 5.208333333333333e-06 kWh   E_gpu(1 GPU) = 1.614028624007385e-05 kWh
+  codice    : PUE * (E_server + 4 * E_gpu) = 7.604873134005532e-05 kWh
+  proposta  : PUE * (E_server + E_gpu)         = 2.326999533501383e-05 kWh
+  fattore    = 3.2681   (documento: 3,268)
+  quale ramo della soglia gira su QUESTA scheda: deployment={'tps': None, 'ttft': None} -> `tps` = None
+     con `tps` nullo il ramo e' la regressione `impacts/llm.py:95` alpha*P_active+beta*B+gamma = 0.0873061 s/token (non 1/tps)
+     soglia a n_out=200: 17.4612 s   (documento: 17,4612 s)  |  request_latency=2.0 s -> min = 2.0 s: vince la misura, la rete NON viene scartata
+  llm_impacts reale: energy.min = 7.604873134005532e-05  energy.max = 7.953720525473674e-05 kWh   (il max viene dal PUE a range 1,09-1,14 di huggingface_hub)
+  ricostruzione vs llm_impacts.min: scarto relativo 0.000e+00
+
+=== G. griglia MoE 218B/25B (n_out=200, lat=2.0 s, tps/ttft dalla scheda command-a) ===
+  A  denso 25B (proxy scelto per parametri attivi), 16 bit
+      mem=  60.00 GB  gpus=1  gen_latency=2.0 s  E_gpu=1.095293e-05  E_server=1.302083e-06  E_it=1.225501e-05 kWh
+  B  MoE governato: active 25 / total 218, 16 bit
+      mem= 523.20 GB  gpus=8  gen_latency=2.0 s  E_gpu=1.095293e-05  E_server=1.041667e-05  E_it=9.804007e-05 kWh
+  C  MoE spacciato per denso: active 218 / total 218, 16 bit
+      mem= 523.20 GB  gpus=8  gen_latency=2.0 s  E_gpu=3.293230e-05  E_server=1.041667e-05  E_it=2.738751e-04 kWh
+  D  active 218 / total 218, 8 bit
+      mem= 261.60 GB  gpus=4  gen_latency=2.0 s  E_gpu=3.293230e-05  E_server=5.208333e-06  E_it=1.369375e-04 kWh
+  rapporti su `request_it_energy`:
+     C/A = 22.3480   etichetta MoE sbagliata + gradino, entrambi a 16 bit
+     D/A = 11.1740   <== qui esce il numero 11,17 citato nel documento: 8 bit contro 16 bit
+     C/B =  2.7935   SOLA etichetta MoE (stessi totali, quindi stessi gradini)
+     B/A =  8.0000   SOLO il gradino 25B -> 218B
+  llm_impacts reale su command-a-plus-05-2026 = 2.985238380999223e-04 kWh (banda: (0.00029852383809992234, 0.00029852383809992234, 0.00029852383809992234))
+     vs PUE(1.09) * E_it(A) = 1.335795987776356e-05  scarto relativo 21.348011
+     vs PUE(1.09) * E_it(B) = 1.068636790221085e-04  scarto relativo 1.793501
+     vs PUE(1.09) * E_it(C) = 2.985238380999223e-04  scarto relativo 0.000000   <== IL MOTORE E' IN QUESTA BRANA
+     vs PUE(1.09) * E_it(D) = 1.492619190499612e-04  scarto relativo 1.000000
+
+=== H. audit dei claim di `experiment_results/metodo_analitico_cloud_20261026.md` ===
+  gpt-4o-mini 100 tok 1,0 s bordo min (P=8B)           doc=    6,191401e-06  rigenerato=    6.191401e-06  dev=1.74e-08  OK
+  gpt-4o-mini 100 tok 1,0 s bordo max (P=28B)          doc=    7,557994e-06  rigenerato=    7.557994e-06  dev=5.78e-08  OK
+  Llama-3.1-70B 200 tok 2,0 s energy.min               doc=  7,60487313e-05  rigenerato=    7.604873e-05  dev=5.27e-10  OK
+  memoria 70,55B a 16 bit (1,2*70,55*16/8)             doc=           169,3  rigenerato=    1.693200e+02  dev=1.18e-04  OK
+  gpu_required 70,55B                                  doc=               4  rigenerato=               4  dev=0.00e+00  OK
+  formula della proposta sul 70B                       doc=       2,327e-05  rigenerato=    2.327000e-05  dev=2.00e-07  OK
+  fattore 70B (codice/proposta)                        doc=           3,268  rigenerato=    3.268103e+00  dev=3.14e-05  OK
+  gpu_required 12,9B -> 1                              doc=               1  rigenerato=               1  dev=0.00e+00  OK
+  gpu_required 46,7B -> 2                              doc=               2  rigenerato=               2  dev=0.00e+00  OK
+  gpu_required 123B -> 4                               doc=               4  rigenerato=               4  dev=0.00e+00  OK
+  gpu_required 405B -> 16                              doc=              16  rigenerato=              16  dev=0.00e+00  OK
+  f_E(25) Wh/token                                     doc=    5,476463e-05  rigenerato=    5.476463e-05  dev=2.48e-08  OK
+  f_E(218) Wh/token                                    doc=    1,646615e-04  rigenerato=    1.646615e-04  dev=5.37e-08  OK
+  fattore MoE per token                                doc=          3,0067  rigenerato=    3.006713e+00  dev=4.25e-06  OK
+  memoria 218B a 16 bit                                doc=           523,2  rigenerato=    5.232000e+02  dev=2.22e-16  OK
+  gpu_required 218B a 16 bit (da 1 a 8)                doc=               8  rigenerato=               8  dev=0.00e+00  OK
+  E_it brana denso-25B (A)                             doc=    1,225501e-05  rigenerato=    1.225501e-05  dev=7.65e-08  OK
+  E_it brana citata come 1,369375e-04                  doc=    1,369375e-04  rigenerato=    1.369375e-04  dev=2.95e-07  OK
+  ATTESO DALLA RETTIFICA: etichetta MoE a parita' di scheda (C/B) doc=          2,7935  rigenerato=    2.793501e+00  dev=5.05e-07  OK
+  ATTESO DALLA RETTIFICA: solo gradino GPU (B/A)       doc=          8,0000  rigenerato=    8.000000e+00  dev=0.00e+00  OK
+  ATTESO DALLA RETTIFICA: etichetta + gradino (C/A, 16 bit) doc=          22,348  rigenerato=    2.234801e+01  dev=5.05e-07  OK
+  ATTESO DALLA RETTIFICA: soglia a regressione sul 70B, n_out=200 doc=         17,4612  rigenerato=    1.746122e+01  dev=1.15e-06  OK
+  ATTESO DALLA RETTIFICA: schede del registro con `tps` non nullo doc=             157  rigenerato=             157  dev=0.00e+00  OK
+  ATTESO DALLA RETTIFICA: MoE gia' dichiarati total+active (ParametersMoE) doc=              86  rigenerato=              86  dev=0.00e+00  OK
+  origine del «11,17» scritto nel documento (D/A, 8 bit vs 16 bit) doc=           11,17  rigenerato=    1.117401e+01  dev=3.59e-04  OK
+  righe rigenerate: 25/25
+
+=== Lettura ===
+I gradini sono 2^ceil(log2(ceil(mem/GPU_MEMORY))) e la memoria dipende dai
+parametri TOTALI e dai bit; l'energia per token dipende dai parametri ATTIVI.
+Sono due scale diverse dentro lo stesso numero, e nessuna delle due e'
+continua nella classe di modello: un proxy scelto per la classe da 25B vale
+1 GPU, lo stesso modello dichiarato a 218B ne vale 8 (fattore esatto 8,0).
+L'etichetta MoE sbagliata, a parita' di scheda, e' un fattore 2,79 sull'IT
+(3,01 sul solo termine per token, perche' l'offset gamma ammortizza).
+
+RETTIFICHE (3) -- gia' applicate il 26-10 in `metodo_analitico_cloud_20261026.md` (§2.3, regola 1 di N_active e riga del campo `cloud_moe_active_assumption`) e in `metodi_per_dominio_20261025_spec.md`; la sonda le ri-emette perche' restino rigenerabili dal loro artefatto:
+  * il deployment esiste su 344 modelli ma `tps` e' nullo su 187: per quei modelli la soglia della latenza NON e' n_out/tps+ttft, bensi' la regressione alpha*P+beta*B+gamma (ramo `impacts/llm.py:94-95`)
+  * la premessa «i MoE sono il caso in cui il registro tace» non regge: 87 schede MoE, di cui 86 dichiarano gia' total+active nell'oggetto `parameters` e il parser le converte in ParametersMoE (Mixtral-8x7B: total 46,7, active 12,9). Il caso reale non e' «il registro tace», e' il formato della scheda: la chiave legacy `active_parameters` -- che il parser non legge -- sta in 1 scheda, ed e' proprio quella che collassa
+  * cohere/command-a-plus-05-2026 (218): `parameters` scalare + `active_parameters` fratello -> il parser lo consegna come int, il ramo MoE di `tracers/utils.py:89-94` non scatta e l'attivo collassa sul totale
+
+Ogni ricostruzione coincide con il motore: 0 fallimenti interni.
