@@ -23,7 +23,10 @@ Che cosa verifica: la forma del node id (con/senza parametro, vuoto o no, in
 classe o no) e il fatto che, per il case reale, la chiave di indice trovi la
 docstring nell'AST. Verifica anche che un'etichetta parametrizzata lunga e
 col trattino (``librehardwaremonitor-energy``) riceva un punto di capo: senza,
-la cella non si spezza e il file generato va in overfull nel PDF.
+la cella non si spezza e il file generato va in overfull nel PDF. Dal 26/10
+verifica pure il parametro con SPAZIO, che il 24/10 era ancora invisibile perche'
+nessun test era parametrizzato con stringhe contenenti spazi: ``raccogli``
+spezzava l'id al primo spazio e ``esegui`` non lo matchava.
 
 Che cosa NON verifica: che la tabella LaTeX generata sia impaginata bene --
 il test qui sotto prova che i punti di capo \\emph{esistono}, non che la colonna
@@ -79,6 +82,94 @@ def test_classe_riconosciuta_anche_con_parametro_composito():
     """'TestClasse::test_x[a::b]': classe estratta, parametro intero conservato."""
     nid = "tests/y.py::TestClasse::test_x[a::b]"
     assert gen.nome_e_parametri(nid) == ("tests/y.py", "TestClasse", "test_x", "a::b")
+
+
+# ------------------------------------------------------- parametro con SPAZIO
+# 26/10, lo stesso difetto di forma visto il 24/10 col parametro vuoto, ma
+# dall'altra parte del pipeline. `@pytest.mark.parametrize` usa la stringa del
+# parametro come id tale e quale (gli unici caratteri sostituiti sono quelli non
+# stampabili): un id come 'righe0-3-2 durate su 3' arriva reale nella raccolta e
+# nella riga di `pytest -v`. Il generatore lo suppose privo di spazi in due
+# punti -- `ln.split(" ")[0]` in `raccogli` e `^(\S+::\S+)\s+(PASSED...)` in
+# `esegui` -- e in entrambi il node id si troncava al primo spazio. Non e' un
+# errore rumoroso: nel primo caso la riga perdeva la docstring e finiva nel
+# verbale come 'nessuna docstring' (copertura dichiarata piu' bassa di quella
+# vera); nel secondo perdeva l'esito e si stampava '\textbf{n/eseguito}' per un
+# test passato. Preso dal guard sull'AST al primo run dei test di baseline del
+# 26/10, non da una lettura del file generato.
+# I due parametric test qui sotto usano id ESPliciti e corti, non quelli di
+# pytest. Un parametro stringa lungo finisce node-id per intero (e' il difetto
+# che questo file esiste per intercettare): con le riga-di-output come id la
+# prima colonna dell'Appendice D prende un frammento inseguibile da 72 caratteri
+# e il guard `test_il_frammento_piu_lunguo_del_verbale_sta_in_un_segmento` cade,
+# come e' caduto il 26/10 alla prima esecuzione di questi test.
+@pytest.mark.parametrize("riga,atteso", [
+    # righe catturate verbatim da `pytest -v` il 26/10
+    pytest.param(
+        "tests/test_baseline_ordine_v4.py::"
+        "test_block_mean_lascia_vuoto_quando_non_e_calcolabile"
+        "[righe0-3-2 durate su 3] PASSED [ 15%]",
+        ("tests/test_baseline_ordine_v4.py::"
+         "test_block_mean_lascia_vuoto_quando_non_e_calcolabile"
+         "[righe0-3-2 durate su 3]", "PASSED"),
+        id="spazio-nel-parametro"),
+    pytest.param(
+        "tests/test_judge_edge_capture.py::"
+        "test_i_rifiuti_del_bordo_hanno_ciascuno_la_loro_ragione"
+        "[call2-nessun \\u0394t] PASSED [ 64%]",
+        ("tests/test_judge_edge_capture.py::"
+         "test_i_rifiuti_del_bordo_hanno_ciascuno_la_loro_ragione"
+         "[call2-nessun \\u0394t]", "PASSED"),
+        id="unicode-escapato"),
+    # lo stesso formato senza spazio deve continuare a matchare
+    pytest.param(
+        "tests/test_x.py::test_param[emi-counter] SKIPPED [ 22%]",
+        ("tests/test_x.py::test_param[emi-counter]", "SKIPPED"),
+        id="senza-spazio"),
+])
+def test_la_riga_di_esecuzione_con_spazio_porta_l_esito_al_node_id_intero(riga, atteso):
+    """Il pattern a quantificatore pigro regge gli spazi nel parametro: id intero ed esito giusto."""
+    m = gen._RIGA_ESITO.match(riga)
+    assert m is not None, riga
+    assert (m.group(1), m.group(2)) == atteso
+
+
+def test_la_riga_riassuntiva_dei_salti_non_diventa_un_esito():
+    """'SKIPPED [3] tests\\test_rapl.py:43: motivo' non ha '::': non puo' generare una riga di tabella."""
+    assert gen._RIGA_ESITO.match(
+        "SKIPPED [3] tests\\test_rapl.py:43: RAPL non disponibile su questo host"
+    ) is None
+
+
+@pytest.mark.parametrize("riga,vero", [
+    pytest.param("tests/test_x.py::test_med[righe0-3-2 durate su 3]", True,
+                 id="id-con-spazio"),
+    pytest.param("tests/test_x.py::test_med[call0-contatore assente]", True,
+                 id="altre-due-parole"),
+    pytest.param("tests/test_x.py::test_semplice", True, id="senza-parametro"),
+    pytest.param("282 tests collected in 0.38s", False, id="coda-del-conto"),
+    pytest.param("= short test summary info =" * 3, False, id="testata-di-sezione"),
+    pytest.param("", False, id="riga-vuota"),
+])
+def test_la_selezione_della_raccolta_prende_le_righe_con_spazio(riga, vero):
+    """Un node id con spazi e' una riga di tabella; la coda del conto e le intestazioni no."""
+    assert gen._riga_di_raccolta(riga) is vero
+
+
+def test_il_parametro_con_spazio_arriva_intero_al_parser():
+    """Nome e parametro separati anche quando il parametro contiene spazi: il nome non deve portarsi le quadre."""
+    nid = "tests/test_x.py::test_med[righe0-3-2 durate su 3]"
+    percorso, classe, fname, param = gen.nome_e_parametri(nid)
+    assert percorso == "tests/test_x.py"
+    assert classe == ""
+    assert fname == "test_med"
+    assert param == "righe0-3-2 durate su 3"
+
+
+def test_spazio_nel_parametro_non_e_troncato_dalla_raccolta_reale():
+    """Sulla raccolta vera: nessun node id perde la quadra di chiusura."""
+    for nid in gen.raccogli(["--collect-only", "-q"]):
+        assert "[" not in nid or nid.endswith("]"), nid
 
 
 @pytest.mark.parametrize("testo,n_parti", [

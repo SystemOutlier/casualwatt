@@ -204,6 +204,26 @@ def docstring_da_ast(percorso: str) -> tuple:
     return (ast.get_docstring(tree) or "").strip(), out
 
 
+def _riga_di_raccolta(riga: str) -> bool:
+    """True se una riga di `pytest --collect-only -q` e' un node id.
+
+    Estratta dal ciclo di ``raccogli`` per poterla verificare senza lanciare
+    un processo e senza rieseguire la suite: e' il punto dove il generatore
+    decide quali righe diventano righe di tabella, e un falso negativo li' e'
+    una voce persa dall'Appendice D senza nessun errore.
+    """
+    return "::" in riga and not riga.startswith("=")
+
+
+# La riga di ``pytest -v`` e' "<node id> <ESITO> [ nn%]". Il node id e' pigro
+# (``.+?``) perche' puo' contenere spazi -- un param stringa tipo
+# "test_x[righe0-3-2 durate su 3]" -- e il primo token di stato dopo uno spazio
+# e' l'esito. Con ``(\S+::\S+)`` (fino al 26/10) la riga non matchava e il test
+# risultava "n/eseguito" pur essendo passato.
+_RIGA_ESITO = re.compile(
+    r"^(.+?::.+?)\s+(PASSED|FAILED|SKIPPED|XFAIL|XPASS|ERROR)\b")
+
+
 def raccogli(pytest_args: list) -> list:
     """Node id raccolti da `pytest --collect-only -q` (vuoti se la raccolta fallisce)."""
     # stdin=DEVNULL: su Windows il figlio eredita il pipe dello stdin del
@@ -217,8 +237,20 @@ def raccogli(pytest_args: list) -> list:
     righe = []
     for ln in (proc.stdout or "").splitlines():
         ln = ln.strip()
-        if "::" in ln and not ln.startswith("="):
-            righe.append(ln.split(" ")[0])
+        # IL NODE ID E' LA RIGA INTERA: `--collect-only -q` stampa un id per
+        # riga e nient'altro (la coda e' "N tests collected in ...", che non
+        # contiene "::"). Fino al 26/10 qui c'era un `.split(" ")[0]`, che
+        # suppose l'id privo di spazi: un param stringa con spazi lo produce
+        # davvero -- case reale, i parametri di una media di blocco,
+        # "test_x[righe0-3-2 durate su 3]" -- e il nome troncato al primo spazio
+        # non esiste in nessun AST. L'effetto non era un errore rumoroso: la
+        # riga usciva dalla tabella con la docstring perduta ("nessuna
+        # docstring") e con l'esito vuoto ("\textbf{n/eseguito}"), e l'header
+        # dichiarava una copertura piu' bassa di quella reale. Il guard
+        # tests/test_dump_node_id.py::test_tutti_i_node_id_raccolti_hanno_un_nome_trovabile_nell_ast
+        # lo ha preso al primo run dei test del 26/10.
+        if _riga_di_raccolta(ln):
+            righe.append(ln)
     return righe
 
 
@@ -234,7 +266,7 @@ def esegui(pytest_args: list) -> tuple[dict, dict, str]:
                           capture_output=True, text=True, encoding="utf-8")
     esiti, motivi = {}, {}
     for ln in (proc.stdout or "").splitlines():
-        m = re.match(r"^(\S+::\S+)\s+(PASSED|FAILED|SKIPPED|XFAIL|XPASS|ERROR)", ln.strip())
+        m = _RIGA_ESITO.match(ln.strip())
         if m:
             esiti[m.group(1)] = m.group(2)
         m2 = re.match(r"^SKIPPED \[\d+\] (\S+): (.*)$", ln.strip())
