@@ -98,8 +98,8 @@ stanno solo le regole che un agente puo' violare senza accorgersene.
   di stima TDP**: quello e' il percorso di CodeCarbon, usato nella tesi come
   contrasto. Non inventare un canale `estimated`.
 - **Nessun doppio conteggio.** PP0 e PP1 sono sottoinsiemi di PKG: non sommare
-  `PKG+PP0+PP1` e non sommare `PKG+DRAM` (`energy/emi_backend.py:29`, `:272`;
-  `DOMAIN_NAMES = ("pkg", "dram", "pp0", "pp1")` a `:73`). PP1 alimenta
+  `PKG+PP0+PP1` e non sommare `PKG+DRAM` (`energy/emi_backend.py:32-34`, `:580`;
+  `DOMAIN_NAMES = ("pkg", "dram", "pp0", "pp1")` a `:116`). PP1 alimenta
   `igpu_energy_j`, informativo.
 - **Baseline = mediana, non media.**
   `baseline_pre_w = mediana(P_rep,1..3)` su tre finestre da 30 s (P1.3). Con
@@ -156,7 +156,7 @@ stanno solo le regole che un agente puo' violare senza accorgersene.
 ## Comandi di verifica
 
 ```
-pytest cwEnergyModular          # 413 raccolti: 410 passati, 3 saltati (9 s)
+pytest cwEnergyModular          # 429 raccolti: 426 passati, 3 saltati (11 s)
 ```
 
 **Mai `pytest` nudo dalla radice**: la raccolta viene interrotta da 6 errori in
@@ -182,19 +182,22 @@ indefiniti.
 ## Struttura dei file
 
 - `cwEnergyModular/` — codice di produzione. `energy/emi_backend.py` (contatore
-  EMI via ctypes/SetupAPI), `energy/energy_session.py` (canali, integrazione di
+  EMI via ctypes/SetupAPI, con selezione del device CPU e del canale PKG dal
+  metadato), `energy/energy_session.py` (canali, integrazione di
   finestra, interpolazione ai bordi), `energy/local_energy.py` (campi per riga),
   `casualwatt_csv_export.py` (`CSV_COLUMNS`, righe 17-182;
   `BLOCK_SUMMARY_COLUMNS`, 189-204; `POINT_SUMMARY_COLUMNS`, 206-215), e il
   runner v4 `benchmark_v4.py` (sequenza di blocco di P1.5).
-- **I test stanno in due posti**: `cwEnergyModular/tests/` (354) e direttamente in
+- **I test stanno in due posti**: `cwEnergyModular/tests/` (370) e direttamente in
   `cwEnergyModular/` (`test_answer_type_evaluation.py`, 35;
   `test_synthetic_window.py`, 2; `test_validazione_valutazione.py`, 22);
-  354 + 59 = 413. Ogni test ha una docstring che
+  370 + 59 = 429. Ogni test ha una docstring che
   dice *perche'* esiste e quale relazione matematica o fisica verifica, non solo
   cosa fa. Dal 27-10-2026 la cartella contiene anche `tests/test_rapl_zone.py`
-  (8, logica RAPL su un finto sysfs) e `tests/test_diagnostics_pmi.py` (7,
-  sonda PMI/WMI): girano su Windows, senza host Linux.
+  (8, logica RAPL su un finto sysfs), `tests/test_diagnostics_pmi.py` (7,
+  sonda PMI/WMI) e `tests/test_emi_selezione.py` (16, metadati EMI sintetici:
+  metadato V2, scelta del device CPU, canale PKG per nome, V1 scartato): girano
+  su Windows, senza host Linux.
   L'Appendice D della tesi e' stata rigenerata il 2026-10-26 con
   `cwEnergyModular/tools/dump_tests_latex.py`: 404 node id, 401 passati, 3
   saltati, docstring 404/404. Quel materiale precede l'uscita di LHM
