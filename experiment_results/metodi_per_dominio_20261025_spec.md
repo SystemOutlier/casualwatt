@@ -1,12 +1,15 @@
-# Metodi per dominio e catene di fallback — specifica operativa, 2026-10-25 (rev. 27/10)
+# Metodi per dominio e catene di fallback — specifica operativa, 2026-10-25 (rev. 28/10)
 
 Questo documento definisce, per ogni combinazione di sistema operativo,
 produttore e dominio fisico, il metodo primario, i fallback successivi,
-l'etichetta che ogni livello deve portare e lo stato di evidenza al 27/10/2026.
+l'etichetta che ogni livello deve portare e lo stato di evidenza al 28/10/2026.
 La revisione del 27/10 aggiunge §4.2, che rilegge otto documenti esterni contro
 il codice e produce la matrice dei backend e dei fallback: le regole non
 cambiano, cambiano le righe, che dichiarano anche i livelli [P] e i percorsi
 rifiutati.
+La revisione del 28/10 aggiunge la catena GPU — NVML `energy` con ripiego
+sull'integrale della potenza, poi AMD SMI come fallback dichiarato — e le tre
+colonne per token in coda al CSV.
 Nasce dalla valutazione di `metodiLoc.DOCX`
 (`metodi_loc_20261025_valutazione.md`) e la completa: la valutazione dice cosa
 del documento esterno non si adotta, questa specifica dice cosa si usa, in che
@@ -25,6 +28,13 @@ ordine e con quale nome.
 combinazione dice quanto il numero sia vicino alla grandezza vera: quello lo
 dice solo G4 con i sei anelli di P4.9. "Implementato" non significa
 "esercitato"; "esercitato" non significa "validato".
+
+La differenza fra `[I]` e `[P]` e' la presenza del codice, non quella della
+prova: un percorso che il codice ha e che questo host non permette di
+esercitare si scrive `[I]` con `[V] da fare` — la catena GPU NVML e AMD SMI
+e' in questo caso, perche' qui non c'e' ne' una NVIDIA ne' una AMD.
+`[P]` resta riservato al percorso **progettato e non implementato**: non si
+usa `[P]` per dire "non ancora provato su hardware reale".
 
 **Statuto.** E' un documento normativo per il progetto, non per il codice: dal
 congelamento di P5 (2026-10-26) il sorgente di produzione e' sbloccato, ma questa
@@ -321,7 +331,7 @@ riverificato al gate di P5.
 
 | livello | che cos'e' | esempi | cosa dichiara |
 |---|---|---|---|
-| M1 | contatore cumulativo di dominio | EMI PKG, RAPL `energy_uj`, NVML total energy (non implementato) | energia del dominio fra due letture |
+| M1 | contatore cumulativo di dominio | EMI PKG, RAPL `energy_uj`, NVML total energy | energia del dominio fra due letture |
 | M2 | integrazione di potenza dello stesso dominio | LHM `CPU Package`, NVML `PowerUsage`, `powermetrics` | un integrale; dipende da cadenza e copertura |
 | M3 | modello o attribuzione | quota di tempo CPU, quota di utilizzo GPU, ripartizione EPI | una **quota**, non una lettura |
 | M4 | non disponibile | nessun canale utilizzabile | assenza dichiarata, con la ragione |
@@ -725,11 +735,11 @@ difetto F13 si presentava, e perche' una reintroduzione dovrebbe soddisfarli:
   (`read_domains`, `:591-624`); non si legge piu' "il primo canale"
   (`read_cumulative_energy_j`, `:563-575`).
 
-Cio' che resta [P] non e' il lettore ma la copertura: l'esecuzione su **AMD**,
-dove il metadato non e' stato visto e la `HardwareModel` "PPM" qui osservata non
-e' una garanzia del formato; un meter **V1** reale; e la scala assoluta, che
-nessun accordo fra lettori arbitra (regola 4 di §5). E' il difetto **F13**:
-chiuso in codice, aperto nell'evidenza. La decisione **D17** lo chiude.
+Cio' che resta [P] non e' il lettore (che e' [I]) ma la copertura: l'esecuzione
+su **AMD**, dove il metadato non e' stato visto e la `HardwareModel` "PPM" qui
+osservata non e' una garanzia del formato; un meter **V1** reale; e la scala
+assoluta, che nessun accordo fra lettori arbitra (regola 4 di §5). E' il difetto
+**F13**: chiuso in codice, aperto nell'evidenza. La decisione **D17** lo chiude.
 
 ### 3.1.2 LHM esce dall'implementazione; il sostituto e' un lettore MSR proprio
 
@@ -1193,9 +1203,11 @@ verificabili senza hardware e senza toccare la catena di produzione.
    device, delta negativo (reset del driver), finestra con sottofinestre
    escluse (un delta non sa sottrarre il judge). Il percorso effettivo e' il
    prefisso di `gpu_attribution_method`, che comincia sempre con
-   `nvml-energy` o `nvml-power-integral`. Otto test
+   `nvml-energy` o `nvml-power-integral`. Il percorso e' **[I]**: otto test
    (`tests/test_gpu_nvml_energy.py`) con `pynvml` finto; la prova su GPU reale
-   resta [P]: su questa macchina NVML non c'e' (`NVMLError_LibraryNotFound`).
+   resta **[V] da fare** — su questa macchina NVML non c'e'
+   (`NVMLError_LibraryNotFound`) — non e' [P]: il codice c'e' ed e' quello che
+   i test esercitano.
    **Emendazione a P5, 28-10-2026:** tre colonne accodate —
    `energy_per_total_token_j`, `tokens_per_joule`, `kwh_per_million_tokens` —
    calcolate da `_finalize_energy_fields` su `total_tokens` (input + output),
@@ -1241,9 +1253,10 @@ verificabili senza hardware e senza toccare la catena di produzione.
    `platform=...`) oppure `amdsmi-power-integral` (con `power=<campo> [W]`).
    Diciannove test (`tests/test_gpu_amdsmi.py`) con `amdsmi` finto, compresi
    risoluzione nulla, timestamp fermo, zero legittimo, delta negativo,
-   assenza di timestamp, assenza di handle e la precedenza di NVML; la prova
-   su GPU AMD reale resta
-   [P] e questa macchina non ne ha una. **Misurato e attribuito restano
+   assenza di timestamp, assenza di handle e la precedenza di NVML. Anche qui
+   lo stato e' **[I]** con **[V] da fare**: la prova su GPU AMD reale manca e
+   questa macchina non ne ha una, ma il percorso esiste nel codice e i test lo
+   esercitano. **Misurato e attribuito restano
    separati**: `gpu_board_energy_j` e' la scheda intera, senza baseline idle
    calibrata `gpu_energy_attributed_j` coincide con essa
    (`gpu_idle_provenance=missing`, dichiarato in nota), e l'energia di Ollama
@@ -1746,7 +1759,7 @@ eccezioni vanno rivalidate al freeze.
 | D4 | canale non disponibile -> N/A | rete e cloud: `N/A` con ragione, mai `0.0`; zero solo per local mode dichiarato. Del cloud e' gia' cosi' in `HEAD` (`027609c`: `None -> "N/A"`, `0.0` sopravvive solo se lo produce il confine); la rete e' chiusa da F1 e il confine cloud della riga locale e' dichiarato dal 27-10-2026 (F9) |
 | D5 | macOS | `powermetrics` come [P] progettato, non selezionabile; nessuna dichiarazione di supporto |
 | D6 | NPU | disponibile solo dove esiste un dominio verificato (ANE via `powermetrics`, [P]); altrove `unavailable` e nessuna colonna finche' non esiste il backend |
-| D7 | NVML total energy | quando implementato, **sostituisce la potenza come canale primario**; la potenza resta fallback |
+| D7 | NVML total energy | **implementato il 28-10-2026**: sostituisce la potenza come canale primario; la potenza resta fallback (`nvml-energy` -> `nvml-power-integral` -> `unavailable`); la prova su GPU reale e' [V] da fare |
 | D8 | coefficiente J/bit | **fonte trovata e verificata il 26-10-2026** (Baliga, Ayre, Hinton, Tucker, *Proc. IEEE* 99(1):149-167, 2011, DOI 10.1109/JPROC.2010.2060451): il coefficiente resta documentato e **non validato**, mai chiamato "misurato"; l'intervallo `[0,46; 20,0]` uJ/bit si ritira, perche' `0,46` e' lo scenario cloud privato dello stesso articolo e `20,0` non ha fonte |
 | D9 | ~~LHM Energy~~ **superata da D18 (27-10-2026)** | il criterio ("entra nella catena solo se dimostrato contatore hardware") resta come condizione di una qualunque reintroduzione; con D18 LHM resta fuori a prescindere |
 | D10 | stima opt-in fuori catena (X2, §3.1) | `estimate-load-tdp` in un campo proprio (`energy_estimate_j`), **spento di default**, mai in `MEASURED_METHODS`, mai confrontato con i numeri delle catene. Non e' un livello di fallback e non colma un `unavailable` |
@@ -1766,8 +1779,10 @@ eccezioni vanno rivalidate al freeze.
 - le soglie di validazione e la campagna: sono P4.4-P4.9, congelate;
 - i nomi definitivi delle colonne e il runner: sono P5, e questo documento li
   propone solo dove servono a rendere leggibile una catena;
-- l'implementazione dei backend mancanti (RAPL reale, AMD, macOS, NVML energy):
-  richiede hardware e prove, non solo codice;
+- l'implementazione dei backend mancanti (macOS `powermetrics`, NPU, PawnIO) e
+  l'esecuzione su hardware dei backend gia' scritti (RAPL su un host Linux, AMD
+  CPU, GPU su una macchina con NVIDIA o AMD): richiede hardware e prove, non
+  solo codice;
 - la **banda numerica** che rende "di pari classe" due modelli per il proxy C3:
   le quattro dimensioni del criterio sono in §3.4, la soglia e' una decisione
   di P5 da congelare prima dei dati;
@@ -1835,8 +1850,10 @@ presentano come lavoro in corso.
    proposizioni che oggi sono solo [P]: la compatibilita' HVCI e la firma del
    pacchetto. Finche' non passa, `msr-counter` non entra in `MEASURED_METHODS` e
    la catena resta EMI -> `unavailable`.
-8. **NVML total energy** come M1 che sostituisce la potenza come canale primario
-   (D7), con gli stessi G0-G4, su una macchina con NVIDIA.
+8. **NVML total energy** (D7): il percorso e' nel codice dal 28-10-2026 e
+   sostituisce la potenza come canale primario; resta l'esecuzione su una
+   macchina con NVIDIA con gli stessi G0-G4, che e' la [V] ancora da fare (e,
+   in assenza di NVIDIA, la stessa prova per AMD SMI su una scheda AMD).
 9. **Baseline idle GPU** (F3): **non si puo' provare su questo host**, che non ha
    una GPU dedicata. Si fa dove esiste il dominio — un nodo noleggiato con NVML
    eseguibile (C0) o un'altra macchina — e fino ad allora ogni numero GPU resta

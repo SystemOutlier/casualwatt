@@ -105,8 +105,11 @@ stanno solo le regole che un agente puo' violare senza accorgersene.
   `current_socket_power`, poi `average_socket_power`) e il contesto
   `platform=gpu_bm_linux` quando vale. NVML e AMD SMI non girano mai in
   parallelo — AMD SMI e' il fallback, non un secondo canale. Le due
-  catene sono provate con `pynvml` e `amdsmi` finti (28-10-2026): su GPU reale
-  restano [P].
+  catene sono **[I]** (implementate, provate con `pynvml` e `amdsmi` finti,
+  28-10-2026) con **[V] da fare**: su questa macchina non c'e' ne' una NVIDIA
+  ne' una AMD, quindi l'esecuzione su GPU reale e' ancora da registrare. Qui
+  `[P]` non significa "implementato ma non provato su hardware": significa
+  "progettato e non implementato", come per PawnIO.
 - **Solo i token di canale reali.**
   `MEASURED_METHODS = ("emi-counter", "power-integration",
   "librehardwaremonitor-energy", "energy-file", "rapl")`
