@@ -825,7 +825,7 @@ nota.
 |---|---|---|
 | la lettura diretta delle MSR RAPL e' pratica corrente, non un'invenzione nostra | Score-P plugin (BSD-3), likwid (GPL-3.0), x86_energy (LGPL-2.1) | D18 come precedente dichiarato, senza prendere codice |
 | il registro Intel si aggiorna circa ogni 1 ms, e un intervallo corto disturba mentre uno lungo e' meno esatto | Intel RAPL advisory; `README` del plugin Score-P ("roughly every msec", default 50 000 us) | regola 7 di §5: cadenza osservata e dichiarata; la sonda a 50 ms resta sopra il registro |
-| l'unita' di energia puo' non essere dichiarata dall'API e va derivata dal registro di unita' | AMD SMI `group__energyinfo` (nessuna unita'); kernel `msr-index.h` | obbligo "si deriva, non si copia" (§3.1.2), verificato a G1 (§2.2) |
+| l'unita' di energia puo' non essere dichiarata dall'API e va derivata dal registro di unita' | AMD SMI `group__energyinfo`, canale **CPU** ("RAPL MSR", nessuna unita'); kernel `msr-index.h`. Il canale **GPU** invece la dichiara come regola d'uso (28-10-2026): "energy_accumulator * counter_resolution = total_energy_consumption in micro-Joules" | obbligo "si deriva, non si copia" (§3.1.2), verificato a G1 (§2.2), applicato al canale CPU dove l'unita' manca davvero; sul canale GPU la risoluzione si legge dall'API e si rifiuta il contatore se e' zero o assente |
 | il contatore di energia puo' essere scrivibile, e azzerarlo distrugge il delta | kernel powercap (`energy_uj (rw)`, "Write '0' to reset") | R1 e D18: il lettore non scrive mai |
 | una cascata che sceglie "whichever answers first" non e' dichiarata nella riga | PowerJoular *How it works* | controesempio della regola 1 (nessun fallback silenzioso) |
 | su multi-socket si legge solo il primo package | PowerJoular *How it works* | F11 e D15: la scelta del canale e' un difetto dichiarato, non una semplificazione |
@@ -833,7 +833,7 @@ nota.
 | 70 W di offset perche' "with RAPL only the energy consumption of the CPU is measurable" | `README` del plugin Score-P | confine di E1: qualunque numero "di sistema" costruito da RAPL e' un'estrapolazione dichiarata |
 | i valori possono uscire in mJ interi, cioe' quantizzati | `README` del plugin Score-P | nota di quantizzazione della colonna: da dichiarare, non da nascondere |
 | un proxy davanti all'API dichiara i propri limiti (nessuna attribuzione per richiesta, nessuna telemetria CPU o DRAM) | llm-power-profiler (MIT) | §3.2 e riga GPU: modello di come si scrive il confine, nessun ingresso in catena |
-| su AMD la GPU espone potenza in W e non un contatore, e la lettura CPU e' dichiarata solo su bare metal | AMD SMI `group__gpumon`, `group__energyinfo` | riga 11 di §4 e D2: potenza resta M2, non M1 |
+| su AMD SMI la GPU espone potenza in W (M2) e, nella documentazione piu' recente, anche un contatore di energia con unita' derivabile (`energy_accumulator * counter_resolution` = uJ) | AMD SMI `group__energyinfo` / Python API (28-10-2026); la verifica del 27-10 su `docs-6.2.0` non lo trovava | A1 e riga 11 di §4: il contatore e' M1 **se la sonda risponde**, altrimenti resta la potenza (M2); l'unita' del canale CPU RAPL MSR resta invece non dichiarata |
 
 ### 3.2 GPU e NPU
 
@@ -851,7 +851,7 @@ porta energia GPU deve dire quale delle due sta scrivendo
 | N1 | NVML `nvmlDeviceGetTotalEnergyConsumption`, mJ | M1 | whole-device; delta fra i bordi, punto zero = ultimo reset; Kepler o superiore | `nvml-energy` | **[I] implementato il 28-10-2026** (doc NVIDIA R535 verificata: mJ, "since the last reset", "does not overflow"); [V] su GPU reale da fare |
 | N2 | NVML `nvmlDeviceGetPowerUsage`, mW, integrata | M2 | whole-device; sampling richiesto 0,5 s, cadenza effettiva NVML da verificare | `power-integration` (GPU) | [I], [V] da fare (nessuna GPU sul host) |
 | N3 | NVML `nvmlDeviceGetProcessUtilization`, ms di GPU per PID | M3 | attribuzione, non misura | campo `gpu_process_energy_j` | [I] informativo |
-| A1 | AMD SMI, energia o potenza GPU | M1/M2 candidato | whole-device | `power-integration` (se verificato) | [P] |
+| A1 | AMD SMI, `amdsmi_get_energy_count` (accumulator x resolution, uJ) e `amdsmi_get_power_info` (W) | M1 per il contatore, M2 per la potenza | whole-device; contatore "since last restart/gpu reset"; non supportato su VM guest | `amdsmi-energy` -> `amdsmi-power-integral` | **[I] implementato il 28-10-2026** (doc ROCm piu' recente, letta il 28-10: "energy_accumulator * counter_resolution = total_energy_consumption in micro-Joules"); [V] su GPU AMD reale da fare |
 | A2 | ADLX (Windows), potenza GPU | M2 candidato | whole-device | `power-integration` (GPU) | [P]: API e stabilita' da verificare alla fonte; su Windows e' il percorso AMD dopo AMD SMI |
 | A3 | `amdgpu` hwmon, `power1_average` (uW, media su intervallo) | M2 candidato | whole-device | `power-integration` (GPU) | [P]: percorso Linux; legge lo stesso sensore che alimenta AMD SMI, quindi l'accordo non e' indipendente |
 | I1 | dGPU Intel: nessun backend; candidati Level Zero (Windows e Linux) e hwmon `xe`/`i915` (Linux) | M4 | whole-device | `unavailable` | [A] oggi; i due candidati sono [P] |
@@ -1032,7 +1032,7 @@ vale quella.
 | 8 | macOS Intel o Apple Silicon, CPU/GPU/ANE | `powermetrics` -> `unavailable` | `powermetrics` -> `unavailable` | `unavailable`; powermetrics progettato |
 | 9 | macOS laptop, sistema | delta batteria (limite di sistema) -> `unavailable` | `battery-delta` -> `unavailable` | non implementato |
 | 10 | NVIDIA, `gpu_dedicated` | NVML total energy -> NVML power -> `unavailable` | `nvml-energy` -> `power-integration` -> `unavailable` | contatore sopra l'integrale dal 28-10; [V] su GPU reale da fare; idle mai calibrato -> whole-device |
-| 11 | AMD, `gpu_dedicated` | AMD SMI potenza (se verificato) -> `unavailable`; su Windows ADLX e su Linux `amdgpu` hwmon sono accessi alternativi [P] | `power-integration` -> `unavailable` | non implementato; §3.2 A1/A2/A3 |
+| 11 | AMD, `gpu_dedicated` | AMD SMI contatore -> AMD SMI potenza -> `unavailable`; su Windows ADLX e su Linux `amdgpu` hwmon sono accessi alternativi [P] | `amdsmi-energy` -> `amdsmi-power-integral` -> `unavailable` | implementato il 28-10 come FALLBACK dopo NVML; §3.2 A1/A2/A3 |
 | 12 | Intel dGPU | Level Zero (Windows e Linux) o `xe`/`i915` hwmon (Linux), entrambi [P] -> `unavailable` | `unavailable` | nessun backend; §3.2 I1/I2 |
 | 13 | iGPU Intel/AMD | nessun termine separato (dentro PKG); PP1/Graphics informativi | campi `igpu_*` | PP1 letto da EMI; mai sommato |
 | 14 | NPU Windows/Linux | `unavailable` | `unavailable` | nessun backend, nessuna colonna |
@@ -1103,7 +1103,7 @@ gradino si somma a un altro. Due marchi in piu' rispetto a §4: `†` = stessa
 lettura del gradino precedente (nessuna evidenza indipendente), `‡` = non e' un
 livello di catena (controprova o riferimento).
 
-| configurazione, dominio | primario | fallback, in ordine | esclusi | etichette | stato 27/10 |
+| configurazione, dominio | primario | fallback, in ordine | esclusi | etichette | stato (27/10, righe GPU aggiornate al 28/10) |
 |---|---|---|---|---|---|
 | Windows Intel, `cpu_package` | EMI PKG | P1 PawnIO `0x606`+`0x611` [P] † -> P2 Hubblo [P] † -> P3 PMI/WMI [P] | LHM (D18) †; TDP; somma con PP0/PP1 | `emi-counter` -> `msr-counter` -> `unavailable` | EMI [I][V]; il resto [P] |
 | Windows AMD, `cpu_package` | EMI, se il probe passa | P1 AMD `0xC0010299`+`0xC001029B` [P] † -> P2 -> P3 | `0x611` su AMD; somma dei core `C001_029A` al package | `emi-counter` -> `msr-counter` -> `unavailable` | [P]: mai provato su AMD |
@@ -1113,7 +1113,7 @@ livello di catena (controprova o riferimento).
 | Windows, meter V1 | EMI a un canale (E1) | catena normale | trattare un V1 come guasto; leggerlo con il parser V2 | `emi-counter` (solo V2) | **[I]**: `GET_VERSION` letto e V1 scartato con la ragione (D17, 27/10); un V1 reale non e' stato provato |
 | macOS CPU/GPU/ANE | `powermetrics` (PW1) | nessuno; delta batteria e' sistema, non dominio (BT1 ‡) | Energy Impact; carico CPU come stima | `powermetrics` -> `unavailable` | [P] |
 | NVIDIA, `gpu_dedicated` | NVML total energy (N1) | NVML potenza integrata (N2) ‡ | potenza per PID presentata come misura (N3) | `nvml-energy` -> `power-integration` -> `unavailable` | N1 [I] dal 28/10 (test con `pynvml` finto), [V] reale da fare; N2 [I]; idle mai calibrato |
-| AMD, `gpu_dedicated` | AMD SMI (A1) | Windows ADLX (A2) ‡ -> Linux `amdgpu` hwmon (A3) ‡; `rocm-smi --showpower` ‡ | somma iGPU+dGPU; attribuzione per PID | `power-integration` -> `unavailable` | [P] |
+| AMD, `gpu_dedicated` | AMD SMI contatore (A1) | Windows ADLX (A2) ‡ -> Linux `amdgpu` hwmon (A3) ‡; `rocm-smi --showpower` ‡ | somma iGPU+dGPU; attribuzione per PID | `amdsmi-energy` -> `amdsmi-power-integral` -> `unavailable` | A1 [I] dal 28/10 (test con `amdsmi` finto), [V] reale da fare; NVML ha la precedenza |
 | Intel dGPU | Level Zero (I1) [P] | Linux `xe`/`i915` hwmon (I2) [P] ‡ | iGPU sommata al package | `unavailable` oggi | [A] |
 | iGPU Intel/AMD | dentro PKG (PP1, E2) | nessun termine separato | somma al package; PP1 presentato come GPU | campo `igpu_energy_j` | [I][V] |
 | NPU Intel/AMD | nessun canale verificato | -- | colonne NPU vuote; "per differenza" | `unavailable` | [A] |
@@ -1204,11 +1204,33 @@ verificabili senza hardware e senza toccare la catena di produzione.
    indipendenti. Nessuna colonna storica cambia posizione; la migrazione resta
    `ensure_header`.
 
+6. **GPU AMD: AMD SMI entra come fallback, dopo NVML (28-10-2026).**
+   `_AMDGPUMonitor` in `energy/energy_session.py` importa `amdsmi`, chiama
+   `amdsmi_init()` e prende il primo handle di `amdsmi_get_processor_handles()`;
+   il nome commerciale esce da `amdsmi_get_gpu_asic_info`. La sonda di energia
+   legge `counter_resolution` e lo memorizza: se e' zero o assente il contatore
+   **non** si usa, e la ragione resta in `energy_counter_reason`.
+   `read_energy_mj()` applica la regola documentata dal fornitore,
+   `accumulator * resolution` in microjoule, e converte in millijoule perche' e'
+   l'unita' che il campione porta gia' per NVML. `read()` usa la potenza in W
+   preferendo `average_socket_power`, poi `socket_power`, poi
+   `current_socket_power`, e registra in `power_field` quale ha risposto;
+   `gfx_activity` resta diagnostica. Il selettore `_open_gpu_monitor()` prova
+   NVML, poi AMD SMI, e se nessuno dei due risponde costruisce un errore che
+   **nomina entrambi**: i due backend non girano mai in parallelo, quindi non
+   esiste una somma. Il token del percorso e' il prefisso di
+   `gpu_attribution_method`: `amdsmi-energy` oppure `amdsmi-power-integral`,
+   con gli stessi tre casi di discesa di NVML. Undici test
+   (`tests/test_gpu_amdsmi.py`) con `amdsmi` finto, compresi risoluzione nulla,
+   eccezione all'apertura, assenza di handle e la precedenza di NVML; la prova su
+   GPU AMD reale resta [P] e questa macchina non ne ha una.
+
 Non cambiano: `MEASURED_METHODS`, l'ordine della catena Windows
 (`EMI -> unavailable`) e i clamp di `energy/local_energy.py`, che restano una
 differenza dichiarata fra produzione e v4 (AGENTS.md). Il CSV cambia solo per
-aggiunta in coda (punto 5). La suite raccoglie **441 test: 438 passati, 3
-saltati** (429 il 27/10, dopo i primi quattro punti; 12 nuovi il 28/10).
+aggiunta in coda (punto 5). La suite raccoglie **452 test: 449 passati, 3
+saltati** (429 il 27/10, dopo i primi quattro punti; 12 nuovi il 28/10 con NVML
+e le tre colonne; 11 nuovi con AMD SMI).
 
 
 ---
@@ -1979,13 +2001,29 @@ Fonti esterne, con la data della verifica alla fonte primaria:
   confusi: **GPU** -- `amdsmi_get_power_info` restituisce "the current power and
   voltage of the GPU", potenza in **W** e tensione in mV, e `amdsmi_get_clock_info`
   "averages over 1s": sono M2, non M1, e in questa pagina **non c'e' un contatore
-  di energia**; **CPU** -- il gruppo si intitola "Energy information (RAPL MSR)" e
+  di energia** (vedi la correzione qui sotto, 28-10-2026); **CPU** -- il gruppo si intitola "Energy information (RAPL MSR)" e
   offre `amdsmi_get_cpu_socket_energy` e `amdsmi_get_cpu_core_energy`, che
   scrivono un `uint64_t` **senza dichiarare l'unita'**, e sono marcati
-  `Platform: cpu_bm` (bare metal, non guest). Per la riga 11 di §4 questo chiude
-  una domanda e ne apre una: il canale GPU disponibile e' di potenza; il canale
-  CPU esiste ma a G1 manca l'unita', che va derivata dal registro di unita' e non
-  copiata da una costante.
+  `Platform: cpu_bm` (bare metal, non guest). A quella data la lettura era che
+  per la riga 11 di §4 il canale GPU fosse di sola potenza; la verifica del 28-10
+  la corregge (sotto), mentre il canale CPU resta senza unita' dichiarata: a G1
+  va derivata dal registro di unita' e non copiata da una costante.
+- **Correzione del 28-10-2026**. AMD SMI, Python API, versione **27.1.0**
+  (`rocm.docs.amd.com/projects/amdsmi/en/latest/reference/amdsmi-py-api.html`,
+  letta il **28-10-2026**). La verifica del 27-10 si era fermata al Doxygen di
+  `docs-6.2.0` e concludeva che la GPU non esponeva un contatore: **non e' cosi'**.
+  La pagina documenta `amdsmi_get_energy_count(processor_handle)` con i campi
+  `energy_accumulator` e `counter_resolution`, e scrive la regola d'uso testuale:
+  "energy_accumulator * counter_resolution = total_energy_consumption in
+  micro-Joules". L'energia e' quindi **M1**, ma con due vincoli propri: e'
+  accumulata "since last restart/gpu reset" (punto zero non controllabile dal
+  processo) e "is not supported on virtual machine guest". La potenza resta M2:
+  `amdsmi_get_power_info` espone `average_socket_power`, `socket_power` e
+  `current_socket_power` in W, e `amdsmi_get_gpu_activity` espone `gfx_activity`
+  (percentuale) come diagnostica, non come moltiplicatore. Il Doxygen di
+  `docs-6.2.0` della verifica precedente resta la ragione per cui l'unita' si
+  **verifica a runtime** e non si assume: l'API rende `counter_resolution`, e se
+  e' zero o assente il contatore non si usa.
 - **Stato dell'arte, non fonte del metodo.** PowerJoular
   (`github.com/joular/powerjoular`, **GPL-3.0**) e la libreria che lo alimenta,
   Joular Core (`github.com/joular/joularcore`, **LGPL-3.0** secondo il metadato
