@@ -224,6 +224,15 @@ indefiniti.
 - `cpuepower/`, `cpuepower2/` — toolkit sottoposto ad audit: i suoi numeri erano
   mock, la CLI crasha, la mappa MSR era sbagliata. **Banca di esperimenti, non un
   backend di misura.** Non importarlo, non citarlo come risultato.
+- **Archivi fuori dal repo** — `../casualwattMetUni/` (verificata il 27/10/2026)
+  e le cartelle sorelle con la stessa struttura contengono prototipi storici su
+  pythonnet + `LibreHardwareMonitorLib` (`energy_tracker*.py`,
+  `consumi_ollama*.py`, `test_ollama_energy.py`). Non sono il backend di
+  produzione, non si importano e i loro numeri non sono confrontabili con una
+  riga `emi-counter`: misurano una potenza gia' derivata dallo stesso registro
+  0x611. La dichiarazione sta nel loro `README.md`, non qui. Resta in questo repo
+  solo `consumi_ollama.py` alla radice, strumento legacy a stima TDP/WMI, anch'esso
+  fuori dal percorso di misura.
 - `Tesi-latex/` — **fuori da git**, ora anche in `.gitignore`. Compilazione
   locale, mai push. `\include` per i capitoli, `\input` per le appendici; nei
   capitoli gli accenti italiani sono ASCII-escapati (`\`e` per "e'", `\'e` per
