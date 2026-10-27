@@ -851,7 +851,7 @@ porta energia GPU deve dire quale delle due sta scrivendo
 | N1 | NVML `nvmlDeviceGetTotalEnergyConsumption`, mJ | M1 | whole-device; delta fra i bordi, punto zero = ultimo reset; Kepler o superiore | `nvml-energy` | **[I] implementato il 28-10-2026** (doc NVIDIA R535 verificata: mJ, "since the last reset", "does not overflow"); [V] su GPU reale da fare |
 | N2 | NVML `nvmlDeviceGetPowerUsage`, mW, integrata | M2 | whole-device; sampling richiesto 0,5 s, cadenza effettiva NVML da verificare | `power-integration` (GPU) | [I], [V] da fare (nessuna GPU sul host) |
 | N3 | NVML `nvmlDeviceGetProcessUtilization`, ms di GPU per PID | M3 | attribuzione, non misura | campo `gpu_process_energy_j` | [I] informativo |
-| A1 | AMD SMI, `amdsmi_get_energy_count` (accumulator x resolution, uJ) e `amdsmi_get_power_info` (W) | M1 per il contatore, M2 per la potenza | whole-device; contatore "since last restart/gpu reset"; non supportato su VM guest | `amdsmi-energy` -> `amdsmi-power-integral` | **[I] implementato il 28-10-2026** (doc ROCm piu' recente, letta il 28-10: "energy_accumulator * counter_resolution = total_energy_consumption in micro-Joules"); [V] su GPU AMD reale da fare |
+| A1 | AMD SMI, `amdsmi_get_energy_count` (accumulator x resolution, uJ, piu' timestamp a 1 ns) e `amdsmi_get_power_info` (W) | M1 per il contatore, M2 per la potenza | whole-device; contatore "since last restart/gpu reset"; non supportato su VM guest; timestamp fermo = lettura non valida, delta negativo = reset/avvolgimento (nessun clamp) | `amdsmi-energy` -> `amdsmi-power-integral` | **[I] implementato il 28-10-2026** (doc ROCm 27.1.0 letta il 28-10: "energy_accumulator * counter_resolution = total_energy_consumption in micro-Joules"; campi di potenza tutti in W, `socket_power` generale); [V] su GPU AMD reale da fare |
 | A2 | ADLX (Windows), potenza GPU | M2 candidato | whole-device | `power-integration` (GPU) | [P]: API e stabilita' da verificare alla fonte; su Windows e' il percorso AMD dopo AMD SMI |
 | A3 | `amdgpu` hwmon, `power1_average` (uW, media su intervallo) | M2 candidato | whole-device | `power-integration` (GPU) | [P]: percorso Linux; legge lo stesso sensore che alimenta AMD SMI, quindi l'accordo non e' indipendente |
 | I1 | dGPU Intel: nessun backend; candidati Level Zero (Windows e Linux) e hwmon `xe`/`i915` (Linux) | M4 | whole-device | `unavailable` | [A] oggi; i due candidati sono [P] |
@@ -1210,27 +1210,52 @@ verificabili senza hardware e senza toccare la catena di produzione.
    il nome commerciale esce da `amdsmi_get_gpu_asic_info`. La sonda di energia
    legge `counter_resolution` e lo memorizza: se e' zero o assente il contatore
    **non** si usa, e la ragione resta in `energy_counter_reason`.
-   `read_energy_mj()` applica la regola documentata dal fornitore,
-   `accumulator * resolution` in microjoule, e converte in millijoule perche' e'
-   l'unita' che il campione porta gia' per NVML. `read()` usa la potenza in W
-   preferendo `average_socket_power`, poi `socket_power`, poi
-   `current_socket_power`, e registra in `power_field` quale ha risposto;
-   `gfx_activity` resta diagnostica. Il selettore `_open_gpu_monitor()` prova
-   NVML, poi AMD SMI, e se nessuno dei due risponde costruisce un errore che
-   **nomina entrambi**: i due backend non girano mai in parallelo, quindi non
-   esiste una somma. Il token del percorso e' il prefisso di
-   `gpu_attribution_method`: `amdsmi-energy` oppure `amdsmi-power-integral`,
-   con gli stessi tre casi di discesa di NVML. Undici test
-   (`tests/test_gpu_amdsmi.py`) con `amdsmi` finto, compresi risoluzione nulla,
-   eccezione all'apertura, assenza di handle e la precedenza di NVML; la prova su
-   GPU AMD reale resta [P] e questa macchina non ne ha una.
+   `read_energy()` applica la regola documentata dal fornitore,
+   `accumulator * resolution` in microjoule, converte in millijoule perche' e'
+   l'unita' che il campione porta gia' per NVML, e restituisce anche il
+   `timestamp` del device. `read()` usa la potenza in W nell'ordine
+   `socket_power` (generale), `current_socket_power` (Mi300+),
+   `average_socket_power` (Navi e MI 200 o precedenti) — l'ordine lo detta la
+   tabella del fornitore, non una preferenza — e registra in `power_field`
+   quale ha risposto e in `power_unit` l'unita' (`W`, dichiarata; `unknown`
+   finche' non si e' letto nulla). `platform_context` vale `gpu_bm_linux` sulla
+   piattaforma che la reference C tagga per questa chiamata, `non-linux` se la
+   chiamata risponde altrove, `unknown` senza GPU: dichiara che la restrizione
+   "not supported on virtual machine guest" non ha morso, non prova il bare
+   metal. `gfx_activity` resta diagnostica.
+
+   **Il controllo di avanzamento e' sul timestamp.** Se primo e ultimo
+   campione hanno lo stesso timestamp, il device non ha aggiornato il
+   contatore: il delta non si legge come energia, si integra la potenza e la
+   nota lo dice. Se il timestamp avanza e il contatore e' immobile, la finestra
+   vale **zero**, ed e' un dato dichiarato, non una lettura mancante. Se il
+   delta e' negativo e' un reset o un avvolgimento: **non si clampa a zero** e
+   non si scrive come energia negativa, si copre la finestra con l'integrale.
+   (`negative_increment` in questa codebase e' il flag di rete, non un campo
+   GPU: riusarlo qui etichetterebbe la serie sbagliata.)
+
+   Il selettore `_open_gpu_monitor()` prova NVML, poi AMD SMI, e se nessuno dei
+   due risponde costruisce un errore che **nomina entrambi**: i due backend non
+   girano mai in parallelo, quindi non esiste una somma. Il token del percorso
+   e' il prefisso di `gpu_attribution_method`: `amdsmi-energy` (con
+   `platform=...`) oppure `amdsmi-power-integral` (con `power=<campo> [W]`).
+   Diciannove test (`tests/test_gpu_amdsmi.py`) con `amdsmi` finto, compresi
+   risoluzione nulla, timestamp fermo, zero legittimo, delta negativo,
+   assenza di timestamp, assenza di handle e la precedenza di NVML; la prova
+   su GPU AMD reale resta
+   [P] e questa macchina non ne ha una. **Misurato e attribuito restano
+   separati**: `gpu_board_energy_j` e' la scheda intera, senza baseline idle
+   calibrata `gpu_energy_attributed_j` coincide con essa
+   (`gpu_idle_provenance=missing`, dichiarato in nota), e l'energia di Ollama
+   sulla GPU e' solo `gpu_process_energy_j`, informativo.
 
 Non cambiano: `MEASURED_METHODS`, l'ordine della catena Windows
 (`EMI -> unavailable`) e i clamp di `energy/local_energy.py`, che restano una
 differenza dichiarata fra produzione e v4 (AGENTS.md). Il CSV cambia solo per
-aggiunta in coda (punto 5). La suite raccoglie **452 test: 449 passati, 3
+aggiunta in coda (punto 5). La suite raccoglie **460 test: 457 passati, 3
 saltati** (429 il 27/10, dopo i primi quattro punti; 12 nuovi il 28/10 con NVML
-e le tre colonne; 11 nuovi con AMD SMI).
+e le tre colonne; 8 nuovi con il controllo di timestamp e la provenienza AMD
+SMI).
 
 
 ---
@@ -2018,12 +2043,20 @@ Fonti esterne, con la data della verifica alla fonte primaria:
   micro-Joules". L'energia e' quindi **M1**, ma con due vincoli propri: e'
   accumulata "since last restart/gpu reset" (punto zero non controllabile dal
   processo) e "is not supported on virtual machine guest". La potenza resta M2:
-  `amdsmi_get_power_info` espone `average_socket_power`, `socket_power` e
-  `current_socket_power` in W, e `amdsmi_get_gpu_activity` espone `gfx_activity`
-  (percentuale) come diagnostica, non come moltiplicatore. Il Doxygen di
-  `docs-6.2.0` della verifica precedente resta la ragione per cui l'unita' si
-  **verifica a runtime** e non si assume: l'API rende `counter_resolution`, e se
-  e' zero o assente il contatore non si usa.
+  `amdsmi_get_power_info` espone `socket_power` ("matches current or average
+  socket power"), `current_socket_power` ("Mi300+ Series Cards") e
+  `average_socket_power` ("Navi + Mi 200 and earlier Series cards"), **tutti e
+  tre in W**, e `amdsmi_get_gpu_activity` espone `gfx_activity` (percentuale)
+  come diagnostica, non come moltiplicatore. Cio' che dipende dalla generazione
+  della scheda non e' l'unita' ma **quale campo e' popolato**: il generale e'
+  `socket_power`, e l'ordine di lettura lo mette per primo. La pagina elenca
+  anche un campo `timestamp` senza unita'; la reference C
+  (`rocm.docs.amd.com/projects/amdsmi/en/docs-6.4.1/doxygen/docBin/html/group__tagPowerQuery.html`,
+  letta il **28-10-2026**) dichiara per il timestamp "Resolution: 1 ns" e tagga
+  la chiamata `Platform: gpu_bm_linux`. Il Doxygen di `docs-6.2.0` della
+  verifica precedente resta la ragione per cui l'unita' si **verifica a
+  runtime** e non si assume: l'API rende `counter_resolution`, e se e' zero o
+  assente il contatore non si usa.
 - **Stato dell'arte, non fonte del metodo.** PowerJoular
   (`github.com/joular/powerjoular`, **GPL-3.0**) e la libreria che lo alimenta,
   Joular Core (`github.com/joular/joularcore`, **LGPL-3.0** secondo il metadato
