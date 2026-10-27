@@ -672,7 +672,7 @@ class EnergySession:
         self._proc = psutil.Process()
         self._t0_wall = time.time()
         self._cpu_t0 = self._system_busy_seconds()
-        self._gpu = _GPUMonitor()
+        self._gpu = _open_gpu_monitor()
         self.idle_power_w: Optional[float] = None
         # provenienza della calibrazione: "calibrated" (utente/GUI),
         # "session" (ripristinata da sessione precedente), "auto_micro"
@@ -1334,6 +1334,8 @@ class EnergySession:
 # GPU NVIDIA (NVML) — opzionale, degradazione silenziosa
 # ---------------------------------------------------------------------------
 class _GPUMonitor:
+    backend = "nvml"
+
     def __init__(self) -> None:
         self.available = False
         self.handle = None
@@ -1469,6 +1471,142 @@ class _GPUMonitor:
             return round(board_active * frac, 6)
         except Exception:
             return None
+
+
+# ---------------------------------------------------------------------------
+# GPU AMD (AMD SMI) — fallback dichiarato, non un secondo lettore simultaneo
+# ---------------------------------------------------------------------------
+class _AMDGPUMonitor:
+    """Contatore e potenza GPU AMD via AMD SMI.
+
+    Documentazione verificata alla fonte il 28-10-2026 (AMD SMI Python API,
+    versione piu' recente della documentazione ROCm): ``amdsmi_get_energy_count``
+    restituisce un contatore di accumulo "since last restart/gpu reset" e la
+    sua risoluzione, con la regola scritta "energy_accumulator *
+    counter_resolution = total_energy_consumption in micro-Joules";
+    ``amdsmi_get_power_info`` da' ``average_socket_power``/``socket_power`` in W
+    e ``amdsmi_get_gpu_activity`` da' ``gfx_activity`` in percentuale. Le
+    funzioni "not supported on virtual machine guest": su VM il monitor resta
+    non disponibile e lo dichiara.
+
+    Il contatore si converte in mJ all'ingresso (uJ/1000) perche' il resto del
+    percorso parla una sola unita': il campo del campione e' ``gpu_energy_mj``
+    indipendentemente dal backend, e la conversione sta qui, non nel profilo.
+    """
+
+    backend = "amdsmi"
+
+    def __init__(self) -> None:
+        self.available = False
+        self.handle = None
+        self.index = 0
+        self.name: Optional[str] = None
+        self.error: Optional[str] = None
+        self.power_field = ""
+        self.energy_counter = False
+        self.energy_counter_reason = ""
+        self._resolution_uj = 0.0
+        try:
+            import amdsmi
+
+            amdsmi.amdsmi_init()
+            handles = list(amdsmi.amdsmi_get_processor_handles() or [])
+            if not handles:
+                self.error = "nessuna GPU AMD SMI"
+            else:
+                self.handle = handles[0]
+                self.index = 0
+                try:
+                    info = amdsmi.amdsmi_get_gpu_asic_info(self.handle) or {}
+                    self.name = info.get("market_name") or None
+                except Exception:  # noqa: BLE001
+                    self.name = None
+                self.available = True
+        except Exception as exc:  # noqa: BLE001
+            self.error = f"{type(exc).__name__}"
+        self._probe_energy_counter()
+
+    def _probe_energy_counter(self) -> None:
+        """Una lettura reale del contatore: la risoluzione si verifica, non si presume."""
+        if not self.available:
+            self.energy_counter_reason = "GPU non disponibile"
+            return
+        try:
+            import amdsmi
+
+            ec = amdsmi.amdsmi_get_energy_count(self.handle) or {}
+            res = float(ec.get("counter_resolution") or 0.0)
+            if res <= 0.0 or ec.get("energy_accumulator") is None:
+                self.energy_counter_reason = "risoluzione del contatore nulla"
+                return
+            self._resolution_uj = res
+            self.energy_counter = True
+        except Exception as exc:  # noqa: BLE001
+            self.energy_counter_reason = f"{type(exc).__name__}"
+
+    def read_energy_mj(self) -> Optional[float]:
+        """Energia cumulativa [mJ] = accumulator * resolution [uJ] / 1000."""
+        if not (self.available and self.energy_counter):
+            return None
+        try:
+            import amdsmi
+
+            ec = amdsmi.amdsmi_get_energy_count(self.handle) or {}
+            acc = float(ec.get("energy_accumulator"))
+            return acc * self._resolution_uj / 1000.0
+        except Exception:  # noqa: BLE001
+            return None
+
+    def read(self):
+        """(potenza W, attivita' %). La chiave di potenza usata resta dichiarata."""
+        if not self.available:
+            return None, None
+        try:
+            import amdsmi
+
+            info = amdsmi.amdsmi_get_power_info(self.handle) or {}
+            power_w = None
+            for key in ("average_socket_power", "socket_power",
+                        "current_socket_power"):
+                val = info.get(key)
+                if val is not None:
+                    power_w = float(val)
+                    self.power_field = key
+                    break
+            try:
+                act = amdsmi.amdsmi_get_gpu_activity(self.handle) or {}
+                util = float(act.get("gfx_activity"))
+            except Exception:  # noqa: BLE001
+                util = None
+            return power_w, util
+        except Exception:  # noqa: BLE001
+            return None, None
+
+    def shutdown(self) -> None:
+        try:
+            import amdsmi
+
+            amdsmi.amdsmi_shut_down()
+        except Exception:  # noqa: BLE001
+            pass
+
+
+def _open_gpu_monitor():
+    """NVML -> AMD SMI -> monitor non disponibile, con i motivi di entrambi.
+
+    Un solo backend alla volta: se NVML risponde si usa NVML, anche su una
+    macchina con entrambi i driver, perche' due lettori della stessa scheda
+    nella stessa riga sarebbero un doppio conteggio da giustificare.
+    """
+    nv = _GPUMonitor()
+    if nv.available:
+        return nv
+    amd = _AMDGPUMonitor()
+    if amd.available:
+        return amd
+    nv.error = (f"NVML: {nv.error or 'non disponibile'}; "
+                f"AMD SMI: {amd.error or amd.energy_counter_reason or 'non disponibile'}")
+    return nv
 
 
 # Singleton di sessione (sezione 16: ``from .energy_session import SESSION``)
