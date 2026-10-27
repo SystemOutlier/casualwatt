@@ -49,10 +49,17 @@ La baseline idle e' salvata separatamente in ``baseline_energy_j`` e NON entra
 in ``local_energy_j`` ne' in ``end_to_end_energy_j`` (sezioni 12.1/12.3).
 
 GPU:
-* NVIDIA dedicata -> integrazione temporale del power draw NVML al netto
-  della potenza GPU a idle calibrata, sulla STESSA finestra/dt usati per
-  integrare board_j (confine: whole-device, dichiarato in
-  gpu_attribution_method). L'utilizzo medio e' solo campo diagnostico
+* NVIDIA dedicata -> catena dichiarata ``nvml-energy`` -> ``nvml-power-
+  integral`` -> ``unavailable``. Il contatore cumulativo
+  (``nvmlDeviceGetTotalEnergyConsumption``, millijoule, "since the last
+  reset": doc NVIDIA verificata il 28-10-2026) si usa per DELTA fra i bordi
+  della finestra; se la sonda all'apertura dice che il device non lo espone,
+  o il delta e' negativo (reset del driver), o la finestra ha sottofinestre
+  escluse che il contatore non sa sottrarre, si integra la POTENZA
+  (``nvml-power-integral``) e lo si dichiara in ``gpu_attribution_method``,
+  che comincia sempre con il token del percorso usato. In entrambi i casi
+  si sottrae la potenza GPU a idle calibrata sullo STESSO intervallo
+  (confine: whole-device). L'utilizzo medio e' solo campo diagnostico
   (gpu_utilization_share), NON un moltiplicatore: la potenza GPU riflette
   gia' il carico, quindi moltiplicare per lo share conteggierebbe il
   carico due volte. Attribuzione per processo (nvmlDeviceGetProcess-
@@ -746,26 +753,55 @@ class CasualWattLocalEnergyProfiler:
         # ---------------------------------------------------------- GPU part
         gpu_mon = self.session._gpu
         gpu_samples = [s for s in samples if s.gpu_power_w is not None]
+        counter_samples = [s for s in samples
+                           if getattr(s, "gpu_energy_mj", None) is not None]
         if gpu_mon.available and len(gpu_samples) >= 2:
             res.gpu_available = True
             res.gpu_device_index = gpu_mon.index
-            # integrazione trapezoidale del power draw + dt REALE coperto
-            board_j = 0.0
-            gpu_dt = 0.0
-            prev = gpu_samples[0]
             util_sum = 0.0
             util_n = 0
-            def _gpu_excl(a, b):
-                return any(not (b <= x or a >= y) for x, y in excl)
             for cur in gpu_samples[1:]:
-                seg_dt = cur.t - prev.t
-                if seg_dt > 0 and not (excl and _gpu_excl(prev.t, cur.t)):
-                    board_j += ((prev.gpu_power_w + cur.gpu_power_w) / 2.0) * seg_dt
-                    gpu_dt += seg_dt
                 if cur.gpu_util_pct is not None:
                     util_sum += cur.gpu_util_pct
                     util_n += 1
-                prev = cur
+            board_j = 0.0
+            gpu_dt = 0.0
+            # Catena dichiarata: contatore cumulativo NVML -> integrale della
+            # potenza -> nessun numero. Il contatore si usa per DELTA fra i
+            # bordi e solo senza sottofinestre escluse: un delta non sa
+            # sottrarre l'energia del judge, e sottrarla con la potenza
+            # mescolerebbe due percorsi nella stessa riga.
+            counter_ok = bool(getattr(gpu_mon, "energy_counter", False)
+                              and len(counter_samples) >= 2 and not excl)
+            if counter_ok:
+                first, last = counter_samples[0], counter_samples[-1]
+                d_mj = float(last.gpu_energy_mj) - float(first.gpu_energy_mj)
+                span = last.t - first.t
+                if d_mj >= 0.0 and span > 0.0:
+                    board_j = d_mj / 1000.0
+                    gpu_dt = span
+                    method_txt = (f"nvml-energy (delta {d_mj:.0f} mJ over "
+                                  f"{span:.3f}s, counter since last reset)")
+                else:
+                    counter_ok = False
+                    notes.append(
+                        "contatore NVML non utilizzabile in questa finestra "
+                        f"(delta {d_mj:.0f} mJ su {span:.6f} s): reset del "
+                        "driver o campioni coincidenti; si integra la potenza")
+            if not counter_ok:
+                # integrazione trapezoidale del power draw + dt REALE coperto
+                prev = gpu_samples[0]
+
+                def _gpu_excl(a, b):
+                    return any(not (b <= x or a >= y) for x, y in excl)
+                for cur in gpu_samples[1:]:
+                    seg_dt = cur.t - prev.t
+                    if seg_dt > 0 and not (excl and _gpu_excl(prev.t, cur.t)):
+                        board_j += ((prev.gpu_power_w + cur.gpu_power_w) / 2.0) * seg_dt
+                        gpu_dt += seg_dt
+                    prev = cur
+                method_txt = (f"nvml-power-integral (integrated span "
+                              f"{gpu_dt:.3f}s)")
             idle_gpu_raw = getattr(self.session, "idle_gpu_power_w", None)
             idle_gpu_w = float(idle_gpu_raw) if idle_gpu_raw else 0.0
             # Punto 2: provenienza dell'idle GPU. Se manca (o e' 0) lo scorporo
@@ -784,9 +820,9 @@ class CasualWattLocalEnergyProfiler:
             idle_txt = ("calibrated idle" if res.gpu_idle_provenance == "calibrated"
                         else "NO idle baseline (gpu_idle_provenance=missing)")
             res.gpu_attribution_method = (
-                f"nvml-power-integral minus {idle_txt} over the same "
-                f"integrated span ({gpu_dt:.3f}s); boundary=whole-device; "
-                "utilization kept as diagnostic field only (NOT a multiplier)"
+                f"{method_txt} minus {idle_txt} over the same span; "
+                "boundary=whole-device; utilization kept as diagnostic field "
+                "only (NOT a multiplier)"
             )
             notes.append(
                 f"GPU '{gpu_mon.name}': board {board_j:.2f} J, attribuiti "
