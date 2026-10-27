@@ -231,7 +231,10 @@ def test_P2_colonna_csv_accodata_senza_cambiare_ordine():
             # Delta cloud (spec C5 §4, 26-10-2026): banda e termini della stima.
             "cloud_input_tokens_included", "cloud_pue_applied",
             "cloud_pue_source", "cloud_latency_used_s",
-            "cloud_latency_threshold_s", "cloud_latency_binding"]
+            "cloud_latency_threshold_s", "cloud_latency_binding",
+            # Metriche per token (emendazione a P5, 28-10-2026), in coda.
+            "energy_per_total_token_j", "tokens_per_joule",
+            "kwh_per_million_tokens"]
     assert CSV_COLUMNS[-len(CODA):] == CODA
     assert CSV_COLUMNS[:6] == [
         "run_id", "session_id", "timestamp_start", "timestamp_end",

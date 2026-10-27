@@ -180,6 +180,16 @@ CSV_COLUMNS: List[str] = [
     # ha vincolato la latenza misurata. Accodate in coda: niente riordini.
     "cloud_input_tokens_included", "cloud_pue_applied", "cloud_pue_source",
     "cloud_latency_used_s", "cloud_latency_threshold_s", "cloud_latency_binding",
+    # Emendazione a P5 (28-10-2026): le tre metriche per token che finora si
+    # ricavavano a mano dal CSV. Tutte su ``total_tokens`` (input + output),
+    # coerenti fra loro; per il solo output resta ``energy_per_output_token_j``.
+    # ``tokens_per_joule`` e' il reciproco di ``energy_per_total_token_j`` (non
+    # una stima indipendente) e ``kwh_per_million_tokens`` ne e' la stessa
+    # energia in kWh per 1e6 token: tre letture della stessa grandezza, tenute
+    # separate perche' la tesi le usa con denominatori diversi. N/A quando
+    # l'end-to-end non e' calcolabile, vuoto quando i token mancano: mai uno
+    # zero inventato. Accodate in coda: migrazione per nome via ensure_header.
+    "energy_per_total_token_j", "tokens_per_joule", "kwh_per_million_tokens",
 ]
 
 

@@ -62,6 +62,9 @@ TAIL = [
     # l'hanno prodotta. In coda, dopo le colonne di Emenda 8.
     "cloud_input_tokens_included", "cloud_pue_applied", "cloud_pue_source",
     "cloud_latency_used_s", "cloud_latency_threshold_s", "cloud_latency_binding",
+    # Metriche per token (emendazione a P5, 28-10-2026): in coda, dopo il
+    # blocco cloud, cosi' nessuna colonna storica cambia posizione.
+    "energy_per_total_token_j", "tokens_per_joule", "kwh_per_million_tokens",
 ]
 
 
