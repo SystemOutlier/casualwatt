@@ -597,6 +597,26 @@ def _finalize_energy_fields(rec: Dict, local_j: Optional[float], network_j: Opti
     else:
         rec["energy_per_output_token_j"] = round(e2e / out_tok, 9) if out_tok > 0 else ""
 
+    # Metriche su TUTTI i token (input + output), emendazione a P5 del
+    # 28-10-2026. Stessa energia end-to-end e stesso criterio di assenza:
+    # "N/A" se l'e2e non esiste, vuoto se manca il conteggio dei token.
+    try:
+        tot_tok = int(rec.get("total_tokens") or 0)
+    except (TypeError, ValueError):
+        tot_tok = 0
+    if e2e_j is None:
+        rec["energy_per_total_token_j"] = "N/A"
+        rec["tokens_per_joule"] = "N/A"
+        rec["kwh_per_million_tokens"] = "N/A"
+    elif tot_tok > 0:
+        rec["energy_per_total_token_j"] = round(e2e_j / tot_tok, 9)
+        rec["tokens_per_joule"] = round(tot_tok / e2e_j, 9) if e2e_j > 0 else ""
+        rec["kwh_per_million_tokens"] = round(e2e_j / (3.6 * tot_tok), 12)
+    else:
+        rec["energy_per_total_token_j"] = ""
+        rec["tokens_per_joule"] = ""
+        rec["kwh_per_million_tokens"] = ""
+
     n_correct = getattr(evalres, "n_correct_links", None)
     acc_comp = getattr(evalres, "acc_comp", None)
     is_correct = getattr(evalres, "is_correct", None)
