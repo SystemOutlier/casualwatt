@@ -28,6 +28,11 @@ La (2) e' la guardia contro la correzione sbagliata: un `if not cloud_j` al
 posto di `if cloud_j is None` cancellerebbe il confine 12.1, e un `or 0.0` di
 nuovo cancellerebbe il `None`.
 
+La (3) chiude il difetto F9: lo zero di confine della riga locale deve portare
+`cloud_energy_method = "not-applicable"` e il suo `cloud_estimation_boundary`,
+altrimenti resta indistinguibile da una stima cloud fallita. Vale la stessa
+regola della (2): uno zero e' legittimo solo se la riga lo dichiara.
+
 Esecuzione:  python -m pytest tests/test_cloud_energy_none_preservato.py -v
 """
 import sys
@@ -139,6 +144,42 @@ def test_emissioni_locali_reggono_assenza_locale():
     assert rec["local_energy_kwh"] == "N/A"
     assert rec["local_emissions_gco2eq"] == "N/A"
     assert rec["cloud_energy_j"] == pytest.approx(1.0)
+
+
+# ------------------------------------------------------------------ (3)
+def _riga(mode, monkeypatch):
+    """Riga costruita dal template, con l'intensita' di carbonio resa offline."""
+    monkeypatch.setattr(
+        bu, "get_carbon_intensity",
+        lambda zone=None: SimpleNamespace(
+            gco2eq_per_kwh=267.0, zone="IT", source="test-table", timestamp=0.0))
+    return bu._basic_record(
+        "R1", "S1", "llama", "llama", "ollama", mode, None,
+        {"id": "p1", "text": "p", "source": "manual", "ground_truth": "21"},
+        bu.evalres_placeholder())
+
+
+def test_riga_locale_dichiara_metodo_e_confine_del_cloud(monkeypatch):
+    """Lo zero cloud della riga locale deve dire di essere un confine (difetto F9).
+
+    Senza i due campi quello zero e' indistinguibile da una stima fallita: la
+    regola 12.1 lo ammette solo se il confine lo dichiara.
+    """
+    rec = _riga("local", monkeypatch)
+    assert rec["cloud_energy_j"] == 0.0
+    assert rec["cloud_energy_method"] == "not-applicable"
+    assert rec["cloud_estimation_boundary"] == "not-applicable (local mode)"
+
+
+def test_riga_cloud_non_pre_etichetta_un_metodo(monkeypatch):
+    """Il template non scrive un nome di metodo per un percorso non ancora invocato.
+
+    Il metodo della riga cloud lo scrive il blocco che produce la stima, insieme
+    al valore; qui -- prima della stima -- deve restare vuoto.
+    """
+    rec = _riga("cloud", monkeypatch)
+    assert rec["cloud_energy_method"] == ""
+    assert rec["cloud_estimation_boundary"] == ""
 
 
 # ------------------------------------------------------------------ log

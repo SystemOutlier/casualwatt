@@ -506,10 +506,15 @@ def _basic_record(run_id, session_id, model_name, model_label, provider, mode,
         "network_total_bytes": 0,
         "network_energy_coefficient_j_per_bit": config.NETWORK_ENERGY_COEFFICIENT_J_PER_BIT,
         "network_measurement_boundary": "not-applicable (local mode)" if mode == "local" else "",
-        # Cloud: sulla riga locale il valore e' zero PER CONFINE (regola 12.1) e i
-        # campi della stima restano VUOTI, non "N/A": nessun motore cloud e' stato
-        # interrogato, quindi non c'e' ne' una banda ne' una latenza da descrivere.
-        # Sulla riga cloud li scrive _cloud_estimate_fields.
+        # Cloud, riga locale: il valore e' zero PER CONFINE (regola 12.1, D4),
+        # quindi metodo e confine si dichiarano. Senza, quello zero non si
+        # distingue da una stima fallita (difetto F9): "not-applicable" non e' un
+        # nome di metodo, e' l'affermazione che nessun percorso e' stato
+        # invocato. I campi della stima restano invece VUOTI, non "N/A": nessun
+        # motore cloud e' stato interrogato, quindi non c'e' ne' una banda ne' una
+        # latenza da descrivere. Sulla riga cloud li scrive _cloud_estimate_fields.
+        "cloud_energy_method": "not-applicable" if mode == "local" else "",
+        "cloud_estimation_boundary": "not-applicable (local mode)" if mode == "local" else "",
         "cloud_energy_min_j": "", "cloud_energy_max_j": "",
         "cloud_input_tokens_included": "", "cloud_pue_applied": "",
         "cloud_pue_source": "", "cloud_latency_used_s": "",
@@ -526,12 +531,14 @@ def _basic_record(run_id, session_id, model_name, model_label, provider, mode,
         "cloud_carbon_intensity_zone": "",
         "cloud_carbon_intensity_source": "",
         "cloud_carbon_intensity_timestamp": "",
-        # PUNTO TESI (23/10): l'etichetta di metodo cloud NON va scritta dal
-        # template. Il dataset pubblicato 19/10 porta "ecologits gwp (...)" in
-        # 9/9 righe locali, cioe' un metodo dichiarato da un percorso che non e'
-        # mai stato invocato (benchmark_unified.py:928-930 fa SKIP senza chiave).
-        # La riga che produce davvero la stima la scrive nel blocco cloud
-        # (~riga 1002, qui sotto), insieme al valore.
+        # PUNTO TESI (23/10): il template non scrive NOMI di metodo cloud che
+        # descrivano un percorso mai invocato. Il dataset pubblicato 19/10 porta
+        # "ecologits gwp (...)" in 9/9 righe locali (benchmark_unified.py:928-930
+        # fa SKIP senza chiave). L'unica eccezione e' il token "not-applicable"
+        # della riga locale, che dichiara l'assenza di un metodo e non un metodo:
+        # lo zero di quella riga e' il confine (D4), non una stima. La riga che
+        # produce davvero la stima scrive il metodo nel blocco cloud, insieme al
+        # valore.
         "cloud_emissions_method": "",
         "energibridge_csv": "",
         "notes": [],
