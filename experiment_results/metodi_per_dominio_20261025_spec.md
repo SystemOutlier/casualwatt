@@ -1099,7 +1099,7 @@ perche' un rifiuto senza ragione diventa un arretrato.
 | `matricefull.DOCX` | matrice per dominio e OS; righe GPU Intel, NPU, DRAM, rete, sistema; schema JSON per riga con `quality`; priorita' di implementazione | **adottate** le righe mancanti (I1/I2, D1) e la regola "un fallback non degrada gli altri domini" (gia' §4); **rifiutato** il vocabolario `quality` parallelo a M1-M4 (doppia tassonomia: l'arbitro per riga resta il token di metodo, §3.0 invariante 1) e il campo `attribution`, che e' il confine G3 gia' dichiarato in `measurement_boundary` |
 | `Multi-Provider EMI-First.DOCX` (radice) | EMI primo, conversione pWh, GUID; `EnergyProvider` con `select_energy_backend`; JSON `backend_id`/`measurement_type`/`status`; fallback "TDP x CPU time" marcato `estimated` | **adottato** EMI primo e la conversione, gia' in produzione; **rifiutati** il TDP in catena (X2/D10: opt-in, fuori catena, nessun token `estimated` in `MEASURED_METHODS`) e la gerarchia con JSON parallelo (stesse ragioni di `librerie.DOCX`) |
 
-**(c) Cosa e' cambiato nel codice in questa revisione.** Due modifiche, entrambe
+**(c) Cosa e' cambiato nel codice in questa revisione.** Tre modifiche, tutte
 verificabili senza hardware e senza toccare la catena di produzione.
 
 1. **RAPL: enumerazione delle zone e riporto onesto.** `energy/rapl_backend.py`
@@ -1119,11 +1119,17 @@ verificabili senza hardware e senza toccare la catena di produzione.
    `no_energy_domain`), sonda non conclusiva (permessi o provider). Non legge
    nessun valore e non cambia lo stato del motore energetico. Sette test
    (`tests/test_diagnostics_pmi.py`) sul parser e sulla classificazione.
+3. **Riga locale: il cloud zero dichiara metodo e confine.** In `local` la riga
+   scrive `cloud_energy_method = "not-applicable"` e
+   `cloud_estimation_boundary = "not-applicable (local mode)"` accanto allo zero
+   di confine (`benchmark_unified.py:508-517`); la riga cloud continua a non
+   pre-etichettare alcun metodo, perche' il metodo lo scrive il blocco che
+   produce la stima. Chiude F9.
 
 Non cambiano: `MEASURED_METHODS`, le colonne del CSV, l'ordine della catena
 Windows (`EMI -> unavailable`) e i clamp di `energy/local_energy.py`, che
 restano una differenza dichiarata fra produzione e v4 (AGENTS.md). La suite, a
-valle di queste due modifiche, raccoglie **411 test: 408 passati, 3 saltati**
+valle di queste tre modifiche, raccoglie **413 test: 410 passati, 3 saltati**
 (27/10/2026).
 
 
@@ -1597,7 +1603,7 @@ eccezioni vanno rivalidate al freeze.
 | F6 | RAPL, AMD e macOS mai esercitati | `energy/rapl_backend.py:87-158`; `energy/energy_session.py:206-212` | "implementato" non e' "provato"; 3 test saltati | non si chiude con codice (§11): D11 rende leggibile la ragione, le priorita' 7 e 10 di §12 portano l'hardware |
 | F7 | coefficiente di rete: citazione sbagliata e confine invertito rispetto alla fonte | `config.py:332-362`; `energy/network_energy.py:10-29` | il valore `2,7e-6` era giusto ma attribuito a un altro articolo (IEEE Network, DOI 10.1109/MNET.2011.5730522) e descritto con l'accesso incluso, mentre la fonte lo esclude; `0,46` e `20,0` uJ/bit attribuiti ad Aslan senza fonte per `20,0` | **corretto il 26-10-2026**: fonte Proc. IEEE 99(1):149-167, DOI 10.1109/JPROC.2010.2060451; accesso escluso; `0,46` = scenario cloud privato; `20,0` senza fonte. Resta aperto il confronto empirico (D8) |
 | F8 | una `CW_ENERGY_FILE` dimenticata fa misurare un file al posto del package | `energy/energy_session.py:182-197`, `:1419` | il metodo per riga e' `energy-file`, ma il run somiglia a una misura EMI finche' non si legge quella colonna | D14: etichetta **e** un flag booleano `external_counter` sulla riga, perche' un'etichetta testuale non e' un filtro |
-| F9 | local mode: `cloud_energy_j = 0.0` senza `cloud_energy_method` ne' `cloud_estimation_boundary` | `benchmark_unified.py:467` (commento "default rete/cloud a zero (regola 12.1)"), `:469` (lo zero), `:474` (il confine della **rete** c'e', quello del cloud no) | zero legittimo ma **solo a meta'**: la rete dichiara perche' non consuma, il cloud no, quindi lo zero cloud non si distingue da una stima fallita | D4 + regola 9 — **aperto** (la meta' rete e' gia' dichiarata) |
+| F9 | local mode: `cloud_energy_j = 0.0` senza `cloud_energy_method` ne' `cloud_estimation_boundary` | era `benchmark_unified.py:467` (commento "default rete/cloud a zero (regola 12.1)"), `:469` (lo zero), `:474` (il confine della **rete** c'e', quello del cloud no) | zero legittimo ma **solo a meta'**: la rete dichiara perche' non consuma, il cloud no, quindi lo zero cloud non si distingue da una stima fallita | **CHIUSO il 27-10-2026**: la riga locale scrive `cloud_energy_method = "not-applicable"` e `cloud_estimation_boundary = "not-applicable (local mode)"` accanto allo zero (`benchmark_unified.py:508-517`), mentre la riga cloud non pre-etichetta alcun metodo; `tests/test_cloud_energy_none_preservato.py` blocca entrambe le condizioni. D4 + regola 9 |
 | F10 | note e docstring attribuiscono il canale EMI a "Intel", mentre il codice non filtra per produttore | `energy/emi_backend.py:8`, `:43`, `:185-187`; `energy/energy_session.py:188-190` | su una macchina AMD la ragione di guasto direbbe "driver Intel assente" anche se il filtro non esiste; chi legge il log deduce un vincolo che il codice non impone | D11: il testo del motivo diventa indipendente dal produttore, e la verifica su AMD resta [P] |
 | F11 | selezione del primo device apribile / zona `intel-rapl:0` cablata | era `energy/emi_backend.py:195-200` (Windows) e `energy/rapl_backend.py:45-48` (Linux) | su multi-die o multi-socket i canali specchiati rischiano di essere sommati o di scegliere il package sbagliato (CodeCarbon dichiara di scartare i canali specchiati sul proprio backend Windows EMI) | D15: enumerare per `name`, deduplicare, poi sommare i package distinti; ragione `ambiguous_domain` finche' non e' risolto (§4.1, riga 26). **Meta' Linux chiusa il 27-10-2026**: `energy/rapl_backend.py:128-158`, `tests/test_rapl_zone.py` (8 test, incluso il canale specchiato contato una volta). Resta aperta la meta' Windows, il primo device apribile di `energy/emi_backend.py:195-200` |
 | F12 | sotto VPN lo stesso pacchetto contato due volte (interfaccia tunnel + fisica che lo trasporta) | era la somma di tutte le non-loopback, senza selezione | il termine di rete si gonfia di un fattore che dipende dalla configurazione, e la riga non dice quali interfacce ha sommato | **CHIUSO il 26-10-2026**: fisiche per default, virtuali e tunnel escluse, ricaduta dichiarata su tutte le non-loopback quando le fisiche vedono 0 B; il confine riporta i nomi (`energy/network_energy.py:81-214`, `:261-322`); la lettura aggregata dichiara di non separare il loopback e sorgenti miste danno `None`, non `0.0`; `tests/test_rete_nic_confine.py` blocca i casi. Il delta negativo resta troncato nel valore applicato ma e' conservato in `upload_bytes_raw`/`download_bytes_raw` con `negative_increment`; le colonne CSV sono obbligo di P5 |
@@ -1612,7 +1618,7 @@ eccezioni vanno rivalidate al freeze.
 | D1 | ~~LHM resta fallback su Windows~~ **superata da D18 (27-10-2026)** | la ragione di allora -- copre driver e permessi, non il registro -- resta vera; il ruolo di secondo percorso passa a P1, e LHM esce dall'implementazione |
 | D2 | token GPU stabile | `gpu_energy_method` con `nvml-energy` / `nvml-power-integration` / `unavailable`, accanto a `gpu_idle_provenance` |
 | D3 | proxy cloud esplicito | token distinto (`ecologits-proxy`) o campo `cloud_model_proxy`; C3 non si presenta come C2 |
-| D4 | canale non disponibile -> N/A | rete e cloud: `N/A` con ragione, mai `0.0`; zero solo per local mode dichiarato. Del cloud e' gia' cosi' in `HEAD` (`027609c`: `None -> "N/A"`, `0.0` sopravvive solo se lo produce il confine); resta la rete (F1) e il confine cloud vuoto in local mode (F9) |
+| D4 | canale non disponibile -> N/A | rete e cloud: `N/A` con ragione, mai `0.0`; zero solo per local mode dichiarato. Del cloud e' gia' cosi' in `HEAD` (`027609c`: `None -> "N/A"`, `0.0` sopravvive solo se lo produce il confine); la rete e' chiusa da F1 e il confine cloud della riga locale e' dichiarato dal 27-10-2026 (F9) |
 | D5 | macOS | `powermetrics` come [P] progettato, non selezionabile; nessuna dichiarazione di supporto |
 | D6 | NPU | disponibile solo dove esiste un dominio verificato (ANE via `powermetrics`, [P]); altrove `unavailable` e nessuna colonna finche' non esiste il backend |
 | D7 | NVML total energy | quando implementato, **sostituisce la potenza come canale primario**; la potenza resta fallback |
