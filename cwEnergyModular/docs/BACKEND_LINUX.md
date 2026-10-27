@@ -92,7 +92,7 @@ Il backend RAPL è **automaticamente selezionato** su Linux quando:
 - Non è impostata la variabile d'ambiente `CW_ENERGY_FILE` (che ha precedenza per dev/test)
 
 Non è richiesta alcuna configurazione aggiuntiva. CasualWatt rileva automaticamente la piattaforma e attiva il backend appropriato:
-- **Windows**: LibreHardwareMonitor (LHM)
+- **Windows**: contatore cumulativo EMI (`emi_backend.py`); senza device il metodo resta `unavailable` (LHM è fuori dall'implementazione dal 27/10/2026, D18)
 - **Linux**: RAPL
 - **macOS**: non supportato (future work)
 

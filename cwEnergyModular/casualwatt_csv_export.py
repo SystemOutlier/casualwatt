@@ -92,8 +92,10 @@ CSV_COLUMNS: List[str] = [
     "keep_alive_sent",
     # alt_lhm.DOCX (24/10), recepito: il canale che ha prodotto package_energy_j
     # va nella riga, non solo nel file di run metadata. I CSV di risultato
-    # accumulano righe di run diversi (emi-counter / power-integration / rapl /
-    # unavailable) e il metodo storico era leggibile solo dentro le stringhe
+    # accumulano righe di run diversi (emi-counter / rapl / energy-file /
+    # unavailable, piu' i token storici power-integration e
+    # librehardwaremonitor* delle righe gia' archiviate) e il metodo era
+    # leggibile solo dentro le stringhe
     # composite cpu_attribution_method e measurement_boundary. Qui c'e' il solo
     # token del canale package CPU; per le righe cloud e' il canale del CLIENT
     # locale (il server non e' misurato qui: vedere cloud_energy_method).

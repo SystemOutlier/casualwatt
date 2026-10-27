@@ -813,7 +813,7 @@ def run_unified_benchmark(
                 f"P_idle calibrata: {pw:.2f} W "
                 f"(mediana di {[round(r, 2) for r in reps]} W; "
                 f"metodo: {getattr(SESSION, '_idle_mode', '?')}"
-                + (f"; campioni power-integration: {n_samp}" if n_samp else "")
+                + (f"; finestre misurate: {n_samp}" if n_samp else "")
                 + ")"
             )
         except Exception as exc:

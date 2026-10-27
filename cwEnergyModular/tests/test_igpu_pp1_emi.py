@@ -3,8 +3,9 @@
 
 Decisione del 24/10: quando ``emi-counter`` e' il canale primario, il dominio
 grafico non deve restare N/A "per costruzione" mentre lo stesso record che
-gia' si legge espone PP1. Le 12 docstring dei test di questo file sono scritte
-adesso, dalle funzioni stesse.
+gia' si legge espone PP1. Dal 27/10/2026 (D18) e' anche l'UNICO percorso
+iGPU: uscendo LHM non esiste piu' un sensore di potenza iGPU da integrare.
+Le docstring di questo file sono scritte dalle funzioni stesse.
 
 Come in tutto il modulo: nessun IOCTL reale. ``FakeEMI`` falsa SOLO il record
 (a ``test_emi_backend``), mentre la conversione pWh -> J e la mappa
@@ -108,10 +109,10 @@ def test_pp1_non_contamina_lettura_del_package(monkeypatch):
 
 
 def test_con_metodo_diverso_pp1_non_parla(monkeypatch):
-    """CW_PRIMARY_CHANNEL=lhm o degradazione: nessun delta PP1 esce dal buffer EMI."""
+    """Su un altro canale di misura (RAPL) nessun delta PP1 esce dal buffer EMI."""
     src, _ = _make_source(monkeypatch)
     _seed_pp1(src, [(1000.0, 0.0, 1), (1004.0, 9.0, 2)])
-    src.method = "power-integration"
+    src.method = "rapl"
     assert src.emi_window_energy_j(1000.0, 1004.0, domain="pp1") is None
 
 

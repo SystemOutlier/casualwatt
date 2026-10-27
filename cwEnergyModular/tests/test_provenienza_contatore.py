@@ -14,12 +14,10 @@ Che cosa verifica:
   1. EMI: i grezzi sono pWh interpolati ai bordi dal buffer a 0,05 s, il
      dominio e' PKG, la cadenza e' la MEDIANA dei delta (non la media, che
      sotto spin passa da 0,0506 a 0,0770 s);
-  2. power-integration: nessun contatore, quindi grezzi VUOTI (non zero) e
-     versione dell'assembly LHM;
-  3. RAPL: microjoule cumulati (unwrapped), versione = kernel;
-  4. il profiler copia la provenienza nella riga e un errore del canale
+  2. RAPL: microjoule cumulati (unwrapped), versione = kernel;
+  3. il profiler copia la provenienza nella riga e un errore del canale
      degrada a campi vuoti con una nota, non a un crash;
-  5. la migrazione dell'header accoda le sei colonne senza perdere le celle
+  4. la migrazione dell'header accoda le sei colonne senza perdere le celle
      storiche, e l'export le scrive.
 
 Che cosa NON verifica: che il valore grezzo sia corretto rispetto al
@@ -129,20 +127,6 @@ def test_emi_senza_grezzi_nel_buffer_non_inventa(monkeypatch):
     assert prov["raw_start"] is None and prov["raw_end"] is None
     assert prov["raw_unit"] == "pWh", "l'unita' e' nota anche se il grezzo manca"
     assert prov["sampling_interval_observed_s"] == pytest.approx(2.0)
-
-
-# --------------------------------------------------- power-integration
-def test_power_integration_nessun_contatore_da_citare():
-    """LHM integra una potenza: i grezzi restano vuoti e la versione e' l'assembly."""
-    src = _SoloSorgente("power-integration", "LibreHardwareMonitorLib 0.9.4.0")
-    src._pi_lock = threading.Lock()
-    src._pi_samples = [(1000.0, 10.0), (1002.0, 12.0), (1004.0, 11.0)]
-    prov = _session(src).window_counter_provenance(1000.0, 1004.0)
-    assert prov["domain"] == "PKG"
-    assert prov["raw_start"] is None and prov["raw_end"] is None
-    assert prov["raw_unit"] == ""
-    assert prov["sampling_interval_observed_s"] == pytest.approx(2.0)
-    assert "0.9.4" in prov["backend_version"]
 
 
 # ----------------------------------------------------------------- RAPL

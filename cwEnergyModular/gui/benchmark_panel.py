@@ -141,26 +141,21 @@ class BenchmarkPanel(ttk.Frame):
         ).pack(side="left", padx=2)
 
         # ----------------------- stato privilegi UAC ------------------------
-        # LibreHardwareMonitor legge i sensori Energy-CPU solo con token
-        # elevato: mostro lo stato e offro il riavvio elevato con un click.
+        # Il contatore EMI legge il device senza token elevato: lo stato dei
+        # privilegi resta visibile come informazione, non come prerequisito
+        # della misura (l'elevazione serviva al vecchio percorso LHM).
         try:
-            from elevation import elevate_available, is_admin
+            from elevation import is_admin
 
-            self._elevate_possible = elevate_available()
             _admin = is_admin()
         except Exception:  # pragma: no cover - degradazione protetta
-            self._elevate_possible = False
             _admin = False
         if _admin:
             self.lbl_uac = ttk.Label(
                 btns, text="\u2714 Amministratore", foreground="#1a7f37")
-        elif self._elevate_possible:
-            self.lbl_uac = ttk.Button(
-                btns, text="\u26a0 Riavvia come Amministratore",
-                command=self.relaunch_as_admin)
         else:
             self.lbl_uac = ttk.Label(
-                btns, text="privilegi standard (LHM richiede admin)",
+                btns, text="privilegi standard (la misura non richiede admin)",
                 foreground="gray")
         self.lbl_uac.pack(side="right", padx=6)
 
@@ -612,7 +607,7 @@ class BenchmarkPanel(ttk.Frame):
                     if reps else ""
                 )
                 n_camp = getattr(SESSION, "_idle_samples_count", None)
-                camp_txt = f"; campioni PI: {n_camp}" if n_camp else ""
+                camp_txt = f"; finestre misurate: {n_camp}" if n_camp else ""
                 self._q.put((
                     "log",
                     f"P_idle = {pw:.2f} W misurata a riposo "
@@ -622,12 +617,12 @@ class BenchmarkPanel(ttk.Frame):
             except Exception as exc:
                 self._q.put(("log", f"Calibrazione fallita: {exc}"))
                 # niente fallimento silenzioso: se il contatore non legge i
-                # Joule, la causa piu' probabile e' UAC o pythonnet/clr:
-                # esegui la diagnostica completa (console + log GUI).
+                # Joule, la causa e' il device EMI (o RAPL su Linux): esegui
+                # la diagnostica completa (console + log GUI).
                 try:
                     import diagnostics
 
-                    self._q.put(("log", "--- Diagnostica LHM/clr in corso (console + qui) ---"))
+                    self._q.put(("log", "--- Diagnostica del contatore in corso (console + qui) ---"))
                     summary = diagnostics.run_diagnostics(
                         log_callback=lambda m: self._q.put(("log", m))
                     )
@@ -642,51 +637,6 @@ class BenchmarkPanel(ttk.Frame):
         t = threading.Thread(target=worker, daemon=True, name="cw-idle-calib")
         t.start()
         self._ensure_poller()
-
-    # ------------------------------------------------------------ elevazione
-    def relaunch_as_admin(self):
-        """Riavvia CasualWatt con privilegi amministrativi (prompt UAC).
-
-        Necessario per far leggere a LibreHardwareMonitor i sensori fisici
-        Energy-CPU. Se un benchmark e' in corso viene prima fermato in modo
-        pulito; al successo dell'avvio elevato l'istanza corrente si chiude.
-        """
-        import tkinter as _tk
-        from tkinter import messagebox
-
-        from elevation import relaunch_as_admin as _relaunch
-
-        if self._running:
-            if not messagebox.askyesno(
-                "Riavvio come Amministratore",
-                "Benchmark in corso: verra' fermato prima del riavvio.\n"
-                "Continuare?",
-            ):
-                return
-            self.stop()
-
-        handle = _relaunch()
-        if handle > 0:
-            self.log("Riavvio elevato richiesto (prompt UAC): nuova istanza in avvio…")
-            try:
-                if messagebox.askyesno(
-                    "Riavvio come Amministratore",
-                    "Elevazione richiesta: la nuova finestra di CasualWatt "
-                    "(amministratore) sta partendo.\n\n"
-                    "Chiudere questa istanza non elevata?",
-                ):
-                    toplevel = self.winfo_toplevel()
-                    if hasattr(toplevel, "_on_close"):
-                        toplevel._on_close()
-                    else:
-                        toplevel.destroy()
-            except _tk.TclError:
-                pass
-        else:
-            self.log(
-                "Elevazione non riuscita (prompt UAC annullato o negato). "
-                "Riprova oppure avvia manualmente: 'py main.py' da PowerShell admin."
-            )
 
 
 def SESSION_has_idle() -> bool:

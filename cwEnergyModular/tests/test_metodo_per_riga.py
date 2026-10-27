@@ -146,7 +146,7 @@ def test_canale_indisponibile_dichiara_zero_non_una_stima():
     assert res.energy_calculation_method == "unavailable"
     assert res.package_window_source == "unavailable"
     assert res.package_energy_j == pytest.approx(0.0)
-    assert "DISABLED" in res.measurement_boundary
+    assert "UNAVAILABLE" in res.measurement_boundary
 
 
 # ------------------------------------------------------------------ 3

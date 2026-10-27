@@ -8,8 +8,10 @@ una decisione gia' presa e documentata.
 
 I numeri e gli ancoraggi di questo file sono verificati al **24-10-2026**; i tre
 conteggi (suite di test, script `.py` di radice, file di `experiment_results/`) sono
-riverificati al **26-10-2026** perche' erano stantii. Se un
-ancoraggio non torna, il file e' stantio: va corretto, non ignorato.
+riverificati al **26-10-2026** perche' erano stantii, e il conteggio della suite
+e gli ancoraggi di `local_energy.py`/`energy_session.py` sono riverificati al
+**27-10-2026** dopo l'uscita di LHM dall'implementazione (D18, 8 test rimossi).
+Se un ancoraggio non torna, il file e' stantio: va corretto, non ignorato.
 
 Fonti primarie, in ordine di autorita':
 
@@ -74,20 +76,27 @@ Le formule sono tutte in `protocollo_v4_20261024.md`, sezione *Formulario
 consolidato* (F.0-F.17), con applicazione e giustificazione per ciascuna. Qui
 stanno solo le regole che un agente puo' violare senza accorgersene.
 
-- **Nessun fallback silenzioso.** Il fallback EMI -> LHM/RAPL fa parte del
-  disegno di produzione (`CW_PRIMARY_CHANNEL`, default `"emi"`,
-  `energy/energy_session.py:210`), ma va sempre dichiarato: il canale per riga in
-  `energy_calculation_method` (`energy/local_energy.py:98`), la finestra in
+- **Nessun fallback silenzioso.** La catena locale e' corta e va dichiarata: su
+  Windows il contatore EMI (`emi-counter`) oppure `unavailable` — nessun secondo
+  canale, perche' LibreHardwareMonitor e' uscito dall'implementazione il
+  2026-10-27 (D18, metodo provato e superato, sostituto MSR [P]); su Linux i
+  contatori RAPL. `CW_ENERGY_FILE` (DEV/TEST) ha precedenza su entrambi. Non
+  esiste piu' `CW_PRIMARY_CHANNEL`. Il canale va scritto per riga in
+  `energy_calculation_method` (`energy/local_energy.py:134`), la finestra in
   `package_window_source` (`exact-counter | samples-fallback | unavailable`,
-  `:90`), l'origine della baseline in `idle_provenance` (`:91`) e, dalla v4, in
+  `:124`), l'origine della baseline in `idle_provenance` (`:125`) e, dalla v4, in
   `baseline_backend` — campo del protocollo P1.3, non ancora presente nel codice.
   Mai presentare un fallback come un contatore.
 - **Solo i token di canale reali.**
   `MEASURED_METHODS = ("emi-counter", "power-integration",
   "librehardwaremonitor-energy", "energy-file", "rapl")`
-  (`energy/energy_session.py:49-50`). **CasualWatt non ha un percorso di stima
-  TDP**: quello e' il percorso di CodeCarbon, usato nella tesi come contrasto. Non
-  inventare un canale `estimated`.
+  (`energy/energy_session.py:72-73`). La lista dice **quali righe portano un
+  numero**, non cosa sa fare il codice oggi: `power-integration` e
+  `librehardwaremonitor-energy` restano per i CSV archiviati in
+  `experiment_results/` (v1-v3, four-way, A-B-A) misurati con quei canali, e
+  nessun percorso di produzione li produce piu'. **CasualWatt non ha un percorso
+  di stima TDP**: quello e' il percorso di CodeCarbon, usato nella tesi come
+  contrasto. Non inventare un canale `estimated`.
 - **Nessun doppio conteggio.** PP0 e PP1 sono sottoinsiemi di PKG: non sommare
   `PKG+PP0+PP1` e non sommare `PKG+DRAM` (`energy/emi_backend.py:29`, `:272`;
   `DOMAIN_NAMES = ("pkg", "dram", "pp0", "pp1")` a `:73`). PP1 alimenta
@@ -101,7 +110,7 @@ stanno solo le regole che un agente puo' violare senza accorgersene.
   dipendente dall'esito che deve correggere (P1.14, motivazione causale).
 - **Nessun troncamento.** Gli incrementi negativi si conservano con il flag
   `negative_increment`. La produzione attuale applica un clamp a zero in
-  quattro punti (`energy/local_energy.py:493`, `:500`, `:518`, `:536`); la v4
+  tre punti (`energy/local_energy.py:496`, `:514`, `:532`); la v4
   non lo fa e la differenza va dichiarata. La regola non nasce con la v4: era
   gia' DP-A nella specifica `METODI_E_FORMULE.md` del 21-10
   (`Ê_att = E_pkg^raw − E_base`, "firmata, mai clampata"), documento che sta in
@@ -131,7 +140,8 @@ stanno solo le regole che un agente puo' violare senza accorgersene.
   deterministica. Si registrano i tre valori, la mediana, il minimo, il massimo e
   il range. Un indicatore ridondante suggerisce che esista una sigma stimata.
 - **Un accordo fra due letture dello stesso registro NON e' una validazione
-  indipendente.** EMI, LibreHardwareMonitor e SRUM leggono tutti
+  indipendente.** EMI, LibreHardwareMonitor (oggi fuori dall'implementazione) e
+  SRUM leggono tutti
   `MSR_PKG_ENERGY_STATUS` (0x611): concordano per costruzione anche se la scala
   fosse sbagliata. La scala assoluta resta **non arbitrata** senza un wattmetro
   AC/DC esterno. Questo caveat va scritto prima dei numeri, non in nota.
@@ -146,7 +156,7 @@ stanno solo le regole che un agente puo' violare senza accorgersene.
 ## Comandi di verifica
 
 ```
-pytest cwEnergyModular          # 404 raccolti: 401 passati, 3 saltati (9,5 s)
+pytest cwEnergyModular          # 396 raccolti: 393 passati, 3 saltati (9 s)
 ```
 
 **Mai `pytest` nudo dalla radice**: la raccolta viene interrotta da 6 errori in
@@ -177,15 +187,17 @@ indefiniti.
   `casualwatt_csv_export.py` (`CSV_COLUMNS`, righe 17-182;
   `BLOCK_SUMMARY_COLUMNS`, 189-204; `POINT_SUMMARY_COLUMNS`, 206-215), e il
   runner v4 `benchmark_v4.py` (sequenza di blocco di P1.5).
-- **I test stanno in due posti**: `cwEnergyModular/tests/` (345) e direttamente in
+- **I test stanno in due posti**: `cwEnergyModular/tests/` (337) e direttamente in
   `cwEnergyModular/` (`test_answer_type_evaluation.py`, 35;
   `test_synthetic_window.py`, 2; `test_validazione_valutazione.py`, 22);
-  345 + 59 = 404. Ogni test ha una docstring che
+  337 + 59 = 396. Ogni test ha una docstring che
   dice *perche'* esiste e quale relazione matematica o fisica verifica, non solo
   cosa fa.
   L'Appendice D della tesi e' stata rigenerata il 2026-10-26 con
   `cwEnergyModular/tools/dump_tests_latex.py`: 404 node id, 401 passati, 3
-  saltati, docstring 404/404. Il file generato
+  saltati, docstring 404/404. Quel materiale precede l'uscita di LHM
+  dall'implementazione (2026-10-27), che ha rimosso 8 test: va rigenerato prima
+  di citarne i conteggi. Il file generato
   (`Tesi-latex/qoder-bozza/generated/test_suite_appD.tex`) sta fuori da git.
   I 17 test di `tests/test_protocollo_p4_geometry.py` (2026-10-26, quinto turno
   di revisione esterna) congelano la geometria di copertura di P4.7 e la scala

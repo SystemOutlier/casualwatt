@@ -1,8 +1,10 @@
 # -*- coding: utf-8 -*-
 """Test offline del canale EMI come metodo principale su Windows (23/10).
 
-Le 12 docstring dei test di questo file sono state aggiunte il 23/10/2026
-leggendo i corpi, non dall'autore originale delle funzioni.
+Le docstring dei test di questo file sono state aggiunte il 23/10/2026
+leggendo i corpi, non dall'autore originale delle funzioni; quelle dei test
+toccati il 27/10/2026 (uscita di LHM dall'implementazione, D18) sono state
+riscritte con i corpi.
 
 Nessun IOCTL reale: il backend e' sostituito da un fake; cio' che si prova
 qui e' la CATENA di decisioni (precedenze, etichette di metodo, lettura dei
@@ -71,25 +73,11 @@ def test_unavailable_backend_reads_none():
     assert b.read_fields_j() is None
 
 
-def test_primary_channel_default_and_override(monkeypatch):
-    """Canale primario 'emi' di default, 'lhm' solo se CW_PRIMARY_CHANNEL lo chiede."""
-    monkeypatch.delenv("CW_PRIMARY_CHANNEL", raising=False)
-    assert es._CPUJouleSource._primary_channel() == "emi"
-    monkeypatch.setenv("CW_PRIMARY_CHANNEL", "lhm")
-    assert es._CPUJouleSource._primary_channel() == "lhm"
-
-
 # ------------------------------------------------------------------ catena: priorità
 def _make_source(monkeypatch, available=True):
     """Costruisce un _CPUJouleSource su Windows simulato con EMI fake."""
     monkeypatch.setattr(es, "platform_system", lambda: "Windows")
     monkeypatch.setattr(es._CPUJouleSource, "_try_power_counter", lambda self: False)
-    # una regressione qui riaprirebbe la via LHM (pythonnet) anche nei test:
-    monkeypatch.setattr(
-        es._CPUJouleSource, "_try_lhm",
-        lambda self: (_ for _ in ()).throw(AssertionError("LHM non deve essere toccata")),
-    )
-    monkeypatch.delenv("CW_PRIMARY_CHANNEL", raising=False)
     monkeypatch.delenv("CW_ENERGY_FILE", raising=False)
 
     fake = FakeEMI(available=available)
@@ -98,48 +86,21 @@ def _make_source(monkeypatch, available=True):
     return src, fake
 
 
-def test_emi_is_preferred_over_lhm(monkeypatch):
-    """Con EMI disponibile il metodo e' 'emi-counter': nessun thread di misura e nessun probe LHM in coda."""
+def test_emi_is_the_measured_method(monkeypatch):
+    """Con EMI disponibile il metodo e' 'emi-counter' e nessun thread di misura parte all'import."""
     src, fake = _make_source(monkeypatch, available=True)
     assert src.method == "emi-counter"
     assert src._emi is fake
     # l'import/costruzione NON deve mai avviare thread di misura:
     assert src._emi_thread is None
-    # e con EMI attivo il probe LHM pigro non e' nemmeno in coda:
-    assert src._lazy_pending is False
 
 
-def test_lhm_fallback_when_emi_absent(monkeypatch):
-    """Senza EMI il metodo resta 'unavailable' e il probe LHM pigro e' ancora in coda, con la nota del perche'."""
+def test_windows_without_emi_is_unavailable(monkeypatch):
+    """Senza EMI il metodo resta 'unavailable' con la nota che dichiara la catena chiusa."""
     src, fake = _make_source(monkeypatch, available=False)
     assert src.method == "unavailable"
     assert src._emi is None
-    # il percorso precedente (probe LHM pigro) deve restare intatto:
-    assert src._lazy_pending is True
     assert any("EMI non disponibile" in n for n in src.notes)
-
-
-def test_cw_primary_channel_lhm_skips_emi(monkeypatch):
-    """CW_PRIMARY_CHANNEL=lhm non tocca nemmeno il costruttore EMI: contatore di chiamate a zero."""
-    monkeypatch.setattr(es, "platform_system", lambda: "Windows")
-    monkeypatch.setattr(es._CPUJouleSource, "_try_power_counter", lambda self: False)
-    monkeypatch.setattr(
-        es._CPUJouleSource, "_try_lhm",
-        lambda self: (_ for _ in ()).throw(AssertionError("non deve essere chiamata")),
-    )
-    monkeypatch.setenv("CW_PRIMARY_CHANNEL", "lhm")
-    monkeypatch.delenv("CW_ENERGY_FILE", raising=False)
-    called = {"n": 0}
-
-    def _boom(*a, **k):
-        called["n"] += 1
-        return FakeEMI()
-
-    monkeypatch.setattr(eb, "EMICounterBackend", _boom)
-    src = es._CPUJouleSource()
-    assert called["n"] == 0          # con lhm forzato EMI non si tocca
-    assert src.method == "unavailable"
-    assert src._lazy_pending is True
 
 
 # ----------------------------------------------------------- bordo esatto di finestra
@@ -166,7 +127,7 @@ def test_emi_window_energy_guards(monkeypatch):
     """Metodo diverso, buffer vuoto o finestra fuori copertura: None, mai un numero estrapolato."""
     src, _ = _make_source(monkeypatch)
     # metodo diverso: nessun valore (il chiamante dichiara il fallback)
-    src.method = "power-integration"
+    src.method = "rapl"
     assert src.emi_window_energy_j(1000.0, 1004.0) is None
     src.method = "emi-counter"
     # buffer vuoto: None, non zero

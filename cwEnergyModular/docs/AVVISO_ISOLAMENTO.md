@@ -57,7 +57,7 @@ Calibrazione idle EMPIRICA: NON generare carico sul PC…
 ### Perché l'isolamento è critico
 
 1. **Misura del package CPU**: CasualWatt misura l'energia reale del package CPU via:
-   - Windows: LibreHardwareMonitor (sensore "CPU Package")
+   - Windows: contatore cumulativo EMI (energy/emi_backend.py)
    - Linux: Contatori RAPL (`/sys/class/powercap/intel-rapl/`)
 
 2. **Attribuzione per processo**: L'energia viene attribuita a Ollama in base alla quota di tempo CPU:
