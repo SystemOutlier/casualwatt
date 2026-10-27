@@ -59,7 +59,11 @@ GPU:
   (``nvml-power-integral``) e lo si dichiara in ``gpu_attribution_method``,
   che comincia sempre con il token del percorso usato. In entrambi i casi
   si sottrae la potenza GPU a idle calibrata sullo STESSO intervallo
-  (confine: whole-device). L'utilizzo medio e' solo campo diagnostico
+  (confine: whole-device). La stessa catena vale per le GPU AMD via AMD SMI,
+  con prefisso ``amdsmi`` (``amdsmi_get_energy_count``: accumulator x
+  counter_resolution in microjoule, doc ROCm verificata il 28-10-2026), ed
+  e' il FALLBACK: si usa solo se NVML non risponde, mai in parallelo.
+  L'utilizzo medio e' solo campo diagnostico
   (gpu_utilization_share), NON un moltiplicatore: la potenza GPU riflette
   gia' il carico, quindi moltiplicare per lo share conteggierebbe il
   carico due volte. Attribuzione per processo (nvmlDeviceGetProcess-
@@ -766,6 +770,7 @@ class CasualWattLocalEnergyProfiler:
                     util_n += 1
             board_j = 0.0
             gpu_dt = 0.0
+            gpu_backend = getattr(gpu_mon, "backend", "nvml")
             # Catena dichiarata: contatore cumulativo NVML -> integrale della
             # potenza -> nessun numero. Il contatore si usa per DELTA fra i
             # bordi e solo senza sottofinestre escluse: un delta non sa
@@ -780,8 +785,8 @@ class CasualWattLocalEnergyProfiler:
                 if d_mj >= 0.0 and span > 0.0:
                     board_j = d_mj / 1000.0
                     gpu_dt = span
-                    method_txt = (f"nvml-energy (delta {d_mj:.0f} mJ over "
-                                  f"{span:.3f}s, counter since last reset)")
+                    method_txt = (f"{gpu_backend}-energy (delta {d_mj:.0f} mJ "
+                                  f"over {span:.3f}s, counter since last reset)")
                 else:
                     counter_ok = False
                     notes.append(
@@ -800,8 +805,10 @@ class CasualWattLocalEnergyProfiler:
                         board_j += ((prev.gpu_power_w + cur.gpu_power_w) / 2.0) * seg_dt
                         gpu_dt += seg_dt
                     prev = cur
-                method_txt = (f"nvml-power-integral (integrated span "
-                              f"{gpu_dt:.3f}s)")
+                power_field = getattr(gpu_mon, "power_field", "")
+                field_txt = f", power={power_field}" if power_field else ""
+                method_txt = (f"{gpu_backend}-power-integral (integrated span "
+                              f"{gpu_dt:.3f}s{field_txt})")
             idle_gpu_raw = getattr(self.session, "idle_gpu_power_w", None)
             idle_gpu_w = float(idle_gpu_raw) if idle_gpu_raw else 0.0
             # Punto 2: provenienza dell'idle GPU. Se manca (o e' 0) lo scorporo
