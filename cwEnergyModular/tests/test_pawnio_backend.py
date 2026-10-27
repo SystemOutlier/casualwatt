@@ -322,10 +322,15 @@ def test_chiusura_rende_il_backend_non_disponibile(tmp_path):
     assert backend.read_cumulative_energy_j() is None
 
 
-def test_find_modules_dir_rispetta_la_variabile(tmp_path):
+def test_find_modules_dir_rispetta_la_variabile(tmp_path, monkeypatch):
+    # La cache reale va esclusa: su un host dove i moduli sono installati
+    # `find_modules_dir` li trova anche quando la variabile e' sbagliata, e il
+    # test misurerebbe la macchina invece della precedenza.
+    monkeypatch.setattr(pb, "default_modules_dir", lambda: tmp_path / "cache-vuota")
     d = tmp_path / "mod"
     d.mkdir()
     (d / "IntelMSR.bin").write_bytes(b"x")
-    assert pb.find_modules_dir({"CW_PAWNIO_MODULES": str(d)}) == d
-    assert pb.find_modules_dir({"CW_PAWNIO_MODULES": str(tmp_path / "no")}
+    env = {"ProgramFiles": str(tmp_path / "pf")}
+    assert pb.find_modules_dir({**env, "CW_PAWNIO_MODULES": str(d)}) == d
+    assert pb.find_modules_dir({**env, "CW_PAWNIO_MODULES": str(tmp_path / "no")}
                                ) is None
