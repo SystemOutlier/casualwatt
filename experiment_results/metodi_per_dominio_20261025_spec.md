@@ -37,7 +37,10 @@ usare e con quale etichetta.
 
 **Data e albero delle verifiche.** Le affermazioni sul codice e sulle fonti
 esterne sono verificate al 25-26/10/2026, le fonti esterne alla fonte primaria
-con la data scritta accanto a ciascuna. Gli ancoraggi `file:riga` puntano
+con la data scritta accanto a ciascuna. Le righe toccate dalla revisione EMI del
+27/10/2026 (E1, §3.1.1, §4.1 riga 26, F10/F11/F13, D17 e gli ancoraggi EMI)
+sono riverificate contro l'albero dei commit `544176a` e `ea117ac`. Gli
+ancoraggi `file:riga` puntano
 pero' all'**albero di lavoro**, non a un commit: la branca `emenda-8` porta
 modifiche non committate su `energy/energy_session.py`, `energy/local_energy.py`,
 `casualwatt_csv_export.py`, `AGENTS.md` e su vari test (1313 righe aggiunte e 186
@@ -284,7 +287,7 @@ sembra. Per questo il punto 3 della lista porta `cloud_latency_used_s`,
 | 3 | campi di provenienza della stima cloud (D3, D12, i campi della latenza clampata) | remoto | aperto |
 | 4 | coefficiente J/bit e confine di rete (D8, D13, D16; F7) | remoto | **fonte e confine corretti** il 26-10-2026; resta aperto il confronto empirico e il confine byte/coefficiente |
 | 5 | zero contro `N/A` nel blocco remoto (D4; F1 e F9 aperti, F2 chiuso in `HEAD`) | remoto | aperto |
-| 6 | CPU/package: fallback, `external_counter`, package multipli, lessico di G0 (D1, D9, D11, D14, D15; F8, F10, F11) | locale | aperto |
+| 6 | CPU/package: fallback, `external_counter`, package multipli, lessico di G0 (D1, D9, D11, D14, D15; F8, F10, F11) | locale | **in parte chiuso il 27-10-2026**: F10, F11 (entrambi i lati), F13 e D17 in codice; restano il token di riga (D11), la somma dei package distinti (D15) e `external_counter` (D14); D1 e D9 sono superate da D18 |
 | 7 | GPU, NPU e i mai-esercitati (D2, D5, D6, D7; F3, F6) | locale | aperto |
 | 8 | attribuzione al processo: M3, non un metodo (§8, P6.6) | locale | aperto |
 | 9 | allineamento di §9, §10, §11, §12 contro i punti chiusi | trasversale | aperto |
@@ -425,7 +428,7 @@ non si ripetono in ogni tabella, e §5 li traduce nella riga del CSV.
 
 | id | interfaccia e unita' | livello | confine | etichetta | stato |
 |---|---|---|---|---|---|
-| E1 | canale energia di Windows letto via IOCTL sul device enumerato per GUID `{45bd8344-...}`; record PKG in pWh (1 pWh = 3,6e-9 J), timestamp per dominio; il canale si nomina dal metadato del driver (`RAPL_Package0_PKG`), **non dal produttore** | M1 | package; non include VRM, display, alimentatore | `emi-counter` | [I][V] su i9-13900HK; [P] su AMD e su Windows 10, probe non eseguito. Nota 26/10: l'interfaccia e' **documentata** da Windows 10 (EMI v1) e da 1809 (v1+v2), il GUID e' quello di `emi.h` / `GUID_DEVICE_ENERGY_METER`, e l'unita' `EmiMeasurementUnitPicowattHour` con `AbsoluteEnergy` cumulativo "with some arbitrary zero-point" e' la definizione che sta dietro M1 (§3.1, fonte Microsoft) |
+| E1 | canale energia di Windows letto via IOCTL sul device enumerato per GUID `{45bd8344-...}`; record PKG in pWh (1 pWh = 3,6e-9 J), timestamp per dominio; il canale si nomina dal metadato del driver (`RAPL_Package0_PKG`), **non dal produttore** | M1 | package; non include VRM, display, alimentatore | `emi-counter` | [I][V] su i9-13900HK, metadato v2 di 492 byte con quattro canali letto il 27/10 e device scelto per nome; [P] su AMD e su Windows 10, probe non eseguito. Nota 26/10: l'interfaccia e' **documentata** da Windows 10 (EMI v1) e da 1809 (v1+v2), il GUID e' quello di `emi.h` / `GUID_DEVICE_ENERGY_METER`, e l'unita' `EmiMeasurementUnitPicowattHour` con `AbsoluteEnergy` cumulativo "with some arbitrary zero-point" e' la definizione che sta dietro M1 (§3.1, fonte Microsoft) |
 | E2 | stesso canale, dominio PP1 (`RAPL_Package0_PP1`) | M1 sub-dominio | grafica integrata **su Intel**, sottoinsieme di PKG; informativo | campo `igpu_energy_j` | [I][V] a riposo |
 | E3 | stesso canale, dominio DRAM (`RAPL_Package0_DRAM`) | M1, dominio distinto | memoria; **non e' un sottoinsieme di PKG**; sul host client legge spesso zero | si riporta a parte, mai somma implicita | [I][V] |
 | L1 | LHM, sensore `SensorType.Energy` | M1/M2 **non determinato** | se e' un contatore hardware e' M1; se LHM lo integra e' M2 | `librehardwaremonitor-energy` | **storico dal 27/10-2026 (D18)**: non selezionabile; metodo provato e superato. [I] codice, [A] sul host (solo batteria in LHM 0.9.6) |
@@ -451,19 +454,31 @@ Precisazioni.
 - **E1.** Il device e' enumerato per GUID di interfaccia con SetupAPI, senza
   filtro di produttore: `energy_session` seleziona Windows e basta, poi chiede
   il contatore e accetta il canale **solo se la prima lettura riesce**
-  (`energy/energy_session.py:188-190`, `:231-260`). Il nome "Intel" che compare
-  nei commenti del backend (`energy/emi_backend.py:7-9`, `:43`, `:187`) e' una
-  descrizione del machine dove e' stato provato, **non un vincolo del codice**:
-  la correttezza di questa nota nel commento e' essa stessa un punto da
-  verificare (F10). Il canale si nomina dai metadati del driver
-  (`RAPL_Package0_PKG`, `:31-37`), ma il codice non interroga quel metadato:
-  l'ordine e' assunto dalla posizione del record (F13, §3.1.1). Il percorso
-  prende **la prima interfaccia che si apre**
-  (`energy/emi_backend.py:195-200`): su macchine con piu' package o con canali
-  specchiati per die le altre sono ignorate, e CodeCarbon documenta proprio
-  questo caso (canali di package separati che replicano lo stesso contatore
-  socket-wide, da deduplicare; verificato il 26/10 su
-  `docs.codecarbon.io/latest/explanation/rapl/`). E' il difetto F11.
+  (`energy/energy_session.py:136-152`, `:154-182`). Fino al 26/10 il percorso
+  prendeva la prima interfaccia apribile e il primo canale del record, e
+  l'ordine `pkg, dram, pp0, pp1` era assunto dalla posizione: erano i difetti
+  F11 e F13. **Dal 27/10/2026 il lettore verifica il meter invece di
+  presumerlo** (D17): enumera tutte le interfacce, per ciascuna legge il
+  contratto del driver -- `IOCTL_EMI_GET_VERSION` -> `GET_METADATA_SIZE` ->
+  `GET_METADATA` (`energy/emi_backend.py:95-98`, `:476-501`) -- e accetta un
+  device solo se il metadato espone un canale di dominio `pkg` in pWh
+  (`select_cpu_device`, `:226-263`). Un device senza quel canale -- batteria,
+  sensor hub, GPU -- si scarta con la ragione scritta nei `notes` ("nessun
+  canale PKG: non e' un device CPU (canali: ...)"); senza **nessun** device CPU
+  la selezione non produce un canale e la riga e' `unavailable`. Con **piu'**
+  device CPU (package multipli) la scelta non e' automatica: la ragione e'
+  `ambiguous_domain` e `CW_EMI_DEVICE` dichiara il device, senza saltare la
+  verifica del metadato (`choose_single`, `:266-285`).
+  Il canale PKG si sceglie per **nome** e non per posizione
+  (`domain_from_channel_name`, `:158-167`); il record si legge per
+  `16 * ChannelCount` byte e ogni coppia (energia, tempo) si mappa sul canale
+  con quell'indice (`_ioctl_raw`, `:526-548`; `read_domains`, `:591-624`). Un
+  canale PKG specchiato si legge una volta dichiarandolo, due canali PKG con
+  nomi distinti sono `ambiguous_domain` (D15). Un meter **V1**, che la
+  documentazione descrive a un solo canale, si scarta con la ragione dichiarata
+  -- la lettura V1 non e' implementata ne' provata -- invece di presentare la
+  risposta corta come guasto dell'IOCTL. Il metadato verificato su questo host
+  il 27/10/2026 e' in §3.1.1.
   L'accumulatore e' letto grezzo, senza integrazione, senza .NET e senza
   privilegi di amministratore (`energy/emi_backend.py:13-16`); i timestamp sono
   **per dominio**, e sono l'unico modo di accorgersi che un canale non si
@@ -654,6 +669,30 @@ di cinque passi, e ognuno produce un obbligo verificabile sul nostro lettore.
    intervals". La semantica M1 dei nostri delta e' questa, non una convenzione
    nostra.
 
+Il metadato di questo host, letto con gli stessi IOCTL il **27-10-2026** dalla
+diagnostica (`diagnostics.py`, cattura integrale in
+`experiment_results/emi_metadato_console_20261027.txt`; la console girava in un
+processo elevato e lo dichiara -- documenta il metadato, non il privilegio):
+
+| campo | valore osservato |
+|---|---|
+| `EMI_VERSION` | 2 (`EMI_VERSION_V2`) |
+| `MetadataSize` | 492 byte |
+| `HardwareOEM` / `HardwareModel` / `HardwareRevision` | `Microsoft` / `PPM` / 1 |
+| `ChannelCount` | 4 |
+| canali, nell'ordine del record | `RAPL_Package0_PKG`, `_DRAM`, `_PP0`, `_PP1` |
+| `MeasurementUnit` | 0 (`EmiMeasurementUnitPicowattHours`) su tutti e quattro |
+| `ChannelNameSize` | 100 byte per canale (nome + riempimento NUL), non la lunghezza naturale della stringa |
+
+E' un fatto su **una** macchina (i9-13900HK, Windows 11): dice che il contratto
+si legge davvero cosi', non che il formato sia identico altrove. Per questo il
+codice mappa per nome e scarta il device quando il nome non basta
+(`domain_from_channel_name`, `energy/emi_backend.py:158-167`), invece di
+assumere l'ordine osservato qui. I quattro canali confermano che
+`DOMAIN_NAMES = ("pkg", "dram", "pp0", "pp1")` descrive **questo** metadato; la
+non additivita' (PP0 + PP1 != PKG, PKG + DRAM != "tutto") resta la regola di
+§3.1 e di §5.2, non un effetto dell'ordine.
+
 Da qui una proposizione che questo documento non aveva, e che vale per la regola
 7 di §5: **la cadenza non e' una proprieta' del contatore.** La pagina
 dell'IOCTL scrive che "the EMI interface of any device should be shared across
@@ -662,32 +701,35 @@ accumulated depends on how often each of its consumers requests and also the
 driver implementation". La cadenza si osserva e si scrive nella riga; non si
 prescrive, e non e' la stessa su due macchine.
 
-Cosa manca al lettore attuale, in forma verificabile (`energy/emi_backend.py`):
+I cinque scarti fra il contratto documentato e il lettore, elencati qui il
+27/10, sono **chiusi in codice nello stesso giorno** (D17,
+`energy/emi_backend.py`); restano scritti perche' sono la forma in cui il
+difetto F13 si presentava, e perche' una reintroduzione dovrebbe soddisfarli:
 
-- **Nessuna versione.** Il file non interroga `IOCTL_EMI_GET_VERSION`: un meter
-  V1, che la documentazione descrive come "only one single energy measurement
-  channel", non e' distinto dal ramo V2. Su un V1 la risposta attesa e' di un solo
-  canale (16 byte), quindi il controllo `got.value < 64` (`:242`) la tratterebbe
-  come guasto e la riga riporterebbe "IOCTL fallito", non "V1 a un canale".
-- **Nessun metadato.** `GET_METADATA_SIZE` e `GET_METADATA` non sono chiamati:
-  `ChannelCount` e i nomi non sono conosciuti, e l'ordine `pkg, dram, pp0, pp1`
-  e' assunto dalla posizione (`:73`, `:298-302`). La conferma per nome esiste, ma
-  e' una sonda esterna del 24/10 su una macchina sola (`:31-37`), non codice.
-- **Unita' non verificata.** `PWH_TO_J = 3.6e-9` (`:70`) si applica a qualunque
-  valore senza leggere `MeasurementUnit`, mentre la procedura Microsoft chiede di
-  verificarlo prima di usare i dati.
-- **Input non previsto dal contratto.** `IOCTL_EMI_GET_MEASUREMENT` e' documentato
-  con "Input buffer: None" e "Input buffer length: None"; il codice invia 16 byte
-  con un indice a zero (`:236-241`). Funziona sul driver provato, ma non e' la
-  chiamata documentata e la differenza non ha una ragione scritta.
-- **Nessuna nozione di canale multiplo.** Si leggono sempre 64 byte e si prende
-  il primo canale (`v[0]`, `:265-268`): e' il difetto F11, e senza
-  `ChannelCount` non e' correggibile.
+- **Versione.** Il lettore interroga `IOCTL_EMI_GET_VERSION` (`:476-486`) e
+  distingue i tre casi: V2 si legge, un meter **V1** si scarta con la ragione
+  "lettura V1 non implementata ne' provata" (non un guasto dell'IOCTL), una
+  versione diversa si scarta come "non riconosciuta".
+- **Metadato.** `GET_METADATA_SIZE` e `GET_METADATA` sono chiamati prima di
+  ogni altra cosa (`:487-501`); `ChannelCount`, i nomi e l'unita' vengono dal
+  metadato e non dalla posizione (`parse_metadata`, `:180-214`).
+- **Unita' verificata.** Un canale PKG in un'unita' diversa da pWh si scarta
+  con la ragione (`select_cpu_device`, `:226-263`): `PWH_TO_J` si applica solo
+  dove il metadato dichiara pWh.
+- **Input previsto dal contratto.** `IOCTL_EMI_GET_MEASUREMENT` si chiama senza
+  input buffer (`_ioctl`, `:504-524`), come documentato; sul driver di questa
+  macchina la risposta e' la stessa della chiamata con i 16 byte che il codice
+  vecchio inviava.
+- **Canale multiplo.** Il buffer di misura e' 16 byte per canale (`_ioctl_raw`,
+  `:526-548`) e ogni dominio si legge dall'indice del **suo** canale
+  (`read_domains`, `:591-624`); non si legge piu' "il primo canale"
+  (`read_cumulative_energy_j`, `:563-575`).
 
-Conseguenza per lo stato delle righe, non per il metodo: E1 resta [V] sull'host
-provato e [P] su ogni altra macchina, perche' il dominio dei valori letti dipende
-da un metadato che il codice non legge. E' il difetto **F13**; la decisione
-**D17** lo chiude.
+Cio' che resta [P] non e' il lettore ma la copertura: l'esecuzione su **AMD**,
+dove il metadato non e' stato visto e la `HardwareModel` "PPM" qui osservata non
+e' una garanzia del formato; un meter **V1** reale; e la scala assoluta, che
+nessun accordo fra lettori arbitra (regola 4 di §5). E' il difetto **F13**:
+chiuso in codice, aperto nell'evidenza. La decisione **D17** lo chiude.
 
 ### 3.1.2 LHM esce dall'implementazione; il sostituto e' un lettore MSR proprio
 
@@ -982,7 +1024,7 @@ vale quella.
 |---|---|---|---|---|
 | 1 | Windows Intel, `cpu_package` | EMI PKG -> `unavailable` | `emi-counter` -> `unavailable` | EMI attivo; **LHM rimosso dall'implementazione (D18)**: se EMI manca, la riga e' `unavailable`, non un secondo lettore dello stesso registro. Il percorso MSR P1, quando sara' provato, si inserisce fra i due (riga 2) |
 | 2 | Windows Intel, EMI non disponibile e PawnIO installato | MSR P1 (`0x606` + `0x611`) -> `unavailable` | `msr-counter` -> `unavailable` | [P] non implementato: entra solo dopo la sonda contro EMI a finestra uguale e la misura del costo di osservazione (D18) |
-| 3 | Windows AMD, `cpu_package` | EMI **se il probe passa** -> MSR P1 AMD (`0xC0010299` + `0xC001029B`) -> `unavailable` | `emi-counter` -> `msr-counter` -> `unavailable` | il codice non filtra per produttore (`energy/energy_session.py:188-190`): la catena e' la 1, ma su AMD non e' mai stata provata, quindi lo stato e' [P]; con piu' die vale la deduplica di F11 |
+| 3 | Windows AMD, `cpu_package` | EMI **se il probe passa** -> MSR P1 AMD (`0xC0010299` + `0xC001029B`) -> `unavailable` | `emi-counter` -> `msr-counter` -> `unavailable` | il codice non filtra per produttore (`energy/energy_session.py:136-152`): la catena e' la 1, ma su AMD non e' mai stata provata, quindi lo stato e' [P]; con piu' die vale la deduplica di F11 |
 | 4 | Qualsiasi OS, `CW_ENERGY_FILE` impostato | `energy-file` -> (catena normale se non impostato) | `energy-file` | priorita' di selezione su EMI e su P1; uso test/dev |
 | 5 | Linux Intel, `cpu_package` | RAPL package -> `unavailable` | `rapl` -> `unavailable` | implementato, mai esercitato; 3 test saltati |
 | 6 | Linux Intel, `psys` | RAPL psys -> `unavailable` | `rapl` con dominio `psys` | non implementato; non e' un fallback di 5 |
@@ -1006,7 +1048,7 @@ vale quella.
 | 23 | Windows ARM, `cpu_package` | nessun canale verificato -> `unavailable` con ragione `driver_missing` | `unavailable` | EMI non verificato su ARM (ne' il percorso MSR P1, che dipende da un modulo PawnIO per l'architettura); `probes/cw_probe.py` segna il machine (`platform.machine()`) |
 | 24 | Linux ARM / SBC, `cpu_package` | nessun contatore di dominio verificato -> `unavailable` con ragione `no_energy_domain` | `unavailable` | mai provato su hardware ARM: e' un'assenza **dichiarata**, non una dimostrazione; se un SBC espone powercap o hwmon, la riga 5 o la 7 si applicano |
 | 25 | `OLLAMA_HOST` non locale, `cpu_package` | **la misura locale non rappresenta l'inferenza**: `unavailable` con ragione `remote_endpoint`, piu' la riga cloud del server remoto | `unavailable` + campi cloud | il probe legge `OLLAMA_HOST` (`probes/cw_probe.py:181`); senza questo flag la riga sembrerebbe locale |
-| 26 | Piu' package/socket | enumerare le zone per `name`, sommare i package distinti, deduplicare i canali specchiati -> `unavailable` | `rapl` / `emi-counter` con dominio `package-0..N` | Linux: enumerazione e deduplica corrette dal 27/10 (`energy/rapl_backend.py:128-158`). Windows: il codice prende ancora il primo device EMI (F11, meta' aperta) |
+| 26 | Piu' package/socket | enumerare le zone per `name`, sommare i package distinti, deduplicare i canali specchiati -> `unavailable` | `rapl` / `emi-counter` con dominio `package-0..N` | Linux: enumerazione e deduplica corrette dal 27/10 (`energy/rapl_backend.py:128-158`). Windows: enumerazione per metadato e selezione solo con **un** device CPU (27/10, `energy/emi_backend.py:226-263`); due device PKG distinti danno `ambiguous_domain` (`:266-285`). La **somma** dei package distinti resta D15, non implementata |
 
 Cinque regole valgono per tutte le righe:
 
@@ -1034,7 +1076,7 @@ ragione in un token:
 | `driver_missing` | il driver del canale non e' installato o non e' esposto | installare il canale, o passare al fallback |
 | `no_energy_domain` | la piattaforma non espone un dominio energia | `unavailable` strutturale, non un guasto |
 | `counter_stale` | timestamp di dominio fermo (G2) | segmentare o dichiarare, mai sottrarre |
-| `ambiguous_domain` | package multipli o canali specchiati non risolti | enumerare e deduplicare (F11) prima di sommare |
+| `ambiguous_domain` | package multipli o canali specchiati non risolti | enumerare e deduplicare (D15) prima di sommare; su Windows il lettore rifiuta due device PKG distinti e chiede `CW_EMI_DEVICE` (`energy/emi_backend.py:266-285`) |
 
 La sonda che raccoglie queste evidenze esiste gia' ed e' di sola lettura:
 `probes/cw_probe.py` rileva hypervisor e WSL (`:31-58`), elenca le zone powercap con
@@ -1068,7 +1110,7 @@ livello di catena (controprova o riferimento).
 | Linux Intel, `cpu_package` | RAPL powercap (R1) | R5 `perf power/energy-pkg/` [P] †; V1 turbostat ‡ | turbostat come livello; somma delle zone; `psys` presentato come package (R2) | `rapl` -> `rapl-perf` (non ammesso) -> `unavailable` | R1 [I], [V] da fare; R5 [P] |
 | Linux AMD, `cpu_package` | powercap AMD (R3, Zen 1-3, kernel >= 5.11) | hwmon `amd_energy` (R3b) † -> MSR `C001_029B` (R3c/P1) †; V1 ‡ | somma core+socket; powercap e `amd_energy` insieme; `amd_atl` (nome ritirato) | `rapl` (dominio dichiarato) -> `unavailable` | [P] |
 | Qualsiasi OS, `CW_ENERGY_FILE` | contatore esterno (X1) | catena normale se la variabile non e' impostata | presentare il file come EMI | `energy-file` | [I], test/dev |
-| Windows, meter V1 | EMI a un canale (E1) | catena normale | trattare un V1 come guasto | `emi-counter` | [A] di fatto: manca `GET_VERSION` (F13, D17) |
+| Windows, meter V1 | EMI a un canale (E1) | catena normale | trattare un V1 come guasto; leggerlo con il parser V2 | `emi-counter` (solo V2) | **[I]**: `GET_VERSION` letto e V1 scartato con la ragione (D17, 27/10); un V1 reale non e' stato provato |
 | macOS CPU/GPU/ANE | `powermetrics` (PW1) | nessuno; delta batteria e' sistema, non dominio (BT1 ‡) | Energy Impact; carico CPU come stima | `powermetrics` -> `unavailable` | [P] |
 | NVIDIA, `gpu_dedicated` | NVML total energy (N1) | NVML potenza integrata (N2) ‡ | potenza per PID presentata come misura (N3) | `nvml-energy` -> `power-integration` -> `unavailable` | N1 [A], N2 [I], idle mai calibrato |
 | AMD, `gpu_dedicated` | AMD SMI (A1) | Windows ADLX (A2) ‡ -> Linux `amdgpu` hwmon (A3) ‡; `rocm-smi --showpower` ‡ | somma iGPU+dGPU; attribuzione per PID | `power-integration` -> `unavailable` | [P] |
@@ -1089,7 +1131,7 @@ perche' un rifiuto senza ragione diventa un arretrato.
 
 | documento | apporto | verdetto |
 |---|---|---|
-| `powerjoular.DOCX` | ordine EMI -> PawnIO -> Hubblo su Windows; catena "primo che risponde"; solo il primo package su multi-socket; attribuzione per quota CPU-time | **adottato** l'ordine e la regola "fallback = disponibilita'"; **rifiutate** la cascata non dichiarata (regola 1 di §5) e la lettura del solo primo package (F11; su Linux oggi corretta dall'enumerazione, su Windows resta aperta); la quota CPU-time e' gia' M3 (§8). Uso: stato dell'arte in tesi, nessun codice |
+| `powerjoular.DOCX` | ordine EMI -> PawnIO -> Hubblo su Windows; catena "primo che risponde"; solo il primo package su multi-socket; attribuzione per quota CPU-time | **adottato** l'ordine e la regola "fallback = disponibilita'"; **rifiutate** la cascata non dichiarata (regola 1 di §5) e la lettura del solo primo package (F11: corretta dall'enumerazione su Linux e, dal 27/10, dalla selezione per metadato su Windows; la **somma** dei package distinti resta D15); la quota CPU-time e' gia' M3 (§8). Uso: stato dell'arte in tesi, nessun codice |
 | `llm-power-profiler.DOCX` | proxy davanti all'API che dichiara i propri limiti: nessuna attribuzione per richiesta, nessuna telemetria CPU/DRAM; export per richiesta | **adottato** il modello di confine (§3.2, §5); **rinviato** l'export per-richiesta: aggiunge un campionamento il cui costo di osservazione non e' ancora misurato A-B-A (precedente: 0,2-0,9 W, non arbitrati) |
 | `pmi-wmi.DOCX` | PMI/WMI come fallback di potenza | **adottato** come riga P3 [P] e come sonda di G0 nella diagnostica; **corrette** due affermazioni: la proprieta' `PowerMeasurement` non esiste, il dominio e' di piattaforma (probabilmente sistema), e su questo host le istanze sono zero |
 | `1.DOCX` | mappa completa dei metodi RAPL; dettagli di `perf` (contatore a 64 bit in 1/2^32 J, scala nel file `.scale`); tabella MSR con `0x64d` psys; turbostat e LIKWID come diagnostica | **adottati** R5, V1 e D1 come righe, e la regola che solo il wattometro arbitra la scala; **rinviati** i due dettagli di `perf` e l'indirizzo di `psys` alla verifica alla fonte prima del codice (classe F13); **rifiutato** turbostat come livello di catena |
@@ -1125,11 +1167,24 @@ verificabili senza hardware e senza toccare la catena di produzione.
    di confine (`benchmark_unified.py:508-517`); la riga cloud continua a non
    pre-etichettare alcun metodo, perche' il metodo lo scrive il blocco che
    produce la stima. Chiude F9.
+4. **Selezione EMI semantica: il device e il canale si scelgono dal metadato.**
+   `energy/emi_backend.py` enumera tutte le interfacce del GUID e legge, per
+   ciascuna, `GET_VERSION` -> `GET_METADATA_SIZE` -> `GET_METADATA`; accetta
+   solo un device con un canale PKG in pWh e scarta batteria, sensor hub e GPU
+   con la ragione nei `notes`. Il dominio di ogni valore viene dal nome del
+   canale, il buffer di misura e' 16 byte per canale, un meter V1 si dichiara
+   non selezionabile e due device CPU distinti restano `ambiguous_domain`
+   (`CW_EMI_DEVICE` per la scelta esplicita). Il lettore si dichiara
+   `emi-reader/2` in `backend_version`; `diagnostics.py` stampa metadato,
+   canali e scarti. Sedici test (`tests/test_emi_selezione.py`) su metadati
+   sintetici, con il metadato reale di 492 byte come primo caso. Chiude la
+   meta' Windows di F11 e F13 (§3.1.1); la catena non cambia e resta
+   `EMI -> unavailable`.
 
 Non cambiano: `MEASURED_METHODS`, le colonne del CSV, l'ordine della catena
 Windows (`EMI -> unavailable`) e i clamp di `energy/local_energy.py`, che
 restano una differenza dichiarata fra produzione e v4 (AGENTS.md). La suite, a
-valle di queste tre modifiche, raccoglie **413 test: 410 passati, 3 saltati**
+valle di queste quattro modifiche, raccoglie **429 test: 426 passati, 3 saltati**
 (27/10/2026).
 
 
@@ -1604,10 +1659,10 @@ eccezioni vanno rivalidate al freeze.
 | F7 | coefficiente di rete: citazione sbagliata e confine invertito rispetto alla fonte | `config.py:332-362`; `energy/network_energy.py:10-29` | il valore `2,7e-6` era giusto ma attribuito a un altro articolo (IEEE Network, DOI 10.1109/MNET.2011.5730522) e descritto con l'accesso incluso, mentre la fonte lo esclude; `0,46` e `20,0` uJ/bit attribuiti ad Aslan senza fonte per `20,0` | **corretto il 26-10-2026**: fonte Proc. IEEE 99(1):149-167, DOI 10.1109/JPROC.2010.2060451; accesso escluso; `0,46` = scenario cloud privato; `20,0` senza fonte. Resta aperto il confronto empirico (D8) |
 | F8 | una `CW_ENERGY_FILE` dimenticata fa misurare un file al posto del package | `energy/energy_session.py:182-197`, `:1419` | il metodo per riga e' `energy-file`, ma il run somiglia a una misura EMI finche' non si legge quella colonna | D14: etichetta **e** un flag booleano `external_counter` sulla riga, perche' un'etichetta testuale non e' un filtro |
 | F9 | local mode: `cloud_energy_j = 0.0` senza `cloud_energy_method` ne' `cloud_estimation_boundary` | era `benchmark_unified.py:467` (commento "default rete/cloud a zero (regola 12.1)"), `:469` (lo zero), `:474` (il confine della **rete** c'e', quello del cloud no) | zero legittimo ma **solo a meta'**: la rete dichiara perche' non consuma, il cloud no, quindi lo zero cloud non si distingue da una stima fallita | **CHIUSO il 27-10-2026**: la riga locale scrive `cloud_energy_method = "not-applicable"` e `cloud_estimation_boundary = "not-applicable (local mode)"` accanto allo zero (`benchmark_unified.py:508-517`), mentre la riga cloud non pre-etichetta alcun metodo; `tests/test_cloud_energy_none_preservato.py` blocca entrambe le condizioni. D4 + regola 9 |
-| F10 | note e docstring attribuiscono il canale EMI a "Intel", mentre il codice non filtra per produttore | `energy/emi_backend.py:8`, `:43`, `:185-187`; `energy/energy_session.py:188-190` | su una macchina AMD la ragione di guasto direbbe "driver Intel assente" anche se il filtro non esiste; chi legge il log deduce un vincolo che il codice non impone | D11: il testo del motivo diventa indipendente dal produttore, e la verifica su AMD resta [P] |
-| F11 | selezione del primo device apribile / zona `intel-rapl:0` cablata | era `energy/emi_backend.py:195-200` (Windows) e `energy/rapl_backend.py:45-48` (Linux) | su multi-die o multi-socket i canali specchiati rischiano di essere sommati o di scegliere il package sbagliato (CodeCarbon dichiara di scartare i canali specchiati sul proprio backend Windows EMI) | D15: enumerare per `name`, deduplicare, poi sommare i package distinti; ragione `ambiguous_domain` finche' non e' risolto (§4.1, riga 26). **Meta' Linux chiusa il 27-10-2026**: `energy/rapl_backend.py:128-158`, `tests/test_rapl_zone.py` (8 test, incluso il canale specchiato contato una volta). Resta aperta la meta' Windows, il primo device apribile di `energy/emi_backend.py:195-200` |
+| F10 | note e docstring attribuiscono il canale EMI a "Intel", mentre il codice non filtra per produttore | era `energy/emi_backend.py:8`, `:43`, `:185-187`; `energy/energy_session.py:188-190` | su una macchina AMD la ragione di guasto direbbe "driver Intel assente" anche se il filtro non esiste; chi legge il log deduce un vincolo che il codice non impone | **CHIUSO il 27-10-2026** per il testo operativo: la ragione dice "driver del canale energia assente o non esposto" (`energy/emi_backend.py:402-407`), e la catena e' quella di `energy/energy_session.py:136-152`. Le menzioni di Intel nella docstring (`:7-16`) descrivono il registro e la macchina di prova, non un filtro. La verifica su AMD resta [P] |
+| F11 | selezione del primo device apribile / zona `intel-rapl:0` cablata | era `energy/emi_backend.py:195-200` (Windows) e `energy/rapl_backend.py:45-48` (Linux) | su multi-die o multi-socket i canali specchiati rischiano di essere sommati o di scegliere il package sbagliato (CodeCarbon dichiara di scartare i canali specchiati sul proprio backend Windows EMI) | D15: enumerare per `name`, deduplicare, poi sommare i package distinti; ragione `ambiguous_domain` finche' non e' risolto (§4.1, riga 26). **Meta' Linux chiusa il 27-10-2026**: `energy/rapl_backend.py:128-158`, `tests/test_rapl_zone.py` (8 test, incluso il canale specchiato contato una volta). **Meta' Windows chiusa il 27-10-2026**: enumerazione di tutte le interfacce e scelta del device CPU dal metadato (`energy/emi_backend.py:226-285`), `tests/test_emi_selezione.py` (16 test: tre device, nessun CPU, due PKG distinti, PKG specchiato). Resta non implementata la **somma** dei package distinti, che e' D15 e chiede hardware multi-socket |
 | F12 | sotto VPN lo stesso pacchetto contato due volte (interfaccia tunnel + fisica che lo trasporta) | era la somma di tutte le non-loopback, senza selezione | il termine di rete si gonfia di un fattore che dipende dalla configurazione, e la riga non dice quali interfacce ha sommato | **CHIUSO il 26-10-2026**: fisiche per default, virtuali e tunnel escluse, ricaduta dichiarata su tutte le non-loopback quando le fisiche vedono 0 B; il confine riporta i nomi (`energy/network_energy.py:81-214`, `:261-322`); la lettura aggregata dichiara di non separare il loopback e sorgenti miste danno `None`, non `0.0`; `tests/test_rete_nic_confine.py` blocca i casi. Il delta negativo resta troncato nel valore applicato ma e' conservato in `upload_bytes_raw`/`download_bytes_raw` con `negative_increment`; le colonne CSV sono obbligo di P5 |
-| F13 | il lettore EMI non interroga versione ne' metadato: il dominio di ogni canale e' assunto dalla posizione | `energy/emi_backend.py:73` e `:301-302` (indice 0 = pkg, sempre), `:31-37` (la conferma per nome e' una sonda esterna del 24/10, su una macchina); nel file non c'e' nessuna chiamata a `GET_VERSION`, `GET_METADATA_SIZE`, `GET_METADATA` | su un meter V1 (un solo canale), o con canali in ordine diverso, il valore e' plausibile ma di un dominio diverso, e la riga lo chiama comunque `emi-counter`; su V1 il guasto arriva come "IOCTL fallito" invece della ragione vera; l'unita' pWh non e' verificata prima della conversione | D17 (§3.1.1): versione e metadato letti, canale scelto per nome, unita' verificata, `ChannelCount` usato; chiude anche la meta' "quale canale" di F11 |
+| F13 | il lettore EMI non interroga versione ne' metadato: il dominio di ogni canale e' assunto dalla posizione | era `energy/emi_backend.py:73` e `:301-302` (indice 0 = pkg, sempre), `:31-37` (la conferma per nome era una sonda esterna del 24/10, su una macchina); nel file non c'era nessuna chiamata a `GET_VERSION`, `GET_METADATA_SIZE`, `GET_METADATA` | su un meter V1 (un solo canale), o con canali in ordine diverso, il valore e' plausibile ma di un dominio diverso, e la riga lo chiama comunque `emi-counter`; su V1 il guasto arriva come "IOCTL fallito" invece della ragione vera; l'unita' pWh non e' verificata prima della conversione | **CHIUSO in codice il 27-10-2026 da D17** (§3.1.1): versione, metadato, nome del canale, `ChannelCount` e unita' letti; il record si legge a 16 byte per canale, il V1 si scarta con la ragione e un canale di nome ambiguo non produce dominio (`energy/emi_backend.py:158-214`, `:476-501`, `:526-548`); `backend_version` passa a `emi-reader/2`. Aperta resta l'**evidenza** su AMD e su un V1 reale. Chiude anche la meta' "quale canale" di F11 |
 
 ---
 
@@ -1629,9 +1684,9 @@ eccezioni vanno rivalidate al freeze.
 | D12 | campi della stima cloud | `ecologits_version`, `cloud_calls_count`, `cloud_input_tokens_included`, `cloud_hardware_mismatch`, `cloud_quantization_assumed`; una riga multi-round o multi-agente e' la **somma** delle stime per-chiamata (§6) |
 | D13 | confine codificato nel campo rete | `network_measurement_boundary` deve dichiarare **entrambi** i lati del prodotto: byte system-wide delle interfacce **effettivamente sommate** (per default le fisiche; virtuali e tunnel esclusi salvo la ricaduta dichiarata; loopback mai; nomi riportati nel campo) e intensita' di percorso trasmissione+commutazione con accesso escluso; cosi' una riga non e' confrontabile con cifre "per GB" che includono l'accesso o il data center (§7, D8) |
 | D14 | `energy-file` rende la riga non misurata | oltre all'etichetta, un flag booleano `external_counter` per riga: un canale esterno si filtra a livello di colonna, non si riconosce leggendo una stringa (chiude F8) |
-| D15 | package multipli e canali specchiati | enumerare le zone powercap per `name` e i device EMI per path, **deduplicare i canali specchiati**, poi sommare i package distinti; la nota sui permessi dice cosa verifica il codice (`os.access`, `energy/rapl_backend.py:148`), non "gruppo power" (chiude F11) |
+| D15 | package multipli e canali specchiati | enumerare le zone powercap per `name` e i device EMI per path, **deduplicare i canali specchiati**, poi sommare i package distinti; la nota sui permessi dice cosa verifica il codice (`os.access`, `energy/rapl_backend.py:148`), non "gruppo power" (chiude F11). Su Windows l'enumerazione e la deduplica sono in codice dal 27/10 (`energy/emi_backend.py:226-285`), con `ambiguous_domain` per due device PKG distinti; la **somma** dei package resta non implementata |
 | D16 | traffico concorrente in finestra rete | oggi: rumore dichiarato, non sottratto. Se P5 vuole ridurlo, la via ammissibile e' la **finestra di rumore sottratta come termine scritto** (A-B-A a stessa durata, §7); i contatori per processo restano [P] finche' l'interfaccia non e' verificata alla fonte, e in ogni caso il risultato resta un'attribuzione con scala propria, mai un M1 |
-| D17 | il lettore EMI **verifica** il meter invece di presumerlo, secondo il contratto Microsoft di §3.1.1 | leggere `IOCTL_EMI_GET_VERSION` e riportare la versione nella riga; leggere `GET_METADATA_SIZE` e `GET_METADATA`, verificare `MeasurementUnit == EmiMeasurementUnitPicowattHours` su ogni canale, selezionare i canali di package **per nome** (`_PKG`, uno per socket) fra i `ChannelCount` dichiarati, e trattare metadato fuori misura e risposta corta come guasto. **Non** si ammette un gate "solo V2" (un V1 si dichiara, non si rifiuta in anticipo) ne' la somma di tutti i canali con quel suffisso: la deduplica resta D15. Chiude F13 e fornisce a F11 il "quale canale" |
+| D17 | il lettore EMI **verifica** il meter invece di presumerlo, secondo il contratto Microsoft di §3.1.1 | leggere `IOCTL_EMI_GET_VERSION` e riportare la versione nella riga; leggere `GET_METADATA_SIZE` e `GET_METADATA`, verificare `MeasurementUnit == EmiMeasurementUnitPicowattHours` su ogni canale, selezionare i canali di package **per nome** (`_PKG`, uno per socket) fra i `ChannelCount` dichiarati, e trattare metadato fuori misura e risposta corta come guasto. **Non** si ammette un gate "solo V2" (un V1 si dichiara, non si rifiuta in anticipo) ne' la somma di tutti i canali con quel suffisso: la deduplica resta D15. Chiude F13 e fornisce a F11 il "quale canale". **Realizzata il 27-10-2026** in `energy/emi_backend.py`: la versione si legge sempre e il V1 si scarta **dopo** averla letta, con la ragione nelle note, non come guasto dell'IOCTL |
 | D18 | LHM esce dall'implementazione e resta **metodo provato e superato**; il secondo percorso diventa un lettore MSR proprio sopra PawnIO | LHM non e' un canale distinto ma lo stesso registro `0x611` gia' derivato in potenza e re-integrato da noi, con il sensore scelto per nome: fuori dalla catena, dentro il documento come evidenza (accordo a finestra uguale, A-B-A, costo di osservazione). Il sostituto P1 e' **[P]**: MSR RAPL lette da un client proprio sopra PawnIO -- Intel `0x606` + `0x611`, AMD `0xC0010299` + `0xC001029B` (`msr-index.h:496-522`; **non** `0x606`/`0x611` su AMD, che e' l'errore della tabella proposta), unita' **derivata** dal registro di unita' e non copiata, solo delta di contatori cumulativi, nessuna scrittura dei registri, e la dichiarazione esplicita che non e' una validazione indipendente di EMI. Token `msr-counter` **proposto e non ammesso** in `MEASURED_METHODS` finche' una sonda non lo confronta con EMI a finestra uguale e non si misura il costo di osservazione del percorso. Licenza PawnIO GPL-2.0 **con l'eccezione** per i moduli "that communicate with PawnIO solely through the device IO control interface"; moduli LGPL-2.1; HVCI e firma del pacchetto distribuito restano da verificare (§3.1.2) |
 
 ---
@@ -1676,8 +1731,10 @@ presentano come lavoro in corso.
    si cambiano. Il ritiro e' una decisione di catena, non di codice; il token
    resta proposto finche' la sonda non lo prova.
 3. **Lessico G0, package multipli e verifica del meter** (D11, D15, D17):
-   chiude F10 e F11, e rende la riga leggibile su macchine diverse dalla nostra
-   senza toccare il metodo.
+   D17 e' **realizzato in codice il 27/10** (selezione per metadato, canale per
+   nome, scarti motivati: chiude F13 e F11 lato Windows); restano il token di
+   riga (D11) e la **somma** dei package distinti (D15). Rende la riga
+   leggibile su macchine diverse dalla nostra senza toccare il metodo.
 4. **Flag `external_counter`** (D14): una `CW_ENERGY_FILE` dimenticata smette di
    somigliare a una misura EMI a livello di colonna, non di nota (F8).
 5. **Campi cloud** (D12) e **confine nel nome del campo rete** (D13).
@@ -1729,15 +1786,26 @@ presentano come lavoro in corso.
 
 Codice (letto il 25-26/10, righe verificate):
 
-- `energy/energy_session.py:64-65` (canali ammessi), `:188-190` (selezione EMI
-  senza filtro di produttore), `:231-260` (`_try_emi`), `:206-212` (macOS),
-  `:870-871` (nomi sensori LHM), `:656-663` (guard SensorType), `:1687`
-  (`utime+stime` albero), `:1747-1769` (`d_busy` = totale − idle, per core),
-  `:1779-1790` (ricostruzione dell'albero), `:2490` (NVML potenza),
-  `:2515-2540` (NVML per processo).
+- `energy/energy_session.py:57-73` (canali ammessi, con la nota D18),
+  `:136-152` (catena di selezione, senza filtro di produttore), `:154-182`
+  (`_try_emi`), `:143-146` (ramo macOS/non supportato), `:632` e `:864-890`
+  (`utime+stime` dell'albero Ollama), `:691-712` (`d_busy` = totale − idle
+  per core, da una sola lettura), `:722-733` (ricostruzione dell'albero),
+  `:1350-1367` (NVML potenza), `:1381-1416` (NVML per processo).
+  **LHM non c'e' piu'** (D18): le righe `:870-871` e `:656-663` citate da
+  questa lista fino al 26/10 sono uscite con il blocco LHM; il fix `1422d1b`
+  resta in git come storia.
 - `energy/emi_backend.py:7-16` (stesso registro di LHM, nessun admin),
-  `:18-23` (domini), `:28-30` (non additivita'), `:185-187` (nota "driver
-  canale energia Intel" = F10), `:195-200` (primo device apribile = F11).
+  `:18-43` (record per canale, unita', non additivita', mappatura per nome),
+  `:95-110` (IOCTL del contratto, versioni, token di dominio),
+  `:158-214` (dominio dal nome, parser del metadato V2),
+  `:226-285` (`select_cpu_device` e `choose_single`: scarti motivati,
+  `ambiguous_domain`), `:386-474` (`_open`: enumerazione, metadato, un solo
+  device CPU), `:476-501` (`_read_metadata`), `:504-524` (`_ioctl` senza
+  input), `:526-548` (buffer 16 byte per canale), `:563-575`
+  (`read_cumulative_energy_j` dal canale PKG), `:591-624` (`read_domains` per
+  indice di canale), `:402-407` (la ragione dell'assenza non nomina il
+  produttore = F10).
 - `energy/rapl_backend.py:82` (`POWERCAP_ROOT`), `:85` (prefisso
   `package-`), `:128-158` (enumerazione con deduplica dei canali specchiati),
   `:148` (il controllo e' `os.access`), `:190-198` (riporto rifiutato senza
@@ -1793,6 +1861,10 @@ Dati e protocollo:
   questo documento e un'analisi non tracciata e' un numero che nessuno rigenera.
 - `experiment_results/metodi_loc_20261025_valutazione.md` (valutazione del
   documento esterno), `experiment_results/lhm_gui_report_20261023_analisi.md:46-99`.
+- `experiment_results/emi_metadato_console_20261027.txt` (cattura integrale
+  della diagnostica EMI del 27-10-2026: metadato v2 di 492 byte, quattro canali
+  `RAPL_Package0_{PKG,DRAM,PP0,PP1}`, canale PKG scelto per nome). La console
+  era elevata e il file lo dichiara: documenta il metadato, non il privilegio.
 
 Fonti esterne, con la data della verifica alla fonte primaria:
 
