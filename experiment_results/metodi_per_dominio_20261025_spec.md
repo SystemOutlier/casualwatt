@@ -369,13 +369,17 @@ nella riga.
 ### 2.4 Quanti fallback
 
 Tanti quanti sono i percorsi **meccanicamente distinti**, non di piu'. Due
-letture dello stesso registro non sono due canali **indipendenti**: EMI e LHM
-sul package Intel leggono entrambi `MSR_PKG_ENERGY_STATUS` 0x611
-(`energy/emi_backend.py:7-11`), quindi ai fini della validazione sono una
-lettura sola. Ai fini della disponibilita' sono pero' due percorsi meccanici
-distinti (IOCTL diretto contro libreria .NET e driver), e il secondo copre
-guasti che il primo non copre: driver assente, permessi, formato. Si contano
-due nella catena, zero nella colonna delle evidenze indipendenti.
+letture dello stesso registro non sono due canali **indipendenti**: EMI e il
+percorso MSR di P1 leggono entrambi `MSR_PKG_ENERGY_STATUS` 0x611
+(`energy/emi_backend.py:7-11`; §3.1.2), quindi ai fini della validazione sono una
+lettura sola. Ai fini della disponibilita' sono due percorsi meccanici distinti
+(IOCTL sul device EMI contro IOCTL a PawnIO piu' decodifica del registro), e il
+secondo copre un guasto che il primo non copre: il device del canale EMI puo'
+mancare mentre le MSR restano leggibili. Si contano due nella catena, zero nella
+colonna delle evidenze indipendenti. Da D18 il secondo percorso **non e' piu'
+LHM**, che era un terzo consumatore dello stesso registro con una potenza gia'
+derivata, ed e' [P]: finche' non e' provato, la catena ha un grado di fallback
+**in meno**, non uno in piu'.
 
 ---
 
@@ -420,9 +424,10 @@ non si ripetono in ogni tabella, e §5 li traduce nella riga del CSV.
 | E1 | canale energia di Windows letto via IOCTL sul device enumerato per GUID `{45bd8344-...}`; record PKG in pWh (1 pWh = 3,6e-9 J), timestamp per dominio; il canale si nomina dal metadato del driver (`RAPL_Package0_PKG`), **non dal produttore** | M1 | package; non include VRM, display, alimentatore | `emi-counter` | [I][V] su i9-13900HK; [P] su AMD e su Windows 10, probe non eseguito. Nota 26/10: l'interfaccia e' **documentata** da Windows 10 (EMI v1) e da 1809 (v1+v2), il GUID e' quello di `emi.h` / `GUID_DEVICE_ENERGY_METER`, e l'unita' `EmiMeasurementUnitPicowattHour` con `AbsoluteEnergy` cumulativo "with some arbitrary zero-point" e' la definizione che sta dietro M1 (§3.1, fonte Microsoft) |
 | E2 | stesso canale, dominio PP1 (`RAPL_Package0_PP1`) | M1 sub-dominio | grafica integrata **su Intel**, sottoinsieme di PKG; informativo | campo `igpu_energy_j` | [I][V] a riposo |
 | E3 | stesso canale, dominio DRAM (`RAPL_Package0_DRAM`) | M1, dominio distinto | memoria; **non e' un sottoinsieme di PKG**; sul host client legge spesso zero | si riporta a parte, mai somma implicita | [I][V] |
-| L1 | LHM, sensore `SensorType.Energy` | M1/M2 **non determinato** | se e' un contatore hardware e' M1; se LHM lo integra e' M2 | `librehardwaremonitor-energy` | [I] codice, [A] sul host (solo batteria in LHM 0.9.6) |
-| L2 | LHM, `SensorType.Power` "CPU Package" integrato | M2 | package; stessa sorgente 0x611 di E1; richiesto 0,05 s, osservato 0,28-0,34 s | `power-integration` | [I][V] |
-| L3 | LHM, sensore "CPU Graphics"/"IA GPU" | M2 sub-dominio | grafica integrata; informativo | campo `igpu_energy_j` | [I], non esercitato sotto carico grafico |
+| L1 | LHM, sensore `SensorType.Energy` | M1/M2 **non determinato** | se e' un contatore hardware e' M1; se LHM lo integra e' M2 | `librehardwaremonitor-energy` | **storico dal 27/10-2026 (D18)**: non selezionabile; metodo provato e superato. [I] codice, [A] sul host (solo batteria in LHM 0.9.6) |
+| L2 | LHM, `SensorType.Power` "CPU Package" integrato | M2 | package; stessa sorgente 0x611 di E1; richiesto 0,05 s, osservato 0,28-0,34 s | `power-integration` | **storico dal 27/10-2026 (D18)**: le sue misure restano evidenza, il canale non si seleziona. [I][V] |
+| L3 | LHM, sensore "CPU Graphics"/"IA GPU" | M2 sub-dominio | grafica integrata; informativo | campo `igpu_energy_j` | **storico dal 27/10-2026 (D18)**. [I], non esercitato sotto carico grafico |
+| P1 | MSR RAPL lette da un client proprio sopra PawnIO: `0x606` + `0x611` su Intel, `0xC0010299` + `0xC001029B` su AMD; delta di contatori cumulativi, unita' derivata dal registro di unita' | M1 | package; **stesso registro di E1** (0x611 / 0xC001029B), quindi non e' una validazione indipendente | `msr-counter` (proposto, non ammesso) | [P] **non implementato**; licenza PawnIO GPL-2.0 con eccezione IOCTL, HVCI e firma non verificate (D18, §3.1.2) |
 | R1 | RAPL powercap, `energy_uj` + `max_energy_range_uj` | M1 | package; il package **e' uno dei zone**, non `intel-rapl:0` per definizione | `rapl` | [I], [V] da fare (nessun host Linux) |
 | R2 | RAPL `psys` | M1 | **dominio piu' ampio** del package | da dichiarare come dominio proprio | [A] non implementato |
 | R3 | powercap RAPL su AMD (Zen 1-3), kernel >= 5.11 | M1 candidato | package AMD; zona esposta dal driver `intel_rapl` rinominato, nomi da verificare | `rapl` solo se percorso e semantica verificati | [P] |
@@ -462,26 +467,29 @@ Precisazioni.
 - **L1.** Sull'host di prova il sensore `Energy` non esiste: in LHM 0.9.6 e'
   istanziato solo dalla batteria (`lhm_gui_report_20261023_analisi.md:46-99`).
   Inoltre non e' dimostrato che, dove esiste, sia un contatore hardware e non
-  un'integrazione interna di LHM. **Criterio di promozione:** L1 entra nella
-  catena, selezionato prima di L2, solo se sono dimostrate tutte e tre le condizioni seguenti:
-  (i) il sensore compare a runtime con `SensorType.Energy`; (ii) il valore e'
-  cumulativo e monotono al netto dei reset, non il `Δ/Δt` di un altro sensore:
-  servono la sorgente LHM o una sonda che mostri l'accumulatore; (iii)
-  unita' e dominio sono verificati a G1. Se (ii) cade, L1 non e' un canale
-  distinto da L2 ma la stessa integrazione con un nome diverso, e non si conta
-  due volte (§2.4). Finche' le tre condizioni non sono dimostrate, **L1 resta
-  fuori dalla catena**.
+  un'integrazione interna di LHM. Il criterio di promozione che questa specifica
+  aveva scritto -- (i) il sensore compare a runtime con `SensorType.Energy`; (ii)
+  il valore e' cumulativo e monotono al netto dei reset, non il `Δ/Δt` di un
+  altro sensore; (iii) unita' e dominio verificati a G1 -- **non e' piu' la via
+  di ingresso**: con D18 LHM esce dall'implementazione e L1 e' storico. Il
+  criterio resta scritto perche' e' la condizione che una qualunque
+  reintroduzione dovrebbe soddisfare, e perche' dice perche' oggi non lo
+  soddisfa.
 - **L2.** La potenza LHM "CPU Package" e' gia' `Δ(0x611)/Δt`
   (`energy/emi_backend.py:9-11`): il nostro integrale integra una potenza gia'
-  derivata, e alla derivata somma la propria cadenza. Copre il guasto del
-  driver EMI e i permessi, non il guasto del registro; non e' una validazione
-  di EMI. I sensori Energy-CPU di LHM richiedono token elevato:
-  senza UAC la libreria si aggancia ma legge zero o `None`
-  (`energy/energy_session.py:557`). Una macchina senza privilegi e senza
-  driver EMI puo' quindi non avere nessun canale: e' un caso da dichiarare.
-  La selezione del sensore e' per `SensorType`, non per nome: il nome da solo
-  ha gia' prodotto il difetto che integrava i gradi Celsius di un sensore
-  Temperature omonimo (guard a `energy/energy_session.py:656-663`).
+  derivata, e alla derivata somma la propria cadenza. Copriva il guasto del
+  driver EMI e i permessi, non il guasto del registro, e non era una validazione
+  di EMI. E' questa la ragione tecnica del ritiro: non un canale in piu', ma lo
+  stesso registro con una derivata in piu' e una cadenza in piu'. I sensori
+  Energy-CPU di LHM richiedono token elevato -- senza UAC la libreria si aggancia
+  ma legge zero o `None` (`energy/energy_session.py:557`) -- quindi la copertura
+  che offriva era, sul caso "permessi", parziale. Restano validi e citabili i
+  risultati ottenuti col canale finche' era selezionabile: accordo a finestra
+  uguale con EMI, differenziale A-B-A, costo di osservazione. La selezione del
+  sensore era per `SensorType`, non per nome: il nome da solo ha gia' prodotto il
+  difetto che integrava i gradi Celsius di un sensore Temperature omonimo (guard a
+  `energy/energy_session.py:656-663`), ed e' la ragione per cui il sostituto P1
+  sceglie il registro per indirizzo e il dominio per metadato, non per nome.
 - **R1.** Due limiti, entrambi nel codice. Il percorso e' cablato su
   `intel-rapl:0` (`energy/rapl_backend.py:45-48`): non regge su una macchina con
   piu' package, ne' su un AMD multi-die dove i canali di package separati
@@ -536,7 +544,7 @@ Precisazioni.
   AMD resta **[P] con la versione non chiusa**, e la riga di §3.4 non lo usa come
   fallback finche' la versione non e' quella del kernel del host di prova.
 - **X1.** `energy-file` e' un canale dichiarato per test e integrazione. Non e'
-  un fallback di produzione. La sua prevalenza su EMI e LHM non e' una
+  un fallback di produzione. La sua prevalenza su EMI e sul percorso MSR P1 non e' una
   precedenza di merito ma di selezione: se la variabile e' impostata, il codice
   legge il file e non interroga il package, quindi cio' che si misura e' il
   contatore esterno, non EMI. La riga deve dirlo
@@ -617,6 +625,100 @@ Conseguenza per lo stato delle righe, non per il metodo: E1 resta [V] sull'host
 provato e [P] su ogni altra macchina, perche' il dominio dei valori letti dipende
 da un metadato che il codice non legge. E' il difetto **F13**; la decisione
 **D17** lo chiude.
+
+### 3.1.2 LHM esce dall'implementazione; il sostituto e' un lettore MSR proprio
+
+La decisione e' **D18**, e ha due meta'. La prima e' un ritiro: LHM non e' un
+secondo canale di misura, e' **lo stesso registro** di E1. LHM espone "CPU
+Package" come derivata di quel registro (`energy/emi_backend.py:9-11`, che cita
+la riga `IntelCpu.cs` della sorgente 0.9.6) e noi re-integriamo quella potenza:
+la catena presentava come percorso alternativo la
+stessa sorgente con una derivata in piu', e in piu' passava da un sensore scelto
+per nome, che e' la forma esatta del difetto che integrava gradi Celsius
+(`energy/energy_session.py:656-663`, fix `1422d1b`). LHM esce quindi
+dall'implementazione, e resta nel documento **come metodo provato e superato**:
+le sue misure sono l'evidenza che il canale EMI e' corretto a finestra uguale
+(rapporti 0,9947-1,0082 per fase, differenziale A-B-A 1,013-1,023, offset
++0,21/+0,27 W dopo il `guard`), il suo costo di osservazione A-B-A misurato
+(0,2-0,9 W, non arbitrati) e' il precedente metodologico del nostro, e la sua
+storia e' la ragione per cui il codice seleziona i sensori per `SensorType` e
+non per nome. Nessuna di queste proposizioni diventa falsa quando il canale
+smette di essere selezionabile: cambia lo stato, da `[I][V]` a **storico**.
+
+La seconda meta' e' il sostituto, che e' **[P], non implementato**. Il ruolo da
+coprire non e' quello di EMI (che resta primario) ma quello che aveva LHM: un
+secondo percorso dichiarato per quando EMI non c'e'. Il percorso proposto legge
+le MSR RAPL direttamente, con un client proprio sopra il driver **PawnIO**:
+
+| | Intel | AMD |
+|---|---|---|
+| registro di unita' | `MSR_RAPL_POWER_UNIT` `0x606` | `MSR_AMD_RAPL_POWER_UNIT` `0xC0010299` |
+| contatore di package | `MSR_PKG_ENERGY_STATUS` `0x611` | `MSR_AMD_PKG_ENERGY_STATUS` `0xC001029B` |
+| contatore di core (informativo) | -- | `MSR_AMD_CORE_ENERGY_STATUS` `0xC001029A` |
+
+Gli indirizzi sono quelli di `arch/x86/include/asm/msr-index.h:496-522` (kernel
+`master`, letto il 27-10-2026), non quelli della tabella di sostituzione che
+circolava, che dava `0x606`/`0x611` per "Intel e AMD (Ryzen)": su un Ryzen
+quegli indirizzi non sono l'unita' ne' il package, e un lettore che li usasse
+leggerebbe registri diversi senza accorgersene. E' la stessa classe di errore di
+F13 -- un valore plausibile dal posto sbagliato -- e per questo la tabella qui
+sopra e' per produttore, non per famiglia.
+
+Quattro obblighi, tutti a carico di chi scrivera' il codice:
+
+- **L'unita' si deriva, non si copia.** Il valore di `0x606` (e del suo
+  equivalente AMD) codifica l'unita' di energia; il campo e la maschera vanno
+  letti alla fonte primaria -- Intel SDM, sezione RAPL, **non ancora letta da
+  questo documento** -- *prima* di scrivere il calcolo. Una costante scritta a
+  mano in Joule sarebbe un'assunzione travestita da misura, ed e' esattamente
+  cio' che AMD SMI lascia scoperto: la sua API di energia CPU ("Energy
+  information (RAPL MSR)") restituisce un `uint64_t` **senza dichiarare
+  l'unita'**.
+- **Solo delta di contatori cumulativi, un avvolgimento per intervallo, nessuna
+  scrittura.** La semantica e' quella di E1: `E = (raw_end - raw_start) * unita'`,
+  con il caso di avvolgimento trattato una volta sola e dichiarato. Nessuno dei
+  registri va **scritto**: su Linux `energy_uj` e' `rw` e "Write '0' to reset"
+  (kernel powercap, letta il 27-10-2026), cioe' un azzeramento distrugge il delta
+  in corso ed e' un'operazione che il nostro lettore non deve poter fare.
+- **Il percorso MSR non e' una validazione indipendente di EMI.** Legge lo stesso
+  `0x611` (o `0xC001029B`): vale la regola 4 di §5, e la riga deve dirlo. Il suo
+  valore e' coprire il caso "driver EMI assente", non arbitrare la scala.
+- **Licenza e privilegi si citano come sono.** PawnIO e' **GPL-2.0** con
+  un'eccezione esplicita che consente "independent modules that communicate with
+  PawnIO solely through the device IO control interface" -- il nostro client
+  ctypes e' quella classe, e i moduli (`PawnIO.Modules`, **LGPL-2.1**) restano
+  separati dal nostro codice. La frase "licenza pulita" che accompagnava la
+  proposta e' quindi **sbagliata come formulazione**: la licenza e' GPL-2.0 e il
+  nostro uso e' compatibile *per l'eccezione*, che va citata ogni volta che si
+  cita il driver. La compatibilita' **HVCI** e la firma del pacchetto
+  distribuito, che la proposta dava per acquisite, **non sono verificate alla
+  fonte**: il `README` del sorgente non ne parla. Restano [P].
+
+Il token di riga e' `msr-counter`, **proposto e non ammesso**: non entra in
+`MEASURED_METHODS` finche' una sonda su hardware non mostra il delta contro EMI
+nella stessa finestra e con la stessa baseline, e finche' il costo di
+osservazione del percorso (un IOCTL per campione) non e' misurato con il metodo
+A-B-A gia' usato per LHM. Fino ad allora la catena Windows e' **EMI ->
+`unavailable`**: cadere su un percorso non provato sarebbe peggio che dichiarare
+l'assenza.
+
+**Idee prese dalle fonti lette il 27-10-2026, e dove entrano.** Nessuna di queste
+e' codice: sono proposizioni verificate che cambiano una regola, un obbligo o una
+nota.
+
+| idea | da dove | dove entra |
+|---|---|---|
+| la lettura diretta delle MSR RAPL e' pratica corrente, non un'invenzione nostra | Score-P plugin (BSD-3), likwid (GPL-3.0), x86_energy (LGPL-2.1) | D18 come precedente dichiarato, senza prendere codice |
+| il registro Intel si aggiorna circa ogni 1 ms, e un intervallo corto disturba mentre uno lungo e' meno esatto | Intel RAPL advisory; `README` del plugin Score-P ("roughly every msec", default 50 000 us) | regola 7 di §5: cadenza osservata e dichiarata; la sonda a 50 ms resta sopra il registro |
+| l'unita' di energia puo' non essere dichiarata dall'API e va derivata dal registro di unita' | AMD SMI `group__energyinfo` (nessuna unita'); kernel `msr-index.h` | obbligo "si deriva, non si copia" (§3.1.2), verificato a G1 (§2.2) |
+| il contatore di energia puo' essere scrivibile, e azzerarlo distrugge il delta | kernel powercap (`energy_uj (rw)`, "Write '0' to reset") | R1 e D18: il lettore non scrive mai |
+| una cascata che sceglie "whichever answers first" non e' dichiarata nella riga | PowerJoular *How it works* | controesempio della regola 1 (nessun fallback silenzioso) |
+| su multi-socket si legge solo il primo package | PowerJoular *How it works* | F11 e D15: la scelta del canale e' un difetto dichiarato, non una semplificazione |
+| l'avvolgimento del contatore e' correggibile solo se si legge prima che il contatore riempia meta' del suo intervallo | PowerJoular *How it works* | condizione operativa da scrivere accanto al wrap di R1, oggi non dichiarata |
+| 70 W di offset perche' "with RAPL only the energy consumption of the CPU is measurable" | `README` del plugin Score-P | confine di E1: qualunque numero "di sistema" costruito da RAPL e' un'estrapolazione dichiarata |
+| i valori possono uscire in mJ interi, cioe' quantizzati | `README` del plugin Score-P | nota di quantizzazione della colonna: da dichiarare, non da nascondere |
+| un proxy davanti all'API dichiara i propri limiti (nessuna attribuzione per richiesta, nessuna telemetria CPU o DRAM) | llm-power-profiler (MIT) | §3.2 e riga GPU: modello di come si scrive il confine, nessun ingresso in catena |
+| su AMD la GPU espone potenza in W e non un contatore, e la lettura CPU e' dichiarata solo su bare metal | AMD SMI `group__gpumon`, `group__energyinfo` | riga 11 di §4 e D2: potenza resta M2, non M1 |
 
 ### 3.2 GPU e NPU
 
@@ -782,10 +884,10 @@ colonna "oggi" dice cosa fa il codice al 26/10, non cosa dovrebbe fare.
 
 | # | configurazione / dominio | catena | etichette | oggi |
 |---|---|---|---|---|
-| 1 | Windows Intel, `cpu_package` | EMI PKG -> LHM power -> `unavailable` | `emi-counter` -> `power-integration` -> `unavailable` | EMI attivo; LHM saltato quando EMI funziona |
-| 2 | Windows Intel con LHM Energy dimostrato contatore (criterio di promozione in §3.1) | EMI PKG -> LHM Energy -> LHM power -> `unavailable` | `emi-counter` -> `librehardwaremonitor-energy` -> `power-integration` -> `unavailable` | L1 non dimostrato: la catena effettiva e' la 1 |
-| 3 | Windows AMD, `cpu_package` | EMI **se il probe passa** -> LHM power (Package/Package Power/CPU PPT) -> `unavailable` | `emi-counter` -> `power-integration` -> `unavailable` | il codice non filtra per produttore (`energy/energy_session.py:188-190`): la catena e' la 1, ma su AMD non e' mai stata provata, quindi lo stato e' [P]; con piu' die vale la deduplica di F11 |
-| 4 | Qualsiasi OS, `CW_ENERGY_FILE` impostato | `energy-file` -> (catena normale se non impostato) | `energy-file` | priorita' di selezione su EMI/LHM; uso test/dev |
+| 1 | Windows Intel, `cpu_package` | EMI PKG -> `unavailable` | `emi-counter` -> `unavailable` | EMI attivo; **LHM rimosso dall'implementazione (D18)**: se EMI manca, la riga e' `unavailable`, non un secondo lettore dello stesso registro. Il percorso MSR P1, quando sara' provato, si inserisce fra i due (riga 2) |
+| 2 | Windows Intel, EMI non disponibile e PawnIO installato | MSR P1 (`0x606` + `0x611`) -> `unavailable` | `msr-counter` -> `unavailable` | [P] non implementato: entra solo dopo la sonda contro EMI a finestra uguale e la misura del costo di osservazione (D18) |
+| 3 | Windows AMD, `cpu_package` | EMI **se il probe passa** -> MSR P1 AMD (`0xC0010299` + `0xC001029B`) -> `unavailable` | `emi-counter` -> `msr-counter` -> `unavailable` | il codice non filtra per produttore (`energy/energy_session.py:188-190`): la catena e' la 1, ma su AMD non e' mai stata provata, quindi lo stato e' [P]; con piu' die vale la deduplica di F11 |
+| 4 | Qualsiasi OS, `CW_ENERGY_FILE` impostato | `energy-file` -> (catena normale se non impostato) | `energy-file` | priorita' di selezione su EMI e su P1; uso test/dev |
 | 5 | Linux Intel, `cpu_package` | RAPL package -> `unavailable` | `rapl` -> `unavailable` | implementato, mai esercitato; 3 test saltati |
 | 6 | Linux Intel, `psys` | RAPL psys -> `unavailable` | `rapl` con dominio `psys` | non implementato; non e' un fallback di 5 |
 | 7 | Linux AMD, `cpu_package` | powercap RAPL AMD (kernel >= 5.11, se il percorso e la semantica sono verificati) -> hwmon `amd_energy` -> `unavailable` | `rapl` (dominio dichiarato) -> `unavailable` | non implementato; R3b ha scala propria (15,3 uJ) e copre prima EPYC che Ryzen client |
@@ -805,7 +907,7 @@ colonna "oggi" dice cosa fa il codice al 26/10, non cosa dovrebbe fare.
 | 20 | Macchina virtuale (hypervisor), `cpu_package` | nessun contatore di dominio -> `unavailable` con ragione `vm` | `unavailable` | `probes/cw_probe.py:31-58` rileva hypervisor flag, `systemd-detect-virt`, DMI; il contatore del guest non e' quello del package fisico |
 | 21 | WSL2, `cpu_package` | contatore non esposto al guest -> `unavailable` con ragione `vm` (WSL2 e' una VM) | `unavailable` | il probe distingue `microsoft` nel release (`probes/cw_probe.py:41`) |
 | 22 | Container (Docker) su host con contatore | RAPL/EMI **dell'host**, se il mount lo consente -> `unavailable` con ragione `permission_denied` | `rapl` / `emi-counter` con confine "host, non container" | l'energia letta e' dell'host condiviso: attribuirla al container e' M3, non M1 |
-| 23 | Windows ARM, `cpu_package` | nessun canale verificato -> `unavailable` con ragione `driver_missing` | `unavailable` | EMI e LHM non verificati su ARM; `probes/cw_probe.py` segna il machine (`platform.machine()`) |
+| 23 | Windows ARM, `cpu_package` | nessun canale verificato -> `unavailable` con ragione `driver_missing` | `unavailable` | EMI non verificato su ARM (ne' il percorso MSR P1, che dipende da un modulo PawnIO per l'architettura); `probes/cw_probe.py` segna il machine (`platform.machine()`) |
 | 24 | Linux ARM / SBC, `cpu_package` | nessun contatore di dominio verificato -> `unavailable` con ragione `no_energy_domain` | `unavailable` | mai provato su hardware ARM: e' un'assenza **dichiarata**, non una dimostrazione; se un SBC espone powercap o hwmon, la riga 5 o la 7 si applicano |
 | 25 | `OLLAMA_HOST` non locale, `cpu_package` | **la misura locale non rappresenta l'inferenza**: `unavailable` con ragione `remote_endpoint`, piu' la riga cloud del server remoto | `unavailable` + campi cloud | il probe legge `OLLAMA_HOST` (`probes/cw_probe.py:181`); senza questo flag la riga sembrerebbe locale |
 | 26 | Piu' package/socket | enumerare le zone per `name`, sommare i package distinti, deduplicare i canali specchiati -> `unavailable` | `rapl` / `emi-counter` con dominio `package-0..N` | oggi il codice prende `intel-rapl:0` o il primo device EMI (F11) |
@@ -832,7 +934,7 @@ ragione in un token:
 |---|---|---|
 | `vm` | hypervisor o guest senza contatore di dominio | passare a una misura dell'host, o dichiarare l'assenza |
 | `remote_endpoint` | il motore di inferenza non e' sulla macchina che misura | la riga locale non rappresenta l'inferenza: si misura il nodo remoto o si usa la stima cloud |
-| `permission_denied` | il nodo esiste ma non e' leggibile dal processo | root, regola udev, o UAC per i sensori LHM |
+| `permission_denied` | il nodo esiste ma non e' leggibile dal processo | root, regola udev, o installazione del driver del canale (l'installazione di PawnIO e' l'unico passo elevato del percorso P1; dopo, la lettura e' da processo normale) |
 | `driver_missing` | il driver del canale non e' installato o non e' esposto | installare il canale, o passare al fallback |
 | `no_energy_domain` | la piattaforma non espone un dominio energia | `unavailable` strutturale, non un guasto |
 | `counter_stale` | timestamp di dominio fermo (G2) | segmentare o dichiarare, mai sottrarre |
@@ -1311,7 +1413,7 @@ eccezioni vanno rivalidate al freeze.
 | F2 | cloud non stimabile -> `cloud_energy_j = 0` mentre il metodo dice `unavailable` | era `benchmark_unified.py:1101` (`est.energy_j or 0.0`); oggi `:1145` passa `est.energy_j` nudo e `_finalize_energy_fields` `:500-537` scrive `"N/A"` | la colonna energia contraddiceva il token di metodo, e la somma end-to-end era bassa | **CHIUSO in `HEAD` dal commit `027609c`** (26/10), con `tests/test_cloud_energy_none_preservato.py` che blocca sia `None -> "N/A"` sia `0.0 -> 0.0`; da rivalidare al freeze P5 |
 | F3 | GPU senza token di metodo stabile e senza baseline idle | `casualwatt_csv_export.py:63`, `:77`; `energy/local_energy.py:525-535` | GPU non confrontabile per riga; energia whole-device | D2 per il token; la baseline e' priorita' 9 di §12 e chiede hardware che questo host non ha |
 | F4 | proxy cloud non distinto nel token di metodo | `energy/cloud_energy.py:138-254` | C2 e C3 hanno la stessa etichetta; il proxy e' solo nelle note | D3 |
-| F5 | LHM Energy non dimostrato contatore, e assente sul host | `energy/energy_session.py:770-830`; `lhm_gui_report_20261023_analisi.md:46-99` | non entra nella catena (corretto), ma il token esiste | D9 + criterio di promozione L1 (§3.1) |
+| F5 | LHM Energy non dimostrato contatore, e assente sul host | `energy/energy_session.py:770-830`; `lhm_gui_report_20261023_analisi.md:46-99` | non entrava nella catena, ma il token esisteva e la catena contava LHM come secondo percorso | **chiuso il 27-10-2026 da D18**: LHM esce dall'implementazione, il token non e' piu' un'opzione e il secondo percorso e' P1 ([P]) |
 | F6 | RAPL, AMD e macOS mai esercitati | `energy/rapl_backend.py:45-48`; `energy/energy_session.py:206-212` | "implementato" non e' "provato"; 3 test saltati | non si chiude con codice (§11): D11 rende leggibile la ragione, le priorita' 7 e 10 di §12 portano l'hardware |
 | F7 | coefficiente di rete: citazione sbagliata e confine invertito rispetto alla fonte | `config.py:332-362`; `energy/network_energy.py:10-29` | il valore `2,7e-6` era giusto ma attribuito a un altro articolo (IEEE Network, DOI 10.1109/MNET.2011.5730522) e descritto con l'accesso incluso, mentre la fonte lo esclude; `0,46` e `20,0` uJ/bit attribuiti ad Aslan senza fonte per `20,0` | **corretto il 26-10-2026**: fonte Proc. IEEE 99(1):149-167, DOI 10.1109/JPROC.2010.2060451; accesso escluso; `0,46` = scenario cloud privato; `20,0` senza fonte. Resta aperto il confronto empirico (D8) |
 | F8 | una `CW_ENERGY_FILE` dimenticata fa misurare un file al posto del package | `energy/energy_session.py:182-197`, `:1419` | il metodo per riga e' `energy-file`, ma il run somiglia a una misura EMI finche' non si legge quella colonna | D14: etichetta **e** un flag booleano `external_counter` sulla riga, perche' un'etichetta testuale non e' un filtro |
@@ -1327,7 +1429,7 @@ eccezioni vanno rivalidate al freeze.
 
 | id | decisione | raccomandazione |
 |---|---|---|
-| D1 | LHM resta fallback su Windows | **si'**, non come validazione: copre driver/permessi, non il registro; etichetta `power-integration` |
+| D1 | ~~LHM resta fallback su Windows~~ **superata da D18 (27-10-2026)** | la ragione di allora -- copre driver e permessi, non il registro -- resta vera; il ruolo di secondo percorso passa a P1, e LHM esce dall'implementazione |
 | D2 | token GPU stabile | `gpu_energy_method` con `nvml-energy` / `nvml-power-integration` / `unavailable`, accanto a `gpu_idle_provenance` |
 | D3 | proxy cloud esplicito | token distinto (`ecologits-proxy`) o campo `cloud_model_proxy`; C3 non si presenta come C2 |
 | D4 | canale non disponibile -> N/A | rete e cloud: `N/A` con ragione, mai `0.0`; zero solo per local mode dichiarato. Del cloud e' gia' cosi' in `HEAD` (`027609c`: `None -> "N/A"`, `0.0` sopravvive solo se lo produce il confine); resta la rete (F1) e il confine cloud vuoto in local mode (F9) |
@@ -1335,7 +1437,7 @@ eccezioni vanno rivalidate al freeze.
 | D6 | NPU | disponibile solo dove esiste un dominio verificato (ANE via `powermetrics`, [P]); altrove `unavailable` e nessuna colonna finche' non esiste il backend |
 | D7 | NVML total energy | quando implementato, **sostituisce la potenza come canale primario**; la potenza resta fallback |
 | D8 | coefficiente J/bit | **fonte trovata e verificata il 26-10-2026** (Baliga, Ayre, Hinton, Tucker, *Proc. IEEE* 99(1):149-167, 2011, DOI 10.1109/JPROC.2010.2060451): il coefficiente resta documentato e **non validato**, mai chiamato "misurato"; l'intervallo `[0,46; 20,0]` uJ/bit si ritira, perche' `0,46` e' lo scenario cloud privato dello stesso articolo e `20,0` non ha fonte |
-| D9 | LHM Energy | entra nella catena solo se dimostrato contatore hardware; altrimenti resta fuori |
+| D9 | ~~LHM Energy~~ **superata da D18 (27-10-2026)** | il criterio ("entra nella catena solo se dimostrato contatore hardware") resta come condizione di una qualunque reintroduzione; con D18 LHM resta fuori a prescindere |
 | D10 | stima opt-in fuori catena (X2, §3.1) | `estimate-load-tdp` in un campo proprio (`energy_estimate_j`), **spento di default**, mai in `MEASURED_METHODS`, mai confrontato con i numeri delle catene. Non e' un livello di fallback e non colma un `unavailable` |
 | D11 | ragioni di G0 come token di riga | il lessico di §4.1 (`vm`, `remote_endpoint`, `permission_denied`, `driver_missing`, `no_energy_domain`, `counter_stale`, `ambiguous_domain`) prodotto da `probes/cw_probe.py` dentro la riga, non in un file a parte; il testo del motivo **non nomina il produttore** (chiude F10) |
 | D12 | campi della stima cloud | `ecologits_version`, `cloud_calls_count`, `cloud_input_tokens_included`, `cloud_hardware_mismatch`, `cloud_quantization_assumed`; una riga multi-round o multi-agente e' la **somma** delle stime per-chiamata (§6) |
@@ -1344,6 +1446,7 @@ eccezioni vanno rivalidate al freeze.
 | D15 | package multipli e canali specchiati | enumerare le zone powercap per `name` e i device EMI per path, **deduplicare i canali specchiati**, poi sommare i package distinti; la nota sui permessi dice cosa verifica il codice (`os.access`, `energy/rapl_backend.py:81-83`), non "gruppo power" (chiude F11) |
 | D16 | traffico concorrente in finestra rete | oggi: rumore dichiarato, non sottratto. Se P5 vuole ridurlo, la via ammissibile e' la **finestra di rumore sottratta come termine scritto** (A-B-A a stessa durata, §7); i contatori per processo restano [P] finche' l'interfaccia non e' verificata alla fonte, e in ogni caso il risultato resta un'attribuzione con scala propria, mai un M1 |
 | D17 | il lettore EMI **verifica** il meter invece di presumerlo, secondo il contratto Microsoft di §3.1.1 | leggere `IOCTL_EMI_GET_VERSION` e riportare la versione nella riga; leggere `GET_METADATA_SIZE` e `GET_METADATA`, verificare `MeasurementUnit == EmiMeasurementUnitPicowattHours` su ogni canale, selezionare i canali di package **per nome** (`_PKG`, uno per socket) fra i `ChannelCount` dichiarati, e trattare metadato fuori misura e risposta corta come guasto. **Non** si ammette un gate "solo V2" (un V1 si dichiara, non si rifiuta in anticipo) ne' la somma di tutti i canali con quel suffisso: la deduplica resta D15. Chiude F13 e fornisce a F11 il "quale canale" |
+| D18 | LHM esce dall'implementazione e resta **metodo provato e superato**; il secondo percorso diventa un lettore MSR proprio sopra PawnIO | LHM non e' un canale distinto ma lo stesso registro `0x611` gia' derivato in potenza e re-integrato da noi, con il sensore scelto per nome: fuori dalla catena, dentro il documento come evidenza (accordo a finestra uguale, A-B-A, costo di osservazione). Il sostituto P1 e' **[P]**: MSR RAPL lette da un client proprio sopra PawnIO -- Intel `0x606` + `0x611`, AMD `0xC0010299` + `0xC001029B` (`msr-index.h:496-522`; **non** `0x606`/`0x611` su AMD, che e' l'errore della tabella proposta), unita' **derivata** dal registro di unita' e non copiata, solo delta di contatori cumulativi, nessuna scrittura dei registri, e la dichiarazione esplicita che non e' una validazione indipendente di EMI. Token `msr-counter` **proposto e non ammesso** in `MEASURED_METHODS` finche' una sonda non lo confronta con EMI a finestra uguale e non si misura il costo di osservazione del percorso. Licenza PawnIO GPL-2.0 **con l'eccezione** per i moduli "that communicate with PawnIO solely through the device IO control interface"; moduli LGPL-2.1; HVCI e firma del pacchetto distribuito restano da verificare (§3.1.2) |
 
 ---
 
@@ -1382,8 +1485,10 @@ presentano come lavoro in corso.
    F1 (rete) e' chiusa il 26-10-2026 con `_j_log`; F2 (cloud) e' chiusa in
    `HEAD` da `027609c`. Resta il local mode, che P5 eredita.
    Un numero che dice "non misurato" non deve sembrare una misura.
-2. **Token GPU** (D2) e **criterio di promozione L1** (§3.1, D9): decidono la
-   confrontabilita' futura delle colonne, e dopo il congelamento non si cambiano.
+2. **Token GPU** (D2) e **ritiro di LHM con `msr-counter` proposto** (D18):
+   decidono la confrontabilita' futura delle colonne, e dopo il congelamento non
+   si cambiano. Il ritiro e' una decisione di catena, non di codice; il token
+   resta proposto finche' la sonda non lo prova.
 3. **Lessico G0, package multipli e verifica del meter** (D11, D15, D17):
    chiude F10 e F11, e rende la riga leggibile su macchine diverse dalla nostra
    senza toccare il metodo.
@@ -1408,6 +1513,13 @@ presentano come lavoro in corso.
 7. **RAPL su Linux reale** (R1: il percorso Intel e' scritto, cablato su
    `intel-rapl:0`, e mai eseguito; 3 test saltati), **poi AMD** (R3, R3b: non
    implementati, da verificare alla fonte kernel) (F6).
+7-bis. **Sonda del percorso MSR proprio** (P1, D18): su un host Windows con
+   PawnIO installato, confrontare il delta di `0x611` (o `0xC001029B`) con EMI
+   nella stessa finestra e con la stessa baseline, e misurare il costo di
+   osservazione A-B-A del percorso. Serve anche a verificare alla fonte le due
+   proposizioni che oggi sono solo [P]: la compatibilita' HVCI e la firma del
+   pacchetto. Finche' non passa, `msr-counter` non entra in `MEASURED_METHODS` e
+   la catena resta EMI -> `unavailable`.
 8. **NVML total energy** come M1 che sostituisce la potenza come canale primario
    (D7), con gli stessi G0-G4, su una macchina con NVIDIA.
 9. **Baseline idle GPU** (F3): **non si puo' provare su questo host**, che non ha
@@ -1545,6 +1657,50 @@ Fonti esterne, con la data della verifica alla fonte primaria:
   consumers requests and also the driver implementation" -- che e' la fonte
   esterna della regola 7 (§5). Da queste pagine vengono anche le due versioni:
   V1 a un canale, V2 a canali multipli.
+- Kernel, framework `powercap`
+  (`docs.kernel.org/power/powercap/powercap.html`, letta il **27-10-2026**): gli
+  attributi di una zona sono `energy_uj (rw)`, "Current energy counter in micro
+  joules. Write '0' to reset", e `max_energy_range_uj (ro)`, "Range of the above
+  energy counter in micro-joules", accanto a `max_power_range_uw`. Tre
+  conseguenze. (i) L'unita' e la scala di avvolgimento sono leggibili, non
+  assunte. (ii) La pagina **non documenta** la regola di avvolgimento, il ritmo di
+  aggiornamento ne' i permessi: quindi la lettura di `max_energy_range_uj` fatta
+  dal backend (`energy/rapl_backend.py:98-104`) e' ancorata a questa pagina, ma il
+  ripiego `2**32` uJ quando l'attributo manca (`:91-96`) **non e' ancorato a
+  niente** e resta un'assunzione dichiarata. (iii) `energy_uj` e' scrivibile:
+  **non va mai scritto**, perche' azzerarlo distrugge il delta in corso e il
+  contatore cumulativo su cui poggia M1.
+- Intel, *Running Average Power Limit -- Energy Reporting*
+  (`intel.com/content/www/us/en/developer/articles/technical/software-security-guidance/advisory-guidance/running-average-power-limit-energy-reporting.html`,
+  letta il **27-10-2026**): i registri riportano l'energia **accumulata** dei
+  domini, il registro si aggiorna **circa ogni 1 ms**, il TDP dichiarato varia
+  del **5-10%** fra esemplari, e applicare filtri ai campioni introduce
+  "artificial unpredictable noise". Le tre frasi hanno tre effetti distinti:
+  la prima e' la semantica di M1 gia' in uso; la seconda dice che a 50 ms il
+  **registro non e' il limite** del nostro campionamento (coerente con la sonda:
+  11 192 transizioni, nessun quantum, §3.1.1); la terza toglie alla stima da TDP
+  (X2) qualunque pretesa migliore del 5-10%, e sconsiglia di filtrare i campioni
+  invece di dichiarare la cadenza.
+- Kernel, `arch/x86/include/asm/msr-index.h` (ramo `master`, letto il
+  **27-10-2026**), `:496-522`: `MSR_RAPL_POWER_UNIT 0x00000606` e
+  `MSR_PKG_ENERGY_STATUS 0x00000611` per Intel; per AMD
+  `MSR_AMD_RAPL_POWER_UNIT 0xc0010299`, `MSR_AMD_CORE_ENERGY_STATUS 0xc001029a`,
+  `MSR_AMD_PKG_ENERGY_STATUS 0xc001029b`. E' la fonte che **corregge** la tabella
+  di sostituzione proposta per il percorso MSR: `0x606`/`0x611` sono indirizzi
+  Intel, e su un Ryzen quegli indirizzi non sono l'unita' ne' il package (D18).
+- AMD SMI 24.6.2.0, API di monitoraggio
+  (`rocm.docs.amd.com/projects/amdsmi/en/docs-6.2.0/doxygen/docBin/html/group__gpumon.html`
+  e `group__energyinfo.html`, lette il **27-10-2026**). Due gruppi che non vanno
+  confusi: **GPU** -- `amdsmi_get_power_info` restituisce "the current power and
+  voltage of the GPU", potenza in **W** e tensione in mV, e `amdsmi_get_clock_info`
+  "averages over 1s": sono M2, non M1, e in questa pagina **non c'e' un contatore
+  di energia**; **CPU** -- il gruppo si intitola "Energy information (RAPL MSR)" e
+  offre `amdsmi_get_cpu_socket_energy` e `amdsmi_get_cpu_core_energy`, che
+  scrivono un `uint64_t` **senza dichiarare l'unita'**, e sono marcati
+  `Platform: cpu_bm` (bare metal, non guest). Per la riga 11 di §4 questo chiude
+  una domanda e ne apre una: il canale GPU disponibile e' di potenza; il canale
+  CPU esiste ma a G1 manca l'unita', che va derivata dal registro di unita' e non
+  copiata da una costante.
 - **Stato dell'arte, non fonte del metodo.** PowerJoular
   (`github.com/joular/powerjoular`, **GPL-3.0**) e la libreria che lo alimenta,
   Joular Core (`github.com/joular/joularcore`, **LGPL-3.0** secondo il metadato
@@ -1558,7 +1714,74 @@ Fonti esterne, con la data della verifica alla fonte primaria:
   nota "works only on Windows 11" non si adotta: la pagina Microsoft documenta
   l'interfaccia da Windows 10 in poi, e la riga E1 resta [P] su Windows 10
   finche' una sonda non la esercita. Le due licenze restano distinte se un giorno
-  si valutasse l'uso della libreria come dipendenza.
+  si valutasse l'uso della libreria come dipendenza. La pagina *How PowerJoular
+  Works* (`joular.github.io/powerjoular/ref/how_it_works.html`, letta il
+  **27-10-2026**) aggiunge quattro proposizioni utili, tre come **controesempio**
+  e una come conferma: su Windows legge il package "through the Energy Meter
+  Interface built into Windows 11, or through the PawnIO driver or Hubblo's
+  driver, **whichever answers first**" (cascata non dichiarata nella riga: e' il
+  contrario della regola 1); "On a server with several sockets, only the first
+  one is read" (la scelta del primo canale e' il difetto F11, dichiarato da loro
+  come limite); "RAPL counters wrap when they fill, and Joular Core corrects
+  that, as long as the counter is read before it fills half of its range"
+  (condizione operativa che il nostro backend Linux non dichiara, §3.1 R1); e
+  divide il delta "by how long the cycle actually took, rather than assuming it
+  was exactly one second", che e' la nostra finestra effettiva e non il periodo
+  nominale.
+- **PawnIO** (`github.com/namazso/PawnIO`, driver; `github.com/namazso/PawnIO.Modules`,
+  moduli), letti il **27-10-2026**. La licenza **non e' "pulita"**, come la
+  chiamava la tabella di sostituzione: il driver e' **GPL-2.0**, con
+  un'eccezione scritta nel `README` che "give[s] you permission to combine PawnIO
+  program with free software programs or libraries that are released under the
+  GNU LGPL and with **independent modules that communicate with PawnIO solely
+  through the device IO control interface**". Il nostro caso cade esattamente
+  in quella classe: un client Python che apre un device e chiama
+  `DeviceIoControl`, senza linkare ne' incorporare codice del driver. I moduli
+  devono essere compatibili LGPL (il README "recommend[s] using the GNU Lesser
+  General Public License version 2.1"), e `PawnIO.Modules` e' **LGPL-2.1**: il
+  modulo `IntelMSR.p` espone `MSR_RAPL_POWER_UNIT` `0x606`, `MSR_PKG_ENERGY_STATUS`
+  `0x611` (e `0x619`, `0x639`, `0x641` per DRAM/PP0/PP1), `AMDFamily17.p` espone
+  `MSR_PWR_UNIT 0xC0010299`, `MSR_CORE_ENERGY_STAT 0xC001029A`,
+  `MSR_PKG_ENERGY_STAT 0xC001029B`. **Non verificato alla fonte**: la
+  compatibilita' HVCI e la firma del pacchetto distribuito -- il README del
+  sorgente non ne parla e pawnio.eu e' una pagina di download. Resta quindi
+  [P], e la riga di D18 la scrive come da verificare, non come premessa.
+- **Score-P power/energy plugin** (`github.com/score-p/scorep_plugin_x86_energy`
+  -- l'owner e' `score-p`, con il trattino: l'URL `github.com/scorep/...` non
+  esiste, `404`; ramo `master`, push del 02-10-2025, **BSD-3-Clause**, letto il
+  **27-10-2026**). E' il precedente piu' vicino al percorso MSR che D18 propone:
+  "supports reading `msr` registers directly or through the `x86_adapt` library",
+  su Intel Sandy Bridge e AMD Bulldozer. Tre proposizioni da prendere come
+  esperienza, non come codice: i registri Intel "are updated roughly every msec",
+  quindi un intervallo di 1 ms produce "highly variating power consumptions"
+  mentre "a longer interval means less disturbance, a shorter interval is more
+  exact" (il compromesso perturbazione/accuratezza e' nostro, §5 regola 7); il
+  plugin riporta **mJ come interi**, forma di quantizzazione che noi non abbiamo
+  perche' partiamo dai pWh; e la sua opzione `..._OFFSET` (default 70 W "measured
+  on Taurus") esiste "because with RAPL only the energy consumption of the CPU is
+  measurable" -- la conferma esterna che il confine di E1 e' il package e che
+  ogni numero "di sistema" costruito da RAPL e' un'estrapolazione dichiarata,
+  non una misura.
+- **likwid** (`github.com/RRZE-HPC/likwid`, ramo `master`, push del 21-10-2026,
+  **GPL-3.0**) e **x86_energy** (`github.com/tud-zih-energy/x86_energy`, ramo
+  `master`, push del 06-12-2024, **LGPL-2.1**), letti il **27-10-2026**. Non si
+  usano ne' si citano come metodo: servono a dire che la lettura diretta delle
+  MSR RAPL e' pratica corrente e non un'invenzione di questa specifica, e che le
+  due licenze (GPL-3.0, LGPL-2.1) sono incompatibili con un'incorporazione nel
+  nostro codice, esattamente come per PowerJoular e Joular Core.
+- **llm-power-profiler** (`github.com/chenxuniu/llm-power-profiler`, ramo `main`,
+  push del 17-05-2026, **MIT**, letto il **27-10-2026**). Misura J/token su un
+  server OpenAI-compatibile mettendosi come **proxy** davanti a `/v1/*` e
+  campionando la potenza NVML: e' la versione "leggera" dello stesso obiettivo, e
+  il suo ambito dichiarato dice cosa non fa -- "not request-level precise energy
+  attribution", "no CPU or DRAM power telemetry", "energy" aggregata di sessione,
+  risposte non-stream. Tre cose si prendono: il **proxy come punto di misura**,
+  che e' la stessa scelta della riga di produzione; i token letti da `usage`
+  (`prompt_tokens`, `completion_tokens`), che sono la stessa geometria N_in/N_out
+  che registriamo noi; e la dichiarazione esplicita dei limiti, che e' il modello
+  di come va scritta la colonna. Una non si prende: la sua energia e'
+  **whole-device GPU**, quindi non e' confrontabile con una riga `emi-counter` e
+  non entra in nessuna catena di §4.
 - EcoLogits: la deriva fra release non viene da una fonte esterna, e' **misurata**
   (`probe_ecologits_release_drift_20261026.py` +
   `experiment_results/ecologits_drift_console_20261026.txt`), confrontando
