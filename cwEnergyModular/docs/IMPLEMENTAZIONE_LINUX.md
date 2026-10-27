@@ -1,5 +1,11 @@
 # Implementazione Backend Linux per CasualWatt
 
+> **Nota di stato (27/10/2026).** Questo documento descrive il lavoro fatto
+> quando il canale Windows era LibreHardwareMonitor. Dal 27/10/2026 LHM e'
+> fuori dall'implementazione (D18, metodo provato e superato) e su Windows
+> l'unico canale locale e' il contatore cumulativo EMI; le parti di questo
+> testo che citano LHM come canale attivo vanno lette come stato storico.
+
 ## Riepilogo
 
 Implementato backend Linux per CasualWatt basato su contatori hardware **RAPL** (Running Average Power Limit). Questo completa il supporto cross-platform per la misurazione energetica di LLM locali.

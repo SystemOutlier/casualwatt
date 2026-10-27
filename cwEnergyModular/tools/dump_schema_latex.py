@@ -4,8 +4,9 @@ tools/dump_schema_latex.py — Tabella dello schema di export per l'Appendice A,
 generata dal codice e da un CSV reale (non trascritta a mano).
 
 Motivo: la lista delle colonne vive in casualwatt_csv_export.CSV_COLUMNS e cresce
-accodando (regola testata in tests/test_energy_corrections.py:233-247); un'appendice
-scritta a mano invecchia al primo campo nuovo.
+accodando (regola testata in
+tests/test_energy_corrections.py::test_P2_colonna_csv_accodata_senza_cambiare_ordine);
+un'appendice scritta a mano invecchia al primo campo nuovo.
 
 Per ogni colonna stampa: posizione, nome esatto, valore dell'ultima riga dati del
 CSV di riferimento (tronco a MAX_CELL), e 'nuova' quando quel file non contiene

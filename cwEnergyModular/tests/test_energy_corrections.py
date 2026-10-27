@@ -2,14 +2,16 @@
 """Test sintetici (senza hardware) delle correzioni A1-A3, B2, C1.
 
 Le 8 docstring dei test di questo file sono state aggiunte il 23/10/2026
-leggendo i corpi, non dall'autore originale delle funzioni.
+leggendo i corpi, non dall'autore originale delle funzioni. I cinque test
+``test_P1_igpu_*`` sono usciti il 27/10/2026 con LHM (D18): il percorso
+trapezoidale su ``SystemSample.igpu_power_w`` non esiste piu', l'iGPU
+informativa resta solo dal dominio PP1 del record EMI.
 """
-import threading
 from types import SimpleNamespace
 
 import pytest
 
-from energy.energy_session import EnergySession, SystemSample
+from energy.energy_session import SystemSample
 from energy.local_energy import CasualWattLocalEnergyProfiler
 
 T0 = 1000.0
@@ -112,66 +114,6 @@ def test_A3_senza_nvml_nessun_termine_igpu_sommato():
     local_j = res.ollama_active_energy_j + res.gpu_energy_attributed_j
     assert res.gpu_energy_attributed_j == 0.0
     assert local_j == pytest.approx(res.ollama_active_energy_j)
-
-
-# ------------------------------------------------- Punto 1: energia iGPU
-class FakeIGpuSession:
-    """Sessione sintetica che riusa i metodi REALI di EnergySession per l'iGPU.
-
-    Nessun hardware: i campioni portano solo ``igpu_power_w`` (costante,
-    variabile o None = sensore assente).
-    """
-
-    samples_between = EnergySession.samples_between
-    read_igpu_energy_j = EnergySession.read_igpu_energy_j
-    _interpolate = staticmethod(EnergySession._interpolate)
-
-    def __init__(self, igpu_w=5.0, t_end=10.0, lhm_opened=True):
-        self.interval_s = STEP
-        self._lock = threading.RLock()
-        self._source = SimpleNamespace(method="power-integration",
-                                       _lhm_opened=lhm_opened)
-        n = int(round(t_end / STEP))
-        self._samples = [
-            SystemSample(
-                t=T0 + i * STEP, wall=0.0, package_energy_j=0.0,
-                cpu_busy_seconds=0.0, cpu_percent=0.0,
-                igpu_power_w=(igpu_w(i * STEP) if callable(igpu_w) else igpu_w))
-            for i in range(n + 1)
-        ]
-
-
-def test_P1_igpu_integrale_trapezoidale_sulla_finestra():
-    """5 W costanti per 10 s -> 50 J (integrale sulla finestra, non lettura puntuale)."""
-    s = FakeIGpuSession(igpu_w=5.0)
-    assert s.read_igpu_energy_j(T0, T0 + 10.0) == pytest.approx(50.0, rel=1e-6)
-
-
-def test_P1_igpu_sottofinestra_esclusa():
-    """Judge escluso 4 s su 10 -> restano 6 s a 5 W = 30 J."""
-    s = FakeIGpuSession(igpu_w=5.0)
-    got = s.read_igpu_energy_j(T0, T0 + 10.0,
-                               exclude_windows=[(T0 + 6.0, T0 + 10.0)])
-    assert got == pytest.approx(30.0, rel=1e-6)
-
-
-def test_P1_igpu_sensore_assente_ritorna_none():
-    """igpu_power_w assente su tutti i campioni: None, non 0 J."""
-    s = FakeIGpuSession(igpu_w=None)
-    assert s.read_igpu_energy_j(T0, T0 + 10.0) is None
-
-
-def test_P1_igpu_potenza_variabile_segue_la_finestra():
-    """Rampa 0->10 W su 10 s -> 50 J; il tratto finale escluso non conta."""
-    s = FakeIGpuSession(igpu_w=lambda tr: tr)          # W = t_rel
-    assert s.read_igpu_energy_j(T0, T0 + 10.0) == pytest.approx(50.0, rel=1e-3)
-    assert s.read_igpu_energy_j(T0, T0 + 4.0) == pytest.approx(8.0, rel=1e-2)
-
-
-def test_P1_igpu_backend_non_attivo_ritorna_none():
-    """Backend dei sensori non aperto: None, perche' 0 J sarebbe una misura falsa."""
-    s = FakeIGpuSession(igpu_w=5.0, lhm_opened=False)
-    assert s.read_igpu_energy_j(T0, T0 + 10.0) is None
 
 
 # ---------------------------------------------------------------- B1

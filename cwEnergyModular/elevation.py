@@ -2,8 +2,11 @@
 """
 elevation.py — Supporto UAC (Windows) per i privilegi di amministratore.
 
-LibreHardwareMonitor richiede un token con privilegi elevati per aprire i
-driver dei sensori hardware (Energy-CPU, etc.). Questo modulo offre:
+Il contatore EMI usato in produzione NON richiede un token elevato (e' letto
+con IOCTL sul device del canale energia, senza driver proprio). Questo modulo
+resta per le operazioni che l'elevazione la richiedono davvero, come
+l'installazione di un driver di terze parti (il lettore MSR via PawnIO e'
+ancora una proposta [P]). Offre:
 
   * is_admin()            -> True se il processo corrente e' gia' elevato;
   * elevate_available()   -> True se la ri-elevazione e' possibile su SO;

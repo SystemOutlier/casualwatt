@@ -28,17 +28,18 @@ con:
                    sul device del canale energia Intel), letto ai bordi esatti
                    della finestra dal buffer a 0,05 s; nessuna integrazione
                    perche' la grandezza e' gia' energia.
-                   FALLBACK "power-integration" (CPU senza canale EMI):
-                   sensore LibreHardwareMonitor 'CPU Package' [W] campionato
-                   ogni 0.05 s e integrato nel tempo con regola trapezoidale
-                   sum(((P_i + P_i+1)/2) * (t_i+1 - t_i)). NIENTE RAPL/
+                   Su Windows senza device EMI la misurazione locale e'
+                   indisponibile: LibreHardwareMonitor e il suo percorso
+                   "power-integration" sono usciti dall'implementazione il
+                   27/10/2026 (D18, metodo provato e superato). NIENTE RAPL/
                    perf_event_open/turbostat su Windows, NIENTE stime TDP,
                    NIENTE moltiplicatori arbitrari. Su Linux: contatore RAPL
                    ("rapl"). Su piattaforme non supportate la misurazione
                    locale CPU e' disabilitata con messaggio esplicito
                    (GUI/Ollama/cloud/CSV restano utilizzabili).
-* P_idle         : potenza idle calibrata (SESSION.calibrate_idle, solo
-                   Windows+LHM, >=30 s x 3 ripetizioni, mediana);
+* P_idle         : potenza idle calibrata (SESSION.calibrate_idle, contatore
+                   EMI su Windows o RAPL su Linux, >=30 s x 3 ripetizioni,
+                   mediana);
 * dt_cpu_ollama  : secondi CPU (user+system) dell'albero del motore nella
                    finestra;
 * dt_cpu_busy    : secondi CPU busy NON-idle di TUTTO il sistema nella
@@ -59,17 +60,16 @@ GPU:
   altrimenti N/A con nota;
 * iGPU Intel/AMD integrata -> NON viene aggiunta alcuna quota separata a
   local_energy_j quando la sorgente CPU e' il package: l'energia della
-  grafica integrata e' GIÀ inclusa nel sensore 'CPU Package'. Se LHM
-  espone il sensore 'CPU Graphics' viene letto come campo INFORMATIVO
-  igpu_energy_j, mai sommato. La vecchia euristica IGPU_POWER_SHARE e'
-  deprecata e non usata.
+  grafica integrata e' GIÀ inclusa nel contatore package. Il dominio PP1
+  del record EMI viene letto come campo INFORMATIVO igpu_energy_j, mai
+  sommato. La vecchia euristica IGPU_POWER_SHARE e' deprecata e non usata.
 
 Coerenza finestra (correzioni A1/B1): E_package e baseline coprono SEMPRE
 lo stesso intervallo [t_start, t_end] ridotto delle sottofinestre escluse:
 la baseline e' P_idle * dt_effettiva, mai scalata su una porzione diversa
 dell'integrale. Con backend attivo l'energia package e' letta ESATTAMENTE
-a t_start/t_end dal contatore integrato a 0,05 s (lock del thread di
-integrazione); il percorso sui campioni interpolati resta solo come
+a t_start/t_end dal contatore cumulativo campionato a 0,05 s (lock del
+sampler); il percorso sui campioni interpolati resta solo come
 fallback dichiarato nelle note.
 """
 from __future__ import annotations
@@ -127,24 +127,25 @@ class LocalEnergyResult:
     cpu_attribution_method: str = ""
     gpu_attribution_method: str = ""
     # canale che ha prodotto package_energy_j di questa riga (emi-counter |
-    # power-integration | rapl | unavailable | ...): identico a
-    # SESSION.source_method al momento della misura, salvato PER RIGA
+    # rapl | energy-file | unavailable): identico a SESSION.source_method al
+    # momento della misura, salvato PER RIGA. I token storici
+    # "power-integration"/"librehardwaremonitor*" restano validi per le righe
+    # gia' archiviate in experiment_results/, non sono piu' prodotti.
     energy_calculation_method: str = ""
     # ---- provenienza del contatore (contratto alt_lhm §3) ----------------
     # Valori GREZZI agli estremi della finestra, nell'unita' nativa del canale:
-    # pWh per EMI, uJ per RAPL, vuoti per power-integration (che integra una
-    # potenza e non ha un contatore da citare). Un campo vuoto dichiara
-    # l'assenza; un numero inventato no.
+    # pWh per EMI, uJ per RAPL. Un campo vuoto dichiara l'assenza; un numero
+    # inventato no.
     raw_start: Optional[float] = None
     raw_end: Optional[float] = None
     raw_unit: str = ""
     # Dominio del contatore: PKG per l'energia package, PP1 per l'iGPU.
     domain: str = ""
     # Cadenza REALE (mediana dei delta) del buffer nella finestra, non quella
-    # richiesta in config (0,5 s) ne' quella dichiarata dal thread (0,05 s):
-    # il thread power-integration misurato va a 0,2803 s.
+    # richiesta in config (0,5 s) ne' quella dichiarata dal sampler (0,05 s):
+    # sotto spin il tick osservato e' piu' lento del nominale.
     sampling_interval_observed_s: Optional[float] = None
-    # Versione del percorso di lettura (emi-reader/..., assembly LHM, kernel).
+    # Versione del percorso di lettura (emi-reader/..., kernel RAPL).
     backend_version: str = ""
     notes: List[str] = field(default_factory=list)
     # Diagnostica cpu-time-share (per riga)
@@ -373,15 +374,15 @@ class CasualWattLocalEnergyProfiler:
         # QUESTA riga. Fino ad ora il nome del canale compariva solo dentro
         # stringhe composite (cpu_attribution_method, measurement_boundary),
         # quindi un CSV di risultati che accoda righe di run fatti con canali
-        # diversi -- emi-counter, power-integration, rapl -- non era
+        # diversi -- emi-counter, rapl, energy-file -- non era
         # auto-descrittivo senza il file di run metadata.
         res.energy_calculation_method = method
 
         # ---- provenienza del contatore (raw + cadenza reale + versione) ---
         # Contratto di alt_lhm §3: senza i valori grezzi e la cadenza
         # osservata, package_energy_j richiede di fidarsi del buffer. Qui si
-        # persiste cio' che si puo' dichiarare; i canali senza contatore
-        # (power-integration) lasciano i grezzi vuoti, non a zero.
+        # persiste cio' che si puo' dichiarare; un canale senza contatore
+        # lascia i grezzi vuoti, non a zero.
         prov_fn = getattr(self.session, "window_counter_provenance", None)
         if callable(prov_fn):
             try:
@@ -487,18 +488,13 @@ class CasualWattLocalEnergyProfiler:
                     f"(~{self.session.interval_s}s) perche' il contatore esatto "
                     "non era leggibile ai bordi della finestra"
                 )
-                if method == "power-integration":
-                    # media dei campioni * dt: equivalente all'integrale ma
-                    # meno preciso del percorso esatto
-                    e_package = max(pkg_last - pkg_first, 0.0)
-                else:
-                    e_package = 0.0
-                    prev = samples[0]
-                    for cur in samples[1:]:
-                        if cur.package_energy_j is not None \
-                                and prev.package_energy_j is not None:
-                            e_package += max(cur.package_energy_j - prev.package_energy_j, 0.0)
-                        prev = cur
+                e_package = 0.0
+                prev = samples[0]
+                for cur in samples[1:]:
+                    if cur.package_energy_j is not None \
+                            and prev.package_energy_j is not None:
+                        e_package += max(cur.package_energy_j - prev.package_energy_j, 0.0)
+                    prev = cur
                 res.cpu_attribution_method = (
                     f"{method}; cpu-time-share attribution, ESTIMATE "
                     "(E_attiva * d_ollama/d_busy; share of system BUSY time, "
@@ -821,8 +817,7 @@ class CasualWattLocalEnergyProfiler:
                     "GPU process-level attribution non supportata dal monitor "
                     "attivo -> gpu_process_energy_j = N/A"
                 )
-        elif method in ("power-integration", "librehardwaremonitor",
-                        "librehardwaremonitor-energy", "emi-counter"):
+        elif method == "emi-counter":
             # A3: iGPU Intel/AMD integrata — il sensore 'CPU Package' INCLUDE
             # gia' la grafica: NON si aggiunge ALCUN termine a local_energy_j
             # e NON esiste piu' l'euristica IGPU_POWER_SHARE (deprecata).
@@ -837,34 +832,20 @@ class CasualWattLocalEnergyProfiler:
                 except Exception:
                     res.igpu_energy_j = None
             if res.igpu_energy_j is not None:
-                if method == "emi-counter":
-                    notes.append(
-                        "iGPU: contatore PP1 del record EMI, delta letto ai bordi "
-                        "di finestra (stessa IOCTL del package, nessuna "
-                        "integrazione) come campo INFORMATIVO igpu_energy_j "
-                        "(gia' incluso nel package, NON sommato)"
-                    )
-                else:
-                    notes.append(
-                        "iGPU: sensore 'CPU Graphics' integrato trapezoidalmente sui "
-                        "campioni della finestra come campo INFORMATIVO igpu_energy_j "
-                        "(gia' incluso nel package, NON sommato)"
-                    )
+                notes.append(
+                    "iGPU: contatore PP1 del record EMI, delta letto ai bordi "
+                    "di finestra (stessa IOCTL del package, nessuna "
+                    "integrazione) come campo INFORMATIVO igpu_energy_j "
+                    "(gia' incluso nel package, NON sommato)"
+                )
             else:
-                if method == "emi-counter":
-                    why = getattr(self.session, "igpu_unavailable_reason", None)
-                    notes.append(
-                        "iGPU: metodo emi-counter, dominio PP1 non espresso"
-                        + (f" ({why})" if why else "")
-                        + "; energia iGPU inclusa nel package "
-                        "(dichiarato, nessuna quota inventata)"
-                    )
-                else:
-                    notes.append(
-                        "iGPU: nessun contatore grafico dedicato esposto da LHM (o "
-                        "meno di 2 campioni con potenza iGPU nella finestra); "
-                        "energia iGPU inclusa nel package (dichiarato, nessuna quota inventata)"
-                    )
+                why = getattr(self.session, "igpu_unavailable_reason", None)
+                notes.append(
+                    "iGPU: metodo emi-counter, dominio PP1 non espresso"
+                    + (f" ({why})" if why else "")
+                    + "; energia iGPU inclusa nel package "
+                    "(dichiarato, nessuna quota inventata)"
+                )
         else:
             res.gpu_attribution_method = "not-applicable"
 
@@ -881,16 +862,22 @@ class CasualWattLocalEnergyProfiler:
             ),
             "power-integration": (
                 "LibreHardwareMonitor 'CPU Package' [W] sampled every 0.05 s, "
-                "trapezoidal time integration (no Energy counter on this CPU)"
+                "trapezoidal time integration (no Energy counter on this CPU) "
+                "[metodo storico, fuori dall'implementazione dal 27/10/2026]"
             ),
-            "librehardwaremonitor-energy": "LibreHardwareMonitor package energy counter",
-            "librehardwaremonitor": "LibreHardwareMonitor (no readable counters)",
+            "librehardwaremonitor-energy": (
+                "LibreHardwareMonitor package energy counter "
+                "[metodo storico, fuori dall'implementazione dal 27/10/2026]"
+            ),
+            "librehardwaremonitor": (
+                "LibreHardwareMonitor (no readable counters) "
+                "[metodo storico, fuori dall'implementazione dal 27/10/2026]"
+            ),
             "rapl": "RAPL package counter via /sys/class/powercap (Linux)",
             "energy-file": "[DEV/TEST non-Windows] user-provided joule counter file",
             "unavailable": (
-                "LOCAL CPU ENERGY MEASUREMENT DISABLED: available on Windows "
-                "with the Intel energy channel (EMI) or LibreHardwareMonitor, "
-                "on Linux with RAPL"
+                "LOCAL CPU ENERGY MEASUREMENT UNAVAILABLE: needs the Windows "
+                "Intel energy channel (EMI) or RAPL on Linux"
             ),
         }.get(method, method)
         if res.emi_edge_source == "direct-ioctl":

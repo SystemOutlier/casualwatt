@@ -24,6 +24,10 @@ RESULTS_DIR = BASE_DIR / "results"
 LOGS_DIR = BASE_DIR / "logs"
 DATASET_DIR = BASE_DIR / "dataset"
 
+# Percorso della DLL LibreHardwareMonitor. Non e' piu' usato dal percorso di
+# produzione (LHM e' fuori dall'implementazione dal 27/10/2026, D18): resta
+# per gli harness storici tracciati alla radice del repo (lhm_sensor_dump.py)
+# che rigenerano gli artefatti LHM citati in experiment_results/.
 LHM_DLL_PATH = (
     BASE_DIR
     / "LibreHardwareMonitorLib"
@@ -372,8 +376,8 @@ NETWORK_ENERGY_COEFFICIENT_J_PER_BIT = float(
     os.getenv("CW_NET_J_PER_BIT", str(NETWORK_ENERGY_COEFFICIENT_DEFAULT_J_PER_BIT))
 )
 
-# GPU integrata: DEPRECATA (correzione A3). Il sensore 'CPU Package' di LHM
-# INCLUDE gia' la grafica integrata: NON viene aggiunta alcuna quota separata
+# GPU integrata: DEPRECATA (correzione A3). Il contatore package (EMI) INCLUDE
+# gia' la grafica integrata: NON viene aggiunta alcuna quota separata
 # a local_energy_j e IGPU_POWER_SHARE NON e' piu' usata da alcun calcolo.
 # Mantenuta solo per retrocompatibilita' di eventuali .env; ignorata dal codice.
 IGPU_POWER_SHARE = float(os.getenv("CW_IGPU_SHARE", "0.30"))  # DEPRECATED, unused

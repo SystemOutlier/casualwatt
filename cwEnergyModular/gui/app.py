@@ -15,12 +15,6 @@ from gui.benchmark_panel import BenchmarkPanel
 from gui.model_selection import ModelSelectionPanel
 from gui.results_panel import ResultsPanel
 
-import sys
-
-
-def _is_windows() -> bool:
-    return sys.platform.startswith("win")
-
 
 class CasualWattApp(tk.Tk):
     def __init__(self):
@@ -29,16 +23,9 @@ class CasualWattApp(tk.Tk):
         self.geometry("1280x860")
         self.minsize(980, 700)
 
-        # controllo privilegi all'avvio: LHM (sensori Energy-CPU) richiede un
-        # token elevato su Windows; l'utente puo' ri-elevarsi con un click
-        # dal pulsante nel pannello di esecuzione.
-        try:
-            from elevation import elevate_available, is_admin
-
-            if _is_windows() and not is_admin() and elevate_available():
-                self.title("CasualWatt Energy Benchmark v1.0 — [privilegi standard]")
-        except Exception:
-            pass
+        # La misura non richiede privilegi elevati: il contatore EMI su
+        # Windows e RAPL su Linux si leggono senza token amministrativo
+        # (l'elevazione serviva al vecchio percorso LibreHardwareMonitor).
 
         try:
             style = ttk.Style(self)
@@ -93,8 +80,8 @@ class CasualWattApp(tk.Tk):
         self.after(500, self.selection.reload_cloud)
         self.after(800, self.results.refresh)
         # diagnostica energetica non bloccante all'avvio (console + log GUI):
-        # segnala subito se clr/pythonnet/DLL/UAC impediscono LHM di leggere
-        # i Joule, prima che l'utente prema "Calibra idle".
+        # segnala subito se il device EMI (o RAPL, su Linux) non e' leggibile,
+        # prima che l'utente prema "Calibra idle".
         self.after(1200, self._run_startup_diagnostics)
 
     # ------------------------------------------------------------------ glue
@@ -140,7 +127,7 @@ class CasualWattApp(tk.Tk):
             self.benchmark.stop()
             from energy.energy_session import SESSION
 
-            # stop() NON chiude LHM/NVML (spec §6); close() li chiude una
+            # stop() NON chiude il contatore (spec §6); close() lo chiude una
             # sola volta alla fine della sessione applicativa.
             SESSION.stop()
             SESSION.close()

@@ -2,14 +2,15 @@
 """
 test_calibrazione.py — Test RAPIDO della sola calibrazione idle, da console.
 
-Scopo: isolare il percorso LHM -> sensore 'CPU Package' -> power-integration
--> P_idle senza aprire la GUI e senza attendere le 3 finestre piene da 30 s
-della procedura ufficiale (spec §5). E' uno strumento di collaudo: i valori
-che produce NON sono calibrazioni valide da usare in benchmark (finestre
-corte, una sola ripetizione); per il dato ufficiale usa sempre il pulsante
-"Calibra idle" nella GUI o SESSION.calibrate_idle().
+Scopo: isolare il percorso contatore package -> P_idle senza aprire la GUI e
+senza attendere le 3 finestre piene da 30 s della procedura ufficiale
+(spec §5). Su Windows il contatore e' EMI (``emi-counter``, nessun token
+elevato); su Linux sono i contatori RAPL. E' uno strumento di collaudo: i
+valori che produce NON sono calibrazioni valide da usare in benchmark
+(finestre corte, una sola ripetizione); per il dato ufficiale usa sempre il
+pulsante "Calibra idle" nella GUI o SESSION.calibrate_idle().
 
-Uso su Windows 11 (amministratore, dalla cartella cwEnergyModular):
+Uso su Windows 11 (dalla cartella cwEnergyModular):
 
     py test_calibrazione.py                # finestra breve 4 s x 1 rep
     py test_calibrazione.py --finestra 10  # finestra 10 s
@@ -58,27 +59,26 @@ def main() -> int:
 
     log(f"=== TEST CALIBRAZIONE IDLE ({'COMPLETA/ufficiale' if args.completa else 'RAPIDA'}) ===")
     log(f"Finestra: {window:.0f} s | Ripetizioni: {reps} | "
-        f"Durata prevista misura: ~{window * reps + 5:.0f} s (+ apertura LHM)")
+        f"Durata prevista misura: ~{window * reps + 5:.0f} s (+ apertura device EMI)")
     log("NON generare carico sul PC durante la misura.")
 
     t_total0 = time.monotonic()
 
-    log("Import del motore (con probe LHM lazy: niente Computer() ancora)…")
+    log("Import del motore (nessun device aperto all'import)…")
     try:
         from energy.energy_session import SESSION
     except Exception as exc:  # noqa: BLE001
         log(f"[FALLITO] import motore: {type(exc).__name__}: {exc}")
         return 1
     log(f"Backend al momento dell'import: method='{SESSION.source_method}' "
-        f"(atteso: 'unavailable' con nota lazy — nessuna apertura bloccante)")
+        f"(atteso: 'unavailable' — l'apertura avviene in start())")
 
     def progress(msg: str) -> None:
         log(f"    > {msg}")
 
     SESSION.on_progress = progress
 
-    log("Avvio sessione (QUI avviene il probe LHM pigro: Computer().Open(), "
-        "puo' richiedere fino a ~2 minuti)…")
+    log("Avvio sessione (apertura del contatore EMI e del sampler)…")
     t0 = time.monotonic()
     try:
         SESSION.start()
@@ -92,23 +92,11 @@ def main() -> int:
     for n in SESSION.source_notes[-6:]:
         log(f"    nota: {n}")
 
-    if SESSION.source_method not in ("power-integration",
-                                     "librehardwaremonitor-energy"):
-        log("[FALLITO] nessun backend energetico reale attivo dopo start().")
-        log("Prossimo passo: 'py diagnostics.py' come amministratore e "
-            "inviare l'output completo.")
+    if SESSION.source_method not in ("emi-counter", "rapl", "energy-file"):
+        log("[FALLITO] nessun contatore energetico reale attivo dopo start().")
+        log("Prossimo passo: 'py diagnostics.py' e inviare l'output completo.")
         SESSION.stop()
         return 2
-
-    # lettura istantanea di potenza (solo power-integration)
-    try:
-        if SESSION.source_method == "power-integration":
-            time.sleep(1.0)  # lascia popolare qualche campione al thread PI
-            stats = SESSION._source.pi_stats()
-            log(f"power-integration attiva: {stats.get('samples', 0)} campioni, "
-                f"W attuale ≈ {stats.get('last_w')}")
-    except Exception as exc:  # noqa: BLE001
-        log(f"(lettura istantanea non disponibile: {type(exc).__name__})")
 
     log(f"Calibrazione: {reps} finestra/e da {window:.0f} s…")
     t0 = time.monotonic()
@@ -127,13 +115,13 @@ def main() -> int:
     log(f"[OK] P_idle = {pw:.2f} W  "
         f"(ripetizioni: {', '.join(f'{r:.2f} W' for r in reps_vals)})")
     log(f"     provenance={SESSION.idle_provenance} | metodo={SESSION.source_method} | "
-        f"campioni PI={samples} | durata misura={dt:.1f}s | totale script={time.monotonic() - t_total0:.1f}s")
+        f"finestre={samples} | durata misura={dt:.1f}s | totale script={time.monotonic() - t_total0:.1f}s")
     if not args.completa:
         log("NB: test rapido — per il benchmark riesci con 'Calibra idle' in GUI "
             "(finestre >=30 s x 3, mediana).")
 
     SESSION.stop()
-    SESSION.close()   # chiude LHM/NVML una sola volta (spec §6)
+    SESSION.close()   # chiude il device EMI una sola volta (spec §6)
     log("Chiusura pulita completata.")
     return 0
 

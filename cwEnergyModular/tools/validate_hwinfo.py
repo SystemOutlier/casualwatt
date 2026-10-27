@@ -2,8 +2,8 @@
 """
 tools/validate_hwinfo.py — Validazione incrociata CasualWatt vs HWiNFO.
 
-Questo script confronta l'energia misurata da CasualWatt (via LibreHardwareMonitor)
-con quella misurata da HWiNFO Sensors, fornendo una validazione indipendente.
+Questo script confronta l'energia misurata da CasualWatt (contatore package CPU
+nel CSV) con quella misurata da HWiNFO Sensors, fornendo un confronto esterno.
 
 Utilizzo:
     1. Eseguire il benchmark con CasualWatt (genera CSV risultati)
