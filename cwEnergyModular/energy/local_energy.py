@@ -434,12 +434,14 @@ class CasualWattLocalEnergyProfiler:
                 # I grezzi della riga devono essere quelli dei BORDI, non
                 # quelli interpolati dal buffer: il campo cita il numero
                 # effettivamente letto agli estremi.
-                pkg_raw_0 = self._edge_raw_pwh(edge_start)
-                pkg_raw_1 = self._edge_raw_pwh(edge_end)
+                pkg_raw_0 = self._edge_raw_value(edge_start)
+                pkg_raw_1 = self._edge_raw_value(edge_end)
                 if pkg_raw_0 is not None and pkg_raw_1 is not None:
                     res.raw_start = pkg_raw_0
                     res.raw_end = pkg_raw_1
-                    res.raw_unit = "pWh"
+                    res.raw_unit = (
+                        self._edge_raw_unit(edge_start)
+                        or self._edge_raw_unit(edge_end) or "pWh")
                     res.domain = "pkg"
             else:
                 edge_reason = (
@@ -478,8 +480,8 @@ class CasualWattLocalEnergyProfiler:
             else:
                 _edge_txt = (
                     "window read exactly at t_start/t_end from the 0.05 s "
-                    + ("cumulative EMI counter buffer (no integration)"
-                       if method == "emi-counter"
+                    + ("cumulative package counter buffer (no integration)"
+                       if method in ("emi-counter", "pawnio-counter")
                        else "integration counter")
                 )
             res.cpu_attribution_method = (
@@ -893,7 +895,7 @@ class CasualWattLocalEnergyProfiler:
                     "GPU process-level attribution non supportata dal monitor "
                     "attivo -> gpu_process_energy_j = N/A"
                 )
-        elif method == "emi-counter":
+        elif method in ("emi-counter", "pawnio-counter"):
             # A3: iGPU Intel/AMD integrata — il sensore 'CPU Package' INCLUDE
             # gia' la grafica: NON si aggiunge ALCUN termine a local_energy_j
             # e NON esiste piu' l'euristica IGPU_POWER_SHARE (deprecata).
@@ -917,7 +919,7 @@ class CasualWattLocalEnergyProfiler:
             else:
                 why = getattr(self.session, "igpu_unavailable_reason", None)
                 notes.append(
-                    "iGPU: metodo emi-counter, dominio PP1 non espresso"
+                    f"iGPU: metodo {method}, dominio PP1 non espresso"
                     + (f" ({why})" if why else "")
                     + "; energia iGPU inclusa nel package "
                     "(dichiarato, nessuna quota inventata)"
@@ -936,6 +938,14 @@ class CasualWattLocalEnergyProfiler:
                 "from the 0.05 s cumulative-counter buffer; no integration, "
                 "no elevated token required)"
             ),
+            "pawnio-counter": (
+                "Windows MSR package energy counter via PawnIO driver "
+                "(MSR_PKG_ENERGY_STATUS 0x611 on Intel, 0xC001029B on AMD, "
+                "cumulative, quantum read from the power-unit MSR; window "
+                "edges read from the 0.05 s cumulative-counter buffer; "
+                "declared fallback of emi-counter, same register, no "
+                "integration)"
+            ),
             "power-integration": (
                 "LibreHardwareMonitor 'CPU Package' [W] sampled every 0.05 s, "
                 "trapezoidal time integration (no Energy counter on this CPU) "
@@ -953,7 +963,7 @@ class CasualWattLocalEnergyProfiler:
             "energy-file": "[DEV/TEST non-Windows] user-provided joule counter file",
             "unavailable": (
                 "LOCAL CPU ENERGY MEASUREMENT UNAVAILABLE: needs the Windows "
-                "Intel energy channel (EMI) or RAPL on Linux"
+                "EMI energy channel, the PawnIO MSR counter, or RAPL on Linux"
             ),
         }.get(method, method)
         if res.emi_edge_source == "direct-ioctl":
@@ -996,16 +1006,36 @@ class CasualWattLocalEnergyProfiler:
             return None
 
     @classmethod
-    def _edge_raw_pwh(cls, edge: Optional[Dict[str, object]]) -> Optional[float]:
-        """Valore grezzo del contatore (pWh) al bordo, per la tracciabilita'."""
+    def _edge_raw_value(cls, edge: Optional[Dict[str, object]]
+                        ) -> Optional[float]:
+        """Valore grezzo del contatore al bordo nella sua unita' nativa.
+
+        EMI espone pWh, il record MSR espone conteggi (``pkg_counts``): il
+        chiamante prende anche l'unita' da ``_edge_raw_unit`` per non
+        etichettare i conteggi come pWh.
+        """
         cnt = cls._edge_counter(edge)
         if not cnt:
             return None
         raw = cnt.get("pkg_pwh")
+        if raw is None:
+            raw = cnt.get("pkg_counts")
         try:
             return float(raw) if raw is not None else None
         except (TypeError, ValueError):
             return None
+
+    @classmethod
+    def _edge_raw_unit(cls, edge: Optional[Dict[str, object]]) -> str:
+        """Unita' del grezzo al bordo: ``pWh`` (EMI), ``counts`` (MSR)."""
+        cnt = cls._edge_counter(edge)
+        if not cnt:
+            return ""
+        if cnt.get("pkg_pwh") is not None:
+            return "pWh"
+        if cnt.get("pkg_counts") is not None:
+            return "counts (32-bit MSR)"
+        return ""
 
     @classmethod
     def _edge_dt_w(cls, edge_start: Optional[Dict[str, object]],

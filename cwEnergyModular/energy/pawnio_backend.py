@@ -399,6 +399,9 @@ class PawnIOMSRBackend:
         self.lib_version: str = ""
         self.last_raw: Optional[int] = None
         self._total_j = 0.0
+        #: Conteggi cumulati dall'apertura, interi ed esatti: il valore grezzo
+        #: che rende la finestra revisionabile senza dipendere da un float.
+        self._total_counts = 0
         self._last_raw: Optional[int] = None
         self._lock = threading.Lock()
         self.wraps = 0
@@ -565,10 +568,10 @@ class PawnIOMSRBackend:
                 return self._total_j
             old = self._last_raw
             if raw >= old:
-                self._total_j += (raw - old) * self.quantum_j
+                self._total_counts += raw - old
             elif old >= WRAP_HIGH_COUNTS and raw <= WRAP_LOW_COUNTS:
                 delta = COUNTER_MODULUS - old + raw
-                self._total_j += delta * self.quantum_j
+                self._total_counts += delta
                 self.wraps += 1
                 self.notes.append(
                     f"riporto del contatore a 32 bit ({old} -> {raw}): "
@@ -580,7 +583,13 @@ class PawnIOMSRBackend:
                     "riporto: reset del driver o sospensione, il segmento "
                     "non produce energia")
             self._last_raw = raw
+            self._total_j = self._total_counts * self.quantum_j
             return self._total_j
+
+    @property
+    def cumulative_counts(self) -> int:
+        """Conteggi cumulati dall'apertura (interi, gia' srotolati)."""
+        return self._total_counts
 
     def probe(self) -> dict:
         """Esito della sonda, con i criteri espliciti e il verdetto."""
