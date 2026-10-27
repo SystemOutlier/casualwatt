@@ -41,8 +41,9 @@ def _backend_or_skip() -> RAPLBackend:
     backend = RAPLBackend()
     if not backend.available:
         pytest.skip(
-            "RAPL non disponibile su questo host: servono Linux, un dominio "
-            "package con energy_uj leggibile e i permessi (root o gruppo 'power')"
+            "RAPL non disponibile su questo host: servono Linux, una zona "
+            "package con energy_uj leggibile e permessi di lettura sul nodo "
+            "(root o permessi concessi esplicitamente)"
         )
     return backend
 
@@ -126,20 +127,25 @@ def test_rapl_diagnostics():
 
     diag = RAPLBackend().diagnose()
     for chiave in ("available", "method", "path", "max_energy_uj",
-                   "wrap_count", "notes"):
+                   "wrap_count", "zones", "notes"):
         print(f"{chiave}: {diag[chiave]}")
 
     assert set(diag) == {"available", "method", "path", "max_energy_uj",
-                         "wrap_count", "notes"}, f"chiavi inattese: {sorted(diag)}"
+                         "wrap_count", "zones", "notes"}, (
+        f"chiavi inattese: {sorted(diag)}")
     assert isinstance(diag["available"], bool)
     assert isinstance(diag["notes"], list), "notes deve essere una lista"
     assert isinstance(diag["path"], str) and diag["path"], "path vuoto"
     assert isinstance(diag["wrap_count"], int) and diag["wrap_count"] >= 0
-    # coerenza interna: il metodo dichiarato deve corrispondere alla disponibilita'
+    assert isinstance(diag["zones"], list), "zones deve essere una lista"
+    for zona in diag["zones"]:
+        assert isinstance(zona, dict) and zona.get("name"), (
+            f"zona senza nome: {zona}")
     if diag["available"]:
         assert diag["method"] == "rapl", (
             f"backend disponibile ma metodo inatteso: '{diag['method']}'"
         )
+        assert diag["zones"], "backend disponibile senza zone selezionate"
     else:
         assert diag["method"] == "unavailable", (
             f"metodo '{diag['method']}' dichiarato su backend non disponibile"
