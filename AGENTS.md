@@ -156,7 +156,7 @@ stanno solo le regole che un agente puo' violare senza accorgersene.
 ## Comandi di verifica
 
 ```
-pytest cwEnergyModular          # 396 raccolti: 393 passati, 3 saltati (9 s)
+pytest cwEnergyModular          # 411 raccolti: 408 passati, 3 saltati (7 s)
 ```
 
 **Mai `pytest` nudo dalla radice**: la raccolta viene interrotta da 6 errori in
@@ -187,16 +187,19 @@ indefiniti.
   `casualwatt_csv_export.py` (`CSV_COLUMNS`, righe 17-182;
   `BLOCK_SUMMARY_COLUMNS`, 189-204; `POINT_SUMMARY_COLUMNS`, 206-215), e il
   runner v4 `benchmark_v4.py` (sequenza di blocco di P1.5).
-- **I test stanno in due posti**: `cwEnergyModular/tests/` (337) e direttamente in
+- **I test stanno in due posti**: `cwEnergyModular/tests/` (352) e direttamente in
   `cwEnergyModular/` (`test_answer_type_evaluation.py`, 35;
   `test_synthetic_window.py`, 2; `test_validazione_valutazione.py`, 22);
-  337 + 59 = 396. Ogni test ha una docstring che
+  352 + 59 = 411. Ogni test ha una docstring che
   dice *perche'* esiste e quale relazione matematica o fisica verifica, non solo
-  cosa fa.
+  cosa fa. Dal 27-10-2026 la cartella contiene anche `tests/test_rapl_zone.py`
+  (8, logica RAPL su un finto sysfs) e `tests/test_diagnostics_pmi.py` (7,
+  sonda PMI/WMI): girano su Windows, senza host Linux.
   L'Appendice D della tesi e' stata rigenerata il 2026-10-26 con
   `cwEnergyModular/tools/dump_tests_latex.py`: 404 node id, 401 passati, 3
   saltati, docstring 404/404. Quel materiale precede l'uscita di LHM
-  dall'implementazione (2026-10-27), che ha rimosso 8 test: va rigenerato prima
+  dall'implementazione (2026-10-27), che ha rimosso 8 test, e precede i 15 test
+  della revisione del 27/10: va rigenerato prima
   di citarne i conteggi. Il file generato
   (`Tesi-latex/qoder-bozza/generated/test_suite_appD.tex`) sta fuori da git.
   I 17 test di `tests/test_protocollo_p4_geometry.py` (2026-10-26, quinto turno
