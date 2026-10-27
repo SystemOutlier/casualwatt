@@ -63,7 +63,7 @@ def test_contatore_presente_si_usa(monkeypatch):
     assert m.available is True
     assert m.energy_counter is True
     assert m.energy_counter_reason == ""
-    assert m.read_energy_mj() == pytest.approx(4321.0)
+    assert m.read_energy() == (pytest.approx(4321.0), None)
 
 
 def test_wrapper_senza_la_funzione_dichiara_il_motivo(monkeypatch):
@@ -72,7 +72,7 @@ def test_wrapper_senza_la_funzione_dichiara_il_motivo(monkeypatch):
     m = _GPUMonitor()
     assert m.energy_counter is False
     assert "nvmlDeviceGetTotalEnergyConsumption" in m.energy_counter_reason
-    assert m.read_energy_mj() is None
+    assert m.read_energy() == (None, None)
 
 
 def test_device_che_non_supporta_il_contatore_non_solleva(monkeypatch):
@@ -86,7 +86,7 @@ def test_device_che_non_supporta_il_contatore_non_solleva(monkeypatch):
     assert m.available is True
     assert m.energy_counter is False
     assert "RuntimeError" in m.energy_counter_reason
-    assert m.read_energy_mj() is None
+    assert m.read_energy() == (None, None)
 
 
 def test_senza_gpu_la_sonda_non_inventa_un_motivo_tecnico(monkeypatch):

@@ -15,7 +15,8 @@ energetici. Un thread daemon campiona a intervallo fisso:
   poter interpolare con precisione il delta sull'albero dei processi anche
   quando la query HTTP non passa dal PID padre;
 * contatori NIC (bytes sent/received) per il tracker di rete;
-* potenza GPU NVIDIA (NVML) se disponibile.
+* potenza e contatore di energia della GPU: NVML se c'e' una NVIDIA, altrimenti
+  AMD SMI (fallback dichiarato, mai in parallelo).
 
 Ogni campione e' un ``SystemSample`` ordinato nel tempo: le funzioni di
 profilo in ``local_energy.py`` interpolano linearmente tra i campioni ai bordi
@@ -633,7 +634,11 @@ class SystemSample:
     nic_bytes: int = 0             # sent+received cumulati
     gpu_power_w: Optional[float] = None
     gpu_util_pct: Optional[float] = None
-    gpu_energy_mj: Optional[float] = None   # contatore cumulativo NVML (mJ)
+    gpu_energy_mj: Optional[float] = None   # contatore cumulativo della GPU (mJ)
+    # Timestamp del contatore, solo AMD SMI (ns, doc C "Resolution: 1 ns").
+    # NVML non lo espone: None. Serve a distinguere una lettura ferma da uno
+    # zero legittimo, non a datare il campione (quello e' ``t``).
+    gpu_energy_ts_ns: Optional[int] = None
 
 
 def _free_subintervals(seg: tuple, excl: List[tuple]) -> List[tuple]:
@@ -918,7 +923,7 @@ class EnergySession:
         }
         pkg = self._source.read_package_j(busy - self._cpu_t0)
         gpu_w, gpu_u = self._gpu.read()
-        gpu_mj = self._gpu.read_energy_mj()
+        gpu_mj, gpu_ts = self._gpu.read_energy()
         try:
             cpu_pct = psutil.cpu_percent(interval=None)
         except Exception:
@@ -936,6 +941,7 @@ class EnergySession:
             gpu_power_w=gpu_w,
             gpu_util_pct=gpu_u,
             gpu_energy_mj=gpu_mj,
+            gpu_energy_ts_ns=gpu_ts,
         )
         with self._lock:
             self._samples.append(sample)
@@ -1194,6 +1200,10 @@ class EnergySession:
             # Il contatore e' cumulativo: interpolarlo ai bordi e' la stessa
             # convenzione usata per package_energy_j, non una stima in piu'.
             gpu_energy_mj=num(a.gpu_energy_mj, b.gpu_energy_mj),
+            # Il timestamp e' un orologio del device, non una grandezza da
+            # mediare: si porta il valore del campione precedente e non si
+            # interpola. Serve solo a dire se il contatore e' avanzato.
+            gpu_energy_ts_ns=a.gpu_energy_ts_ns,
         )
 
     # ------------------------------------------------------------ calibrazione
@@ -1342,6 +1352,10 @@ class _GPUMonitor:
         self.index = 0
         self.name: Optional[str] = None
         self.error: Optional[str] = None
+        # Unita' del valore scritto in ``gpu_power_w``, non della sorgente:
+        # qui mW/1000 -> W. "unknown" finche' non si e' letto un valore, cosi'
+        # una riga senza potenza non dichiara un'unita' che non ha usato.
+        self.power_unit = "unknown"
         try:
             import pynvml  # nvidia-ml-py
 
@@ -1390,20 +1404,24 @@ class _GPUMonitor:
         except Exception as exc:  # noqa: BLE001
             self.energy_counter_reason = f"{type(exc).__name__}"
 
-    def read_energy_mj(self) -> Optional[float]:
-        """Contatore cumulativo [mJ] o ``None`` se non esposto/illeggibile.
+    def read_energy(self):
+        """(contatore cumulativo [mJ], timestamp [ns]) o (None, None).
 
-        ``None`` e' l'assenza dichiarata: il chiamante integra la potenza e lo
-        scrive in ``gpu_attribution_method``, non inventa un delta.
+        NVML non espone un timestamp del contatore: il secondo elemento e'
+        sempre ``None``, quindi il controllo di avanzamento non si applica a
+        questo backend. ``None`` e' l'assenza dichiarata: il chiamante integra
+        la potenza e lo scrive in ``gpu_attribution_method``, non inventa un
+        delta.
         """
         if not (self.available and self.energy_counter):
-            return None
+            return None, None
         try:
             import pynvml
 
-            return float(pynvml.nvmlDeviceGetTotalEnergyConsumption(self.handle))
+            return (float(pynvml.nvmlDeviceGetTotalEnergyConsumption(self.handle)),
+                    None)
         except Exception:  # noqa: BLE001
-            return None
+            return None, None
 
     def read(self):
         if not self.available:
@@ -1413,12 +1431,14 @@ class _GPUMonitor:
 
             mw = pynvml.nvmlDeviceGetPowerUsage(self.handle)
             util = pynvml.nvmlDeviceGetUtilizationRates(self.handle)
+            self.power_unit = "W"   # sorgente mW, divisa per 1000 qui
             return float(mw) / 1000.0, float(util.gpu)
         except Exception:
             try:
                 import pynvml
 
                 mw = pynvml.nvmlDeviceGetPowerUsage(self.handle)
+                self.power_unit = "W"
                 return float(mw) / 1000.0, None
             except Exception:
                 return None, None
@@ -1479,15 +1499,21 @@ class _GPUMonitor:
 class _AMDGPUMonitor:
     """Contatore e potenza GPU AMD via AMD SMI.
 
-    Documentazione verificata alla fonte il 28-10-2026 (AMD SMI Python API,
-    versione piu' recente della documentazione ROCm): ``amdsmi_get_energy_count``
-    restituisce un contatore di accumulo "since last restart/gpu reset" e la
-    sua risoluzione, con la regola scritta "energy_accumulator *
-    counter_resolution = total_energy_consumption in micro-Joules";
-    ``amdsmi_get_power_info`` da' ``average_socket_power``/``socket_power`` in W
-    e ``amdsmi_get_gpu_activity`` da' ``gfx_activity`` in percentuale. Le
-    funzioni "not supported on virtual machine guest": su VM il monitor resta
-    non disponibile e lo dichiara.
+    Documentazione verificata alla fonte il 28-10-2026. Python API (versione
+    27.1.0): ``amdsmi_get_energy_count`` restituisce ``energy_accumulator``,
+    ``counter_resolution`` e ``timestamp`` con la regola scritta
+    "energy_accumulator * counter_resolution = total_energy_consumption in
+    micro-Joules", accumulata "since last restart/gpu reset"; la funzione
+    "is not supported on virtual machine guest". La reference C dichiara la
+    risoluzione del timestamp, "1 ns": l'unita' del campo non e' nella pagina
+    Python, e per questo il timestamp si usa solo per confrontare due letture
+    (avanzato / fermo), mai come durata.
+
+    Potenza: ``socket_power`` "matches current or average socket power" ed e'
+    il campo generale; ``current_socket_power`` e' quello delle "Mi300+ Series
+    Cards", ``average_socket_power`` quello di "Navi + Mi 200 and earlier".
+    L'ordine di lettura segue il campo generale, non la preferenza storica.
+    Tutti e tre sono documentati in W: l'unita' non si deduce dal nome.
 
     Il contatore si converte in mJ all'ingresso (uJ/1000) perche' il resto del
     percorso parla una sola unita': il campo del campione e' ``gpu_energy_mj``
@@ -1503,6 +1529,8 @@ class _AMDGPUMonitor:
         self.name: Optional[str] = None
         self.error: Optional[str] = None
         self.power_field = ""
+        self.power_unit = "unknown"     # "W" solo dopo una lettura riuscita
+        self.platform_context = "unknown"
         self.energy_counter = False
         self.energy_counter_reason = ""
         self._resolution_uj = 0.0
@@ -1524,6 +1552,14 @@ class _AMDGPUMonitor:
                 self.available = True
         except Exception as exc:  # noqa: BLE001
             self.error = f"{type(exc).__name__}"
+        if self.available:
+            # La reference C marca questa chiamata ``Platform: gpu_bm_linux``:
+            # se ha risposto, la restrizione "not supported on virtual machine
+            # guest" non ha morso. Non prova il bare metal, dichiara che il
+            # vincolo del fornitore non si e' applicato.
+            self.platform_context = ("gpu_bm_linux"
+                                     if sys.platform.startswith("linux")
+                                     else "non-linux")
         self._probe_energy_counter()
 
     def _probe_energy_counter(self) -> None:
@@ -1544,18 +1580,26 @@ class _AMDGPUMonitor:
         except Exception as exc:  # noqa: BLE001
             self.energy_counter_reason = f"{type(exc).__name__}"
 
-    def read_energy_mj(self) -> Optional[float]:
-        """Energia cumulativa [mJ] = accumulator * resolution [uJ] / 1000."""
+    def read_energy(self):
+        """(energia cumulativa [mJ], timestamp [ns]) o (None, None).
+
+        ``mJ = accumulator * resolution [uJ] / 1000``. Il timestamp viene
+        dalla stessa lettura del contatore, quindi la coppia e' coerente: due
+        campioni con lo stesso timestamp sono la stessa lettura del device,
+        anche se il contatore e' avanzato.
+        """
         if not (self.available and self.energy_counter):
-            return None
+            return None, None
         try:
             import amdsmi
 
             ec = amdsmi.amdsmi_get_energy_count(self.handle) or {}
             acc = float(ec.get("energy_accumulator"))
-            return acc * self._resolution_uj / 1000.0
+            ts = ec.get("timestamp")
+            return (acc * self._resolution_uj / 1000.0,
+                    int(ts) if ts is not None else None)
         except Exception:  # noqa: BLE001
-            return None
+            return None, None
 
     def read(self):
         """(potenza W, attivita' %). La chiave di potenza usata resta dichiarata."""
@@ -1566,12 +1610,15 @@ class _AMDGPUMonitor:
 
             info = amdsmi.amdsmi_get_power_info(self.handle) or {}
             power_w = None
-            for key in ("average_socket_power", "socket_power",
-                        "current_socket_power"):
+            # ``socket_power`` e' il campo generale ("matches current or
+            # average"); gli altri due sono specifici per generazione.
+            for key in ("socket_power", "current_socket_power",
+                        "average_socket_power"):
                 val = info.get(key)
                 if val is not None:
                     power_w = float(val)
                     self.power_field = key
+                    self.power_unit = "W"    # unita' dichiarata dalla doc
                     break
             try:
                 act = amdsmi.amdsmi_get_gpu_activity(self.handle) or {}

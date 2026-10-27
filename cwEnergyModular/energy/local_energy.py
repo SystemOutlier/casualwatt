@@ -62,7 +62,10 @@ GPU:
   (confine: whole-device). La stessa catena vale per le GPU AMD via AMD SMI,
   con prefisso ``amdsmi`` (``amdsmi_get_energy_count``: accumulator x
   counter_resolution in microjoule, doc ROCm verificata il 28-10-2026), ed
-  e' il FALLBACK: si usa solo se NVML non risponde, mai in parallelo.
+  e' il FALLBACK: si usa solo se NVML non risponde, mai in parallelo. Su AMD
+  il timestamp del contatore (1 ns) distingue una lettura ferma da uno zero
+  legittimo; un delta negativo e' un reset o un avvolgimento e si copre con
+  l'integrale, senza clamparlo a zero.
   L'utilizzo medio e' solo campo diagnostico
   (gpu_utilization_share), NON un moltiplicatore: la potenza GPU riflette
   gia' il carico, quindi moltiplicare per lo share conteggierebbe il
@@ -771,7 +774,7 @@ class CasualWattLocalEnergyProfiler:
             board_j = 0.0
             gpu_dt = 0.0
             gpu_backend = getattr(gpu_mon, "backend", "nvml")
-            # Catena dichiarata: contatore cumulativo NVML -> integrale della
+            # Catena dichiarata: contatore cumulativo -> integrale della
             # potenza -> nessun numero. Il contatore si usa per DELTA fra i
             # bordi e solo senza sottofinestre escluse: un delta non sa
             # sottrarre l'energia del judge, e sottrarla con la potenza
@@ -782,17 +785,45 @@ class CasualWattLocalEnergyProfiler:
                 first, last = counter_samples[0], counter_samples[-1]
                 d_mj = float(last.gpu_energy_mj) - float(first.gpu_energy_mj)
                 span = last.t - first.t
-                if d_mj >= 0.0 and span > 0.0:
+                # Controllo sul timestamp del device (solo AMD SMI lo espone):
+                # se il device non ha aggiornato il contatore, due letture
+                # uguali non sono un intervallo di energia.
+                ts0 = getattr(first, "gpu_energy_ts_ns", None)
+                ts1 = getattr(last, "gpu_energy_ts_ns", None)
+                ts_moved = ts0 is None or ts1 is None or ts1 > ts0
+                if gpu_backend == "amdsmi" and (ts0 is None or ts1 is None):
+                    notes.append(
+                        "contatore AMD SMI senza timestamp: controllo di "
+                        "avanzamento non applicato")
+                platform = getattr(gpu_mon, "platform_context", "")
+                platform_txt = (f", platform={platform}"
+                                if platform and platform != "unknown" else "")
+                if not ts_moved:
+                    counter_ok = False
+                    notes.append(
+                        f"timestamp del contatore {gpu_backend} fermo "
+                        f"({ts0} ns): lettura non valida, si integra la potenza")
+                elif d_mj < 0.0 or span <= 0.0:
+                    # Nessun clamp a zero: un delta negativo e' un reset o un
+                    # avvolgimento del contatore, non energia negativa. La
+                    # finestra si copre con l'integrale e il metodo lo dichiara.
+                    counter_ok = False
+                    notes.append(
+                        f"contatore {gpu_backend} non utilizzabile in questa "
+                        f"finestra (delta {d_mj:.0f} mJ su {span:.6f} s): "
+                        "reset o avvolgimento del contatore; si integra la "
+                        "potenza, il delta non si clampa a zero")
+                else:
                     board_j = d_mj / 1000.0
                     gpu_dt = span
                     method_txt = (f"{gpu_backend}-energy (delta {d_mj:.0f} mJ "
-                                  f"over {span:.3f}s, counter since last reset)")
-                else:
-                    counter_ok = False
-                    notes.append(
-                        "contatore NVML non utilizzabile in questa finestra "
-                        f"(delta {d_mj:.0f} mJ su {span:.6f} s): reset del "
-                        "driver o campioni coincidenti; si integra la potenza")
+                                  f"over {span:.3f}s, counter since last reset"
+                                  f"{platform_txt})")
+                    if d_mj == 0.0:
+                        notes.append(
+                            f"contatore {gpu_backend} fermo con timestamp che "
+                            "avanza: energia zero nella finestra, non una "
+                            "lettura mancante")
             if not counter_ok:
                 # integrazione trapezoidale del power draw + dt REALE coperto
                 prev = gpu_samples[0]
@@ -806,7 +837,9 @@ class CasualWattLocalEnergyProfiler:
                         gpu_dt += seg_dt
                     prev = cur
                 power_field = getattr(gpu_mon, "power_field", "")
-                field_txt = f", power={power_field}" if power_field else ""
+                power_unit = getattr(gpu_mon, "power_unit", "")
+                field_txt = (f", power={power_field} [{power_unit}]"
+                             if power_field else "")
                 method_txt = (f"{gpu_backend}-power-integral (integrated span "
                               f"{gpu_dt:.3f}s{field_txt})")
             idle_gpu_raw = getattr(self.session, "idle_gpu_power_w", None)
