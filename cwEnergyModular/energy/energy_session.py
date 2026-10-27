@@ -70,7 +70,7 @@ from .worker_tree import (
 #: cosa sa fare il codice oggi ma QUALI righe portano un numero: i CSV
 #: archiviati in experiment_results/ (v1-v3, four-way, A-B-A) sono stati
 #: misurati con quei canali reali e rileggerli come N/A falserebbe l'archivio.
-MEASURED_METHODS = ("emi-counter", "power-integration",
+MEASURED_METHODS = ("emi-counter", "pawnio-counter", "power-integration",
                     "librehardwaremonitor-energy", "energy-file", "rapl")
 
 
@@ -109,6 +109,7 @@ class _CPUJouleSource:
     def __init__(self) -> None:
         self.method = "unavailable"
         self._emi = None   # backend Windows EMI (energy.emi_backend.EMICounterBackend)
+        self._pawnio = None  # fallback MSR Windows (energy.pawnio_backend)
         self._rapl = None  # backend Linux RAPL (rapl_backend.RAPLBackend)
         self._power_base_j: float = 0.0   # base contatore potenza per read_power_j
         self._notes: List[str] = []
@@ -131,7 +132,8 @@ class _CPUJouleSource:
         self._pp1_read_reason: Optional[str] = None
         self._local_disabled_msg = (
             "Local CPU energy measurement is available on Windows (EMI energy "
-            "meter) and Linux (RAPL via /sys/class/powercap/)."
+            "meter or the PawnIO MSR counter) and Linux (RAPL via "
+            "/sys/class/powercap/)."
         )
 
         if self._try_power_counter():
@@ -141,16 +143,25 @@ class _CPUJouleSource:
             # 23/10: il METODO PRINCIPALE su Windows e' il contatore EMI
             # (cumulativo, ctypes, senza token elevato).
             pass
+        elif platform_system() == "Windows" and self._try_pawnio():
+            # 28/10: fallback MSR dichiarato, lo stesso registro di EMI letto
+            # dal driver PawnIO (token distinto: pawnio-counter).
+            pass
         elif platform_system() == "Linux":
             # Backend Linux: contatori RAPL via /sys/class/powercap/
             self._activate_rapl_backend()
         else:
-            # Windows senza device EMI, oppure piattaforma non-Windows/
-            # non-Linux (es. macOS): misurazione locale NON supportata. LHM e'
-            # fuori dall'implementazione (D18, 27/10) e il sostituto MSR e'
-            # ancora [P], quindi qui la catena finisce — dichiarata, non muta.
+            # Windows senza device EMI ne' PawnIO utilizzabile, oppure
+            # piattaforma non-Windows/non-Linux (es. macOS): misurazione
+            # locale NON supportata. LHM e' fuori dall'implementazione (D18):
+            # la catena finisce qui, dichiarata e con la ragione dei backend.
             self.method = "unavailable"
             self._notes.append(self._local_disabled_msg)
+            if platform_system() == "Windows":
+                self._notes.append(
+                    "catena Windows esaurita: EMI non disponibile e il "
+                    "contatore MSR via PawnIO non utilizzabile"
+                )
 
     def _try_emi(self) -> bool:
         """Aggancia il contatore EMI; True solo se la PRIMA lettura riesce.
@@ -175,12 +186,43 @@ class _CPUJouleSource:
                 return True
             self._notes.extend(backend.notes)
             self._notes.append(
-                "EMI non disponibile: nessun altro canale di misura locale "
-                "su Windows (LHM e' fuori dall'implementazione, D18)"
+                "EMI non disponibile: si prova il contatore MSR via PawnIO"
             )
         except Exception as exc:  # noqa: BLE001 - degrazione dichiarata
             self._notes.append(f"EMI non disponibile ({type(exc).__name__})")
         return False
+
+    def _try_pawnio(self) -> bool:
+        """Aggancia il contatore MSR via PawnIO; False se la sonda lo esclude.
+
+        Stesso registro di EMI (``MSR_PKG_ENERGY_STATUS``) letto dal driver
+        PawnIO: il token e' ``pawnio-counter`` e non si somma mai a EMI,
+        perche' i due leggono lo stesso contatore. La sonda del backend
+        verifica vendor, servizio, HVCI e firma del driver, hash dei moduli:
+        ogni rifiuto ha una ragione, e qui non si aggira.
+        """
+        try:
+            from energy.pawnio_backend import PawnIOMSRBackend, METHOD_LABEL
+
+            backend = PawnIOMSRBackend()
+            self._notes.extend(backend.notes)
+            if not backend.available:
+                self._notes.append(
+                    f"PawnIO non disponibile: {backend.reason}"
+                )
+                return False
+            self._pawnio = backend
+            self.method = METHOD_LABEL
+            # come per EMI il sampler non parte qui: parte in start()
+            self._notes.append(
+                "fallback 'pawnio-counter': contatore MSR del package letto "
+                "dal driver PawnIO (non si somma a EMI: stesso registro)"
+            )
+            return True
+        except Exception as exc:  # noqa: BLE001 - degrazione dichiarata
+            self._notes.append(
+                f"PawnIO non disponibile ({type(exc).__name__}: {exc})")
+            return False
 
     # -- backend RAPL (Linux) -------------------------------------------------
     def _activate_rapl_backend(self) -> bool:
@@ -214,8 +256,17 @@ class _CPUJouleSource:
             return False
 
     # -- emi-counter: sampler del cumulativo e finestra esatta --------------
+    def _counter_backend(self):
+        """Backend del contatore cumulativo attivo (EMI, oppure PawnIO).
+
+        Il sampler e' UNO: cambia la sorgente, non il meccanismo. Mai due
+        backend insieme — leggerebbero lo stesso registro e il numero
+        risulterebbe doppio.
+        """
+        return self._emi if self._emi is not None else self._pawnio
+
     def _emi_loop(self) -> None:
-        """Campiona il contatore EMI cumulativo ogni 0,05 s.
+        """Campiona il contatore cumulativo ogni 0,05 s.
 
         NON integra nulla: il contatore e' gia' energia. Il buffer (t, J)
         serve solo a poter collocare i bordi di una finestra trascorsa fra
@@ -224,17 +275,19 @@ class _CPUJouleSource:
         UNA sola IOCTL per tick alimenta sia il PKG sia il PP1: leggere i
         due domini con due chiamate avrebbe significato due record diversi
         nella stessa riga di CSV, e il delta PP1 non sarebbe piu' sullo
-        stesso istante del delta PKG.
+        stesso istante del delta PKG. Il backend PawnIO non ha domini (un
+        solo MSR): il tick porta il cumulativo e il grezzo in conteggi.
         """
         while not self._emi_stop.is_set():
             t = time.monotonic()
             cum = None
-            cum_pwh = None
+            cum_raw = None
             pp1 = None
             try:
-                if self._emi is not None:
-                    domains = self._emi.read_domains() if hasattr(
-                        self._emi, "read_domains") else None
+                backend = self._counter_backend()
+                if backend is not None:
+                    domains = backend.read_domains() if hasattr(
+                        backend, "read_domains") else None
                     if domains is not None:
                         # (J, ts, pWh): il pWh e' il grezzo del contatore,
                         # persistito accanto alla finestra per rendere la
@@ -244,20 +297,22 @@ class _CPUJouleSource:
                         pkg = domains.get("pkg")
                         if pkg is not None:
                             cum = pkg[0]
-                            cum_pwh = pkg[2]
+                            cum_raw = pkg[2]
                         d_pp1 = domains.get("pp1")
                         if d_pp1 is not None:
                             pp1 = (d_pp1[0], d_pp1[1])
                     else:
-                        cum = self._emi.read_cumulative_energy_j()
+                        cum = backend.read_cumulative_energy_j()
+                        counts = getattr(backend, "cumulative_counts", None)
+                        cum_raw = counts if counts is not None else None
             except Exception:
                 cum = None
                 pp1 = None
-            self._accept_emi_sample(t, cum, cum_pwh, pp1)
+            self._accept_emi_sample(t, cum, cum_raw, pp1)
             self._emi_stop.wait(self.EMI_SAMPLE_INTERVAL_S)
 
     def _accept_emi_sample(self, t: float, cum: Optional[float],
-                           cum_pwh: Optional[float] = None,
+                           cum_raw: Optional[float] = None,
                            pp1: Optional[tuple] = None) -> None:
         """Accoda un tick del contatore, gestendo il RESET del cumulativo.
 
@@ -273,7 +328,7 @@ class _CPUJouleSource:
             with self._emi_lock:
                 if self._emi_samples and cum < self._emi_samples[-1][1]:
                     self._emi_samples.clear()
-                self._emi_samples.append((t, cum, cum_pwh))
+                self._emi_samples.append((t, cum, cum_raw))
                 if len(self._emi_samples) > 4000:
                     del self._emi_samples[:2000]
         if pp1 is not None:
@@ -367,6 +422,10 @@ class _CPUJouleSource:
         if self.method == "emi-counter":
             from energy import emi_backend
             return emi_backend.BACKEND_VERSION
+        if self.method == "pawnio-counter":
+            from energy import pawnio_backend
+            lib = getattr(self._pawnio, "lib_version", "") or "?"
+            return f"{pawnio_backend.BACKEND_VERSION}, PawnIOLib {lib}"
         if self.method == "rapl":
             import platform
             return f"linux-rapl (kernel {platform.release()})"
@@ -401,22 +460,29 @@ class _CPUJouleSource:
         che NON si somma al package). Altri domini non sono campionati dal
         sampler e rispondono None con la ragione dichiarata.
 
-        Ritorna None se il metodo non e' 'emi-counter', se il backend non ha
-        letture, se il buffer non copre la finestra (il chiamante degrada
-        al fallback dichiarato sui campioni) o se il dominio e' fermo.
-        La ragione del None finisce in ``pp1_read_reason`` per le note del
-        CSV: un'assenza muta e' ambigua quanto un numero sbagliato.
+        Ritorna None se il metodo non e' un contatore ('emi-counter' o
+        'pawnio-counter'), se il backend non ha letture, se il buffer non
+        copre la finestra (il chiamante degrada al fallback dichiarato sui
+        campioni) o se il dominio e' fermo. La ragione del None finisce in
+        ``pp1_read_reason`` per le note del CSV: un'assenza muta e' ambigua
+        quanto un numero sbagliato.
         """
         if domain == "pp1":
             # la ragione e' lo slot DELL'ultima lettura PP1: una lettura del
             # package non la deve cancellare (il profiler le fa entrambe)
             self._pp1_read_reason = None
-        if self.method != "emi-counter":
+        if self.method not in ("emi-counter", "pawnio-counter"):
             return None
         if domain == "pkg":
             with self._emi_lock:
                 buf = list(self._emi_samples)
         elif domain == "pp1":
+            if self.method != "emi-counter":
+                self._pp1_read_reason = (
+                    f"dominio PP1 non letto da {self.method!r}: il backend "
+                    "campiona il solo registro del package"
+                )
+                return None
             with self._emi_lock:
                 buf = list(self._emi_pp1_samples)
         else:
@@ -525,6 +591,8 @@ class _CPUJouleSource:
         arbitrario):
           * "emi-counter"                 -> contatore package EMI cumulato
             [J] (Windows, ioctl sul record pWh);
+          * "pawnio-counter"              -> contatore MSR del package letto
+            dal driver PawnIO [J] (Windows, fallback dichiarato di EMI);
           * "rapl"                        -> contatore RAPL Linux [J]
             (via /sys/class/powercap/intel-rapl/);
           * "energy-file"                 -> contatore dev/test non-Windows.
@@ -532,6 +600,8 @@ class _CPUJouleSource:
         """
         if self.method == "emi-counter":
             return self._emi.read_cumulative_energy_j() if self._emi else None
+        if self.method == "pawnio-counter":
+            return self._pawnio.read_cumulative_energy_j() if self._pawnio else None
         if self.method == "rapl":
             if self._rapl is not None:
                 return self._rapl.read_cumulative_energy_j()
@@ -551,6 +621,7 @@ class _CPUJouleSource:
         Stessa funzione usata dal benchmark (principio di specifica: la
         calibrazione empirica campiona con il medesimo percorso):
           * emi-counter -> contatore package EMI cumulato (pWh -> J);
+          * pawnio-counter -> contatore MSR del package cumulato [J];
           * energy-file -> contatore cumulato dev/test;
           * rapl -> contatore RAPL Linux cumulato.
         Ritorna None se nessun backend reale e' disponibile: il chiamante
@@ -559,6 +630,9 @@ class _CPUJouleSource:
         try:
             if self.method == "emi-counter":
                 return self._emi.read_cumulative_energy_j() if self._emi else None
+            if self.method == "pawnio-counter":
+                return (self._pawnio.read_cumulative_energy_j()
+                        if self._pawnio else None)
             if self.method == "rapl":
                 if self._rapl is not None:
                     return self._rapl.read_cumulative_energy_j()
@@ -581,8 +655,9 @@ class _CPUJouleSource:
         reale e' disponibile. Modalita':
           * mode="rapl-counter": delta del contatore RAPL Linux (via
             /sys/class/powercap/intel-rapl/);
-          * mode="emi-counter" / "energy-counter": delta del contatore Joule
-            cumulato (EMI su Windows, file dev/test).
+          * mode="emi-counter" / "pawnio-counter": delta del contatore
+            cumulativo Windows (EMI su device, MSR via PawnIO in fallback);
+          * mode="energy-counter": delta del contatore Joule da file (dev/test).
         Nessuna modalita' usa stime TDP: tutte sono misure reali.
         """
         duration_s = max(float(duration_s), 0.5)
@@ -598,7 +673,8 @@ class _CPUJouleSource:
             e_end = self.read_power_j()
             dt = max(time.monotonic() - t0, 1e-6)
             if e_end is not None and e_end >= e_start:
-                _mode = ("emi-counter" if self.method == "emi-counter"
+                _mode = (self.method if self.method in
+                         ("emi-counter", "pawnio-counter")
                          else "energy-counter")
                 return (e_end - e_start, dt, _mode)
         # 3) nessun backend: propagazione diagnostica al chiamante
@@ -770,13 +846,18 @@ class EnergySession:
             float(t_wall), tz=timezone.utc).isoformat(timespec="milliseconds")
 
     def read_counter_edge(self) -> Dict[str, object]:
-        """Una IOCTL sul contatore, con l'istante e il timestamp del record.
+        """Una lettura del contatore, con l'istante e il timestamp del record.
 
         Ritorna ``counter`` (None se il canale non e' aperto o la lettura
         fallisce) e, in ogni caso, ``counter_error`` con la ragione: un bordo
         senza contatore e' un fatto dichiarato, non un bordo "sincrono"
-        presunto. ``t_mono`` e' preso PRIMA dell'IOCTL, come fa il sampler
+        presunto. ``t_mono`` e' preso PRIMA della lettura, come fa il sampler
         (``_emi_loop``): cosi' l'istante e' confrontabile con il buffer.
+
+        Il record ha la stessa forma per EMI e PawnIO: ``pkg_j`` (cumulato),
+        il grezzo in unita' nativa (``pkg_pwh`` per EMI, ``pkg_counts`` per
+        PawnIO, entrambi assenti nell'altro caso) e ``ts_100ns`` (solo EMI:
+        il record MSR non porta un timestamp del dominio).
         """
         t_wall = time.time()
         t_mono = time.monotonic()
@@ -784,9 +865,7 @@ class EnergySession:
         err = ""
         try:
             backend = getattr(self._source, "_emi", None)
-            if backend is None:
-                err = "backend EMI non aperto"
-            else:
+            if backend is not None:
                 domains = (backend.read_domains()
                            if hasattr(backend, "read_domains") else None)
                 if domains is None:
@@ -800,6 +879,21 @@ class EnergySession:
                         "ts_100ns": pkg[1],
                         "pp1_j": (float(pp1[0]) if pp1 is not None else None),
                     }
+            else:
+                pbackend = getattr(self._source, "_pawnio", None)
+                if pbackend is None:
+                    err = "contatore non aperto (ne' EMI ne' PawnIO)"
+                else:
+                    j = pbackend.read_cumulative_energy_j()
+                    if j is None:
+                        err = "lettura del contatore PawnIO fallita"
+                    else:
+                        counter = {
+                            "pkg_j": float(j),
+                            "pkg_counts": int(pbackend.cumulative_counts),
+                            "ts_100ns": None,
+                            "pp1_j": None,
+                        }
         except Exception as exc:  # noqa: BLE001 - il bordo degrada, non crasha
             err = f"{type(exc).__name__}: {exc}"
         return {
@@ -954,9 +1048,9 @@ class EnergySession:
         with self._lock:
             if self._running:
                 return
-            # emi-counter: il buffer (t, cumulata) del contatore parte qui,
-            # non all'import (l'import non deve avviare thread di misura).
-            if self._source.method == "emi-counter":
+            # contatore cumulativo (EMI o PawnIO): il buffer (t, cumulata)
+            # parte qui, non all'import (l'import non deve avviare thread).
+            if self._source.method in ("emi-counter", "pawnio-counter"):
                 self._source._start_emi_sampling()
             self._stop.clear()
             # allinea la base del contatore di potenza al momento dell'avvio:
@@ -989,8 +1083,8 @@ class EnergySession:
     def close(self) -> None:
         """Chiusura DEFINITIVA e unica delle risorse hardware (spec §6).
 
-        - ferma e joina il sampler EMI (<= 5 s);
-        - chiude il device EMI UNA sola volta;
+        - ferma e joina il sampler del contatore cumulativo (<= 5 s);
+        - chiude il device EMI o la libreria PawnIO UNA sola volta;
         - nvmlShutdown() UNA sola volta.
         Idempotente: chiamata multipla non genera errori.
         """
@@ -1006,6 +1100,12 @@ class EnergySession:
             except Exception:
                 pass
             src._emi = None
+        if getattr(src, "_pawnio", None) is not None:
+            try:
+                src._pawnio.close()
+            except Exception:
+                pass
+            src._pawnio = None
         self._gpu.shutdown()
 
     @property
@@ -1027,6 +1127,8 @@ class EnergySession:
         passo effettivo e con quale versione del percorso di lettura.
 
         * EMI: pWh, interpolati dal buffer a 0,05 s (``_emi_field_at``);
+        * PawnIO: conteggi del contatore MSR cumulati dall'apertura (interi,
+          gia' srotolati: un riporto non rientra), con il quantum in unita';
         * RAPL: microjoule cumulati (unwrapped) dai campioni di sessione.
 
         Ogni campo non ottenibile resta ``None``/vuoto: un'assenza muta e'
@@ -1041,7 +1143,7 @@ class EnergySession:
             "sampling_interval_observed_s": None,
             "backend_version": src.version_label(),
         }
-        if src.method == "emi-counter":
+        if src.method in ("emi-counter", "pawnio-counter"):
             with src._emi_lock:
                 buf = list(src._emi_samples if domain == "pkg"
                            else src._emi_pp1_samples)
@@ -1050,7 +1152,13 @@ class EnergySession:
                 out["sampling_interval_observed_s"] = _median_sampling_interval(
                     buf, t_start, t_end)
                 if domain == "pkg":
-                    out["raw_unit"] = "pWh"
+                    if src.method == "emi-counter":
+                        out["raw_unit"] = "pWh"
+                    else:
+                        q = getattr(src._pawnio, "quantum_j", None)
+                        out["raw_unit"] = (
+                            f"counts (32-bit MSR, quantum {q:.9g} J)"
+                            if q else "counts (32-bit MSR)")
                     out["raw_start"] = src._emi_field_at(buf, t_start, 2)
                     out["raw_end"] = src._emi_field_at(buf, t_end, 2)
         elif src.method == "rapl":
@@ -1072,10 +1180,11 @@ class EnergySession:
                                      exclude_windows: Optional[List[tuple]] = None
                                      ) -> Optional[float]:
         """Energia package sulla finestra [t_start, t_end], letta esattamente
-        ai bordi (stesso buffer a 0,05 s del contatore EMI).
+        ai bordi (stesso buffer a 0,05 s del contatore cumulativo).
 
-        * EMI: differenza del contatore cumulativo sui segmenti tenuti
-          (niente trapezi; le sottofinestre escluse sono rimosse alla fonte);
+        * EMI o PawnIO: differenza del contatore cumulativo sui segmenti
+          tenuti (niente trapezi; le sottofinestre escluse sono rimosse alla
+          fonte);
         * energy-counter (file dev-test): delta del contatore cumulato
           read_power_j() agli estremi; le sottofinestre escluse vengono
           sottratte integrando i campioni package nella regione esclusa
@@ -1084,7 +1193,7 @@ class EnergySession:
         (il profiler degrada al fallback dichiarato sui campioni).
         """
         m = self._source.method
-        if m == "emi-counter":
+        if m in ("emi-counter", "pawnio-counter"):
             # bordi esatti letti dal buffer del cumulativo a 0,05 s: niente
             # trapezi, e' la differenza del contatore sui segmenti tenuti.
             e_buf = self._source.emi_window_energy_j(t_start, t_end, exclude_windows)
@@ -1093,7 +1202,7 @@ class EnergySession:
             # buffer insufficiente (finestra oltre la copertura): degrada al
             # ramo contatore qui sotto, che resta un percorso a campione
             # reale e dichiarato — mai un valore interpolato inventato.
-        if m in ("emi-counter", "energy-file", "rapl"):
+        if m in ("emi-counter", "pawnio-counter", "energy-file", "rapl"):
             # finestra trascorsa: fonte affidabile sono i campioni del
             # contatore cumulato ai bordi REALI della finestra (nessuna
             # interpolazione), con sottrazione delle regioni escluse.
@@ -1273,12 +1382,13 @@ class EnergySession:
         was_running = self._running
         if not was_running:
             self.start()
-        if self._source.method not in ("rapl", "emi-counter"):
+        if self._source.method not in ("rapl", "emi-counter", "pawnio-counter"):
             cause = "; ".join(self._source.notes[-3:]) or f"metodo='{self._source.method}'"
             raise RuntimeError(
                 "calibrazione idle fallita: nessun contatore di energia/potenza "
                 "package disponibile. Causa: " + cause +
-                ". Su Windows: esegui 'py diagnostics.py' (device EMI). "
+                ". Su Windows: esegui 'py diagnostics.py' (device EMI o "
+                "contatore MSR via PawnIO). "
                 "Su Linux: verifica che /sys/class/powercap/intel-rapl/ esista e sia leggibile "
                 "(richiede root o gruppo 'power')."
             )

@@ -1131,13 +1131,15 @@ def judge_trace_note(capture: Optional[JudgeEdgeCapture],
             f"judge_window_s={judge_window_s} s (il Δt dell'energia diretta e' "
             "la coppia di letture di ciascuna chiamata, non la somma delle "
             "finestre HTTP)")
-    pwh0 = CasualWattLocalEnergyProfiler._edge_raw_pwh(first)
-    pwh1 = CasualWattLocalEnergyProfiler._edge_raw_pwh(last)
+    pwh0 = CasualWattLocalEnergyProfiler._edge_raw_value(first)
+    pwh1 = CasualWattLocalEnergyProfiler._edge_raw_value(last)
+    raw_unit = (CasualWattLocalEnergyProfiler._edge_raw_unit(first)
+                or CasualWattLocalEnergyProfiler._edge_raw_unit(last) or "pWh")
     if pwh0 is not None or pwh1 is not None:
         # Un bordo senza grezzo si dichiara con "-", non si omette: la riga
         # deve dire quale dei due estremi non e' ricostruibile.
         parts.append(
-            "contatore grezzo pWh: "
+            f"contatore grezzo {raw_unit}: "
             f"{pwh0 if pwh0 is not None else '-'} -> "
             f"{pwh1 if pwh1 is not None else '-'}")
     return "; ".join(parts)

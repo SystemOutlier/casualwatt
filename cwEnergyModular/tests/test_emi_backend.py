@@ -85,9 +85,14 @@ def test_unavailable_backend_reads_none():
 
 # ------------------------------------------------------------------ catena: priorità
 def _make_source(monkeypatch, available=True):
-    """Costruisce un _CPUJouleSource su Windows simulato con EMI fake."""
+    """Costruisce un _CPUJouleSource su Windows simulato con EMI fake.
+
+    Il fallback PawnIO si neutralizza: qui si prova la catena EMI, e un host
+    con i moduli PawnIO installati non deve cambiare l'esito di questi test.
+    """
     monkeypatch.setattr(es, "platform_system", lambda: "Windows")
     monkeypatch.setattr(es._CPUJouleSource, "_try_power_counter", lambda self: False)
+    monkeypatch.setattr(es._CPUJouleSource, "_try_pawnio", lambda self: False)
     monkeypatch.delenv("CW_ENERGY_FILE", raising=False)
 
     fake = FakeEMI(available=available)

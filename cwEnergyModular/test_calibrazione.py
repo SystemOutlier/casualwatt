@@ -92,7 +92,8 @@ def main() -> int:
     for n in SESSION.source_notes[-6:]:
         log(f"    nota: {n}")
 
-    if SESSION.source_method not in ("emi-counter", "rapl", "energy-file"):
+    if SESSION.source_method not in ("emi-counter", "pawnio-counter", "rapl",
+                                     "energy-file"):
         log("[FALLITO] nessun contatore energetico reale attivo dopo start().")
         log("Prossimo passo: 'py diagnostics.py' e inviare l'output completo.")
         SESSION.stop()
