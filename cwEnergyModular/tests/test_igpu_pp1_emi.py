@@ -37,6 +37,7 @@ def test_read_domains_espone_quattro_domini_col_loro_timestamp(monkeypatch):
     """Un record da 8 uint64 esce come dominio -> (J, ts): i timestamp sono per dominio."""
     b = eb.EMICounterBackend(auto_open=False)
     b.available = True
+    b.channels = eb.channels_from_names(FakeEMI.NAMES)
     b.read_raw = lambda: (1_000_000, 42, 0, 43, 500_000, 44, 250_000, 45)
     d = b.read_domains()
     assert set(d) == {"pkg", "dram", "pp0", "pp1"}
@@ -52,6 +53,7 @@ def test_read_fields_j_resta_la_stessa_superficie_di_prima():
     """Il refactoring non cambia il contratto storico: quattro valori [J] + ts_100ns del PKG."""
     b = eb.EMICounterBackend(auto_open=False)
     b.available = True
+    b.channels = eb.channels_from_names(FakeEMI.NAMES)
     b.read_raw = lambda: (1_000_000, 42, 0, 43, 500_000, 44, 250_000, 45)
     f = b.read_fields_j()
     assert f["pkg"] == pytest.approx(3.6e-3)

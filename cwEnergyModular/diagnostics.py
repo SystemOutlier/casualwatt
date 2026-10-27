@@ -203,7 +203,7 @@ def _diagnose_windows(lines: List[str], cb: Optional[Callable[[str], None]],
                   "nessun altro canale di misura locale e' implementato su "
                   "Windows (LHM e' fuori dall'implementazione, D18; il "
                   "sostituto MSR via PawnIO e' ancora una proposta).")
-            for note in getattr(emi, "notes", [])[-6:]:
+            for note in getattr(emi, "notes", [])[-12:]:
                 _emit(lines, cb, _INFO, f"    nota EMI: {note}")
 
             pmi = _probe_pmi_power_meter()
@@ -235,7 +235,34 @@ def _diagnose_windows(lines: List[str], cb: Optional[Callable[[str], None]],
             return
 
         _emit(lines, cb, _OK,
-              f"[EMI] device del canale energia aperto: {emi.device_path}")
+              f"[EMI] device CPU selezionato per metadato: {emi.device_path}")
+        meta = getattr(emi, "metadata", None)
+        channels = getattr(emi, "channels", []) or []
+        if meta is not None:
+            summary["emi_device_version"] = meta.version
+            summary["emi_device_oem"] = meta.hardware_oem
+            summary["emi_device_model"] = meta.hardware_model
+            summary["emi_channels"] = [c.name for c in channels]
+            _emit(lines, cb, _INFO,
+                  f"[EMI] metadato: v{meta.version}, OEM "
+                  f"'{meta.hardware_oem}', modello '{meta.hardware_model}', "
+                  f"rev {meta.hardware_revision}, {len(channels)} canali")
+            for ch in channels:
+                dom = (f"dominio {ch.domain}" if ch.domain
+                       else "dominio non riconosciuto dal nome")
+                unit = ("unita' pWh" if ch.unit == 0
+                        else f"unita' {ch.unit} non pWh")
+                _emit(lines, cb, _INFO,
+                      f"    canale {ch.index}: '{ch.name}' ({dom}, {unit})")
+            pkg_ch = getattr(emi, "pkg_channel", None)
+            if pkg_ch is not None:
+                summary["emi_pkg_channel"] = pkg_ch.name
+                _emit(lines, cb, _OK,
+                      "[EMI] canale PKG scelto per nome: "
+                      f"indice {pkg_ch.index}, '{pkg_ch.name}'")
+        for note in [n for n in getattr(emi, "notes", [])
+                     if "device scartato" in n][-8:]:
+            _emit(lines, cb, _INFO, f"    {note}")
 
         domains = emi.read_domains() if hasattr(emi, "read_domains") else None
         if domains is None:

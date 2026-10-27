@@ -112,7 +112,10 @@ def test_emi_grezzi_in_pwh_e_cadenza_mediana(monkeypatch):
     assert prov["raw_start"] == pytest.approx(500_000)
     assert prov["raw_end"] == pytest.approx(2_000_000)
     assert prov["sampling_interval_observed_s"] == pytest.approx(2.0)
-    assert prov["backend_version"].startswith("emi-reader/1")
+    # emi-reader/2 (27/10/2026): la lettura passa dal metadato e il canale PKG
+    # si sceglie per nome, non per posizione nel record (F11/F13).
+    assert prov["backend_version"].startswith("emi-reader/2")
+    assert "metadato" in prov["backend_version"]
 
 
 def test_emi_senza_grezzi_nel_buffer_non_inventa(monkeypatch):
