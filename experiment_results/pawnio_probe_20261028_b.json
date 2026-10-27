@@ -1,0 +1,70 @@
+{
+ "method": "pawnio-counter",
+ "started_utc": "2026-10-27T23:39:35Z",
+ "seconds_requested": 30.0,
+ "probe": {
+  "pass": true,
+  "reason": "",
+  "vendor": "intel",
+  "service": "running",
+  "hvci": "enabled",
+  "driver_path": "C:\\WINDOWS\\System32\\DriverStore\\FileRepository\\pawnio.inf_amd64_a92d2610b0f4c4c8\\PawnIO.sys",
+  "driver_signature": "Valid",
+  "driver_signer": "CN=Microsoft Windows Hardware Compatibility Publisher, O=Microsoft Corporation, L=Redmond, S=Washington, C=US",
+  "module_version": "0.2.11",
+  "module_path": "C:\\Users\\Massimo\\AppData\\Local\\CasualWatt\\pawnio-modules\\0.2.11\\IntelMSR.bin",
+  "module_sha256": "d6ed85d65ab17a22f813ef98207d6d537155ee2ded5976a21cb48413c9b92e5f",
+  "lib_version": "2.0.0",
+  "unit_msr": "0x606",
+  "unit_raw": "0xA0E03",
+  "energy_msr": "0x611",
+  "quantum_j": 6.103515625e-05,
+  "wraps": 0,
+  "resets": 0,
+  "notes": [
+   "PawnIO: intel, modulo IntelMSR.bin (0.2.11), unita' 0x606=0xA0E03 -> quantum 6.10351562e-05 J, contatore 0x611 a 32 bit, HVCI enabled, firma Valid"
+  ]
+ },
+ "open_s": 0.335,
+ "emi": {
+  "available": true,
+  "notes": [
+   "EMI: device CPU selezionato per metadato: device '\\\\?\\acpi#genuineintel_-_intel64_family_6_model_186_-_13th_gen_intel(r)_core(tm)_i9-13900hk#0#{45bd8344-7ed6-49cf-a440-c276c933b053}' (EMI v2, OEM 'Microsoft', modello 'PPM', rev 1, 4 canali); canale PKG indice 0 'RAPL_Package0_PKG' in pWh. Domini mappati per nome, non per posizione; lettura senza token elevato"
+  ]
+ },
+ "pawnio": {
+  "reads": 593,
+  "cum_j_first": 0.0,
+  "cum_j_last": 333.337341,
+  "delta_j": 333.337341,
+  "window_s": 29.962716,
+  "power_w": 11.1251,
+  "counts_first": 5461399,
+  "quantum_j": 6.103515625e-05,
+  "wraps": 0,
+  "resets": 0,
+  "latency_us": {
+   "p50": 38.9,
+   "p95": 84.8,
+   "p100": 400.4
+  }
+ },
+ "emi_window": {
+  "cum_j_first": 356407.507403,
+  "cum_j_last": 356740.652742,
+  "delta_j": 333.145339,
+  "window_s": 29.962551,
+  "power_w": 11.1187,
+  "latency_us": {
+   "p50": 110.2,
+   "p95": 228.7,
+   "p100": 4181.0
+  }
+ },
+ "comparison": {
+  "ratio_msr_over_emi": 1.000576,
+  "rel_diff_pct": 0.0576,
+  "note": "stesso registro (MSR_PKG_ENERGY_STATUS 0x611): un accordo qui e' coerenza di implementazione, non validazione indipendente della scala assoluta"
+ },
+ "verdict": "ok"
+}
