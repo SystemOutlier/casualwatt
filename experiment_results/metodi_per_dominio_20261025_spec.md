@@ -848,7 +848,7 @@ porta energia GPU deve dire quale delle due sta scrivendo
 
 | id | interfaccia e unita' | livello | confine | etichetta | stato |
 |---|---|---|---|---|---|
-| N1 | NVML `nvmlDeviceGetTotalEnergyConsumption`, mJ | M1 candidato | whole-device | `nvml-energy` (proposto) | [A] non implementato |
+| N1 | NVML `nvmlDeviceGetTotalEnergyConsumption`, mJ | M1 | whole-device; delta fra i bordi, punto zero = ultimo reset; Kepler o superiore | `nvml-energy` | **[I] implementato il 28-10-2026** (doc NVIDIA R535 verificata: mJ, "since the last reset", "does not overflow"); [V] su GPU reale da fare |
 | N2 | NVML `nvmlDeviceGetPowerUsage`, mW, integrata | M2 | whole-device; sampling richiesto 0,5 s, cadenza effettiva NVML da verificare | `power-integration` (GPU) | [I], [V] da fare (nessuna GPU sul host) |
 | N3 | NVML `nvmlDeviceGetProcessUtilization`, ms di GPU per PID | M3 | attribuzione, non misura | campo `gpu_process_energy_j` | [I] informativo |
 | A1 | AMD SMI, energia o potenza GPU | M1/M2 candidato | whole-device | `power-integration` (se verificato) | [P] |
@@ -1031,7 +1031,7 @@ vale quella.
 | 7 | Linux AMD, `cpu_package` | powercap RAPL AMD (kernel >= 5.11, se il percorso e la semantica sono verificati) -> hwmon `amd_energy` -> `unavailable` | `rapl` (dominio dichiarato) -> `unavailable` | non implementato; R3b ha scala propria (15,3 uJ) e copre prima EPYC che Ryzen client |
 | 8 | macOS Intel o Apple Silicon, CPU/GPU/ANE | `powermetrics` -> `unavailable` | `powermetrics` -> `unavailable` | `unavailable`; powermetrics progettato |
 | 9 | macOS laptop, sistema | delta batteria (limite di sistema) -> `unavailable` | `battery-delta` -> `unavailable` | non implementato |
-| 10 | NVIDIA, `gpu_dedicated` | NVML total energy (quando implementato) -> NVML power -> `unavailable` | `nvml-energy` -> `power-integration` -> `unavailable` | solo potenza; idle mai calibrato -> whole-device |
+| 10 | NVIDIA, `gpu_dedicated` | NVML total energy -> NVML power -> `unavailable` | `nvml-energy` -> `power-integration` -> `unavailable` | contatore sopra l'integrale dal 28-10; [V] su GPU reale da fare; idle mai calibrato -> whole-device |
 | 11 | AMD, `gpu_dedicated` | AMD SMI potenza (se verificato) -> `unavailable`; su Windows ADLX e su Linux `amdgpu` hwmon sono accessi alternativi [P] | `power-integration` -> `unavailable` | non implementato; §3.2 A1/A2/A3 |
 | 12 | Intel dGPU | Level Zero (Windows e Linux) o `xe`/`i915` hwmon (Linux), entrambi [P] -> `unavailable` | `unavailable` | nessun backend; §3.2 I1/I2 |
 | 13 | iGPU Intel/AMD | nessun termine separato (dentro PKG); PP1/Graphics informativi | campi `igpu_*` | PP1 letto da EMI; mai sommato |
@@ -1112,7 +1112,7 @@ livello di catena (controprova o riferimento).
 | Qualsiasi OS, `CW_ENERGY_FILE` | contatore esterno (X1) | catena normale se la variabile non e' impostata | presentare il file come EMI | `energy-file` | [I], test/dev |
 | Windows, meter V1 | EMI a un canale (E1) | catena normale | trattare un V1 come guasto; leggerlo con il parser V2 | `emi-counter` (solo V2) | **[I]**: `GET_VERSION` letto e V1 scartato con la ragione (D17, 27/10); un V1 reale non e' stato provato |
 | macOS CPU/GPU/ANE | `powermetrics` (PW1) | nessuno; delta batteria e' sistema, non dominio (BT1 ‡) | Energy Impact; carico CPU come stima | `powermetrics` -> `unavailable` | [P] |
-| NVIDIA, `gpu_dedicated` | NVML total energy (N1) | NVML potenza integrata (N2) ‡ | potenza per PID presentata come misura (N3) | `nvml-energy` -> `power-integration` -> `unavailable` | N1 [A], N2 [I], idle mai calibrato |
+| NVIDIA, `gpu_dedicated` | NVML total energy (N1) | NVML potenza integrata (N2) ‡ | potenza per PID presentata come misura (N3) | `nvml-energy` -> `power-integration` -> `unavailable` | N1 [I] dal 28/10 (test con `pynvml` finto), [V] reale da fare; N2 [I]; idle mai calibrato |
 | AMD, `gpu_dedicated` | AMD SMI (A1) | Windows ADLX (A2) ‡ -> Linux `amdgpu` hwmon (A3) ‡; `rocm-smi --showpower` ‡ | somma iGPU+dGPU; attribuzione per PID | `power-integration` -> `unavailable` | [P] |
 | Intel dGPU | Level Zero (I1) [P] | Linux `xe`/`i915` hwmon (I2) [P] ‡ | iGPU sommata al package | `unavailable` oggi | [A] |
 | iGPU Intel/AMD | dentro PKG (PP1, E2) | nessun termine separato | somma al package; PP1 presentato come GPU | campo `igpu_energy_j` | [I][V] |
@@ -1181,11 +1181,34 @@ verificabili senza hardware e senza toccare la catena di produzione.
    meta' Windows di F11 e F13 (§3.1.1); la catena non cambia e resta
    `EMI -> unavailable`.
 
-Non cambiano: `MEASURED_METHODS`, le colonne del CSV, l'ordine della catena
-Windows (`EMI -> unavailable`) e i clamp di `energy/local_energy.py`, che
-restano una differenza dichiarata fra produzione e v4 (AGENTS.md). La suite, a
-valle di queste quattro modifiche, raccoglie **429 test: 426 passati, 3 saltati**
-(27/10/2026).
+5. **GPU NVIDIA: il contatore va sopra l'integrale (28-10-2026).**
+   `energy/energy_session.py` sonda `nvmlDeviceGetTotalEnergyConsumption` con
+   una lettura reale all'apertura — il supporto si verifica, non si presume da
+   un `hasattr` — e campiona il contatore cumulativo. La documentazione e'
+   quella del fornitore (NVML API Guide, R535, letta il 28-10-2026): valore in
+   millijoule, "since the last reset", Kepler o superiore, "does not
+   overflow". `energy/local_energy.py` usa il **delta** fra i bordi, perche'
+   il punto zero e' un reset e non l'inizio della finestra, e scende a
+   `nvml-power-integral` in tre casi dichiarati: contatore non esposto dal
+   device, delta negativo (reset del driver), finestra con sottofinestre
+   escluse (un delta non sa sottrarre il judge). Il percorso effettivo e' il
+   prefisso di `gpu_attribution_method`, che comincia sempre con
+   `nvml-energy` o `nvml-power-integral`. Otto test
+   (`tests/test_gpu_nvml_energy.py`) con `pynvml` finto; la prova su GPU reale
+   resta [P]: su questa macchina NVML non c'e' (`NVMLError_LibraryNotFound`).
+   **Emendazione a P5, 28-10-2026:** tre colonne accodate —
+   `energy_per_total_token_j`, `tokens_per_joule`, `kwh_per_million_tokens` —
+   calcolate da `_finalize_energy_fields` su `total_tokens` (input + output),
+   con `N/A` quando l'end-to-end non e' calcolabile e cella vuota quando
+   mancano i token. Sono tre letture della stessa grandezza, non stime
+   indipendenti. Nessuna colonna storica cambia posizione; la migrazione resta
+   `ensure_header`.
+
+Non cambiano: `MEASURED_METHODS`, l'ordine della catena Windows
+(`EMI -> unavailable`) e i clamp di `energy/local_energy.py`, che restano una
+differenza dichiarata fra produzione e v4 (AGENTS.md). Il CSV cambia solo per
+aggiunta in coda (punto 5). La suite raccoglie **441 test: 438 passati, 3
+saltati** (429 il 27/10, dopo i primi quattro punti; 12 nuovi il 28/10).
 
 
 ---
@@ -1671,7 +1694,7 @@ eccezioni vanno rivalidate al freeze.
 | id | decisione | raccomandazione |
 |---|---|---|
 | D1 | ~~LHM resta fallback su Windows~~ **superata da D18 (27-10-2026)** | la ragione di allora -- copre driver e permessi, non il registro -- resta vera; il ruolo di secondo percorso passa a P1, e LHM esce dall'implementazione |
-| D2 | token GPU stabile | `gpu_energy_method` con `nvml-energy` / `nvml-power-integration` / `unavailable`, accanto a `gpu_idle_provenance` |
+| D2 | token GPU stabile | `gpu_energy_method` con `nvml-energy` / `nvml-power-integral` / `unavailable`, accanto a `gpu_idle_provenance` | precisazione 28-10-2026: il percorso e' implementato ma il campo dedicato **non esiste**; il token sta nel prefisso di `gpu_attribution_method`, che e' una stringa. Se P5 vuole il token in una colonna propria, e' una quarta aggiunta in coda |
 | D3 | proxy cloud esplicito | token distinto (`ecologits-proxy`) o campo `cloud_model_proxy`; C3 non si presenta come C2 |
 | D4 | canale non disponibile -> N/A | rete e cloud: `N/A` con ragione, mai `0.0`; zero solo per local mode dichiarato. Del cloud e' gia' cosi' in `HEAD` (`027609c`: `None -> "N/A"`, `0.0` sopravvive solo se lo produce il confine); la rete e' chiusa da F1 e il confine cloud della riga locale e' dichiarato dal 27-10-2026 (F9) |
 | D5 | macOS | `powermetrics` come [P] progettato, non selezionabile; nessuna dichiarazione di supporto |

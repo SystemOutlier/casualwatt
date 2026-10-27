@@ -87,6 +87,12 @@ stanno solo le regole che un agente puo' violare senza accorgersene.
   `:124`), l'origine della baseline in `idle_provenance` (`:125`) e, dalla v4, in
   `baseline_backend` — campo del protocollo P1.3, non ancora presente nel codice.
   Mai presentare un fallback come un contatore.
+- **Sulla GPU il token dice quale percorso ha prodotto il numero.**
+  `gpu_attribution_method` comincia sempre con `nvml-energy` (delta del
+  contatore cumulativo NVML, mJ) o `nvml-power-integral`. Il contatore si usa
+  solo con delta non negativo e senza sottofinestre escluse, che un delta non
+  sa sottrarre; un integrale non si presenta come contatore. La catena e'
+  provata con `pynvml` finto (28-10-2026): su GPU reale resta [P].
 - **Solo i token di canale reali.**
   `MEASURED_METHODS = ("emi-counter", "power-integration",
   "librehardwaremonitor-energy", "energy-file", "rapl")`
@@ -156,7 +162,7 @@ stanno solo le regole che un agente puo' violare senza accorgersene.
 ## Comandi di verifica
 
 ```
-pytest cwEnergyModular          # 429 raccolti: 426 passati, 3 saltati (11 s)
+pytest cwEnergyModular          # 441 raccolti: 438 passati, 3 saltati (10 s)
 ```
 
 **Mai `pytest` nudo dalla radice**: la raccolta viene interrotta da 6 errori in
@@ -185,19 +191,22 @@ indefiniti.
   EMI via ctypes/SetupAPI, con selezione del device CPU e del canale PKG dal
   metadato), `energy/energy_session.py` (canali, integrazione di
   finestra, interpolazione ai bordi), `energy/local_energy.py` (campi per riga),
-  `casualwatt_csv_export.py` (`CSV_COLUMNS`, righe 17-182;
-  `BLOCK_SUMMARY_COLUMNS`, 189-204; `POINT_SUMMARY_COLUMNS`, 206-215), e il
+  `casualwatt_csv_export.py` (`CSV_COLUMNS`, righe 17-193;
+  `BLOCK_SUMMARY_COLUMNS`, 201-216; `POINT_SUMMARY_COLUMNS`, 218-226), e il
   runner v4 `benchmark_v4.py` (sequenza di blocco di P1.5).
-- **I test stanno in due posti**: `cwEnergyModular/tests/` (370) e direttamente in
+- **I test stanno in due posti**: `cwEnergyModular/tests/` (382) e direttamente in
   `cwEnergyModular/` (`test_answer_type_evaluation.py`, 35;
   `test_synthetic_window.py`, 2; `test_validazione_valutazione.py`, 22);
-  370 + 59 = 429. Ogni test ha una docstring che
+  382 + 59 = 441. Ogni test ha una docstring che
   dice *perche'* esiste e quale relazione matematica o fisica verifica, non solo
   cosa fa. Dal 27-10-2026 la cartella contiene anche `tests/test_rapl_zone.py`
   (8, logica RAPL su un finto sysfs), `tests/test_diagnostics_pmi.py` (7,
   sonda PMI/WMI) e `tests/test_emi_selezione.py` (16, metadati EMI sintetici:
   metadato V2, scelta del device CPU, canale PKG per nome, V1 scartato): girano
-  su Windows, senza host Linux.
+  su Windows, senza host Linux. Dal 28-10-2026 ci sono
+  `tests/test_gpu_nvml_energy.py` (8, catena `nvml-energy` ->
+  `nvml-power-integral` con `pynvml` finto) e `tests/test_metriche_per_token.py`
+  (4, le tre colonne per token accodate al CSV).
   L'Appendice D della tesi e' stata rigenerata il 2026-10-26 con
   `cwEnergyModular/tools/dump_tests_latex.py`: 404 node id, 401 passati, 3
   saltati, docstring 404/404. Quel materiale precede l'uscita di LHM
