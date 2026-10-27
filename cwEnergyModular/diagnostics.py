@@ -12,8 +12,10 @@ callback):
 1. interprete / piattaforma / privilegi;
 2. Windows: enumerazione del device del canale energia, apertura dell'handle,
    lettura del contatore cumulativo e dei quattro domini (PKG/DRAM/PP0/PP1);
-3. Linux: esistenza e leggibilita' di
-   ``/sys/class/powercap/intel-rapl/intel-rapl:0/energy_uj``;
+   se il device manca, sonda di sola esistenza su un meter PMI/WMI, che
+   distingue "nessun meter esposto" da "non e' un canale implementato";
+3. Linux: enumerazione delle zone powercap e selezione di quelle
+   ``package-*`` (stessa logica del backend, ``energy/rapl_backend.py``);
 4. la nota esplicita quando il contatore non c'e': il sostituto MSR (PawnIO)
    e' ancora una proposta [P], quindi la catena finisce in ``unavailable``.
 
@@ -26,11 +28,12 @@ Uso da console:  py diagnostics.py
 """
 from __future__ import annotations
 
+import json
 import os
 import platform
+import subprocess
 import sys
 import traceback
-from pathlib import Path
 from typing import Callable, List, Optional
 
 _OK = "[ OK ]"
@@ -69,27 +72,109 @@ def _energy_file_expected() -> Optional[str]:
     return os.environ.get("CW_ENERGY_FILE") or None
 
 
+#: Namespace documentato della classe (Microsoft Learn, "Win32_PowerMeter
+#: class", Requirements: Namespace Root\CIMV2\power; letto il 27-10-2026).
+_PMI_NAMESPACE = r"root\CIMV2\power"
+_PMI_FIELDS = ("DeviceID,Name,MeterType,SupportCapabilities,SamplingPeriod,"
+               "BaseUnits,UnitModifier,MinimumAveragingInterval,"
+               "MaximumAveragingInterval")
+
+
+def _probe_pmi_power_meter(timeout_s: float = 5.0) -> dict:
+    """Sonda di sola esistenza: Windows espone un power meter PMI via WMI?
+
+    Serve a distinguere due ragioni diverse dello stesso ``unavailable``:
+    un meter esiste ma non e' un canale implementato, oppure nessun meter e'
+    esposto dal driver. Non legge una potenza: la pagina Microsoft della
+    classe documenta budget e intervalli di media, non una proprieta' di
+    lettura istantanea (verificato il 27-10-2026), quindi un valore ricavato
+    da qui non sarebbe ancorato a nulla.
+
+    Returns:
+        ``{"probed": bool, "meters": list[dict], "error": str | None}``.
+        ``probed`` falso significa che la sonda non ha concluso: non e' la
+        stessa cosa di "nessun meter".
+    """
+    script = (
+        "$ErrorActionPreference='Stop'; "
+        f"Get-CimInstance -Namespace '{_PMI_NAMESPACE}' "
+        f"-ClassName Win32_PowerMeter | Select-Object {_PMI_FIELDS} | "
+        "ConvertTo-Json -Compress"
+    )
+    try:
+        proc = subprocess.run(
+            ["powershell", "-NoProfile", "-NonInteractive", "-Command", script],
+            capture_output=True, text=True, timeout=timeout_s, check=False,
+        )
+    except (OSError, subprocess.SubprocessError) as exc:
+        return {"probed": False, "meters": [], "error": type(exc).__name__}
+
+    if proc.returncode != 0:
+        lines = (proc.stderr or "").strip().splitlines()
+        error = lines[0][:200] if lines else f"exit={proc.returncode}"
+        return {"probed": False, "meters": [], "error": error}
+
+    out = (proc.stdout or "").strip()
+    if not out:
+        return {"probed": True, "meters": [], "error": None}
+    try:
+        data = json.loads(out)
+    except ValueError:
+        return {"probed": False, "meters": [], "error": "json_non_valido"}
+    meters = data if isinstance(data, list) else [data]
+    return {
+        "probed": True,
+        "meters": [m for m in meters if isinstance(m, dict)],
+        "error": None,
+    }
+
+
 def _diagnose_linux(lines: List[str], cb: Optional[Callable[[str], None]], summary: dict) -> None:
-    """Linux: l'unico canale locale e' RAPL via powercap."""
-    rapl_path = Path("/sys/class/powercap/intel-rapl/intel-rapl:0/energy_uj")
-    summary["rapl_path"] = str(rapl_path)
-    if rapl_path.exists() and os.access(rapl_path, os.R_OK):
-        _emit(lines, cb, _OK,
-              f"RAPL disponibile: {rapl_path} leggibile. "
-              "Backend Linux attivo per misurazione energia CPU.")
-        summary["rapl_readable"] = True
-        summary["method_expected"] = "rapl"
-    else:
-        summary["rapl_readable"] = False
+    """Linux: l'unico canale locale e' RAPL via powercap.
+
+    La scoperta delle zone e' quella del backend vero
+    (``energy/rapl_backend.py``): zone ``package-*``, canali specchiati contati
+    una volta. Ripetere qui la logica darebbe due risposte diverse allo stesso
+    filesystem.
+    """
+    try:
+        from energy.rapl_backend import RAPLBackend
+    except Exception as exc:  # noqa: BLE001 - import rotto = misura impossibile
         _emit(lines, cb, _ERR,
-              f"RAPL non accessibile: {rapl_path} non esiste o permessi "
-              "insufficienti. Richiede root o gruppo 'power'. "
-              "Misurazione locale CPU disabilitata.")
-        summary["errors"].append("rapl_not_accessible")
+              f"Import del backend RAPL fallito: {type(exc).__name__}: {exc}")
+        summary["errors"].append(f"rapl_import:{type(exc).__name__}")
         summary["method_expected"] = (
             "energy-file(dev/test)" if _energy_file_expected()
             else "unavailable"
         )
+        return
+
+    backend = RAPLBackend()
+    diag = backend.diagnose()
+    summary["rapl_path"] = diag["path"]
+    summary["rapl_zones"] = [z["name"] for z in diag["zones"]]
+    if backend.available:
+        summary["rapl_readable"] = True
+        _emit(lines, cb, _OK,
+              "RAPL disponibile: zone package = "
+              + ", ".join(f"{z['name']} ({z['path']})" for z in diag["zones"])
+              + ". Backend Linux attivo per misurazione energia CPU.")
+        summary["method_expected"] = "rapl"
+        return
+
+    summary["rapl_readable"] = False
+    _emit(lines, cb, _ERR,
+          "RAPL non accessibile: nessuna zona package leggibile sotto "
+          f"{diag['path']}. Richiede root oppure permessi di lettura concessi "
+          "esplicitamente sui nodi energy_uj. Misurazione locale CPU "
+          "disabilitata.")
+    for note in diag["notes"][-6:]:
+        _emit(lines, cb, _INFO, f"    nota RAPL: {note}")
+    summary["errors"].append("rapl_not_accessible")
+    summary["method_expected"] = (
+        "energy-file(dev/test)" if _energy_file_expected()
+        else "unavailable"
+    )
 
 
 def _diagnose_windows(lines: List[str], cb: Optional[Callable[[str], None]],
@@ -120,6 +205,28 @@ def _diagnose_windows(lines: List[str], cb: Optional[Callable[[str], None]],
                   "sostituto MSR via PawnIO e' ancora una proposta).")
             for note in getattr(emi, "notes", [])[-6:]:
                 _emit(lines, cb, _INFO, f"    nota EMI: {note}")
+
+            pmi = _probe_pmi_power_meter()
+            summary["pmi_probe"] = pmi
+            if pmi["probed"] and pmi["meters"]:
+                summary["pmi_meters"] = len(pmi["meters"])
+                _emit(lines, cb, _WARN,
+                      "[PMI] WMI espone "
+                      f"{len(pmi['meters'])} power meter (namespace "
+                      f"{_PMI_NAMESPACE}). Non e' un canale implementato: la "
+                      "classe documenta budget e intervalli di media, non una "
+                      "lettura istantanea, quindi serve G1 prima di usarlo.")
+            elif pmi["probed"]:
+                summary["pmi_meters"] = 0
+                _emit(lines, cb, _INFO,
+                      "[PMI] nessun Win32_PowerMeter esposto: coerente con la "
+                      "ragione 'driver_missing', cioe' nessun meter dal "
+                      "driver, non un problema di permessi.")
+            else:
+                _emit(lines, cb, _INFO,
+                      f"[PMI] sonda non conclusa ({pmi['error']}): nessuna "
+                      "conclusione sull'esistenza di un meter.")
+
             summary["errors"].append("emi_device_absent")
             summary["method_expected"] = (
                 "energy-file(dev/test)" if _energy_file_expected()
@@ -171,8 +278,9 @@ def run_diagnostics(log_callback: Optional[Callable[[str], None]] = None) -> dic
     Chiavi di ritorno (le prime sei sempre presenti):
       platform, admin, energy_file, method_expected, errors, lines;
     su Windows: emi_available, emi_device_path, emi_record_read,
-      emi_pkg_cum_j, emi_pkg_cum_pwh, emi_domains;
-    su Linux: rapl_path, rapl_readable.
+      emi_pkg_cum_j, emi_pkg_cum_pwh, emi_domains; se EMI manca, in piu'
+      pmi_probe e pmi_meters (sola esistenza di un meter PMI/WMI);
+    su Linux: rapl_path, rapl_zones, rapl_readable.
     """
     lines: List[str] = []
     summary = {
