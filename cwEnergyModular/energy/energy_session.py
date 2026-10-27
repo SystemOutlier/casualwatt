@@ -633,6 +633,7 @@ class SystemSample:
     nic_bytes: int = 0             # sent+received cumulati
     gpu_power_w: Optional[float] = None
     gpu_util_pct: Optional[float] = None
+    gpu_energy_mj: Optional[float] = None   # contatore cumulativo NVML (mJ)
 
 
 def _free_subintervals(seg: tuple, excl: List[tuple]) -> List[tuple]:
@@ -917,6 +918,7 @@ class EnergySession:
         }
         pkg = self._source.read_package_j(busy - self._cpu_t0)
         gpu_w, gpu_u = self._gpu.read()
+        gpu_mj = self._gpu.read_energy_mj()
         try:
             cpu_pct = psutil.cpu_percent(interval=None)
         except Exception:
@@ -933,6 +935,7 @@ class EnergySession:
             nic_bytes=self._nic_bytes(),
             gpu_power_w=gpu_w,
             gpu_util_pct=gpu_u,
+            gpu_energy_mj=gpu_mj,
         )
         with self._lock:
             self._samples.append(sample)
@@ -1188,6 +1191,9 @@ class EnergySession:
             nic_bytes=int(num(float(a.nic_bytes), float(b.nic_bytes)) or 0),
             gpu_power_w=num(a.gpu_power_w, b.gpu_power_w),
             gpu_util_pct=num(a.gpu_util_pct, b.gpu_util_pct),
+            # Il contatore e' cumulativo: interpolarlo ai bordi e' la stessa
+            # convenzione usata per package_energy_j, non una stima in piu'.
+            gpu_energy_mj=num(a.gpu_energy_mj, b.gpu_energy_mj),
         )
 
     # ------------------------------------------------------------ calibrazione
@@ -1350,6 +1356,52 @@ class _GPUMonitor:
                 self.error = "nessuna GPU NVML"
         except Exception as exc:  # noqa: BLE001
             self.error = f"{type(exc).__name__}"
+        self.energy_counter = False
+        self.energy_counter_reason = ""
+        self._probe_energy_counter()
+
+    def _probe_energy_counter(self) -> None:
+        """Sonda il contatore cumulativo NVML una volta, all'apertura.
+
+        Documentazione verificata alla fonte il 28-10-2026 (NVML API Guide,
+        R535): ``nvmlDeviceGetTotalEnergyConsumption(device, unsigned long
+        long* energy)`` restituisce "the total energy consumed in mJ", "since
+        the last reset", su Kepler e successivi, e "does not overflow". Il
+        punto zero e' un reset, non l'inizio della finestra: il valore si usa
+        per DELTA. Una lettura reale qui, non solo ``hasattr``: il supporto si
+        verifica, non si presume (un device pre-Kepler risponde
+        NVML_ERROR_NOT_SUPPORTED).
+        """
+        if not self.available:
+            self.energy_counter_reason = "GPU non disponibile"
+            return
+        try:
+            import pynvml
+
+            fn = getattr(pynvml, "nvmlDeviceGetTotalEnergyConsumption", None)
+            if fn is None:
+                self.energy_counter_reason = (
+                    "pynvml senza nvmlDeviceGetTotalEnergyConsumption")
+                return
+            fn(self.handle)
+            self.energy_counter = True
+        except Exception as exc:  # noqa: BLE001
+            self.energy_counter_reason = f"{type(exc).__name__}"
+
+    def read_energy_mj(self) -> Optional[float]:
+        """Contatore cumulativo [mJ] o ``None`` se non esposto/illeggibile.
+
+        ``None`` e' l'assenza dichiarata: il chiamante integra la potenza e lo
+        scrive in ``gpu_attribution_method``, non inventa un delta.
+        """
+        if not (self.available and self.energy_counter):
+            return None
+        try:
+            import pynvml
+
+            return float(pynvml.nvmlDeviceGetTotalEnergyConsumption(self.handle))
+        except Exception:  # noqa: BLE001
+            return None
 
     def read(self):
         if not self.available:
