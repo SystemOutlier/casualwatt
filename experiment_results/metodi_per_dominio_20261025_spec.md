@@ -440,9 +440,10 @@ Precisazioni.
   nei commenti del backend (`energy/emi_backend.py:7-9`, `:43`, `:187`) e' una
   descrizione del machine dove e' stato provato, **non un vincolo del codice**:
   la correttezza di questa nota nel commento e' essa stessa un punto da
-  verificare (F10). Il canale si identificava per nome dai metadati del driver
-  (`RAPL_Package0_PKG`, `:31-35`), ed e' cosi' che va nominato anche qui. Il
-  percorso prende **la prima interfaccia che si apre**
+  verificare (F10). Il canale si nomina dai metadati del driver
+  (`RAPL_Package0_PKG`, `:31-37`), ma il codice non interroga quel metadato:
+  l'ordine e' assunto dalla posizione del record (F13, §3.1.1). Il percorso
+  prende **la prima interfaccia che si apre**
   (`energy/emi_backend.py:195-200`): su macchine con piu' package o con canali
   specchiati per die le altre sono ignorate, e CodeCarbon documenta proprio
   questo caso (canali di package separati che replicano lo stesso contatore
@@ -550,6 +551,71 @@ Precisazioni.
   mai nella stessa colonna di una misura. Se un giorno si implementa, il database
   dei TDP viene da CodeCarbon (MIT), che e' un modello, non un contatore: la riga
   resta una stima. E' la decisione D10.
+
+### 3.1.1 Il contratto EMI e' scritto da Microsoft: cosa il lettore deve verificare
+
+La fonte del metodo EMI non e' un'implementazione di terzi ma la documentazione
+del fornitore: Microsoft, *Energy Meter Interface* (Windows driver docs) e le
+pagine di riferimento di `emi.h`, lette il **27-10-2026**. Il contratto si compone
+di cinque passi, e ognuno produce un obbligo verificabile sul nostro lettore.
+
+1. `IOCTL_EMI_GET_VERSION` restituisce `EMI_VERSION`; la pagina dell'IOCTL
+   precisa le due versioni: "**EMI_VERSION_V1** indicate there is only one single
+   energy measurement channel supported by the device. **EMI_VERSION_V2** indicate
+   there is multiple energy measurement channels supported by the device."
+2. `IOCTL_EMI_GET_METADATA_SIZE`, poi `IOCTL_EMI_GET_METADATA`, con la verifica
+   esplicita scritta nella procedura: "Verify that the returned
+   **EMI_MEASUREMENT_UNIT** is EmiMeasurementUnitPicowattHours."
+3. Il metadato V2 (`EMI_METADATA_V2`) dichiara `ChannelCount` e un array
+   `Channels` di `EMI_CHANNEL_V2 { MeasurementUnit, ChannelNameSize, ChannelName }`,
+   dove `ChannelName` e' "a null-terminated, Unicode string that specifies the
+   channel name", e in EMI_VERSION_V2 "the only supported unit is
+   picowatt-hours".
+4. `IOCTL_EMI_GET_MEASUREMENT` restituisce `EMI_MEASUREMENT_DATA_V2`, di cui la
+   pagina dice: "Each index in **ChannelData** must correspond to the measurement
+   of the channel defined at the same index in **Channels** field of the
+   EMI_METADATA_V2 struct." **L'indice non identifica il dominio: lo identifica
+   il metadato.**
+5. `AbsoluteEnergy` e' "the total accumulated energy in picowatt-hours with some
+   arbitrary zero-point", e la procedura e' "compare samples at two different
+   times and subtract the energy values"; `AbsoluteTime` e' "in 100 ns
+   intervals". La semantica M1 dei nostri delta e' questa, non una convenzione
+   nostra.
+
+Da qui una proposizione che questo documento non aveva, e che vale per la regola
+7 di §5: **la cadenza non e' una proprieta' del contatore.** La pagina
+dell'IOCTL scrive che "the EMI interface of any device should be shared across
+the system, therefore how frequently the counters are being sampled and
+accumulated depends on how often each of its consumers requests and also the
+driver implementation". La cadenza si osserva e si scrive nella riga; non si
+prescrive, e non e' la stessa su due macchine.
+
+Cosa manca al lettore attuale, in forma verificabile (`energy/emi_backend.py`):
+
+- **Nessuna versione.** Il file non interroga `IOCTL_EMI_GET_VERSION`: un meter
+  V1, che la documentazione descrive come "only one single energy measurement
+  channel", non e' distinto dal ramo V2. Su un V1 la risposta attesa e' di un solo
+  canale (16 byte), quindi il controllo `got.value < 64` (`:242`) la tratterebbe
+  come guasto e la riga riporterebbe "IOCTL fallito", non "V1 a un canale".
+- **Nessun metadato.** `GET_METADATA_SIZE` e `GET_METADATA` non sono chiamati:
+  `ChannelCount` e i nomi non sono conosciuti, e l'ordine `pkg, dram, pp0, pp1`
+  e' assunto dalla posizione (`:73`, `:298-302`). La conferma per nome esiste, ma
+  e' una sonda esterna del 24/10 su una macchina sola (`:31-37`), non codice.
+- **Unita' non verificata.** `PWH_TO_J = 3.6e-9` (`:70`) si applica a qualunque
+  valore senza leggere `MeasurementUnit`, mentre la procedura Microsoft chiede di
+  verificarlo prima di usare i dati.
+- **Input non previsto dal contratto.** `IOCTL_EMI_GET_MEASUREMENT` e' documentato
+  con "Input buffer: None" e "Input buffer length: None"; il codice invia 16 byte
+  con un indice a zero (`:236-241`). Funziona sul driver provato, ma non e' la
+  chiamata documentata e la differenza non ha una ragione scritta.
+- **Nessuna nozione di canale multiplo.** Si leggono sempre 64 byte e si prende
+  il primo canale (`v[0]`, `:265-268`): e' il difetto F11, e senza
+  `ChannelCount` non e' correggibile.
+
+Conseguenza per lo stato delle righe, non per il metodo: E1 resta [V] sull'host
+provato e [P] su ogni altra macchina, perche' il dominio dei valori letti dipende
+da un metadato che il codice non legge. E' il difetto **F13**; la decisione
+**D17** lo chiude.
 
 ### 3.2 GPU e NPU
 
@@ -1252,6 +1318,7 @@ eccezioni vanno rivalidate al freeze.
 | F10 | note e docstring attribuiscono il canale EMI a "Intel", mentre il codice non filtra per produttore | `energy/emi_backend.py:8`, `:43`, `:185-187`; `energy/energy_session.py:188-190` | su una macchina AMD la ragione di guasto direbbe "driver Intel assente" anche se il filtro non esiste; chi legge il log deduce un vincolo che il codice non impone | D11: il testo del motivo diventa indipendente dal produttore, e la verifica su AMD resta [P] |
 | F11 | selezione del primo device apribile / zona `intel-rapl:0` cablata | `energy/emi_backend.py:195-200`; `energy/rapl_backend.py:45-48` | su multi-die o multi-socket i canali specchiati rischiano di essere sommati o di scegliere il package sbagliato (CodeCarbon dichiara di scartare i canali specchiati sul proprio backend Windows EMI) | D15: enumerare per `name`, deduplicare, poi sommare i package distinti; ragione `ambiguous_domain` finche' non e' risolto (§4.1, riga 26) |
 | F12 | sotto VPN lo stesso pacchetto contato due volte (interfaccia tunnel + fisica che lo trasporta) | era la somma di tutte le non-loopback, senza selezione | il termine di rete si gonfia di un fattore che dipende dalla configurazione, e la riga non dice quali interfacce ha sommato | **CHIUSO il 26-10-2026**: fisiche per default, virtuali e tunnel escluse, ricaduta dichiarata su tutte le non-loopback quando le fisiche vedono 0 B; il confine riporta i nomi (`energy/network_energy.py:81-214`, `:261-322`); la lettura aggregata dichiara di non separare il loopback e sorgenti miste danno `None`, non `0.0`; `tests/test_rete_nic_confine.py` blocca i casi. Il delta negativo resta troncato nel valore applicato ma e' conservato in `upload_bytes_raw`/`download_bytes_raw` con `negative_increment`; le colonne CSV sono obbligo di P5 |
+| F13 | il lettore EMI non interroga versione ne' metadato: il dominio di ogni canale e' assunto dalla posizione | `energy/emi_backend.py:73` e `:301-302` (indice 0 = pkg, sempre), `:31-37` (la conferma per nome e' una sonda esterna del 24/10, su una macchina); nel file non c'e' nessuna chiamata a `GET_VERSION`, `GET_METADATA_SIZE`, `GET_METADATA` | su un meter V1 (un solo canale), o con canali in ordine diverso, il valore e' plausibile ma di un dominio diverso, e la riga lo chiama comunque `emi-counter`; su V1 il guasto arriva come "IOCTL fallito" invece della ragione vera; l'unita' pWh non e' verificata prima della conversione | D17 (§3.1.1): versione e metadato letti, canale scelto per nome, unita' verificata, `ChannelCount` usato; chiude anche la meta' "quale canale" di F11 |
 
 ---
 
@@ -1275,6 +1342,7 @@ eccezioni vanno rivalidate al freeze.
 | D14 | `energy-file` rende la riga non misurata | oltre all'etichetta, un flag booleano `external_counter` per riga: un canale esterno si filtra a livello di colonna, non si riconosce leggendo una stringa (chiude F8) |
 | D15 | package multipli e canali specchiati | enumerare le zone powercap per `name` e i device EMI per path, **deduplicare i canali specchiati**, poi sommare i package distinti; la nota sui permessi dice cosa verifica il codice (`os.access`, `energy/rapl_backend.py:81-83`), non "gruppo power" (chiude F11) |
 | D16 | traffico concorrente in finestra rete | oggi: rumore dichiarato, non sottratto. Se P5 vuole ridurlo, la via ammissibile e' la **finestra di rumore sottratta come termine scritto** (A-B-A a stessa durata, §7); i contatori per processo restano [P] finche' l'interfaccia non e' verificata alla fonte, e in ogni caso il risultato resta un'attribuzione con scala propria, mai un M1 |
+| D17 | il lettore EMI **verifica** il meter invece di presumerlo, secondo il contratto Microsoft di §3.1.1 | leggere `IOCTL_EMI_GET_VERSION` e riportare la versione nella riga; leggere `GET_METADATA_SIZE` e `GET_METADATA`, verificare `MeasurementUnit == EmiMeasurementUnitPicowattHours` su ogni canale, selezionare i canali di package **per nome** (`_PKG`, uno per socket) fra i `ChannelCount` dichiarati, e trattare metadato fuori misura e risposta corta come guasto. **Non** si ammette un gate "solo V2" (un V1 si dichiara, non si rifiuta in anticipo) ne' la somma di tutti i canali con quel suffisso: la deduplica resta D15. Chiude F13 e fornisce a F11 il "quale canale" |
 
 ---
 
@@ -1315,8 +1383,9 @@ presentano come lavoro in corso.
    Un numero che dice "non misurato" non deve sembrare una misura.
 2. **Token GPU** (D2) e **criterio di promozione L1** (§3.1, D9): decidono la
    confrontabilita' futura delle colonne, e dopo il congelamento non si cambiano.
-3. **Lessico G0 e package multipli** (D11, D15): chiude F10 e F11, e rende la
-   riga leggibile su macchine diverse dalla nostra senza toccare il metodo.
+3. **Lessico G0, package multipli e verifica del meter** (D11, D15, D17):
+   chiude F10 e F11, e rende la riga leggibile su macchine diverse dalla nostra
+   senza toccare il metodo.
 4. **Flag `external_counter`** (D14): una `CW_ENERGY_FILE` dimenticata smette di
    somigliare a una misura EMI a livello di colonna, non di nota (F8).
 5. **Campi cloud** (D12) e **confine nel nome del campo rete** (D13).
@@ -1464,6 +1533,31 @@ Fonti esterne, con la data della verifica alla fonte primaria:
   l'unita' pWh, il perche' del delta, il GUID, e il fatto che la disponibilità
   dell'interfaccia parta da Windows 10 -- **non** che su una data build esista un
   meter del package, che resta questione da sonda (stato [P] sulla riga).
+  Le pagine di riferimento di `emi.h` sono state lette il **27-10-2026** e
+  aggiungono quattro proposizioni, che sono gli obblighi di §3.1.1:
+  `EMI_CHANNEL_V2` e' `{ MeasurementUnit, ChannelNameSize, ChannelName }` con
+  nome "null-terminated, Unicode string"; `EMI_METADATA_V2` porta `ChannelCount`
+  e l'array `Channels`; `EMI_MEASUREMENT_DATA_V2` prescrive che "each index in
+  ChannelData must correspond to the measurement of the channel defined at the
+  same index in Channels"; `IOCTL_EMI_GET_MEASUREMENT` e' documentato con "Input
+  buffer: None" e con la nota che la cadenza dipende da "how often each of its
+  consumers requests and also the driver implementation" -- che e' la fonte
+  esterna della regola 7 (§5). Da queste pagine vengono anche le due versioni:
+  V1 a un canale, V2 a canali multipli.
+- **Stato dell'arte, non fonte del metodo.** PowerJoular
+  (`github.com/joular/powerjoular`, **GPL-3.0**) e la libreria che lo alimenta,
+  Joular Core (`github.com/joular/joularcore`, **LGPL-3.0** secondo il metadato
+  della repository, "LGPL-3.0-only" secondo l'intestazione dei file; ramo
+  `develop`, commit `b9f2db0b` del 25-10-2026, letto il 27-10-2026), misurano il
+  package su Windows proprio via EMI, con scelta a cascata EMI, poi PawnIO, poi
+  driver di Hubblo. Si citano come stato dell'arte della strumentazione software
+  e come conferma esterna che il canale EMI e' leggibile senza driver ne'
+  privilegi; **non** come fonte del metodo: il contratto che questa specifica usa
+  e' quello Microsoft qui sopra, e dal loro codice non si prende nulla. La loro
+  nota "works only on Windows 11" non si adotta: la pagina Microsoft documenta
+  l'interfaccia da Windows 10 in poi, e la riga E1 resta [P] su Windows 10
+  finche' una sonda non la esercita. Le due licenze restano distinte se un giorno
+  si valutasse l'uso della libreria come dipendenza.
 - EcoLogits: la deriva fra release non viene da una fonte esterna, e' **misurata**
   (`probe_ecologits_release_drift_20261026.py` +
   `experiment_results/ecologits_drift_console_20261026.txt`), confrontando
