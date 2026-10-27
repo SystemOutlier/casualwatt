@@ -10,7 +10,8 @@ I numeri e gli ancoraggi di questo file sono verificati al **24-10-2026**; i tre
 conteggi (suite di test, script `.py` di radice, file di `experiment_results/`) sono
 riverificati al **26-10-2026** perche' erano stantii, e il conteggio della suite
 e gli ancoraggi di `local_energy.py`/`energy_session.py` sono riverificati al
-**27-10-2026** dopo l'uscita di LHM dall'implementazione (D18, 8 test rimossi).
+**27-10-2026** dopo l'uscita di LHM dall'implementazione (D18, 8 test rimossi) e
+di nuovo al **28-10-2026** dopo NVML, AMD SMI e le tre colonne per token.
 Se un ancoraggio non torna, il file e' stantio: va corretto, non ignorato.
 
 Fonti primarie, in ordine di autorita':
@@ -89,10 +90,15 @@ stanno solo le regole che un agente puo' violare senza accorgersene.
   Mai presentare un fallback come un contatore.
 - **Sulla GPU il token dice quale percorso ha prodotto il numero.**
   `gpu_attribution_method` comincia sempre con `nvml-energy` (delta del
-  contatore cumulativo NVML, mJ) o `nvml-power-integral`. Il contatore si usa
+  contatore cumulativo NVML, mJ) o `nvml-power-integral`, oppure con
+  `amdsmi-energy` / `amdsmi-power-integral` sulla catena AMD. Il contatore si usa
   solo con delta non negativo e senza sottofinestre escluse, che un delta non
-  sa sottrarre; un integrale non si presenta come contatore. La catena e'
-  provata con `pynvml` finto (28-10-2026): su GPU reale resta [P].
+  sa sottrarre; un integrale non si presenta come contatore. Su AMD SMI la
+  risoluzione si legge dall'API (`accumulator * resolution` in microjoule) e se
+  manca o e' zero il contatore non si usa: non si assume. NVML e AMD SMI non
+  girano mai in parallelo — AMD SMI e' il fallback, non un secondo canale. Le due
+  catene sono provate con `pynvml` e `amdsmi` finti (28-10-2026): su GPU reale
+  restano [P].
 - **Solo i token di canale reali.**
   `MEASURED_METHODS = ("emi-counter", "power-integration",
   "librehardwaremonitor-energy", "energy-file", "rapl")`
@@ -162,7 +168,7 @@ stanno solo le regole che un agente puo' violare senza accorgersene.
 ## Comandi di verifica
 
 ```
-pytest cwEnergyModular          # 441 raccolti: 438 passati, 3 saltati (10 s)
+pytest cwEnergyModular          # 452 raccolti: 449 passati, 3 saltati (10 s)
 ```
 
 **Mai `pytest` nudo dalla radice**: la raccolta viene interrotta da 6 errori in
@@ -194,10 +200,10 @@ indefiniti.
   `casualwatt_csv_export.py` (`CSV_COLUMNS`, righe 17-193;
   `BLOCK_SUMMARY_COLUMNS`, 201-216; `POINT_SUMMARY_COLUMNS`, 218-226), e il
   runner v4 `benchmark_v4.py` (sequenza di blocco di P1.5).
-- **I test stanno in due posti**: `cwEnergyModular/tests/` (382) e direttamente in
+- **I test stanno in due posti**: `cwEnergyModular/tests/` (393) e direttamente in
   `cwEnergyModular/` (`test_answer_type_evaluation.py`, 35;
   `test_synthetic_window.py`, 2; `test_validazione_valutazione.py`, 22);
-  382 + 59 = 441. Ogni test ha una docstring che
+  393 + 59 = 452. Ogni test ha una docstring che
   dice *perche'* esiste e quale relazione matematica o fisica verifica, non solo
   cosa fa. Dal 27-10-2026 la cartella contiene anche `tests/test_rapl_zone.py`
   (8, logica RAPL su un finto sysfs), `tests/test_diagnostics_pmi.py` (7,
@@ -205,7 +211,9 @@ indefiniti.
   metadato V2, scelta del device CPU, canale PKG per nome, V1 scartato): girano
   su Windows, senza host Linux. Dal 28-10-2026 ci sono
   `tests/test_gpu_nvml_energy.py` (8, catena `nvml-energy` ->
-  `nvml-power-integral` con `pynvml` finto) e `tests/test_metriche_per_token.py`
+  `nvml-power-integral` con `pynvml` finto), `tests/test_gpu_amdsmi.py` (11,
+  catena `amdsmi-energy` -> `amdsmi-power-integral`, conversione da microjoule e
+  precedenza di NVML, con `amdsmi` finto) e `tests/test_metriche_per_token.py`
   (4, le tre colonne per token accodate al CSV).
   L'Appendice D della tesi e' stata rigenerata il 2026-10-26 con
   `cwEnergyModular/tools/dump_tests_latex.py`: 404 node id, 401 passati, 3
