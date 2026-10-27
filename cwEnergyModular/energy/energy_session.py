@@ -237,10 +237,16 @@ class _CPUJouleSource:
                     if domains is not None:
                         # (J, ts, pWh): il pWh e' il grezzo del contatore,
                         # persistito accanto alla finestra per rendere la
-                        # misura revisionabile (alt_lhm §3).
-                        cum = domains["pkg"][0]
-                        cum_pwh = domains["pkg"][2]
-                        pp1 = (domains["pp1"][0], domains["pp1"][1])
+                        # misura revisionabile (alt_lhm §3). I domini sono
+                        # quelli che il metadato del device dichiara: un
+                        # device senza PP1 non deve far cadere il PKG.
+                        pkg = domains.get("pkg")
+                        if pkg is not None:
+                            cum = pkg[0]
+                            cum_pwh = pkg[2]
+                        d_pp1 = domains.get("pp1")
+                        if d_pp1 is not None:
+                            pp1 = (d_pp1[0], d_pp1[1])
                     else:
                         cum = self._emi.read_cumulative_energy_j()
             except Exception:

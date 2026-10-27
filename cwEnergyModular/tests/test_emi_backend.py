@@ -30,10 +30,17 @@ class FakeEMI:
 
     read_domains = eb.EMICounterBackend.read_domains
 
+    #: Metadato che il device finto dichiara: dal 27/10/2026 ``read_domains``
+    #: mappa per NOME, quindi senza canali non c'e' nessun dominio.
+    NAMES = ("RAPL_Package0_PKG", "RAPL_Package0_DRAM",
+             "RAPL_Package0_PP0", "RAPL_Package0_PP1")
+
     def __init__(self, auto_open=True, available=True):
         self.notes = []
         self.available = available
         self.device_path = "\\\\?\\fake#device" if available else None
+        self.metadata = None
+        self.channels = eb.channels_from_names(self.NAMES) if available else []
         self.last_error = None if available else "no device (fake)"
         self.closed = False
         self.raw_calls = 0
@@ -55,6 +62,9 @@ def test_pwh_to_j_conversion():
     """1_000_000 pWh = 3,6e-3 J, e i campi PP0/PP1/DRAM/ts escono convertiti."""
     b = eb.EMICounterBackend(auto_open=False)
     b.available = True
+    # i canali sono dichiarati, non dedotti dalla posizione: senza metadato
+    # ``read_domains`` non produce domini (F13).
+    b.channels = eb.channels_from_names(FakeEMI.NAMES)
     b.read_raw = lambda: (1_000_000, 42, 0, 0, 500_000, 43, 250_000, 44)
     assert b.read_cumulative_energy_j() == pytest.approx(1_000_000 * eb.PWH_TO_J)
     f = b.read_fields_j()
