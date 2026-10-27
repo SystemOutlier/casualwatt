@@ -8,8 +8,23 @@ Nasce dalla valutazione di `metodiLoc.DOCX`
 del documento esterno non si adotta, questa specifica dice cosa si usa, in che
 ordine e con quale nome.
 
-**Statuto.** E' un documento normativo per il progetto, non per il codice: P5 e'
-aperto e il codice di produzione resta bloccato (AGENTS.md). Non sostituisce
+**Legenda di stato.** Ogni colonna "stato" usa quattro marcatori, combinabili:
+
+| marcatore | significa |
+|---|---|
+| `[I]` | implementato nel codice |
+| `[V]` | esercitato su hardware o sistema reale, con l'esito registrato |
+| `[P]` | progettato, non implementato |
+| `[A]` | assente, oppure `unavailable` |
+
+`[I][V]` significa le due cose in congiunzione. Nessun marcatore e nessuna
+combinazione dice quanto il numero sia vicino alla grandezza vera: quello lo
+dice solo G4 con i sei anelli di P4.9. "Implementato" non significa
+"esercitato"; "esercitato" non significa "validato".
+
+**Statuto.** E' un documento normativo per il progetto, non per il codice: dal
+congelamento di P5 (2026-10-26) il sorgente di produzione e' sbloccato, ma questa
+specifica non e' una specifica di codice. Non sostituisce
 P4.9 e non introduce una seconda tassonomia nel CSV: i livelli M1-M4 sono una
 lente documentale, l'arbitro per riga resta il token di metodo. La parola
 "validato" ha un solo significato, quello di P4.9
@@ -85,20 +100,6 @@ in `experiment_results/`; `PIATTAFORME_METODI.md` e `METODI_E_FORMULE.md` in
 `Tesi-latex/qoder-bozza/` sono documenti di progetto **fuori da git**: si
 citano come provenienza, non come riferimenti consultabili nel repository.
 `metodiLoc.DOCX` resta uno spunto, non evidenza.
-
-**Legenda di stato.** Ogni colonna "stato" usa quattro marcatori, combinabili:
-
-| marcatore | significa |
-|---|---|
-| `[I]` | implementato nel codice |
-| `[V]` | esercitato su hardware o sistema reale, con l'esito registrato |
-| `[P]` | progettato, non implementato |
-| `[A]` | assente, oppure `unavailable` |
-
-`[I][V]` significa le due cose in congiunzione. Nessun marcatore e nessuna
-combinazione dice quanto il numero sia vicino alla grandezza vera: quello lo
-dice solo G4 con i sei anelli di P4.9. "Implementato" non significa
-"esercitato"; "esercitato" non significa "validato".
 
 ---
 
