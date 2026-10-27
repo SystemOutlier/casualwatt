@@ -156,7 +156,7 @@ stanno solo le regole che un agente puo' violare senza accorgersene.
 ## Comandi di verifica
 
 ```
-pytest cwEnergyModular          # 411 raccolti: 408 passati, 3 saltati (7 s)
+pytest cwEnergyModular          # 413 raccolti: 410 passati, 3 saltati (9 s)
 ```
 
 **Mai `pytest` nudo dalla radice**: la raccolta viene interrotta da 6 errori in
@@ -187,10 +187,10 @@ indefiniti.
   `casualwatt_csv_export.py` (`CSV_COLUMNS`, righe 17-182;
   `BLOCK_SUMMARY_COLUMNS`, 189-204; `POINT_SUMMARY_COLUMNS`, 206-215), e il
   runner v4 `benchmark_v4.py` (sequenza di blocco di P1.5).
-- **I test stanno in due posti**: `cwEnergyModular/tests/` (352) e direttamente in
+- **I test stanno in due posti**: `cwEnergyModular/tests/` (354) e direttamente in
   `cwEnergyModular/` (`test_answer_type_evaluation.py`, 35;
   `test_synthetic_window.py`, 2; `test_validazione_valutazione.py`, 22);
-  352 + 59 = 411. Ogni test ha una docstring che
+  354 + 59 = 413. Ogni test ha una docstring che
   dice *perche'* esiste e quale relazione matematica o fisica verifica, non solo
   cosa fa. Dal 27-10-2026 la cartella contiene anche `tests/test_rapl_zone.py`
   (8, logica RAPL su un finto sysfs) e `tests/test_diagnostics_pmi.py` (7,
