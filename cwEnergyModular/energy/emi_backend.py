@@ -402,8 +402,8 @@ class EMICounterBackend:
         if not candidates:
             self.notes.append(
                 f"EMI: nessuna interfaccia device trovata "
-                f"({self.last_error or 'SetupAPI vuoto'}): driver canale "
-                "energia Intel assente o non esposto"
+                f"({self.last_error or 'SetupAPI vuoto'}): driver del canale "
+                "energia assente o non esposto"
             )
             return False
         k32 = self._win32()
