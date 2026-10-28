@@ -242,7 +242,10 @@ indefiniti.
   `test_synthetic_window.py`, 2; `test_validazione_valutazione.py`, 22);
   467 + 59 = 526. Ogni test ha una docstring che
   dice *perche'* esiste e quale relazione matematica o fisica verifica, non solo
-  cosa fa. Dal 27-10-2026 la cartella contiene anche `tests/test_rapl_zone.py`
+  cosa fa. Al 28-10-2026 la norma non e' rispettata da nove funzioni (13 node
+  id, tutte scritte il 27-28/10): otto in `tests/test_pawnio_backend.py`, una in
+  `tests/test_diagnostics_pmi.py`. E' debito registrato, e l'Appendice D lo
+  stampa come "nessuna docstring" invece di mascherarlo. Dal 27-10-2026 la cartella contiene anche `tests/test_rapl_zone.py`
   (8, logica RAPL su un finto sysfs), `tests/test_diagnostics_pmi.py` (7,
   sonda PMI/WMI) e `tests/test_emi_selezione.py` (16, metadati EMI sintetici:
   metadato V2, scelta del device CPU, canale PKG per nome, V1 scartato): girano
@@ -270,13 +273,14 @@ indefiniti.
   significato di quella precedenza: con un file valido la catena si ferma e
   EMI/PawnIO non vengono tentati, mentre file assente o valore non numerico
   lasciano proseguire la selezione di piattaforma.
-  L'Appendice D della tesi e' stata rigenerata il 2026-10-26 con
-  `cwEnergyModular/tools/dump_tests_latex.py`: 404 node id, 401 passati, 3
-  saltati, docstring 404/404. Quel materiale precede l'uscita di LHM
-  dall'implementazione (2026-10-27), che ha rimosso 8 test, e precede i 15 test
-  della revisione del 27/10: va rigenerato prima
-  di citarne i conteggi. Il file generato
-  (`Tesi-latex/qoder-bozza/generated/test_suite_appD.tex`) sta fuori da git.
+  L'Appendice D della tesi e' stata rigenerata il 2026-10-28 con
+  `cwEnergyModular/tools/dump_tests_latex.py`: 526 node id, 523 passati, 3
+  saltati, docstring 513/526 (le nove funzioni senza docstring elencate sopra).
+  Il documento compila: 176 pagine, 0 overfull. I conteggi non si aggiornano a
+  mano: si rigenera dopo ogni test aggiunto, rimosso o rinominato. La verifica
+  del conteggio e' in `experiment_results/appD_conteggio_20261028.md`. Il file
+  generato (`Tesi-latex/qoder-bozza/generated/test_suite_appD.tex`) sta fuori
+  da git.
   I 17 test di `tests/test_protocollo_p4_geometry.py` (2026-10-26, quinto turno
   di revisione esterna) congelano la geometria di copertura di P4.7 e la scala
   di `budget_pred`
