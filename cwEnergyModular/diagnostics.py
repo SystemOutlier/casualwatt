@@ -4,20 +4,23 @@ diagnostics.py — Diagnostica hardware/energia all'avvio.
 
 Scopo: quando la calibrazione idle fallisce ("nessun contatore di energia
 package disponibile"), l'utente deve poter capire SUBITO perche', senza log
-silenziosi. Dal 27/10/2026 (D18) l'implementazione ha due soli canali locali:
-il contatore EMI su Windows e i contatori RAPL su Linux. Questo modulo
-verifica, con eccezioni esatte stampate in console (e opzionalmente in un log
-callback):
+silenziosi. Dal 28/10/2026 l'implementazione ha tre canali locali: il
+contatore EMI su Windows, il contatore MSR letto via PawnIO come suo fallback
+dichiarato, e i contatori RAPL su Linux. Questo modulo verifica, con eccezioni
+esatte stampate in console (e opzionalmente in un log callback):
 
 1. interprete / piattaforma / privilegi;
 2. Windows: enumerazione del device del canale energia, apertura dell'handle,
    lettura del contatore cumulativo e dei quattro domini (PKG/DRAM/PP0/PP1);
-   se il device manca, sonda di sola esistenza su un meter PMI/WMI, che
-   distingue "nessun meter esposto" da "non e' un canale implementato";
+   se il device manca, sonda del fallback PawnIO (sonda del driver e lettura
+   del contatore MSR: la ragione del rifiuto e' quella che la riga riportera',
+   e ``access_denied`` dice che il canale richiede un processo elevato), poi
+   sonda di sola esistenza su un meter PMI/WMI, che distingue "nessun meter
+   esposto" da "non e' un canale implementato";
 3. Linux: enumerazione delle zone powercap e selezione di quelle
    ``package-*`` (stessa logica del backend, ``energy/rapl_backend.py``);
-4. la nota esplicita quando il contatore non c'e': il sostituto MSR (PawnIO)
-   e' ancora una proposta [P], quindi la catena finisce in ``unavailable``.
+4. la nota esplicita quando nessun contatore risponde: la catena finisce in
+   ``unavailable`` con la ragione dell'ultimo anello provato.
 
 LibreHardwareMonitor non e' piu' interrogata: e' un metodo provato e superato,
 tenuto solo negli harness storici che hanno prodotto gli artefatti in
@@ -177,9 +180,84 @@ def _diagnose_linux(lines: List[str], cb: Optional[Callable[[str], None]], summa
     )
 
 
+def _probe_pawnio(lines: List[str], cb: Optional[Callable[[str], None]],
+                  summary: dict) -> None:
+    """Prova il fallback PawnIO e ne riporta la ragione, come fa con EMI.
+
+    La catena Windows e' ``emi-counter`` -> ``pawnio-counter`` ->
+    ``unavailable``: se EMI manca, questo e' l'anello che decide se la riga
+    porta un numero. La ragione conta: ``access_denied`` (misurata il
+    28-10-2026) dice che il contatore c'e' ma richiede un processo elevato,
+    ``pawnio_unavailable`` che il driver o il modulo non rispondono.
+    """
+    try:
+        from energy.pawnio_backend import PawnIOMSRBackend
+    except Exception as exc:  # noqa: BLE001 - import rotto = canale assente
+        summary["pawnio_available"] = False
+        summary["pawnio_reason"] = f"import:{type(exc).__name__}"
+        _emit(lines, cb, _ERR,
+              "Import del backend PawnIO fallito: "
+              f"{type(exc).__name__}: {exc}")
+        return
+
+    backend = PawnIOMSRBackend()
+    try:
+        summary["pawnio_available"] = bool(backend.available)
+        summary["pawnio_reason"] = backend.reason
+        summary["pawnio_vendor"] = backend.vendor
+        summary["pawnio_read"] = False
+        if not backend.available:
+            _emit(lines, cb, _WARN,
+                  "[MSR] fallback PawnIO non disponibile "
+                  f"(ragione '{backend.reason or 'non dichiarata'}').")
+            for note in list(getattr(backend, "notes", []))[-8:]:
+                _emit(lines, cb, _INFO, f"    nota MSR: {note}")
+            return
+
+        unit = (f"0x{backend.unit_msr:X}" if backend.unit_msr
+                else "non letto")
+        energy = (f"0x{backend.energy_msr:X}" if backend.energy_msr
+                  else "non letto")
+        summary["pawnio_unit_msr"] = unit
+        summary["pawnio_energy_msr"] = energy
+        summary["pawnio_quantum_j"] = backend.quantum_j
+        summary["pawnio_hvci"] = backend.hvci
+        summary["pawnio_driver_signature"] = (
+            (backend.driver_signature or {}).get("status", "unknown"))
+        _emit(lines, cb, _OK,
+              f"[MSR] contatore via PawnIO disponibile: produttore "
+              f"'{backend.vendor}', unita' {unit}, contatore {energy}, "
+              f"quantum {backend.quantum_j:g} J")
+        _emit(lines, cb, _INFO,
+              f"[MSR] HVCI '{backend.hvci}', firma del driver "
+              f"'{summary['pawnio_driver_signature']}', "
+              f"PawnIOLib {backend.lib_version or 'non letta'}")
+        cum_j = backend.read_cumulative_energy_j()
+        if cum_j is None:
+            summary["pawnio_read"] = False
+            summary["pawnio_reason"] = "counter_unreadable"
+            _emit(lines, cb, _ERR,
+                  "[MSR] contatore dichiarato disponibile ma non leggibile: "
+                  f"{backend.notes[-1] if backend.notes else 'ragione assente'}")
+            return
+        summary["pawnio_read"] = True
+        summary["pawnio_cum_j"] = round(float(cum_j), 6)
+        summary["pawnio_counts"] = backend.cumulative_counts
+        _emit(lines, cb, _OK,
+              "[MSR] contatore package cumulativo leggibile "
+              f"({summary['pawnio_cum_j']} J, {summary['pawnio_counts']} "
+              "conteggi); stesso registro di EMI, non una validazione "
+              "indipendente")
+    finally:
+        try:
+            backend.close()
+        except Exception:
+            pass
+
+
 def _diagnose_windows(lines: List[str], cb: Optional[Callable[[str], None]],
                       summary: dict) -> None:
-    """Windows: l'unico canale locale e' il device del canale energia (EMI)."""
+    """Windows: EMI primo, contatore MSR via PawnIO come fallback dichiarato."""
     try:
         from energy.emi_backend import EMICounterBackend
     except Exception as exc:  # noqa: BLE001 - import rotto = misura impossibile
@@ -199,12 +277,11 @@ def _diagnose_windows(lines: List[str], cb: Optional[Callable[[str], None]],
         if not emi.available:
             _emit(lines, cb, _ERR,
                   "[EMI] canale energia non disponibile "
-                  f"({emi.last_error or 'nessun device corrispondente'}): "
-                  "nessun altro canale di misura locale e' implementato su "
-                  "Windows (LHM e' fuori dall'implementazione, D18; il "
-                  "sostituto MSR via PawnIO e' ancora una proposta).")
+                  f"({emi.last_error or 'nessun device corrispondente'}).")
             for note in getattr(emi, "notes", [])[-12:]:
                 _emit(lines, cb, _INFO, f"    nota EMI: {note}")
+
+            _probe_pawnio(lines, cb, summary)
 
             pmi = _probe_pmi_power_meter()
             summary["pmi_probe"] = pmi
@@ -228,10 +305,14 @@ def _diagnose_windows(lines: List[str], cb: Optional[Callable[[str], None]],
                       "conclusione sull'esistenza di un meter.")
 
             summary["errors"].append("emi_device_absent")
-            summary["method_expected"] = (
-                "energy-file(dev/test)" if _energy_file_expected()
-                else "unavailable"
-            )
+            if summary.get("pawnio_read"):
+                summary["method_expected"] = "pawnio-counter"
+            else:
+                summary["errors"].append(
+                    f"pawnio:{summary.get('pawnio_reason') or 'absent'}")
+                summary["method_expected"] = "unavailable"
+            if _energy_file_expected():
+                summary["method_expected"] = "energy-file(dev/test)"
             return
 
         _emit(lines, cb, _OK,
@@ -306,7 +387,11 @@ def run_diagnostics(log_callback: Optional[Callable[[str], None]] = None) -> dic
       platform, admin, energy_file, method_expected, errors, lines;
     su Windows: emi_available, emi_device_path, emi_record_read,
       emi_pkg_cum_j, emi_pkg_cum_pwh, emi_domains; se EMI manca, in piu'
-      pmi_probe e pmi_meters (sola esistenza di un meter PMI/WMI);
+      pawnio_available, pawnio_reason e -- se il fallback risponde --
+      pawnio_unit_msr, pawnio_energy_msr, pawnio_quantum_j, pawnio_hvci,
+      pawnio_driver_signature, pawnio_read, pawnio_cum_j, pawnio_counts,
+      oltre a pmi_probe e pmi_meters (sola esistenza di un meter PMI/WMI,
+      diagnostico e non un canale);
     su Linux: rapl_path, rapl_zones, rapl_readable.
     """
     lines: List[str] = []
@@ -330,11 +415,13 @@ def run_diagnostics(log_callback: Optional[Callable[[str], None]] = None) -> dic
     if admin is True:
         _emit(lines, log_callback, _INFO,
               "Processo ELEVATO. Non serve al contatore EMI (letto senza token "
-              "elevato); resta richiesto solo da operazioni di sistema.")
+              "elevato); il fallback MSR via PawnIO invece lo richiede, quindi "
+              "da qui il fallback e' provabile.")
     elif admin is False:
         _emit(lines, log_callback, _INFO,
               "Processo NON elevato: il contatore EMI non richiede privilegi "
-              "amministrativi.")
+              "amministrativi; il fallback MSR via PawnIO si' (senza, "
+              "risponde accesso negato).")
     else:
         _emit(lines, log_callback, _INFO,
               "Privilegi amministratore non determinabili su questa piattaforma")
