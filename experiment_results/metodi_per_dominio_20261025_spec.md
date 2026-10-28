@@ -370,6 +370,19 @@ cambia la parola che si puo' usare. Un canale piu' forte per semantica ma non
 validato non viene sostituito da uno piu' debole "validato": si sceglie il piu'
 forte che passa G0-G3 e si dichiara lo stato di validazione.
 
+**Il token di G4 esiste in codice dal 28-10-2026.** `chain_status` era un nome
+di colonna senza produttore (`casualwatt_csv_export.py:231`), quindi la regola
+"validata solo se tutti e sei gli anelli passano" non era calcolabile.
+`validation_chain.py` applica ora le soglie congelate di P4.9 -- `r_A <= 10%`
+in almeno 2 blocchi su 3, quorum `ceil(2/3 * n_coppie)` sul test di
+sottrazione, `p_lof_perm >= 0,05`, `err_rel <= 10%` su **entrambi** i punti di
+conferma -- e restituisce l'etichetta del primo anello che cede, oppure
+`reduced_design` quando il disegno e' ridotto a anelli puliti, oppure
+`validated`. Non promuove nulla: rende l'esito calcolabile e verificabile
+(`tests/test_chain_status.py`, 17 test sui confini delle soglie). L'anello 1
+(pilota P2.9) resta una precondizione e non un token: senza pilota superato non
+esiste campagna a cui assegnare uno stato.
+
 ### 2.3 Regola di selezione
 
 ```
