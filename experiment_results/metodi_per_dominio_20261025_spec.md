@@ -1383,8 +1383,10 @@ portato la catena a `emi-counter` -> `pawnio-counter` -> `unavailable` e il toke
 in `MEASURED_METHODS` (D18, §3.1.2). La suite raccoglie **460 test: 457 passati,
 3 saltati** al momento di questa revisione (429 il 27/10, dopo i primi quattro
 punti; 12 nuovi il 28/10 con NVML e le tre colonne; 8 nuovi con il controllo di
-timestamp e la provenienza AMD SMI); il conteggio corrente e' in AGENTS.md e a
-fine lavoro e' 500.
+timestamp e la provenienza AMD SMI); il conteggio corrente e' in AGENTS.md e al
+28-10-2026 e' **526 raccolti = 523 passati + 3 saltati** (i 17 di
+`tests/test_chain_status.py` e i 6 di `tests/test_external_counter.py` sono gli
+ultimi entrati).
 
 
 ---
