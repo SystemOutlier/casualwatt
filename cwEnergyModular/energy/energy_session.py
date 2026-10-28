@@ -520,14 +520,20 @@ class _CPUJouleSource:
             total += cb - ca
         return round(max(total, 0.0), 6)
 
-    # -- contatore energia via file (SOLO dev/test non-Windows) -------------
+    # -- contatore energia via file (DEV/TEST, override di selezione) --------
     def _try_power_counter(self) -> bool:
-        """Backend DEV/TEST su piattaforme non-Windows: contatore Joule da file.
+        """Override di selezione del contatore energetico tramite file.
 
-        Configurabile con la variabile d'ambiente ``CW_ENERGY_FILE`` (o in
-        .env): il file deve contenere un numero = energia cumulata [J]
-        (simulatore nei test). NON e' RAPL nativo, perf_event_open o turbostat:
-        su Windows questo backend non viene mai tentato (spec §2).
+        Se ``CW_ENERGY_FILE`` e' impostato e il file e' leggibile, questo
+        backend viene provato per primo su ogni piattaforma, Windows incluso.
+        Se la lettura riesce, la catena termina qui: non si tenta EMI ne'
+        PawnIO.
+
+        Il file deve contenere l'energia cumulativa in joule. E' un canale
+        DEV/TEST: non e' RAPL nativo, perf_event_open ne' turbostat. Se il
+        file e' assente, illeggibile o non contiene un valore valido, il
+        metodo restituisce False e la selezione prosegue con la catena di
+        piattaforma.
         """
         try:
             import os
@@ -540,7 +546,9 @@ class _CPUJouleSource:
                 return False
             self._power_path = path
             self.method = "energy-file"  # contatore reale simulato (dev/test)
-            self._notes.append(f"[DEV/TEST non-Windows] contatore energia da file {path}")
+            self._notes.append(
+                f"[DEV/TEST/{platform_system()}] contatore energia da file {path}"
+            )
             return True
         except Exception:
             return False
@@ -595,7 +603,8 @@ class _CPUJouleSource:
             dal driver PawnIO [J] (Windows, fallback dichiarato di EMI);
           * "rapl"                        -> contatore RAPL Linux [J]
             (via /sys/class/powercap/intel-rapl/);
-          * "energy-file"                 -> contatore dev/test non-Windows.
+          * "energy-file"                 -> contatore dev/test da file
+            (override di selezione: vince su ogni piattaforma).
         ``busy_seconds_total`` e' ignorato (retro-compatibilita' di firma).
         """
         if self.method == "emi-counter":

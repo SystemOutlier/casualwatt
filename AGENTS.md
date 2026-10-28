@@ -195,7 +195,7 @@ stanno solo le regole che un agente puo' violare senza accorgersene.
 ## Comandi di verifica
 
 ```
-pytest cwEnergyModular          # 500 raccolti: 497 passati, 3 saltati (9 s)
+pytest cwEnergyModular          # 503 raccolti: 500 passati, 3 saltati (10 s)
 ```
 
 **Mai `pytest` nudo dalla radice**: la raccolta viene interrotta da 6 errori in
@@ -229,10 +229,10 @@ indefiniti.
   `casualwatt_csv_export.py` (`CSV_COLUMNS`, righe 17-193;
   `BLOCK_SUMMARY_COLUMNS`, 201-216; `POINT_SUMMARY_COLUMNS`, 218-226), e il
   runner v4 `benchmark_v4.py` (sequenza di blocco di P1.5).
-- **I test stanno in due posti**: `cwEnergyModular/tests/` (441 raccolti) e
+- **I test stanno in due posti**: `cwEnergyModular/tests/` (444 raccolti) e
   direttamente in `cwEnergyModular/` (`test_answer_type_evaluation.py`, 35;
   `test_synthetic_window.py`, 2; `test_validazione_valutazione.py`, 22);
-  441 + 59 = 500. Ogni test ha una docstring che
+  444 + 59 = 503. Ogni test ha una docstring che
   dice *perche'* esiste e quale relazione matematica o fisica verifica, non solo
   cosa fa. Dal 27-10-2026 la cartella contiene anche `tests/test_rapl_zone.py`
   (8, logica RAPL su un finto sysfs), `tests/test_diagnostics_pmi.py` (7,
@@ -253,6 +253,10 @@ indefiniti.
   nessuna somma dei due canali) e `tests/test_diagnostics_pawnio.py` (4, la
   diagnostica dichiara `pawnio-counter` solo quando il contatore risponde,
   `unavailable` con la ragione altrimenti, e `CW_ENERGY_FILE` ha la precedenza).
+  Nello stesso giorno `tests/test_cw_energy_file_override.py` (3) fissa il
+  significato di quella precedenza: con un file valido la catena si ferma e
+  EMI/PawnIO non vengono tentati, mentre file assente o valore non numerico
+  lasciano proseguire la selezione di piattaforma.
   L'Appendice D della tesi e' stata rigenerata il 2026-10-26 con
   `cwEnergyModular/tools/dump_tests_latex.py`: 404 node id, 401 passati, 3
   saltati, docstring 404/404. Quel materiale precede l'uscita di LHM
