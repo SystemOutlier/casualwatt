@@ -1775,5 +1775,26 @@ def _open_gpu_monitor():
     return nv
 
 
+# ---- D14: quale canale rende la riga NON misurata ---------------------------
+# Canali il cui numero non viene da un contatore della catena: ``energy-file``
+# legge un file fornito dall'utente via ``CW_ENERGY_FILE`` (override di
+# selezione, DEV/TEST) e non e' un anello della cascata. Sta in fondo al
+# modulo, accanto al singleton, perche' e' un predicato di lettura della riga
+# e non partecipa alla selezione: la lista dei canali che PRODUCONO un numero
+# e' ``MEASURED_METHODS``, in testa.
+# Chi analizza un CSV deve poter escludere quelle righe con un filtro
+# booleano, non deducendo il canale dal testo di ``energy_calculation_method``:
+# un'etichetta e' una descrizione, non una chiave di selezione. Ogni altro
+# token locale (EMI, PawnIO, RAPL, e i token GPU ``nvml-energy`` /
+# ``amdsmi-energy`` con i loro integrali) viene da un contatore o da una
+# potenza letti dentro il framework e resta interno.
+EXTERNAL_COUNTER_METHODS = ("energy-file",)
+
+
+def is_external_counter(method: Optional[str]) -> bool:
+    """True solo se ``method`` e' un canale esterno alla catena di misura."""
+    return (method or "").strip() in EXTERNAL_COUNTER_METHODS
+
+
 # Singleton di sessione (sezione 16: ``from .energy_session import SESSION``)
 SESSION = EnergySession()

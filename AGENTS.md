@@ -12,7 +12,8 @@ riverificati al **26-10-2026** perche' erano stantii, e il conteggio della suite
 e gli ancoraggi di `local_energy.py`/`energy_session.py` sono riverificati al
 **27-10-2026** dopo l'uscita di LHM dall'implementazione (D18, 8 test rimossi) e
 di nuovo al **28-10-2026** dopo NVML, AMD SMI, le tre colonne per token, il
-controllo di timestamp del contatore AMD e il fallback `pawnio-counter`.
+controllo di timestamp del contatore AMD, il fallback `pawnio-counter` e il flag
+`external_counter` (D14).
 Se un ancoraggio non torna, il file e' stantio: va corretto, non ignorato.
 
 Fonti primarie, in ordine di autorita':
@@ -94,6 +95,10 @@ stanno solo le regole che un agente puo' violare senza accorgersene.
   in `package_window_source` (`exact-counter | samples-fallback | unavailable`,
   `:138`), l'origine della baseline in `idle_provenance` (`:139`) e, dalla v4, in
   `baseline_backend` — campo del protocollo P1.3, non ancora presente nel codice.
+  Il flag `external_counter` (`:153`, D14) dice se quel numero viene da un canale
+  **esterno** alla catena: vero solo per `energy-file` (`CW_ENERGY_FILE`), falso
+  per EMI, PawnIO, RAPL e per le catene GPU. Serve a escludere le righe
+  dell'override con un filtro booleano, non confrontando l'etichetta.
   Mai presentare un fallback come un contatore, ne' un integrale come un
   contatore.
 - **Sulla GPU il token dice quale percorso ha prodotto il numero.**
@@ -195,7 +200,7 @@ stanno solo le regole che un agente puo' violare senza accorgersene.
 ## Comandi di verifica
 
 ```
-pytest cwEnergyModular          # 503 raccolti: 500 passati, 3 saltati (10 s)
+pytest cwEnergyModular          # 509 raccolti: 506 passati, 3 saltati (10 s)
 ```
 
 **Mai `pytest` nudo dalla radice**: la raccolta viene interrotta da 6 errori in
@@ -226,13 +231,13 @@ indefiniti.
   PawnIO: sonda del driver e del modulo, unita' derivata, fallback dichiarato di
   EMI), `energy/energy_session.py` (canali, integrazione di
   finestra, interpolazione ai bordi), `energy/local_energy.py` (campi per riga),
-  `casualwatt_csv_export.py` (`CSV_COLUMNS`, righe 17-193;
-  `BLOCK_SUMMARY_COLUMNS`, 201-216; `POINT_SUMMARY_COLUMNS`, 218-226), e il
+  `casualwatt_csv_export.py` (`CSV_COLUMNS`, righe 17-200;
+  `BLOCK_SUMMARY_COLUMNS`, 208-223; `POINT_SUMMARY_COLUMNS`, 225-233), e il
   runner v4 `benchmark_v4.py` (sequenza di blocco di P1.5).
-- **I test stanno in due posti**: `cwEnergyModular/tests/` (444 raccolti) e
+- **I test stanno in due posti**: `cwEnergyModular/tests/` (450 raccolti) e
   direttamente in `cwEnergyModular/` (`test_answer_type_evaluation.py`, 35;
   `test_synthetic_window.py`, 2; `test_validazione_valutazione.py`, 22);
-  444 + 59 = 503. Ogni test ha una docstring che
+  450 + 59 = 509. Ogni test ha una docstring che
   dice *perche'* esiste e quale relazione matematica o fisica verifica, non solo
   cosa fa. Dal 27-10-2026 la cartella contiene anche `tests/test_rapl_zone.py`
   (8, logica RAPL su un finto sysfs), `tests/test_diagnostics_pmi.py` (7,
@@ -245,7 +250,10 @@ indefiniti.
   timestamp come controllo di avanzamento, delta negativo, provenienza di
   potenza e piattaforma, precedenza di NVML, con `amdsmi` finto) e
   `tests/test_metriche_per_token.py`
-  (4, le tre colonne per token accodate al CSV). Dal 28-10-2026 ci sono anche
+  (4, le tre colonne per token accodate al CSV) e
+  `tests/test_external_counter.py` (6, D14: `external_counter` vero solo per
+  `energy-file`, falso per `emi-counter`, `pawnio-counter`, `rapl` e per una
+  riga con GPU `nvml-energy`). Dal 28-10-2026 ci sono anche
   `tests/test_pawnio_backend.py` (25, catena `pawnio-counter`: sonda HVCI e
   firma con i due firmatari, hash del modulo, ramo Intel e ramo AMD mai su
   `0x611`, unita' derivata, riporto, reset, `access_denied`) e
