@@ -446,7 +446,7 @@ non si ripetono in ogni tabella, e §5 li traduce nella riga del CSV.
 | L1 | LHM, sensore `SensorType.Energy` | M1/M2 **non determinato** | se e' un contatore hardware e' M1; se LHM lo integra e' M2 | `librehardwaremonitor-energy` | **storico dal 27/10-2026 (D18)**: non selezionabile; metodo provato e superato. [I] codice, [A] sul host (solo batteria in LHM 0.9.6) |
 | L2 | LHM, `SensorType.Power` "CPU Package" integrato | M2 | package; stessa sorgente 0x611 di E1; richiesto 0,05 s, osservato 0,28-0,34 s | `power-integration` | **storico dal 27/10-2026 (D18)**: le sue misure restano evidenza, il canale non si seleziona. [I][V] |
 | L3 | LHM, sensore "CPU Graphics"/"IA GPU" | M2 sub-dominio | grafica integrata; informativo | campo `igpu_energy_j` | **storico dal 27/10-2026 (D18)**. [I], non esercitato sotto carico grafico |
-| P1 | MSR RAPL lette da un client proprio sopra PawnIO: `0x606` + `0x611` su Intel, `0xC0010299` + `0xC001029B` su AMD; delta di contatori cumulativi, unita' derivata dal registro di unita' | M1 | package; **stesso registro di E1** (0x611 / 0xC001029B), quindi non e' una validazione indipendente | `msr-counter` (proposto, non ammesso) | [P] **non implementato**; licenza PawnIO GPL-2.0 con eccezione IOCTL (verificata alla fonte il 27/10), HVCI e firma non verificate (D18, §3.1.2) |
+| P1 | MSR RAPL lette da un client proprio sopra PawnIO: `0x606` + `0x611` su Intel, `0xC0010299` + `0xC001029B` su AMD; delta di contatori cumulativi, unita' derivata dal registro di unita' | M1 | package; **stesso registro di E1** (0x611 / 0xC001029B), quindi non e' una validazione indipendente | `pawnio-counter` | **[I] con [V] su questo host Intel (28/10-2026)**: rapporti 1,000578 e 1,000576 contro EMI a finestra uguale; ramo AMD [I] con libreria finta, [V] su CPU AMD da fare; riporto e reset reali non esercitati. Richiede un processo elevato (`access_denied` senza, misurato). Licenza PawnIO GPL-2.0 con eccezione IOCTL (verificata alla fonte il 27/10); HVCI e firma **verificate sul pacchetto installato** (D18, §3.1.2) |
 | P2 | driver di terze parti per Windows che espone i contatori RAPL (Hubblo / Scaphandre) | M1 candidato | package; **stesso registro di E1** | `msr-counter` con interfaccia dichiarata (proposto, non ammesso) | [P]: nome, versione, licenza, dominio e stabilita' del driver da verificare alla fonte; installa un driver, quindi peggiora il profilo di EMI, che usa quello gia' presente |
 | P3 | PMI/WMI: namespace `Root\CIMV2\power`, classe `Win32_PowerMeter` (deriva da `CIM_NumericSensor`) | M2 candidato | **da verificare**: la classe e' documentata come meter di piattaforma, quindi probabilmente sistema intero e non package | `pmi-power-integral` (proposto, non ammesso) | [P]: su questo host la classe e' interrogabile e restituisce **zero istanze**; la proprieta' `PowerMeasurement` citata dai documenti esterni **non esiste** sulla classe |
 | R1 | RAPL powercap, `energy_uj` + `max_energy_range_uj` | M1 | package; il package **e' uno dei zone**, non `intel-rapl:0` per definizione | `rapl` | [I], [V] da fare (nessun host Linux) |
@@ -1898,8 +1898,9 @@ presentano come lavoro in corso.
 7-bis. **Sonda del percorso MSR proprio** (P1, D18) — **eseguita il 28-10-2026**
    su un host Intel con PawnIO: confronto del delta di `0x611` con EMI nella
    stessa finestra (rapporto 1,000578 e 1,000576 su due run), costo di
-   osservazione A-B-A (due run da 3 × 60 s), HVCI e firma verificate alla fonte
-   sul pacchetto distribuito, privilegi misurati (richiede elevazione).
+   osservazione A-B-A (due run da 3 × 60 s), HVCI e firma verificate sul
+   pacchetto **installato** (la documentazione non ne parla), privilegi misurati
+   (richiede elevazione).
    Artefatti in `experiment_results/pawnio_probe_20261028*`. Resta **[V] da
    fare** su AMD e con riporto/reset reali; il token `pawnio-counter` e' in
    `MEASURED_METHODS` e la catena Intel e' `emi-counter` -> `pawnio-counter` ->
@@ -2169,10 +2170,14 @@ Fonti esterne, con la data della verifica alla fonte primaria:
   modulo `IntelMSR.p` espone `MSR_RAPL_POWER_UNIT` `0x606`, `MSR_PKG_ENERGY_STATUS`
   `0x611` (e `0x619`, `0x639`, `0x641` per DRAM/PP0/PP1), `AMDFamily17.p` espone
   `MSR_PWR_UNIT 0xC0010299`, `MSR_CORE_ENERGY_STAT 0xC001029A`,
-  `MSR_PKG_ENERGY_STAT 0xC001029B`. **Non verificato alla fonte**: la
-  compatibilita' HVCI e la firma del pacchetto distribuito -- il README del
-  sorgente non ne parla e pawnio.eu e' una pagina di download. Resta quindi
-  [P], e la riga di D18 la scrive come da verificare, non come premessa.
+  `MSR_PKG_ENERGY_STAT 0xC001029B`. **Il `README` non dice nulla su HVCI ne' sulla
+  firma del pacchetto distribuito** (letto il 27/10; `pawnio.eu` e' una pagina di
+  download): la verifica quindi non viene dalla documentazione ma dal pacchetto
+  **installato**, ed e' stata fatta il 28/10 con `Get-AuthenticodeSignature` --
+  HVCI `enabled`, firma `Valid`, firmatario "Microsoft Windows Hardware
+  Compatibility Publisher" (§3.1.2, artefatti `pawnio_probe_20261028*.json`).
+  Resta **[V] per altre release e altri host**: il criterio e' nel codice, il
+  fatto misurato e' di questo pacchetto.
 - **Score-P power/energy plugin** (`github.com/score-p/scorep_plugin_x86_energy`
   -- l'owner e' `score-p`, con il trattino: l'URL `github.com/scorep/...` non
   esiste, `404`; ramo `master`, push del 02-10-2025, **BSD-3-Clause**, letto il
