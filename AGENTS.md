@@ -191,7 +191,10 @@ stanno solo le regole che un agente puo' violare senza accorgersene.
   AC/DC esterno. Questo caveat va scritto prima dei numeri, non in nota.
 - **"Validata" e' una parola sola.** Si scrive solo se tutti e sei gli anelli di
   P4.9 passano (`chain_status = validated`). Altrimenti si scrive quale anello ha
-  ceduto.
+  ceduto. Dal 28-10-2026 il token ha un produttore (`validation_chain.py`), che
+  applica le soglie congelate e restituisce l'etichetta del **primo** anello che
+  cede; non promuove nulla e nessuna riga e' `validated` finche' una campagna non
+  passa tutti e sei.
 - **Le soglie sono congelate prima dei dati.** 1,0 W, 10%, 20%, `err_rel <= 10%`,
   2 token, fattore 2: nessuna si sposta dopo aver visto il risultato.
 
@@ -200,7 +203,7 @@ stanno solo le regole che un agente puo' violare senza accorgersene.
 ## Comandi di verifica
 
 ```
-pytest cwEnergyModular          # 509 raccolti: 506 passati, 3 saltati (10 s)
+pytest cwEnergyModular          # 526 raccolti: 523 passati, 3 saltati (10 s)
 ```
 
 **Mai `pytest` nudo dalla radice**: la raccolta viene interrotta da 6 errori in
@@ -234,10 +237,10 @@ indefiniti.
   `casualwatt_csv_export.py` (`CSV_COLUMNS`, righe 17-200;
   `BLOCK_SUMMARY_COLUMNS`, 208-223; `POINT_SUMMARY_COLUMNS`, 225-233), e il
   runner v4 `benchmark_v4.py` (sequenza di blocco di P1.5).
-- **I test stanno in due posti**: `cwEnergyModular/tests/` (450 raccolti) e
+- **I test stanno in due posti**: `cwEnergyModular/tests/` (467 raccolti) e
   direttamente in `cwEnergyModular/` (`test_answer_type_evaluation.py`, 35;
   `test_synthetic_window.py`, 2; `test_validazione_valutazione.py`, 22);
-  450 + 59 = 509. Ogni test ha una docstring che
+  467 + 59 = 526. Ogni test ha una docstring che
   dice *perche'* esiste e quale relazione matematica o fisica verifica, non solo
   cosa fa. Dal 27-10-2026 la cartella contiene anche `tests/test_rapl_zone.py`
   (8, logica RAPL su un finto sysfs), `tests/test_diagnostics_pmi.py` (7,
@@ -253,7 +256,9 @@ indefiniti.
   (4, le tre colonne per token accodate al CSV) e
   `tests/test_external_counter.py` (6, D14: `external_counter` vero solo per
   `energy-file`, falso per `emi-counter`, `pawnio-counter`, `rapl` e per una
-  riga con GPU `nvml-energy`). Dal 28-10-2026 ci sono anche
+  riga con GPU `nvml-energy`) e `tests/test_chain_status.py` (17, il produttore
+  di `chain_status` di P4.9: ordine degli anelli, confini delle soglie, quorum
+  del test load-versus-control, vocabolario chiuso). Dal 28-10-2026 ci sono anche
   `tests/test_pawnio_backend.py` (25, catena `pawnio-counter`: sonda HVCI e
   firma con i due firmatari, hash del modulo, ramo Intel e ramo AMD mai su
   `0x611`, unita' derivata, riporto, reset, `access_denied`) e
