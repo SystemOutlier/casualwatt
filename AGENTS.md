@@ -11,8 +11,8 @@ conteggi (suite di test, script `.py` di radice, file di `experiment_results/`) 
 riverificati al **26-10-2026** perche' erano stantii, e il conteggio della suite
 e gli ancoraggi di `local_energy.py`/`energy_session.py` sono riverificati al
 **27-10-2026** dopo l'uscita di LHM dall'implementazione (D18, 8 test rimossi) e
-di nuovo al **28-10-2026** dopo NVML, AMD SMI, le tre colonne per token e il
-controllo di timestamp del contatore AMD.
+di nuovo al **28-10-2026** dopo NVML, AMD SMI, le tre colonne per token, il
+controllo di timestamp del contatore AMD e il fallback `pawnio-counter`.
 Se un ancoraggio non torna, il file e' stantio: va corretto, non ignorato.
 
 Fonti primarie, in ordine di autorita':
@@ -79,16 +79,23 @@ consolidato* (F.0-F.17), con applicazione e giustificazione per ciascuna. Qui
 stanno solo le regole che un agente puo' violare senza accorgersene.
 
 - **Nessun fallback silenzioso.** La catena locale e' corta e va dichiarata: su
-  Windows il contatore EMI (`emi-counter`) oppure `unavailable` — nessun secondo
-  canale, perche' LibreHardwareMonitor e' uscito dall'implementazione il
-  2026-10-27 (D18, metodo provato e superato, sostituto MSR [P]); su Linux i
-  contatori RAPL. `CW_ENERGY_FILE` (DEV/TEST) ha precedenza su entrambi. Non
-  esiste piu' `CW_PRIMARY_CHANNEL`. Il canale va scritto per riga in
-  `energy_calculation_method` (`energy/local_energy.py:134`), la finestra in
-  `package_window_source` (`exact-counter | samples-fallback | unavailable`,
+  Windows il contatore EMI (`emi-counter`), poi il contatore MSR del package
+  letto via PawnIO (`pawnio-counter`, fallback dichiarato dal 28-10-2026), poi
+  `unavailable`. LibreHardwareMonitor e' fuori dall'implementazione dal
+  2026-10-27 (D18, metodo provato e superato) e non torna; su Linux i contatori
+  RAPL. `CW_ENERGY_FILE` (DEV/TEST) ha precedenza su tutto. Non esiste piu'
+  `CW_PRIMARY_CHANNEL`. **Il fallback non e' un secondo canale da sommare ne' una
+  validazione di EMI**: `0x611` e `0xC001029B` sono lo stesso registro che legge
+  EMI, quindi un accordo a finestra uguale e' coerenza di implementazione. La
+  lettura via PawnIO **richiede un processo elevato**: da token UAC filtrato o
+  SAFER `pawnio_open` risponde `0x80070005` e la ragione e' `access_denied`
+  (misurato il 28-10-2026). EMI non ha questo requisito. Il canale va scritto per
+  riga in `energy_calculation_method` (`energy/local_energy.py:134`), la finestra
+  in `package_window_source` (`exact-counter | samples-fallback | unavailable`,
   `:124`), l'origine della baseline in `idle_provenance` (`:125`) e, dalla v4, in
   `baseline_backend` — campo del protocollo P1.3, non ancora presente nel codice.
-  Mai presentare un fallback come un contatore.
+  Mai presentare un fallback come un contatore, ne' un integrale come un
+  contatore.
 - **Sulla GPU il token dice quale percorso ha prodotto il numero.**
   `gpu_attribution_method` comincia sempre con `nvml-energy` (delta del
   contatore cumulativo NVML, mJ) o `nvml-power-integral`, oppure con
@@ -109,9 +116,11 @@ stanno solo le regole che un agente puo' violare senza accorgersene.
   28-10-2026) con **[V] da fare**: su questa macchina non c'e' ne' una NVIDIA
   ne' una AMD, quindi l'esecuzione su GPU reale e' ancora da registrare. Qui
   `[P]` non significa "implementato ma non provato su hardware": significa
-  "progettato e non implementato", come per PawnIO.
+  "progettato e non implementato". `pawnio-counter` invece e' **[I] con [V] su
+  questo host** (Intel, 28-10-2026: rapporto 1,000578 e 1,000576 contro EMI a
+  finestra uguale); restano **[V] da fare** il ramo AMD e riporto/reset reali.
 - **Solo i token di canale reali.**
-  `MEASURED_METHODS = ("emi-counter", "power-integration",
+  `MEASURED_METHODS = ("emi-counter", "pawnio-counter", "power-integration",
   "librehardwaremonitor-energy", "energy-file", "rapl")`
   (`energy/energy_session.py:72-73`). La lista dice **quali righe portano un
   numero**, non cosa sa fare il codice oggi: `power-integration` e
@@ -120,6 +129,12 @@ stanno solo le regole che un agente puo' violare senza accorgersene.
   nessun percorso di produzione li produce piu'. **CasualWatt non ha un percorso
   di stima TDP**: quello e' il percorso di CodeCarbon, usato nella tesi come
   contrasto. Non inventare un canale `estimated`.
+- **PawnIO non si somma a EMI e non si carica da un blob qualunque.** La catena
+  e' una cascata: se EMI risponde, PawnIO non viene aperto. Il modulo deve essere
+  la release 0.2.11 con SHA-256 pinnato; un hash diverso non si carica. Con HVCI
+  attivo **o non determinabile** il firmatario del driver deve essere Microsoft
+  (`fail closed`); con HVCI disattivo un terzo valido e' ammesso ma la riga lo
+  dichiara. Nessuna scrittura di MSR: l'IOCTL di scrittura esiste e non si usa.
 - **Nessun doppio conteggio.** PP0 e PP1 sono sottoinsiemi di PKG: non sommare
   `PKG+PP0+PP1` e non sommare `PKG+DRAM` (`energy/emi_backend.py:32-34`, `:580`;
   `DOMAIN_NAMES = ("pkg", "dram", "pp0", "pp1")` a `:116`). PP1 alimenta
@@ -179,7 +194,7 @@ stanno solo le regole che un agente puo' violare senza accorgersene.
 ## Comandi di verifica
 
 ```
-pytest cwEnergyModular          # 460 raccolti: 457 passati, 3 saltati (10 s)
+pytest cwEnergyModular          # 500 raccolti: 497 passati, 3 saltati (9 s)
 ```
 
 **Mai `pytest` nudo dalla radice**: la raccolta viene interrotta da 6 errori in
@@ -206,15 +221,17 @@ indefiniti.
 
 - `cwEnergyModular/` — codice di produzione. `energy/emi_backend.py` (contatore
   EMI via ctypes/SetupAPI, con selezione del device CPU e del canale PKG dal
-  metadato), `energy/energy_session.py` (canali, integrazione di
+  metadato), `energy/pawnio_backend.py` (contatore MSR del package via driver
+  PawnIO: sonda del driver e del modulo, unita' derivata, fallback dichiarato di
+  EMI), `energy/energy_session.py` (canali, integrazione di
   finestra, interpolazione ai bordi), `energy/local_energy.py` (campi per riga),
   `casualwatt_csv_export.py` (`CSV_COLUMNS`, righe 17-193;
   `BLOCK_SUMMARY_COLUMNS`, 201-216; `POINT_SUMMARY_COLUMNS`, 218-226), e il
   runner v4 `benchmark_v4.py` (sequenza di blocco di P1.5).
-- **I test stanno in due posti**: `cwEnergyModular/tests/` (401) e direttamente in
-  `cwEnergyModular/` (`test_answer_type_evaluation.py`, 35;
+- **I test stanno in due posti**: `cwEnergyModular/tests/` (441 raccolti) e
+  direttamente in `cwEnergyModular/` (`test_answer_type_evaluation.py`, 35;
   `test_synthetic_window.py`, 2; `test_validazione_valutazione.py`, 22);
-  401 + 59 = 460. Ogni test ha una docstring che
+  441 + 59 = 500. Ogni test ha una docstring che
   dice *perche'* esiste e quale relazione matematica o fisica verifica, non solo
   cosa fa. Dal 27-10-2026 la cartella contiene anche `tests/test_rapl_zone.py`
   (8, logica RAPL su un finto sysfs), `tests/test_diagnostics_pmi.py` (7,
@@ -227,7 +244,14 @@ indefiniti.
   timestamp come controllo di avanzamento, delta negativo, provenienza di
   potenza e piattaforma, precedenza di NVML, con `amdsmi` finto) e
   `tests/test_metriche_per_token.py`
-  (4, le tre colonne per token accodate al CSV).
+  (4, le tre colonne per token accodate al CSV). Dal 28-10-2026 ci sono anche
+  `tests/test_pawnio_backend.py` (25, catena `pawnio-counter`: sonda HVCI e
+  firma con i due firmatari, hash del modulo, ramo Intel e ramo AMD mai su
+  `0x611`, unita' derivata, riporto, reset, `access_denied`) e
+  `tests/test_pawnio_selezione.py` (9, precedenza EMI -> PawnIO nella sessione,
+  nessuna somma dei due canali) e `tests/test_diagnostics_pawnio.py` (4, la
+  diagnostica dichiara `pawnio-counter` solo quando il contatore risponde,
+  `unavailable` con la ragione altrimenti, e `CW_ENERGY_FILE` ha la precedenza).
   L'Appendice D della tesi e' stata rigenerata il 2026-10-26 con
   `cwEnergyModular/tools/dump_tests_latex.py`: 404 node id, 401 passati, 3
   saltati, docstring 404/404. Quel materiale precede l'uscita di LHM
@@ -248,12 +272,18 @@ indefiniti.
   protocollo va tracciato**, perche' un'analisi non tracciata e' un numero che
   nessuno puo' rigenerare. Le sonde usa-e-getta non citate da nulla sono in
   `.gitignore`.
-- `cwEnergyModular/tools/` — 6 file tracciati: i generatori del materiale LaTeX
-  (Appendici A, D, E), l'analisi di cadenza EMI, la validazione HWiNFO.
-- `experiment_results/` — dati sperimentali e analisi, tracciati (201 file: 200 in
+- `cwEnergyModular/tools/` — 9 file tracciati: i generatori del materiale LaTeX
+  (Appendici A, D, E), l'analisi di cadenza EMI, la validazione HWiNFO e le tre
+  sonde PawnIO (`fetch_pawnio_modules.py` scarica e verifica i moduli della
+  release con hash pinnato, `pawnio_probe.py` confronta il contatore con EMI e
+  misura il costo di osservazione A-B-A, `pawnio_priv_probe.py` misura i
+  privilegi invece di dedurli).
+- `experiment_results/` — dati sperimentali e analisi, tracciati (210 file: 209 in
   radice, 1 in `codecarbon_four_way/`). I
   protocolli congelati stanno qui. Un artefatto nuovo entra con il proprio commit
-  e con la propria analisi.
+  e con la propria analisi. Il gruppo `pawnio_probe_20261028*` (due run di
+  confronto, due A-B-A, tre token di privilegio, l'analisi) e' l'evidenza sotto
+  `pawnio-counter`: senza quei file il token non si cita.
 - `cpuepower/`, `cpuepower2/` — toolkit sottoposto ad audit: i suoi numeri erano
   mock, la CLI crasha, la mappa MSR era sbagliata. **Banca di esperimenti, non un
   backend di misura.** Non importarlo, non citarlo come risultato.

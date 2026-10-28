@@ -395,8 +395,10 @@ secondo copre un guasto che il primo non copre: il device del canale EMI puo'
 mancare mentre le MSR restano leggibili. Si contano due nella catena, zero nella
 colonna delle evidenze indipendenti. Da D18 il secondo percorso **non e' piu'
 LHM**, che era un terzo consumatore dello stesso registro con una potenza gia'
-derivata, ed e' [P]: finche' non e' provato, la catena ha un grado di fallback
-**in meno**, non uno in piu'.
+derivata: dal 28-10-2026 e' il lettore MSR sopra PawnIO (`pawnio-counter`),
+[I] con [V] su questo host Intel, e **richiede un processo elevato**. La
+catena recupera un grado di fallback, ma non gratuito: senza elevazione il
+secondo percorso non c'e' e la riga torna `unavailable`.
 
 ---
 
@@ -760,10 +762,13 @@ storia e' la ragione per cui il codice seleziona i sensori per `SensorType` e
 non per nome. Nessuna di queste proposizioni diventa falsa quando il canale
 smette di essere selezionabile: cambia lo stato, da `[I][V]` a **storico**.
 
-La seconda meta' e' il sostituto, che e' **[P], non implementato**. Il ruolo da
-coprire non e' quello di EMI (che resta primario) ma quello che aveva LHM: un
-secondo percorso dichiarato per quando EMI non c'e'. Il percorso proposto legge
-le MSR RAPL direttamente, con un client proprio sopra il driver **PawnIO**:
+La seconda meta' e' il sostituto, che dal 28-10-2026 e' **implementato**
+(`energy/pawnio_backend.py`). Il ruolo da coprire non e' quello di EMI (che
+resta primario) ma quello che aveva LHM: un secondo percorso dichiarato per
+quando EMI non c'e'. Il percorso legge le MSR RAPL direttamente, con un
+client proprio sopra il driver **PawnIO**, e il token di riga e'
+`pawnio-counter` — il nome `msr-counter` della proposta non e' entrato in
+codice. I registri sono per produttore:
 
 | | Intel | AMD |
 |---|---|---|
@@ -779,53 +784,99 @@ leggerebbe registri diversi senza accorgersene. E' la stessa classe di errore di
 F13 -- un valore plausibile dal posto sbagliato -- e per questo la tabella qui
 sopra e' per produttore, non per famiglia.
 
-Cinque obblighi, tutti a carico di chi scrivera' il codice:
+**La porta HVCI/firma, con criteri dichiarati.** Il backend si dichiara
+disponibile solo se passano tutti, in quest'ordine (`__init__`,
+`energy/pawnio_backend.py:381-537`):
 
-- **L'unita' si deriva, non si copia.** Il valore di `0x606` (e del suo
-  equivalente AMD) codifica l'unita' di energia; il campo e la maschera vanno
-  letti alla fonte primaria -- Intel SDM, sezione RAPL, **non ancora letta da
-  questo documento** -- *prima* di scrivere il calcolo. Una costante scritta a
-  mano in Joule sarebbe un'assunzione travestita da misura, ed e' esattamente
-  cio' che AMD SMI lascia scoperto: la sua API di energia CPU ("Energy
-  information (RAPL MSR)") restituisce un `uint64_t` **senza dichiarare
-  l'unita'**.
-- **Solo delta di contatori cumulativi, un avvolgimento per intervallo, nessuna
-  scrittura.** La semantica e' quella di E1: `E = (raw_end - raw_start) * unita'`,
-  con il caso di avvolgimento trattato una volta sola e dichiarato. Nessuno dei
-  registri va **scritto**: su Linux `energy_uj` e' `rw` e "Write '0' to reset"
-  (kernel powercap, letta il 27-10-2026), cioe' un azzeramento distrugge il delta
-  in corso ed e' un'operazione che il nostro lettore non deve poter fare.
-- **Il percorso MSR non e' una validazione indipendente di EMI.** Legge lo stesso
-  `0x611` (o `0xC001029B`): vale la regola 4 di §5, e la riga deve dirlo. Il suo
-  valore e' coprire il caso "driver EMI assente", non arbitrare la scala.
+1. piattaforma Windows e produttore dal `VendorIdentifier`: un produttore
+   sconosciuto non si indovina (`vendor_unknown`);
+2. servizio `PawnIO` in esecuzione (`service_not_running`) e percorso del
+   driver noto (`driver_path_unknown`);
+3. stato HVCI da
+   `HKLM\SYSTEM\CurrentControlSet\Control\DeviceGuard\Scenarios\HypervisorEnforcedCodeIntegrity\Enabled`
+   e firma da `Get-AuthenticodeSignature` (`_signature_rejection`, `:540-554`):
+   - firma diversa da `Valid` → `driver_signature_invalid`, sempre;
+   - con HVCI **attivo o non determinabile** il firmatario deve essere
+     Microsoft, altrimenti `driver_signer_not_microsoft`: un `unknown` di
+     PowerShell non e' una firma valida e nel dubbio si rifiuta (fail closed);
+   - con HVCI **disattivato** una firma valida di terzi e' ammessa, ed e'
+     l'unico caso in cui lo e';
+4. modulo presente (`module_missing`) e SHA-256 uguale a quello pinnato della
+   release 0.2.11 (`module_hash_mismatch`): un blob diverso non e' stato
+   verificato da nessuno e non si carica;
+5. `pawnio_open` / `pawnio_load` / `pawnio_version`; su `E_ACCESSDENIED` la
+   ragione e' `access_denied`, non `pawnio_unavailable` (privilegi, sotto);
+6. unita' da `0x606` / `0xC0010299`, poi prima lettura del contatore: un
+   registro nullo o implausibile non diventa un quantum assunto
+   (`unit_unreadable`).
+
+Il 28-10-2026 la porta e' passata su questo host: HVCI `enabled`, firma
+`Valid`, firmatario `Microsoft Windows Hardware Compatibility Publisher`,
+`IntelMSR.bin` 0.2.11 con hash pinnato, `PawnIOLib 2.0.0` letta a runtime,
+`0x606 = 0xA0E03` → campo `EU` = 14 → quantum 6,103515625e-05 J. Artefatti:
+`experiment_results/pawnio_probe_20261028*.json`. I rami di rifiuto sono
+provati con firme e moduli sintetici, non su questo host.
+
+Cinque obblighi, e come sono stati assolti:
+
+- **L'unita' si deriva, non si copia.** Il campo e' `(unit >> 8) & 0x1F` e il
+  quantum `1 / 2^EU` joule per entrambi i produttori (`arch/x86/events/rapl.c:
+  609-620`; il modello AMD usa lo stesso decodificatore, `:837`), letto a
+  runtime: nessuna costante scritta a mano. Un registro nullo o tutto uno non
+  ha un campo utilizzabile e il backend si ferma (`unit_unreadable`), invece
+  di scegliere un quantum. E' l'obbligo che AMD SMI lascia scoperto sul canale
+  CPU, dove l'API restituisce un `uint64_t` senza dichiarare l'unita'.
+- **Solo delta di contatori cumulativi, un avvolgimento per intervallo,
+  nessuna scrittura.** Il contatore e' a 32 bit (`rapl.c:108`, maschera a
+  `:573`), quindi il modulo e' `2^32`. Un calo e' un **riporto** solo se il
+  vecchio valore e' almeno `0,75 · 2^32` e il nuovo al massimo `0,25 · 2^32`;
+  ogni altro calo e' un **reset**, e il segmento non produce energia: mai un
+  delta negativo e mai un clamp a zero. Il backend accumula i **conteggi
+  interi** gia' srotolati e ne deriva i joule (`conteggi × quantum`), cosi' la
+  provenienza della riga e' esatta e non dipende da un float. Nessuna funzione
+  di scrittura dei registri viene mai chiamata: su Linux `energy_uj` e' `rw` e
+  "Write '0' to reset", cioe' un azzeramento distruggerebbe il delta in corso.
+- **Il percorso MSR non e' una validazione indipendente di EMI.** Legge lo
+  stesso `0x611` (o `0xC001029B`): vale la regola 4 di §5, e la riga lo dice.
+  La prova del 28-10 a finestra uguale da' rapporti PawnIO/EMI di 1,000578 e
+  1,000576 su due run da 30 s: e' coerenza di implementazione fra due lettori
+  dello stesso registro, **non** un arbitrato della scala assoluta, che resta
+  non arbitrata senza un wattometro AC/DC esterno. Il valore del percorso e'
+  coprire il caso "driver EMI assente".
 - **Licenza e privilegi si citano come sono.** PawnIO e' **GPL-2.0** con
-  un'eccezione esplicita che consente "independent modules that communicate with
-  PawnIO solely through the device IO control interface" -- il nostro client
-  ctypes e' quella classe, e i moduli (`PawnIO.Modules`, **LGPL-2.1**) restano
-  separati dal nostro codice. La frase "licenza pulita" che accompagnava la
-  proposta e' quindi **sbagliata come formulazione**: la licenza e' GPL-2.0 e il
-  nostro uso e' compatibile *per l'eccezione*, che va citata ogni volta che si
-  cita il driver. La compatibilita' **HVCI** e la firma del pacchetto
-  distribuito, che la proposta dava per acquisite, **non sono verificate alla
-  fonte**: il `README` del sorgente, riletto il 27/10, conferma l'eccezione
-  IOCTL e non dice nulla su Secure Boot ne' su HVCI; la pagina di terzi citata
-  dai documenti esterni non e' il fornitore. Restano [P].
-- **I privilegi si misurano, non si deducono.** La stessa proposta dava per
-  acquisito che, dopo l'installazione, la lettura delle MSR non richieda
-  elevazione: il `README` non lo dichiara, e uno degli handoff esterni lo
-  elenca fra i punti "da verificare". Il costo di osservazione A-B-A -- una
-  misura per canale, con il metodo gia' usato per LHM -- serve anche a questo:
-  un percorso che richiede un processo elevato cambia il profilo operativo e va
-  scritto nei `notes` della riga, non scoperto a runtime. Il percorso MSR non
-  entra in catena finche' la sonda non lo dichiara.
+  l'eccezione per "independent modules that communicate with PawnIO solely
+  through the device IO control interface": il nostro client ctypes e' quella
+  classe e i moduli (`PawnIO.Modules`, **LGPL-2.1**) restano separati dal
+  nostro codice. "Licenza pulita" era sbagliato come formulazione: la licenza
+  e' GPL-2.0 e il nostro uso e' compatibile *per l'eccezione*, da citare ogni
+  volta che si cita il driver. La compatibilita' HVCI e la firma del pacchetto
+  distribuito, che la proposta dava per acquisite, sono ora **verificate**:
+  HVCI attivo, firma `Valid`, firmatario Microsoft (sopra).
+- **I privilegi si misurano, non si deducono.** Misurati il 28-10-2026 con
+  `tools/pawnio_priv_probe.py` sotto tre token dello stesso utente, stesso
+  driver, stessa configurazione: con il gruppo Administrators **enabled** il
+  driver apre; con il token UAC filtrato (integrita' media, Administrators
+  deny-only) e con il token SAFER normal user (integrita' **alta**,
+  Administrators deny-only) `pawnio_open` risponde `0x80070005` e la ragione e'
+  `access_denied`. Il discriminante e' il processo elevato, non l'integrita':
+  il token SAFER ha la stessa integrita' di quello elevato e fallisce lo
+  stesso. **Il fallback `pawnio-counter` richiede quindi un processo elevato**
+  (EMI no), e la riga lo dichiara nei `notes`: un percorso che richiede
+  elevazione cambia il profilo operativo.
 
-Il token di riga e' `msr-counter`, **proposto e non ammesso**: non entra in
-`MEASURED_METHODS` finche' una sonda su hardware non mostra il delta contro EMI
-nella stessa finestra e con la stessa baseline, e finche' il costo di
-osservazione del percorso (un IOCTL per campione) non e' misurato con il metodo
-A-B-A gia' usato per LHM. Fino ad allora la catena Windows e' **EMI ->
-`unavailable`**: cadere su un percorso non provato sarebbe peggio che dichiarare
-l'assenza.
+Il token e' in `MEASURED_METHODS` (`energy/energy_session.py:72`) e la catena
+Windows e' **`emi-counter` → `pawnio-counter` → `unavailable`**: il secondo si
+apre solo se il primo non c'e', perche' legge lo stesso registro e sommarli
+conterebbe due volte. L'ammissione richiedeva due misure, e ci sono entrambe:
+il confronto a finestra uguale (rapporto 1,000578 e 1,000576 su due run da
+30 s) e il costo di osservazione con A-B-A (due run da 3 × 60 s: 0,26-0,42 %
+di un core nella fase con il campionatore; livello sotto 1,0 W nel run
+attribuibile, inconclusivo nell'altro perche' la deriva idle di 0,56-0,71 W
+domina, e la prova non si presenta come "costo nullo"; §4 di
+`experiment_results/pawnio_probe_20261028_analisi.md`). Stato: **[I] con [V]
+su questo host Intel**; il ramo AMD e' provato con libreria finta, **[V] da
+fare**; riporto e reset reali non sono stati esercitati (60 s non bastano a un
+riporto da `2^32` a ~12 W). Non e' una validazione indipendente della scala.
 
 **Idee prese dalle fonti lette il 27-10-2026, e dove entrano.** Nessuna di queste
 e' codice: sono proposizioni verificate che cambiano una regola, un obbligo o una
@@ -1032,9 +1083,9 @@ vale quella.
 
 | # | configurazione / dominio | catena | etichette | oggi |
 |---|---|---|---|---|
-| 1 | Windows Intel, `cpu_package` | EMI PKG -> `unavailable` | `emi-counter` -> `unavailable` | EMI attivo; **LHM rimosso dall'implementazione (D18)**: se EMI manca, la riga e' `unavailable`, non un secondo lettore dello stesso registro. Il percorso MSR P1, quando sara' provato, si inserisce fra i due (riga 2) |
-| 2 | Windows Intel, EMI non disponibile e PawnIO installato | MSR P1 (`0x606` + `0x611`) -> `unavailable` | `msr-counter` -> `unavailable` | [P] non implementato: entra solo dopo la sonda contro EMI a finestra uguale e la misura del costo di osservazione (D18) |
-| 3 | Windows AMD, `cpu_package` | EMI **se il probe passa** -> MSR P1 AMD (`0xC0010299` + `0xC001029B`) -> `unavailable` | `emi-counter` -> `msr-counter` -> `unavailable` | il codice non filtra per produttore (`energy/energy_session.py:136-152`): la catena e' la 1, ma su AMD non e' mai stata provata, quindi lo stato e' [P]; con piu' die vale la deduplica di F11 |
+| 1 | Windows Intel, `cpu_package` | EMI PKG -> `pawnio-counter` -> `unavailable` | `emi-counter` -> `pawnio-counter` -> `unavailable` | EMI attivo e primo; **LHM rimosso dall'implementazione (D18)**: se EMI manca si prova il contatore MSR via PawnIO, che pero' richiede un processo elevato; senza elevazione la riga e' `unavailable` |
+| 2 | Windows Intel, EMI non disponibile e PawnIO installato | MSR P1 (`0x606` + `0x611`) -> `unavailable` | `pawnio-counter` -> `unavailable` | **[I] con [V] su questo host (28/10)**: confronto a finestra uguale e costo di osservazione misurati; richiede un processo elevato (`access_denied` senza), altrimenti `unavailable` con la ragione |
+| 3 | Windows AMD, `cpu_package` | EMI **se il probe passa** -> MSR P1 AMD (`0xC0010299` + `0xC001029B`) -> `unavailable` | `emi-counter` -> `pawnio-counter` -> `unavailable` | il ramo AMD e' implementato con i registri propri (`0x611` non si legge su AMD) e provato con libreria finta; **[V] da fare**: su AMD non e' mai stato eseguito; con piu' die vale la deduplica di F11 |
 | 4 | Qualsiasi OS, `CW_ENERGY_FILE` impostato | `energy-file` -> (catena normale se non impostato) | `energy-file` | priorita' di selezione su EMI e su P1; uso test/dev |
 | 5 | Linux Intel, `cpu_package` | RAPL package -> `unavailable` | `rapl` -> `unavailable` | implementato, mai esercitato; 3 test saltati |
 | 6 | Linux Intel, `psys` | RAPL psys -> `unavailable` | `rapl` con dominio `psys` | non implementato; non e' un fallback di 5 |
@@ -1082,7 +1133,7 @@ ragione in un token:
 |---|---|---|
 | `vm` | hypervisor o guest senza contatore di dominio | passare a una misura dell'host, o dichiarare l'assenza |
 | `remote_endpoint` | il motore di inferenza non e' sulla macchina che misura | la riga locale non rappresenta l'inferenza: si misura il nodo remoto o si usa la stima cloud |
-| `permission_denied` | il nodo esiste ma non e' leggibile dal processo | root, regola udev, o installazione del driver del canale (l'installazione di PawnIO e' l'unico passo elevato del percorso P1; dopo, la lettura e' da processo normale) |
+| `permission_denied` | il nodo esiste ma non e' leggibile dal processo | root, regola udev, o privilegio del canale. Sul percorso P1 **non** basta l'installazione del driver: la lettura richiede un **processo elevato** (misurato il 28/10: `pawnio_open` da token UAC filtrato o SAFER risponde `0x80070005`, ragione `access_denied`), mentre EMI non ha questo requisito |
 | `driver_missing` | il driver del canale non e' installato o non e' esposto | installare il canale, o passare al fallback |
 | `no_energy_domain` | la piattaforma non espone un dominio energia | `unavailable` strutturale, non un guasto |
 | `counter_stale` | timestamp di dominio fermo (G2) | segmentare o dichiarare, mai sottrarre |
@@ -1115,8 +1166,8 @@ livello di catena (controprova o riferimento).
 
 | configurazione, dominio | primario | fallback, in ordine | esclusi | etichette | stato (27/10, righe GPU aggiornate al 28/10) |
 |---|---|---|---|---|---|
-| Windows Intel, `cpu_package` | EMI PKG | P1 PawnIO `0x606`+`0x611` [P] † -> P2 Hubblo [P] † -> P3 PMI/WMI [P] | LHM (D18) †; TDP; somma con PP0/PP1 | `emi-counter` -> `msr-counter` -> `unavailable` | EMI [I][V]; il resto [P] |
-| Windows AMD, `cpu_package` | EMI, se il probe passa | P1 AMD `0xC0010299`+`0xC001029B` [P] † -> P2 -> P3 | `0x611` su AMD; somma dei core `C001_029A` al package | `emi-counter` -> `msr-counter` -> `unavailable` | [P]: mai provato su AMD |
+| Windows Intel, `cpu_package` | EMI PKG | P1 PawnIO `0x606`+`0x611` [I][V] † (richiede elevazione) -> P2 Hubblo [P] † -> P3 PMI/WMI [P] | LHM (D18) †; TDP; somma con PP0/PP1 | `emi-counter` -> `pawnio-counter` -> `unavailable` | EMI [I][V]; P1 [I][V] il 28/10; P2/P3 [P] |
+| Windows AMD, `cpu_package` | EMI, se il probe passa | P1 AMD `0xC0010299`+`0xC001029B` [I] † -> P2 -> P3 | `0x611` su AMD; somma dei core `C001_029A` al package | `emi-counter` -> `pawnio-counter` -> `unavailable` | P1 [I], **[V] da fare** su AMD |
 | Linux Intel, `cpu_package` | RAPL powercap (R1) | R5 `perf power/energy-pkg/` [P] †; V1 turbostat ‡ | turbostat come livello; somma delle zone; `psys` presentato come package (R2) | `rapl` -> `rapl-perf` (non ammesso) -> `unavailable` | R1 [I], [V] da fare; R5 [P] |
 | Linux AMD, `cpu_package` | powercap AMD (R3, Zen 1-3, kernel >= 5.11) | hwmon `amd_energy` (R3b) † -> MSR `C001_029B` (R3c/P1) †; V1 ‡ | somma core+socket; powercap e `amd_energy` insieme; `amd_atl` (nome ritirato) | `rapl` (dominio dichiarato) -> `unavailable` | [P] |
 | Qualsiasi OS, `CW_ENERGY_FILE` | contatore esterno (X1) | catena normale se la variabile non e' impostata | presentare il file come EMI | `energy-file` | [I], test/dev |
@@ -1770,7 +1821,7 @@ eccezioni vanno rivalidate al freeze.
 | D15 | package multipli e canali specchiati | enumerare le zone powercap per `name` e i device EMI per path, **deduplicare i canali specchiati**, poi sommare i package distinti; la nota sui permessi dice cosa verifica il codice (`os.access`, `energy/rapl_backend.py:148`), non "gruppo power" (chiude F11). Su Windows l'enumerazione e la deduplica sono in codice dal 27/10 (`energy/emi_backend.py:226-285`), con `ambiguous_domain` per due device PKG distinti; la **somma** dei package resta non implementata |
 | D16 | traffico concorrente in finestra rete | oggi: rumore dichiarato, non sottratto. Se P5 vuole ridurlo, la via ammissibile e' la **finestra di rumore sottratta come termine scritto** (A-B-A a stessa durata, §7); i contatori per processo restano [P] finche' l'interfaccia non e' verificata alla fonte, e in ogni caso il risultato resta un'attribuzione con scala propria, mai un M1 |
 | D17 | il lettore EMI **verifica** il meter invece di presumerlo, secondo il contratto Microsoft di §3.1.1 | leggere `IOCTL_EMI_GET_VERSION` e riportare la versione nella riga; leggere `GET_METADATA_SIZE` e `GET_METADATA`, verificare `MeasurementUnit == EmiMeasurementUnitPicowattHours` su ogni canale, selezionare i canali di package **per nome** (`_PKG`, uno per socket) fra i `ChannelCount` dichiarati, e trattare metadato fuori misura e risposta corta come guasto. **Non** si ammette un gate "solo V2" (un V1 si dichiara, non si rifiuta in anticipo) ne' la somma di tutti i canali con quel suffisso: la deduplica resta D15. Chiude F13 e fornisce a F11 il "quale canale". **Realizzata il 27-10-2026** in `energy/emi_backend.py`: la versione si legge sempre e il V1 si scarta **dopo** averla letta, con la ragione nelle note, non come guasto dell'IOCTL |
-| D18 | LHM esce dall'implementazione e resta **metodo provato e superato**; il secondo percorso diventa un lettore MSR proprio sopra PawnIO | LHM non e' un canale distinto ma lo stesso registro `0x611` gia' derivato in potenza e re-integrato da noi, con il sensore scelto per nome: fuori dalla catena, dentro il documento come evidenza (accordo a finestra uguale, A-B-A, costo di osservazione). Il sostituto P1 e' **[P]**: MSR RAPL lette da un client proprio sopra PawnIO -- Intel `0x606` + `0x611`, AMD `0xC0010299` + `0xC001029B` (`msr-index.h:496-522`; **non** `0x606`/`0x611` su AMD, che e' l'errore della tabella proposta), unita' **derivata** dal registro di unita' e non copiata, solo delta di contatori cumulativi, nessuna scrittura dei registri, e la dichiarazione esplicita che non e' una validazione indipendente di EMI. Token `msr-counter` **proposto e non ammesso** in `MEASURED_METHODS` finche' una sonda non lo confronta con EMI a finestra uguale e non si misura il costo di osservazione del percorso. Licenza PawnIO GPL-2.0 **con l'eccezione** per i moduli "that communicate with PawnIO solely through the device IO control interface"; moduli LGPL-2.1; HVCI e firma del pacchetto distribuito restano da verificare (§3.1.2) |
+| D18 | LHM esce dall'implementazione e resta **metodo provato e superato**; il secondo percorso e' un lettore MSR proprio sopra PawnIO | LHM non e' un canale distinto ma lo stesso registro `0x611` gia' derivato in potenza e re-integrato da noi, con il sensore scelto per nome: fuori dalla catena, dentro il documento come evidenza (accordo a finestra uguale, A-B-A, costo di osservazione). Il sostituto P1 **e' realizzato dal 28-10-2026** (`energy/pawnio_backend.py`, token `pawnio-counter`): Intel `0x606` + `0x611`, AMD `0xC0010299` + `0xC001029B` (`msr-index.h:496-522`; **non** `0x606`/`0x611` su AMD, che e' l'errore della tabella proposta), unita' **derivata** dal registro di unita' e non copiata, solo delta di contatori cumulativi accumulati in conteggi interi, nessuna scrittura dei registri, e la dichiarazione esplicita che non e' una validazione indipendente di EMI. HVCI e firma del driver **verificate** con criteri espliciti (fail closed quando HVCI e' attivo o non determinabile; §3.1.2). Licenza PawnIO GPL-2.0 **con l'eccezione** per i moduli "that communicate with PawnIO solely through the device IO control interface"; moduli LGPL-2.1. La lettura **richiede un processo elevato** -- misurato il 28/10: con token UAC filtrato e con token SAFER, `pawnio_open` risponde `0x80070005`, e la riga lo dichiara nei `notes`. Stato: **[I] con [V]** su un host Intel; ramo AMD **[V] da fare**; riporto e reset reali non esercitati. La catena Windows e' `emi-counter` -> `pawnio-counter` -> `unavailable` |
 
 ---
 
@@ -1779,7 +1830,7 @@ eccezioni vanno rivalidate al freeze.
 - le soglie di validazione e la campagna: sono P4.4-P4.9, congelate;
 - i nomi definitivi delle colonne e il runner: sono P5, e questo documento li
   propone solo dove servono a rendere leggibile una catena;
-- l'implementazione dei backend mancanti (macOS `powermetrics`, NPU, PawnIO) e
+- l'implementazione dei backend mancanti (macOS `powermetrics`, NPU) e
   l'esecuzione su hardware dei backend gia' scritti (RAPL su un host Linux, AMD
   CPU, GPU su una macchina con NVIDIA o AMD): richiede hardware e prove, non
   solo codice;
@@ -1811,10 +1862,11 @@ presentano come lavoro in corso.
    F1 (rete) e' chiusa il 26-10-2026 con `_j_log`; F2 (cloud) e' chiusa in
    `HEAD` da `027609c`. Resta il local mode, che P5 eredita.
    Un numero che dice "non misurato" non deve sembrare una misura.
-2. **Token GPU** (D2) e **ritiro di LHM con `msr-counter` proposto** (D18):
+2. **Token GPU** (D2) e **ritiro di LHM con `pawnio-counter`** (D18):
    decidono la confrontabilita' futura delle colonne, e dopo il congelamento non
-   si cambiano. Il ritiro e' una decisione di catena, non di codice; il token
-   resta proposto finche' la sonda non lo prova.
+   si cambiano. Il ritiro di LHM e' una decisione di catena, non di codice; il
+   token del sostituto e' entrato il 28-10-2026 dopo le due misure (finestra
+   uguale e costo di osservazione, §3.1.2).
 3. **Lessico G0, package multipli e verifica del meter** (D11, D15, D17):
    D17 e' **realizzato in codice il 27/10** (selezione per metadato, canale per
    nome, scarti motivati: chiude F13 e F11 lato Windows); restano il token di
@@ -1843,13 +1895,15 @@ presentano come lavoro in corso.
    `tests/test_rapl_zone.py`, che girano su Windows contro un finto sysfs), **poi
    AMD** (R3, R3b: non
    implementati, da verificare alla fonte kernel) (F6).
-7-bis. **Sonda del percorso MSR proprio** (P1, D18): su un host Windows con
-   PawnIO installato, confrontare il delta di `0x611` (o `0xC001029B`) con EMI
-   nella stessa finestra e con la stessa baseline, e misurare il costo di
-   osservazione A-B-A del percorso. Serve anche a verificare alla fonte le due
-   proposizioni che oggi sono solo [P]: la compatibilita' HVCI e la firma del
-   pacchetto. Finche' non passa, `msr-counter` non entra in `MEASURED_METHODS` e
-   la catena resta EMI -> `unavailable`.
+7-bis. **Sonda del percorso MSR proprio** (P1, D18) — **eseguita il 28-10-2026**
+   su un host Intel con PawnIO: confronto del delta di `0x611` con EMI nella
+   stessa finestra (rapporto 1,000578 e 1,000576 su due run), costo di
+   osservazione A-B-A (due run da 3 × 60 s), HVCI e firma verificate alla fonte
+   sul pacchetto distribuito, privilegi misurati (richiede elevazione).
+   Artefatti in `experiment_results/pawnio_probe_20261028*`. Resta **[V] da
+   fare** su AMD e con riporto/reset reali; il token `pawnio-counter` e' in
+   `MEASURED_METHODS` e la catena Intel e' `emi-counter` -> `pawnio-counter` ->
+   `unavailable`.
 8. **NVML total energy** (D7): il percorso e' nel codice dal 28-10-2026 e
    sostituisce la potenza come canale primario; resta l'esecuzione su una
    macchina con NVIDIA con gli stessi G0-G4, che e' la [V] ancora da fare (e,
