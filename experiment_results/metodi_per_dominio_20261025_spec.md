@@ -9,7 +9,11 @@ cambiano, cambiano le righe, che dichiarano anche i livelli [P] e i percorsi
 rifiutati.
 La revisione del 28/10 aggiunge la catena GPU — NVML `energy` con ripiego
 sull'integrale della potenza, poi AMD SMI come fallback dichiarato — e le tre
-colonne per token in coda al CSV.
+colonne per token in coda al CSV. Nella stessa data C5 entra nella catena cloud
+come fallback finale (`C1 -> C2 -> C4 -> C3 -> C5 -> unavailable`, §3.4 e §6):
+e' l'allineamento con `metodo_analitico_cloud_20261026.md`, che dichiarava di
+superare questo documento solo per il dominio cloud, e chiude il punto aperto
+n. 2 della sezione 1.5.
 Nasce dalla valutazione di `metodiLoc.DOCX`
 (`metodi_loc_20261025_valutazione.md`) e la completa: la valutazione dice cosa
 del documento esterno non si adotta, questa specifica dice cosa si usa, in che
@@ -274,14 +278,17 @@ sembra. Per questo il punto 3 della lista porta `cloud_latency_used_s`,
 
 ### Che cosa questo punto non chiude
 
-- la **catena** del blocco remoto e' ancora scritta in due versioni: §6, alla sua
-  prima riga, scrive `C1 → C2 → C4 → C3 → unavailable`, mentre
-  `metodo_analitico_cloud_20261026.md:29` e la sua tabella §1 scrivono
-  `C1 → C2 → C4 → C3 → C5 → unavailable`; la riga C5 **non esiste** nella tabella
-  di §3.4 di questo documento. Il documento C5 dichiara di superare §6 solo per il
-  cloud (`:12-14`). E'
-  un'incoerenza fra due testi normativi dello stesso progetto, dichiarata qui e
-  **non** corretta in silenzio: si allinea nel punto 2;
+- la **catena** del blocco remoto e' stata scritta in due versioni fino al
+  28-10-2026: §6, alla sua prima riga, diceva `C1 → C2 → C4 → C3 → unavailable`,
+  mentre `metodo_analitico_cloud_20261026.md:29` e la sua tabella §1 dicevano
+  `C1 → C2 → C4 → C3 → C5 → unavailable`, e la riga C5 **non esisteva** nella
+  tabella di §3.4 di questo documento. **Chiuso il 28-10-2026** su decisione
+  dell'autore: C5 entra come fallback finale prima di `unavailable`, §6 scrive
+  `C1 -> C2 -> C4 -> C3 -> C5 -> unavailable`, §3.4 porta la riga C5
+  (`analytic-class-fit`, `[P]`, boundary "acceleratore di riferimento, serving
+  open-source, steady state") e il documento analitico resta il disegno di quel
+  gradino. I due testi normativi dicono ora la stessa catena; lo stato di C5 e'
+  `[P]` in entrambi;
 - i campi di provenienza cloud (punto 3), il coefficiente J/bit e il confine di
   rete (punto 4), la partizione zero/`N/A` (punto 5);
 - il blocco locale: le sue catene restano quelle di §4, e i suoi nodi aperti
@@ -293,7 +300,7 @@ sembra. Per questo il punto 3 della lista porta `cloud_latency_used_s`,
 | # | punto | blocco | stato al 26-10-2026 |
 |---|---|---|---|
 | 1 | partizione locale / remoto | trasversale | **chiuso** -- questa sezione |
-| 2 | catena cloud con C5, allineamento fra §6 e la tabella di §3.4 | remoto | aperto |
+| 2 | catena cloud con C5, allineamento fra §6 e la tabella di §3.4 | remoto | **chiuso il 28-10-2026** -- `C1 -> C2 -> C4 -> C3 -> C5 -> unavailable` in §6 e in `metodo_analitico_cloud_20261026.md`; riga C5 in §3.4 con etichetta `analytic-class-fit`, stato `[P]`, boundary proprio |
 | 3 | campi di provenienza della stima cloud (D3, D12, i campi della latenza clampata) | remoto | aperto |
 | 4 | coefficiente J/bit e confine di rete (D8, D13, D16; F7) | remoto | **fonte e confine corretti** il 26-10-2026; resta aperto il confronto empirico e il confine byte/coefficiente |
 | 5 | zero contro `N/A` nel blocco remoto (D4; F1 e F9 aperti, F2 chiuso in `HEAD`) | remoto | aperto |
@@ -999,6 +1006,7 @@ condizione di G1.
 | C2 | EcoLogits `llm_impacts`, modello registrato | stima | server-side datacenter (usage + PUE); esclude rete, client, embodied | `ecologits` | [I] non validato |
 | C3 | EcoLogits con proxy di pari classe dichiarato | stima | come C2, su un modello diverso da quello richiesto | `ecologits` + proxy in `hw_profile`/note | [I] |
 | C4 | EcoLogits `compute_llm_impacts` con i parametri attivi reali del modello, e la loro fonte, in config | stima | come C2, ma con il costo per token del modello **richiesto** invece che di un gemello registrato | `ecologits` con `model_params_source` | [P] non implementato |
+| C5 | modello analitico per classe di modello, con coefficienti propri e provenienza dichiarata (la struttura dei termini di SweetSpot come scheletro, non i suoi coefficienti) | stima con boundary dichiarato, **non misura** | acceleratore di riferimento, serving open-source, steady state | `analytic-class-fit` | **[P] non implementato**; disegno in `metodo_analitico_cloud_20261026.md` |
 | T1 | delta contatori NIC del client x coefficiente J/bit | stima, scala propria | byte system-wide del client x percorso trasmissione+commutazione fino al data center, accesso escluso; ne' NIC del client ne' accesso sono contate | campo `network_*` | [I] non validato |
 | T2 | byte del payload HTTP x coefficiente J/bit | stima, scala propria | body richiesta+risposta al socket x lo stesso percorso; sottostima header, TLS e ritrasmissioni | campo `network_*` | [I] |
 | W1 | wattometro AC/DC esterno | riferimento | sistema completo a monte dell'alimentatore | non e' un livello runtime: e' **validazione off-line** | [A] in acquisto |
@@ -1027,9 +1035,38 @@ Precisazioni.
   parametri del modello (attivi inclusi) senza chiedere un modello registrato:
   con i parametri reali del modello richiesto, e la loro fonte scritta in
   config, la stima resta dentro EcoLogits ed e' piu' aderente di un proxy di
-  pari classe. Quindi la catena effettiva e' C2 -> C4 -> C3 -> `unavailable`:
-  il proxy e' l'ultimo ricorso, non la scorciatoia. Vale anche qui il divieto
-  di cui a §6: nessuna stima fuori da EcoLogits.
+  pari classe. Quindi la catena effettiva e' C2 -> C4 -> C3 -> C5 -> `unavailable`:
+  il proxy e' l'ultimo ricorso **dentro** EcoLogits, non la scorciatoia. Il divieto
+  di §6 resta per tutto cio' che precede C5: fuori dal motore c'e' un solo
+  gradino ammesso, C5, con fit proprio, boundary proprio e gate di ammissione
+  (bullet sotto).
+- **C5: l'ultimo gradino e' una stima con un boundary diverso dagli altri.** C5
+  non e' un secondo lettore di C2 e non e' una misura: e' un modello analitico
+  per **classe** di modello, i cui coefficienti sono fittati da noi e la cui
+  provenienza va scritta in riga. Tre regole, perche' senza di esse il gradino
+  diventerebbe un numero indistinguibile dagli altri:
+  - **non e' additivo con C2, C3 e C4**: sono gradini alternativi della stessa
+    catena, e la riga porta **uno** `cloud_energy_method`, non una somma;
+  - **non eredita il `min(request_latency, gpu_latency)` di C2 senza dichiararlo**:
+    se C5 usa la latenza misurata linearmente e C2 la tronca, le due stime
+    divergono per struttura e non per calibrazione, e il confronto G3 sarebbe
+    viziato. La scelta (latenza lineare con il troncamento dichiarato come
+    scelta, oppure lo stesso `min`) va scritta nel fit della classe, non
+    ereditata per caso;
+  - **include i token di input** (`cloud_input_tokens_included = true`): nel
+    modello `k_pre·n_in` e `k_attn·n_in^2/n_out` sono termini espliciti, mentre
+    C2-C4 li escludono. Per questo C5 sta sopra C2 per costruzione su prompt
+    lunghi, e lo scarto non e' calibrazione.
+  Il boundary e' "acceleratore di riferimento, serving open-source, steady
+  state": non e' l'hardware del provider, e il campo `cloud_measurement_boundary`
+  lo dice con il testo fisso della riga. La banda min/max di C5, quando ci sara',
+  e' un `calibration-semi-range` dai residui leave-one-model-out, non un
+  `parameter_pue_ignorance_range`: `cloud_energy_band_semantics` distingue le due
+  cose. C5 entra solo con un fit che passi il test **leave-one-model-out per
+  classe**; fino ad allora lo stato e' `[P]` e la catena si ferma a `unavailable`
+  dopo C3. I coefficienti pubblicati da altri non diventano i nostri senza
+  l'etichetta `fit-published-transcribed`, e nessun numero di C5 si attribuisce
+  agli autori della forma.
 - **T1 e T2 non sono due misure della stessa grandezza.** Hanno lo stesso
   coefficiente e numeratori diversi: T1 conta i byte realmente transitati sulle
   interfacce del client, T2 solo i body HTTP della conversazione. Uno
@@ -1098,7 +1135,7 @@ vale quella.
 | 13 | iGPU Intel/AMD | nessun termine separato (dentro PKG); PP1/Graphics informativi | campi `igpu_*` | PP1 letto da EMI; mai sommato |
 | 14 | NPU Windows/Linux | `unavailable` | `unavailable` | nessun backend, nessuna colonna |
 | 15 | NPU Apple Silicon (ANE) | `powermetrics` ANE (se verificato) -> `unavailable` | `powermetrics` -> `unavailable` | progettato, non implementato |
-| 16 | Cloud | telemetria provider -> EcoLogits registrato -> `compute_llm_impacts` con parametri reali -> EcoLogits proxy -> `unavailable` | `provider-telemetry` -> `ecologits` -> `ecologits` (C4, con fonte dei parametri) -> `ecologits` (proxy; D3 propone `ecologits-proxy`) -> `unavailable` | EcoLogits + proxy; mai TDP, mai stima fuori EcoLogits |
+| 16 | Cloud | telemetria provider -> EcoLogits registrato -> `compute_llm_impacts` con parametri reali -> EcoLogits proxy -> modello analitico per classe -> `unavailable` | `provider-telemetry` -> `ecologits` -> `ecologits` (C4, con fonte dei parametri) -> `ecologits` (proxy; D3 propone `ecologits-proxy`) -> `analytic-class-fit` (C5) -> `unavailable` | TDP; stima senza provenienza; somma dei gradini; l'analisi `κ·n_in/n_out`; mai C5 presentato come misura o come EcoLogits |
 | 16b | Inferenza su GPU noleggiata con codice eseguibile sul nodo | NVML sul nodo remoto (C0) -> `unavailable` | `nvml-energy` / `nvml-power-integral` con `endpoint` del nodo | non integrato nel percorso client: [P] |
 | 17 | Rete | delta NIC -> contabilita' payload -> `unavailable` | campo `network_*` | delta NIC; se illeggibile restituisce 0 (difetto F1) |
 | 18 | Sistema completo | wattometro (riferimento); in attesa, presa intelligente come riferimento provvisorio d'ordine di grandezza | `wall` / `smart-plug` (mai in una catena di dominio) | non disponibile nessuno dei due |
@@ -1190,7 +1227,7 @@ e una scheda AMD presente nella stessa macchina non viene letta.
 | ANE (Apple Silicon) | `powermetrics` ANE [P] | -- | -- | `powermetrics` -> `unavailable` | [P] |
 | DRAM | EMI DRAM (E3) / zona `dram` powercap (D1) [P] | -- | somma al package | campo separato | E3 [I][V]; D1 [P] |
 | Rete | delta dei contatori NIC del client x coefficiente J/bit (T1) | byte del payload HTTP x coefficiente J/bit (T2) -> `unavailable` | un contatore **energetico** di rete (non esiste); J/bit senza fonte; zero al posto di N/A | `network_*` | [I] non validato: i byte sono **misurati** da contatori NIC, il J/bit e' un'ipotesi dichiarata, quindi il numero e' una stima |
-| Cloud | telemetria provider (C1) | EcoLogits registrato (C2) -> C4 parametri reali -> proxy (C3) | TDP; stime fuori EcoLogits | `provider-telemetry` -> `ecologits` | [I] C2/C3, [P] C4 |
+| Cloud | telemetria provider (C1) | EcoLogits registrato (C2) -> C4 parametri reali -> proxy (C3) -> modello analitico per classe (C5) -> `unavailable` | TDP; stima senza provenienza; somma dei gradini; `κ·n_in/n_out` | `provider-telemetry` -> `ecologits` -> `analytic-class-fit` -> `unavailable` | [I] C2/C3, [P] C4 e C5 |
 | Sistema | wattometro AC/DC (W1) ‡ | presa intelligente (W2) ‡ | RAPL estrapolato a "sistema" | `wall` / `smart-plug`, mai in catena | [A] |
 | VM, WSL2, container | contatore dell'host, se dichiarato | `unavailable` con ragione `vm` / `permission_denied` | contatore del guest presentato come package fisico | `unavailable` + ragione | [I] sonda |
 | Nessun canale | `unavailable` con la ragione | -- | zero | `unavailable` | [I] |
@@ -1406,11 +1443,12 @@ fine lavoro e' 500.
 
 ## 6. Cloud: che cosa dichiara il numero
 
-La catena cloud e' `C1 -> C2 -> C4 -> C3 -> unavailable` (le righe e i criteri
-sono in §3.4). Oggi C1 non esiste in CasualWatt: non c'e' integrazione, e nel
-repository non c'e' una fonte che documenti una telemetria energetica per
+La catena cloud e' `C1 -> C2 -> C4 -> C3 -> C5 -> unavailable` (le righe e i
+criteri sono in §3.4). Oggi C1 non esiste in CasualWatt: non c'e' integrazione, e
+nel repository non c'e' una fonte che documenti una telemetria energetica per
 richiesta di un provider. La catena effettiva e' quindi C2, con C4 non
-implementato e C3 come proxy dichiarato.
+implementato, C3 come proxy dichiarato e C5 come ultimo gradino prima di
+`unavailable`, anch'esso non implementato.
 
 Cosa **e'** `cloud_energy_j` (C2/C3/C4): una stima dell'energia del server-side
 datacenter — **solo della generazione**, perche' il motore accetta numero di
@@ -1544,7 +1582,46 @@ rapporto `W_totale/η_eff`. Sono percorsi di altri progetti o proposte non
 implementate; se un giorno servisse una stima dichiarata, avra' un campo e
 un'etichetta propri, mai il token di un canale di misura. La forma gia' ammessa
 per questo caso e' X2 (§3.1, D10): `estimate-load-tdp` in `energy_estimate_j`,
-opt-in, spento di default, e mai confrontato con i numeri delle catene.
+opt-in, spento di default, e mai confrontato con i numeri delle catene. **C5 non
+e' quel modello**: `κ·n_in/n_out` resta escluso dalla catena, mentre C5 e' un
+fit per classe con termini dichiarati, provenienza dei coefficienti e un gate di
+ammissione; il fatto che usi una forma analitica non lo rende C2 ne' lo autorizza
+senza il test leave-one-model-out.
+
+**C5, `analytic-class-fit`: l'ultimo gradino e la sua provenienza (28-10-2026).**
+C5 entra nella catena come fallback finale prima di `unavailable`
+(`C1 -> C2 -> C4 -> C3 -> C5 -> unavailable`, §3.4 riga C5). E' una **stima**,
+non una misura; il suo boundary e' "acceleratore di riferimento, serving
+open-source, steady state", cioe' **non** l'hardware del provider; non e'
+additiva con C2, C3 e C4 (sono gradini alternativi: la riga porta un solo
+`cloud_energy_method`); e **non eredita il `min()` di C2** se non dichiarandolo
+nel fit della classe -- se C5 usa la latenza lineare e C2 la tronca, lo scarto di
+G3 sarebbe strutturale e non di calibrazione. Include i token di input
+(`cloud_input_tokens_included = true`), che C2-C4 escludono. Lo stato e' `[P]`:
+il disegno e i gate sono in `metodo_analitico_cloud_20261026.md`, e finche' il
+fit per classe non passa il test leave-one-model-out la catena si ferma a
+`unavailable` dopo C3.
+
+I campi che rendono C5 confrontabile con se' stesso fra righe e classi diverse:
+
+| campo | che cosa fissa | oggi |
+|---|---|---|
+| `cloud_model_class` | la classe di modello su cui il fit e' calibrato (famiglia, parametri attivi, quantizzazione): due classi diverse non sono lo stesso estimatore | non esiste; proposto per P5 |
+| `cloud_reference_accelerator` | l'acceleratore su cui il fit e' calcolato (H100 nel disegno), non quello del provider | non esiste; il testo va in `cloud_measurement_boundary` |
+| `cloud_serving_boundary` | lo stack di serving e il regime: open-source, steady state, batch o stream | non esiste; proposto per P5 |
+| `cloud_calibration_source` | la fonte dei coefficienti con identificatore persistente (DOI/arXiv), versione del dataset e data della verifica | non esiste; proposto per P5 |
+| `cloud_coefficient_provenance` | l'origine del fit: `fit-raw-holdout`, `fit-published-transcribed`, `value-adopted`, `hypothesis` | non esiste; proposto per P5 |
+| `cloud_latency_used_s` | la latenza **effettivamente consumata** dal calcolo, diversa da `duration_s` quando c'e' un troncamento -- per C5 e' la scelta dichiarata nel fit | non esiste; proposto per P5 (comune a C2-C4) |
+| `cloud_latency_threshold_s` | la soglia oltre la quale la latenza non entra piu', con la formula che la produce (`n_out/tps + ttft`, oppure la regressione) | non esiste; proposto per P5 (comune a C2-C4) |
+| `cloud_latency_binding` | quale termine ha vincolato: `measured` o `internal-estimate` | non esiste; proposto per P5 (comune a C2-C4) |
+
+Accanto a questi, e gia' deliberati nel disegno C5: `cloud_fit_terms` (quali
+termini della forma sono attivi nella classe: `eq4` a 5 o `eq5` a 6),
+`cloud_fit_loo_mape` (l'errore leave-one-model-out della classe usata) e
+`cloud_energy_band_semantics = calibration-semi-range` per la sua banda. Nessuno
+di questi campi e' nel codice: la riga C5 non esiste finche' non esistono loro,
+perche' un numero senza classe, acceleratore, serving boundary e fonte di
+calibrazione non e' riproducibile.
 
 In **local mode** `cloud_energy_j = 0` e' legittimo (nessuna chiamata), ma oggi
 il metodo e il confine cloud restano vuoti: lo zero non e' dichiarato come

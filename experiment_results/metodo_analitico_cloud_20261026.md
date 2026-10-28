@@ -22,6 +22,13 @@ verifica claim per claim della proposta da cui DT-5 nasce) e
 definizione di metodo, 26-10-2026: da essa vengono le adozioni A1 -- forma per fasi, §2.2
 -- e A2 -- regola `N_active` per MoE, §2.3).
 
+**Allineamento del 28-10-2026.** La catena di questo documento non e' piu' una
+versione alternativa: `metodi_per_dominio_20261025_spec.md` scrive in §6 e nella
+riga C5 di §3.4 la stessa catena `C1 -> C2 -> C4 -> C3 -> C5 -> unavailable`, con
+l'etichetta `analytic-class-fit` e lo stato `[P]`. Il punto aperto n. 2 di quella
+specifica (allineamento fra i due testi) e' chiuso; questo documento resta il
+disegno del gradino C5 e i suoi gate di §6 valgono come prima.
+
 ---
 
 ## 1. La catena cloud aggiornata
