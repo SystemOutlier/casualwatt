@@ -1092,14 +1092,14 @@ vale quella.
 | 7 | Linux AMD, `cpu_package` | powercap RAPL AMD (kernel >= 5.11, se il percorso e la semantica sono verificati) -> hwmon `amd_energy` -> `unavailable` | `rapl` (dominio dichiarato) -> `unavailable` | non implementato; R3b ha scala propria (15,3 uJ) e copre prima EPYC che Ryzen client |
 | 8 | macOS Intel o Apple Silicon, CPU/GPU/ANE | `powermetrics` -> `unavailable` | `powermetrics` -> `unavailable` | `unavailable`; powermetrics progettato |
 | 9 | macOS laptop, sistema | delta batteria (limite di sistema) -> `unavailable` | `battery-delta` -> `unavailable` | non implementato |
-| 10 | NVIDIA, `gpu_dedicated` | NVML total energy -> NVML power -> `unavailable` | `nvml-energy` -> `power-integration` -> `unavailable` | contatore sopra l'integrale dal 28-10; [V] su GPU reale da fare; idle mai calibrato -> whole-device |
-| 11 | AMD, `gpu_dedicated` | AMD SMI contatore -> AMD SMI potenza -> `unavailable`; su Windows ADLX e su Linux `amdgpu` hwmon sono accessi alternativi [P] | `amdsmi-energy` -> `amdsmi-power-integral` -> `unavailable` | implementato il 28-10 come FALLBACK dopo NVML; §3.2 A1/A2/A3 |
+| 10 | NVIDIA, `gpu_dedicated` | NVML total energy -> NVML power -> `unavailable` | `nvml-energy` -> `nvml-power-integral` -> `unavailable` | contatore sopra l'integrale dal 28-10; [V] su GPU reale da fare; idle mai calibrato -> whole-device |
+| 11 | AMD, `gpu_dedicated` | AMD SMI contatore -> AMD SMI potenza -> `unavailable`; su Windows ADLX e su Linux `amdgpu` hwmon sono accessi alternativi [P] | `amdsmi-energy` -> `amdsmi-power-integral` -> `unavailable` | implementato il 28-10; percorso **AMD**, selezionato per vendor, non un gradino dopo NVML; §3.2 A1/A2/A3 |
 | 12 | Intel dGPU | Level Zero (Windows e Linux) o `xe`/`i915` hwmon (Linux), entrambi [P] -> `unavailable` | `unavailable` | nessun backend; §3.2 I1/I2 |
 | 13 | iGPU Intel/AMD | nessun termine separato (dentro PKG); PP1/Graphics informativi | campi `igpu_*` | PP1 letto da EMI; mai sommato |
 | 14 | NPU Windows/Linux | `unavailable` | `unavailable` | nessun backend, nessuna colonna |
 | 15 | NPU Apple Silicon (ANE) | `powermetrics` ANE (se verificato) -> `unavailable` | `powermetrics` -> `unavailable` | progettato, non implementato |
 | 16 | Cloud | telemetria provider -> EcoLogits registrato -> `compute_llm_impacts` con parametri reali -> EcoLogits proxy -> `unavailable` | `provider-telemetry` -> `ecologits` -> `ecologits` (C4, con fonte dei parametri) -> `ecologits` (proxy; D3 propone `ecologits-proxy`) -> `unavailable` | EcoLogits + proxy; mai TDP, mai stima fuori EcoLogits |
-| 16b | Inferenza su GPU noleggiata con codice eseguibile sul nodo | NVML sul nodo remoto (C0) -> `unavailable` | `nvml-energy` / `power-integration` con `endpoint` del nodo | non integrato nel percorso client: [P] |
+| 16b | Inferenza su GPU noleggiata con codice eseguibile sul nodo | NVML sul nodo remoto (C0) -> `unavailable` | `nvml-energy` / `nvml-power-integral` con `endpoint` del nodo | non integrato nel percorso client: [P] |
 | 17 | Rete | delta NIC -> contabilita' payload -> `unavailable` | campo `network_*` | delta NIC; se illeggibile restituisce 0 (difetto F1) |
 | 18 | Sistema completo | wattometro (riferimento); in attesa, presa intelligente come riferimento provvisorio d'ordine di grandezza | `wall` / `smart-plug` (mai in una catena di dominio) | non disponibile nessuno dei due |
 | 19 | Qualsiasi altra combinazione | `unavailable` | `unavailable` | caso residuo dichiarato, non aggirato |
@@ -1164,6 +1164,15 @@ gradino si somma a un altro. Due marchi in piu' rispetto a §4: `†` = stessa
 lettura del gradino precedente (nessuna evidenza indipendente), `‡` = non e' un
 livello di catena (controprova o riferimento).
 
+**La GPU si seleziona per vendor.** NVIDIA si legge con NVML (`nvml-energy` ->
+`nvml-power-integral`), AMD con AMD SMI (`amdsmi-energy` ->
+`amdsmi-power-integral`): non esiste una catena NVML -> AMD SMI per la stessa
+scheda, e i due backend non girano mai in parallelo. Nel codice il selettore
+`_open_gpu_monitor()` prova NVML e poi AMD SMI (`energy/energy_session.py:1751-1766`):
+e' un controllo di presenza del driver, non un gradino di fallback. Ne segue un
+limite dichiarato degli host misti: con entrambi i driver installati vince NVML
+e una scheda AMD presente nella stessa macchina non viene letta.
+
 | configurazione, dominio | primario | fallback, in ordine | esclusi | etichette | stato (27/10, righe GPU aggiornate al 28/10) |
 |---|---|---|---|---|---|
 | Windows Intel, `cpu_package` | EMI PKG | P1 PawnIO `0x606`+`0x611` [I][V] † (richiede elevazione) -> P2 Hubblo [P] † -> P3 PMI/WMI [P] | LHM (D18) †; TDP; somma con PP0/PP1 | `emi-counter` -> `pawnio-counter` -> `unavailable` | EMI [I][V]; P1 [I][V] il 28/10; P2/P3 [P] |
@@ -1173,14 +1182,14 @@ livello di catena (controprova o riferimento).
 | Qualsiasi OS, `CW_ENERGY_FILE` | contatore esterno (X1) | catena normale se la variabile non e' impostata | presentare il file come EMI | `energy-file` | [I], test/dev |
 | Windows, meter V1 | EMI a un canale (E1) | catena normale | trattare un V1 come guasto; leggerlo con il parser V2 | `emi-counter` (solo V2) | **[I]**: `GET_VERSION` letto e V1 scartato con la ragione (D17, 27/10); un V1 reale non e' stato provato |
 | macOS CPU/GPU/ANE | `powermetrics` (PW1) | nessuno; delta batteria e' sistema, non dominio (BT1 ‡) | Energy Impact; carico CPU come stima | `powermetrics` -> `unavailable` | [P] |
-| NVIDIA, `gpu_dedicated` | NVML total energy (N1) | NVML potenza integrata (N2) ‡ | potenza per PID presentata come misura (N3) | `nvml-energy` -> `power-integration` -> `unavailable` | N1 [I] dal 28/10 (test con `pynvml` finto), [V] reale da fare; N2 [I]; idle mai calibrato |
-| AMD, `gpu_dedicated` | AMD SMI contatore (A1) | Windows ADLX (A2) ‡ -> Linux `amdgpu` hwmon (A3) ‡; `rocm-smi --showpower` ‡ | somma iGPU+dGPU; attribuzione per PID | `amdsmi-energy` -> `amdsmi-power-integral` -> `unavailable` | A1 [I] dal 28/10 (test con `amdsmi` finto), [V] reale da fare; NVML ha la precedenza |
+| NVIDIA, `gpu_dedicated` | NVML total energy (N1) | NVML potenza integrata (N2) | potenza per PID presentata come misura (N3) | `nvml-energy` -> `nvml-power-integral` -> `unavailable` | N1 [I] dal 28/10 (test con `pynvml` finto), [V] reale da fare; N2 [I]; idle mai calibrato |
+| AMD, `gpu_dedicated` | AMD SMI contatore (A1) | AMD SMI potenza integrata (A1) -> `unavailable`; poi ADLX (A2) ‡ e Linux `amdgpu` hwmon (A3) ‡ come accessi alternativi; `rocm-smi --showpower` ‡ | somma iGPU+dGPU; attribuzione per PID | `amdsmi-energy` -> `amdsmi-power-integral` -> `unavailable` | A1 [I] dal 28/10 (test con `amdsmi` finto), [V] reale da fare; percorso AMD, non un gradino dopo NVML |
 | Intel dGPU | Level Zero (I1) [P] | Linux `xe`/`i915` hwmon (I2) [P] ‡ | iGPU sommata al package | `unavailable` oggi | [A] |
 | iGPU Intel/AMD | dentro PKG (PP1, E2) | nessun termine separato | somma al package; PP1 presentato come GPU | campo `igpu_energy_j` | [I][V] |
 | NPU Intel/AMD | nessun canale verificato | -- | colonne NPU vuote; "per differenza" | `unavailable` | [A] |
 | ANE (Apple Silicon) | `powermetrics` ANE [P] | -- | -- | `powermetrics` -> `unavailable` | [P] |
 | DRAM | EMI DRAM (E3) / zona `dram` powercap (D1) [P] | -- | somma al package | campo separato | E3 [I][V]; D1 [P] |
-| Rete | delta contatori NIC (T1) | byte del payload (T2) | J/bit senza fonte; zero al posto di N/A | `network_*` | [I] non validato |
+| Rete | delta dei contatori NIC del client x coefficiente J/bit (T1) | byte del payload HTTP x coefficiente J/bit (T2) -> `unavailable` | un contatore **energetico** di rete (non esiste); J/bit senza fonte; zero al posto di N/A | `network_*` | [I] non validato: i byte sono **misurati** da contatori NIC, il J/bit e' un'ipotesi dichiarata, quindi il numero e' una stima |
 | Cloud | telemetria provider (C1) | EcoLogits registrato (C2) -> C4 parametri reali -> proxy (C3) | TDP; stime fuori EcoLogits | `provider-telemetry` -> `ecologits` | [I] C2/C3, [P] C4 |
 | Sistema | wattometro AC/DC (W1) ‡ | presa intelligente (W2) ‡ | RAPL estrapolato a "sistema" | `wall` / `smart-plug`, mai in catena | [A] |
 | VM, WSL2, container | contatore dell'host, se dichiarato | `unavailable` con ragione `vm` / `permission_denied` | contatore del guest presentato come package fisico | `unavailable` + ragione | [I] sonda |
@@ -1267,7 +1276,7 @@ verificabili senza hardware e senza toccare la catena di produzione.
    indipendenti. Nessuna colonna storica cambia posizione; la migrazione resta
    `ensure_header`.
 
-6. **GPU AMD: AMD SMI entra come fallback, dopo NVML (28-10-2026).**
+6. **GPU AMD: AMD SMI entra come backend della scheda AMD (28-10-2026).**
    `_AMDGPUMonitor` in `energy/energy_session.py` importa `amdsmi`, chiama
    `amdsmi_init()` e prende il primo handle di `amdsmi_get_processor_handles()`;
    il nome commerciale esce da `amdsmi_get_gpu_asic_info`. La sonda di energia
@@ -1313,13 +1322,17 @@ verificabili senza hardware e senza toccare la catena di produzione.
    (`gpu_idle_provenance=missing`, dichiarato in nota), e l'energia di Ollama
    sulla GPU e' solo `gpu_process_energy_j`, informativo.
 
-Non cambiano: `MEASURED_METHODS`, l'ordine della catena Windows
-(`EMI -> unavailable`) e i clamp di `energy/local_energy.py`, che restano una
-differenza dichiarata fra produzione e v4 (AGENTS.md). Il CSV cambia solo per
-aggiunta in coda (punto 5). La suite raccoglie **460 test: 457 passati, 3
-saltati** (429 il 27/10, dopo i primi quattro punti; 12 nuovi il 28/10 con NVML
-e le tre colonne; 8 nuovi con il controllo di timestamp e la provenienza AMD
-SMI).
+Non cambiano: l'ordine della catena Windows e i clamp di
+`energy/local_energy.py`, che restano una differenza dichiarata fra produzione e
+v4 (AGENTS.md). Il CSV cambia solo per aggiunta in coda (punto 5). Con questa
+revisione la catena Windows era ancora `EMI -> unavailable` e `MEASURED_METHODS`
+senza `pawnio-counter`; il fallback PawnIO, entrato lo stesso 28/10, ha poi
+portato la catena a `emi-counter` -> `pawnio-counter` -> `unavailable` e il token
+in `MEASURED_METHODS` (D18, §3.1.2). La suite raccoglie **460 test: 457 passati,
+3 saltati** al momento di questa revisione (429 il 27/10, dopo i primi quattro
+punti; 12 nuovi il 28/10 con NVML e le tre colonne; 8 nuovi con il controllo di
+timestamp e la provenienza AMD SMI); il conteggio corrente e' in AGENTS.md e a
+fine lavoro e' 500.
 
 
 ---
@@ -1542,6 +1555,12 @@ il metodo e il confine cloud restano vuoti: lo zero non e' dichiarato come
 ## 7. Rete: che cosa dichiara il numero
 
 La catena rete e' `T1 -> T2 -> unavailable`.
+
+Cio' che manca non e' un contatore ma un **contatore energetico** della rete: i
+byte sono letti da contatori NIC reali del client, il coefficiente J/bit e'
+l'ipotesi dichiarata, e il prodotto e' una **stima**, mai un M1. Scriverlo come
+"nessun contatore" sarebbe falso due volte -- i contatori dei byte esistono, e
+il gradino che manca e' un altro.
 
 T1 misura i byte con i contatori NIC del client nella finestra della richiesta
 e li moltiplica per il coefficiente dichiarato
