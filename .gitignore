@@ -1,0 +1,50 @@
+__pycache__/
+*.py[cod]
+*$py.class
+cwEnergyModular/models/
+.huggingface/
+.cache/
+.env
+.env.local
+.env.*.local
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+.DS_Store
+Thumbs.db
+*.log
+.casualwatt_keys.json
+cwEnergyModular/results/*.csv
+.pytest_cache/
+
+# dump SRUM: 8 MB per export, si rigenera con powercfg /srumutil
+experiment_results/srum_dump_*.csv
+
+# --- Tesi: compilazione locale con MiKTeX, MAI nel repo (regola di progetto).
+# Verificato il 24-10-2026: `git ls-files Tesi-latex` = 0 file, quindi ignorare
+# l'albero non toglie nulla al repo. Senza questa riga la tesi era esclusa solo
+# per disciplina: un `git add -A` l'avrebbe inclusa tutta.
+/Tesi-latex/
+
+# --- Sonde di radice superate. Ogni nome e' ancorato alla radice con `/` perche'
+# in questo repo gli harness di radice SONO tracciati (23 script .py) e un
+# pattern non ancorato potrebbe prenderne uno.
+# Verificato il 24-10-2026 con `git grep -l -- <nome>`: 0 file tracciati li citano.
+# Nessuna riga ha commenti in coda: in .gitignore il commento in coda NON esiste
+# e verrebbe letto come parte del pattern.
+#
+# enumerazione canali EMI; superato da emi_resolution_check.py (tracciato)
+/emi_probe.py
+# sonda Shared Memory HWiNFO, ancora err=2; hwinfo_shm.py invece e' tracciato
+/hwinfo_shm_probe.py
+# moduli driver del toolkit cpuepower: non partono e lavorano su scala LHM
+/cpu_power_driver.py
+/process_energy_driver.py
+/pcm.py
+/monitor.py.DISATTIVATO
+
+# NON ignorare srum_emi_scale.py: e' citato per nome da codice tracciato come
+# prova dell'unita' millijoule (srum.py:44, srum_emi_cross.py:25,181,366).
+# Ignorarlo orfana una citazione di riproducibilita': va tracciato, non ignorato.

@@ -1,0 +1,27 @@
+# EMI: metadato e selezione del device letti dalla diagnostica
+#
+# Comando:  python diagnostics.py        (da cwEnergyModular/)
+# Data:     27-10-2026, Windows 11, i9-13900HK
+# Codice:   emi-reader/2 (commits 544176a, ea117ac) -- GET_VERSION,
+#           GET_METADATA_SIZE, GET_METADATA prima della prima misura
+#
+# Nota di lettura: questa console gira in un processo ELEVATO, e la riga lo
+# dice. La lettura dell'IOCTL EMI non richiede il token (verificato il 23/10
+# con un processo non elevato); questa cattura documenta il METADATO, non il
+# privilegio. Le due cose non si confondono.
+#
+# Le 12 righe che seguono sono l'output integrale della diagnostica.
+
+[INFO] Python 3.14.5 (C:\Users\Massimo\AppData\Local\Python\pythoncore-3.14-64\python.exe)
+[INFO] Piattaforma: Windows 11 (AMD64)
+[INFO] Processo ELEVATO. Non serve al contatore EMI (letto senza token elevato); resta richiesto solo da operazioni di sistema.
+[ OK ] [EMI] device CPU selezionato per metadato: \\?\acpi#genuineintel_-_intel64_family_6_model_186_-_13th_gen_intel(r)_core(tm)_i9-13900hk#0#{45bd8344-7ed6-49cf-a440-c276c933b053}
+[INFO] [EMI] metadato: v2, OEM 'Microsoft', modello 'PPM', rev 1, 4 canali
+[INFO]     canale 0: 'RAPL_Package0_PKG' (dominio pkg, unita' pWh)
+[INFO]     canale 1: 'RAPL_Package0_DRAM' (dominio dram, unita' pWh)
+[INFO]     canale 2: 'RAPL_Package0_PP0' (dominio pp0, unita' pWh)
+[INFO]     canale 3: 'RAPL_Package0_PP1' (dominio pp1, unita' pWh)
+[ OK ] [EMI] canale PKG scelto per nome: indice 0, 'RAPL_Package0_PKG'
+[ OK ] [EMI] contatore package cumulativo leggibile (PKG = 316910.943 J, grezzo 88030817387222 pWh); nessun token elevato richiesto
+[INFO] [EMI] domini esposti: dram, pkg, pp0, pp1 (solo PKG produce l'energia package; PP1 e' informativo)
+[INFO] Riepilogo diagnostica: platform=Windows; admin=True; energy_file=None; method_expected=emi-counter; emi_available=True; emi_device_path=\\?\acpi#genuineintel_-_intel64_family_6_model_186_-_13th_gen_intel(r)_core(tm)_i9-13900hk#0#{45bd8344-7ed6-49cf-a440-c276c933b053}; emi_device_version=2; emi_device_oem=Microsoft; emi_device_model=PPM; emi_channels=['RAPL_Package0_PKG', 'RAPL_Package0_DRAM', 'RAPL_Package0_PP0', 'RAPL_Package0_PP1']; emi_pkg_channel=RAPL_Package0_PKG; emi_record_read=True; emi_pkg_cum_j=316910.943; emi_pkg_cum_pwh=88030817387222; emi_domains=['dram', 'pkg', 'pp0', 'pp1']

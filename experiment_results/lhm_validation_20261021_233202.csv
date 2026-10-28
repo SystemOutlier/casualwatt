@@ -1,0 +1,11 @@
+﻿run_id;phase;method;energy_j;dt_s;tokens_in;tokens_out;pids;notes
+1;load;power-integration;2738.116192;35.696;185;471;28552;"n_inf=5; window_source=counter-delta-fallback"
+1;baseline;power-integration;2595.043917;35.697;0;0;28552;"idle; window_source=counter-delta-fallback"
+2;load;power-integration;2868.948552;37.99;185;499;28552;"n_inf=5; window_source=counter-delta-fallback"
+2;baseline;power-integration;2775.998039;37.99;0;0;28552;"idle; window_source=counter-delta-fallback"
+3;load;power-integration;4056.120076;52.759;185;683;28552;"n_inf=5; window_source=counter-delta-fallback"
+3;baseline;power-integration;3843.675928;52.759;0;0;28552;"idle; window_source=counter-delta-fallback"
+4;load;power-integration;2432.34652;32.085;185;423;28552;"n_inf=5; window_source=counter-delta-fallback"
+4;baseline;power-integration;2335.865912;32.085;0;0;28552;"idle; window_source=counter-delta-fallback"
+5;load;power-integration;2564.864678;33.7;185;442;28552;"n_inf=5; window_source=counter-delta-fallback"
+5;baseline;power-integration;2455.159904;33.7;0;0;28552;"idle; window_source=counter-delta-fallback"

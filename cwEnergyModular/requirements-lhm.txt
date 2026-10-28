@@ -1,0 +1,19 @@
+# CasualWatt - dipendenze degli harness storici LibreHardwareMonitor (solo Windows)
+#
+# Perche' esiste ancora. Dal 27/10/2026 LHM e' FUORI dall'implementazione
+# (D18, metodo provato e superato): ne' energy/energy_session.py ne'
+# diagnostics.py importano piu' pythonnet. Su Windows l'unico canale locale e'
+# il contatore cumulativo EMI (energy/emi_backend.py), letto con ctypes dalla
+# libreria standard: per la produzione non serve nulla di quanto qui.
+#
+# Questo file resta per gli harness tracciati alla radice del repo
+# (experiment_validate_lhm.py, four_way_test.py, lhm_pi_path_test.py, ...)
+# che rigenerano gli artefatti LHM citati in experiment_results/ e nella tesi.
+#
+#     py -m pip install -r requirements-lhm.txt
+#
+# Senza queste librerie CasualWatt funziona comunque: se EMI non c'e' il metodo
+# resta 'unavailable' e i campi energia si scrivono N/A nel CSV.
+
+# --- aggancio .NET della libreria LibreHardwareMonitor (solo harness storici) ---
+pythonnet>=3.0.3        # modulo 'clr'; gli harness LHM vanno lanciati da elevato

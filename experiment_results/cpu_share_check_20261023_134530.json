@@ -1,0 +1,85 @@
+{
+  "timestamp": "2026-10-23T13:45:30",
+  "finestra_s": 62.0,
+  "token": 832,
+  "needles": [
+    "ollama",
+    "llama-server"
+  ],
+  "cpu_s_albero_ollama": 610.56,
+  "cpu_s_solo_nome_ollama": 1.3,
+  "cpu_s_sistema_somma_processi": 1215.95,
+  "cpu_s_busy_da_cpu_times": 844.02,
+  "cpu_s_idle_da_cpu_times": 408.72,
+  "core_secondi_al_secondo_attesi": 19.62,
+  "share_ollama_su_tempo_totale": 0.5021,
+  "share_ollama_su_tempo_busy": 0.7234,
+  "share_col_vecchio_needle": 0.0011,
+  "confronto_con_SRUM": {
+    "SRUM_ollama_share_of_cpu_load": 0.7361,
+    "fonte": "experiment_results/srum_emi_cross_20261023_130553.json",
+    "nota": "quota CPUEnergyConsumption di ollama.exe + ollama app.exe + llama-server.exe sul totale di CPU nel load: modello EPI di Windows, NON misura. Stessa macchina, carico identico (richette num_predict 32, temperature 0).",
+    "share_busy_misurato": 0.7234,
+    "delta_assoluto": 0.0127,
+    "verdetto": "confrontabile solo con la quota busy: il tempo totale include l'allocatore (System Idle Process) e dava 0,50"
+  },
+  "raggruppato_per_pattern_s": {
+    "ollama": 0.84,
+    "llama-server": 609.12,
+    "qoder": 1.72,
+    "brave": 135.66,
+    "hwinfo": 5.56,
+    "system": 419.14
+  },
+  "top_processi_s": [
+    [
+      "llama-server.exe (9264)",
+      609.12
+    ],
+    [
+      "System Idle Process (0)",
+      408.86
+    ],
+    [
+      "brave.exe (6416)",
+      40.97
+    ],
+    [
+      "brave.exe (8152)",
+      25.31
+    ],
+    [
+      "brave.exe (14112)",
+      22.45
+    ],
+    [
+      "dwm.exe (28248)",
+      17.98
+    ],
+    [
+      "MsMpEng.exe (5948)",
+      13.67
+    ],
+    [
+      "System (4)",
+      10.28
+    ],
+    [
+      "brave.exe (9196)",
+      8.89
+    ],
+    [
+      "brave.exe (26840)",
+      6.17
+    ],
+    [
+      "brave.exe (31144)",
+      6.0
+    ],
+    [
+      "brave.exe (28304)",
+      5.89
+    ]
+  ],
+  "system_idle_process_s": 408.86
+}

@@ -1,0 +1,37 @@
+# CasualWatt Energy Benchmark — dipendenze (Python 3.11+, testato su 3.14 x64)
+# Installazione: py -m pip install -r requirements.txt
+
+# --- Nucleo (obbligatorio) ---
+requests>=2.31          # API Ollama locale + provider cloud (Groq/OpenRouter/Google/OpenAI/Anthropic)
+psutil>=5.9             # PID/albero processi Ollama, CPU time share, contatori NIC
+pandas>=2.0             # risultati CSV
+rich>=13.0              # dashboard/testi formattati
+python-dotenv>=1.0      # eventuale file .env nel progetto
+
+# --- Valutazione semantica (ground truth) ---
+# Al primo uso scarica il modello HF 'paraphrase-multilingual-MiniLM-L12-v2'
+# nella cache GLOBALE di default (~/.cache/huggingface): nessun file binario
+# finisce dentro la cartella del progetto/GitHub.
+sentence-transformers>=3.0
+
+# --- Misurazione energia GPU NVIDIA (opzionale: degrada senza crash) ---
+nvidia-ml-py>=12.538    # NVML; fornisce anche il modulo 'pynvml'
+
+# --- Energia inferenza cloud (opzionale: fallback dichiarato se assente) ---
+ecologits>=0.4
+
+# --- Energia CPU su Windows 11 ---
+# NESSUNA dipendenza obbligatoria: il metodo principale (emi-counter) legge il
+# contatore cumulativo EMI con ctypes dalla libreria standard, senza .NET e senza
+# privilegi elevati (energy/emi_backend.py).
+# Con il contatore EMI assente il metodo resta 'unavailable' e i campi energia
+# vanno a N/A: non esiste piu' un fallback LibreHardwareMonitor nel percorso di
+# produzione (D18, 27/10/2026). requirements-lhm.txt resta solo per gli harness
+# storici che rigenerano gli artefatti LHM di experiment_results/.
+#
+# Rimossi il 24/10 perche' mai importati da questo modulo (verificato con grep su
+# tutti i .py: nessun 'import wmi', nessun 'win32api|win32com|win32file'):
+#   wmi>=1.5.1, pywin32>=306   -> unico consumatore il script legacy nella root,
+#                                 consumi_ollama.py, che dichiara la sua stessa
+#                                 riga di install (riga 21) e non fa parte del
+#                                 percorso di misura di cwEnergyModular.

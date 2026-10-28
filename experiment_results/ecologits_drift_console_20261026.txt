@@ -1,0 +1,27 @@
+=== 1. il codice di stima e' lo stesso? ===
+installazione: ecologits 0.11.1  |  target: 0.11.3
+wheel: C:\Users\Massimo\AppData\Local\Temp\eco3113\ecologits-0.11.3-py3-none-any.whl
+  impacts/llm.py                   IDENTICO  23623 -> 23623 byte
+  tracers/utils.py                 IDENTICO  6158 -> 6158 byte
+  model_repository.py              IDENTICO  4788 -> 4788 byte
+  _ecologits.py                    IDENTICO  7760 -> 7760 byte
+  data/electricity_mixes.json      IDENTICO  56492 -> 56492 byte
+
+=== 2. che cosa muove il registro dei modelli ===
+  modelli installati (0.11.1): 344
+  modelli release 0.11.3: 342
+  presenti solo nell'installazione: 30
+  presenti solo nella release target: 28
+  modelli comuni con contenuto DIVERSO: 129  (su 314 comuni)
+
+=== 3. il campo che si muove, sul modello della sonda ===
+  0.11.1: deployment={'tps': 33.0, 'ttft': 0.6}  soglia n_out/tps+ttft=1.5697s
+  0.11.3: deployment={'tps': 79.0, 'ttft': 0.54}  soglia n_out/tps+ttft=0.9451s
+
+=== 4. la stessa chiamata con i due registri (formula fissa) ===
+  0.11.1: energy = 2.646857537222e-06 kWh  (request_latency=8.0s > soglia: plateau)
+  0.11.3: energy = 2.240194986078e-06 kWh  (request_latency=8.0s > soglia: plateau)
+  rapporto 0.11.3/0.11.1 = 0.846360  -> variazione -15.36%
+
+Lettura: con la formula identica e il miscelamento elettrico fissato a 1
+(quindi fuori dal confronto), la differenza e' solo nei dati del registro.

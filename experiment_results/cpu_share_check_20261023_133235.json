@@ -1,0 +1,73 @@
+{
+  "timestamp": "2026-10-23T13:32:35",
+  "finestra_s": 61.6,
+  "token": 832,
+  "cpu_s_albero_ollama": 608.06,
+  "cpu_s_solo_nome_ollama": 1.19,
+  "cpu_s_sistema": 1212.73,
+  "core_secondi_al_secondo": 19.68,
+  "share_con_NEEDLES": 0.5014,
+  "share_col_vecchio_needle": 0.001,
+  "raggruppato_per_pattern_s": {
+    "ollama": 0.81,
+    "llama-server": 606.73,
+    "qoder": 1.98,
+    "brave": 138.24,
+    "hwinfo": 5.69,
+    "system": 415.69
+  },
+  "top_processi_s": [
+    [
+      "llama-server.exe (17028)",
+      606.73
+    ],
+    [
+      "System Idle Process (0)",
+      407.27
+    ],
+    [
+      "brave.exe (6416)",
+      39.75
+    ],
+    [
+      "brave.exe (8152)",
+      24.62
+    ],
+    [
+      "brave.exe (14112)",
+      23.59
+    ],
+    [
+      "dwm.exe (28248)",
+      16.05
+    ],
+    [
+      "MsMpEng.exe (5948)",
+      14.38
+    ],
+    [
+      "System (4)",
+      8.42
+    ],
+    [
+      "brave.exe (31144)",
+      8.31
+    ],
+    [
+      "brave.exe (28304)",
+      7.52
+    ],
+    [
+      "brave.exe (29632)",
+      7.27
+    ],
+    [
+      "brave.exe (11260)",
+      6.02
+    ]
+  ],
+  "confronto_SRUM_v2": {
+    "SRUM_ollama_share_of_cpu_load": 0.7361,
+    "nota": "numero preso dal run 20261023_130553, stessa macchina, carico identico (richette num_predict 32, temperature 0)"
+  }
+}

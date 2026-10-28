@@ -1,0 +1,71 @@
+ecologits installato: 0.11.1
+registro: 344 modelli, 344 con deployment, 157 con `tps` non nullo (tps/ttft iniettati da tracers/utils.py:121-122; senza `tps` la soglia e' la regressione `impacts/llm.py:95`, non n_out/tps+ttft)
+deployment di openai/gpt-4o-mini: {'tps': 33.0, 'ttft': 0.6}
+
+=== openai/gpt-4o-mini  output_token_count=32  tps=33.0 ttft=0.6  soglia interna n_out/tps+ttft = 1.5696969697 s ===
+  plateau (energia alla soglia, cioe' con clamp attivo) = 3.176229044667e-06 kWh
+  request_latency=  0.0500 s  E=1.988965787091e-06 kWh  banda[1.770311e-06, 2.207621e-06]  delta vs 0.2 s=  -5.564%  vincola=misurata
+  request_latency=  0.2000 s  E=2.106153287091e-06 kWh  banda[1.887498e-06, 2.324808e-06]  delta vs 0.2 s=  +0.000%  vincola=misurata
+  request_latency=  0.5000 s  E=2.340528287091e-06 kWh  banda[2.121873e-06, 2.559183e-06]  delta vs 0.2 s= +11.128%  vincola=misurata
+  request_latency=  1.0000 s  E=2.731153287091e-06 kWh  banda[2.512498e-06, 2.949808e-06]  delta vs 0.2 s= +29.675%  vincola=misurata
+  request_latency=  1.4000 s  E=3.043653287091e-06 kWh  banda[2.824998e-06, 3.262308e-06]  delta vs 0.2 s= +44.512%  vincola=misurata
+  request_latency=  1.5000 s  E=3.121778287091e-06 kWh  banda[2.903123e-06, 3.340433e-06]  delta vs 0.2 s= +48.222%  vincola=misurata
+  request_latency=  1.5500 s  E=3.160840787091e-06 kWh  banda[2.942186e-06, 3.379496e-06]  delta vs 0.2 s= +50.076%  vincola=misurata
+  request_latency=  1.5697 s  E=3.176229044667e-06 kWh  banda[2.957574e-06, 3.394884e-06]  delta vs 0.2 s= +50.807%  vincola=STIMA INTERNA (clamp)   <-- IDENTICA al plateau
+  request_latency=  1.5700 s  E=3.176229044667e-06 kWh  banda[2.957574e-06, 3.394884e-06]  delta vs 0.2 s= +50.807%  vincola=STIMA INTERNA (clamp)   <-- IDENTICA al plateau
+  request_latency=  1.6000 s  E=3.176229044667e-06 kWh  banda[2.957574e-06, 3.394884e-06]  delta vs 0.2 s= +50.807%  vincola=STIMA INTERNA (clamp)   <-- IDENTICA al plateau
+  request_latency=  2.0000 s  E=3.176229044667e-06 kWh  banda[2.957574e-06, 3.394884e-06]  delta vs 0.2 s= +50.807%  vincola=STIMA INTERNA (clamp)   <-- IDENTICA al plateau
+  request_latency=  3.6000 s  E=3.176229044667e-06 kWh  banda[2.957574e-06, 3.394884e-06]  delta vs 0.2 s= +50.807%  vincola=STIMA INTERNA (clamp)   <-- IDENTICA al plateau
+  request_latency=  3.7000 s  E=3.176229044667e-06 kWh  banda[2.957574e-06, 3.394884e-06]  delta vs 0.2 s= +50.807%  vincola=STIMA INTERNA (clamp)   <-- IDENTICA al plateau
+  request_latency=  5.0000 s  E=3.176229044667e-06 kWh  banda[2.957574e-06, 3.394884e-06]  delta vs 0.2 s= +50.807%  vincola=STIMA INTERNA (clamp)   <-- IDENTICA al plateau
+  request_latency=  6.6606 s  E=3.176229044667e-06 kWh  banda[2.957574e-06, 3.394884e-06]  delta vs 0.2 s= +50.807%  vincola=STIMA INTERNA (clamp)   <-- IDENTICA al plateau
+  request_latency= 10.0000 s  E=3.176229044667e-06 kWh  banda[2.957574e-06, 3.394884e-06]  delta vs 0.2 s= +50.807%  vincola=STIMA INTERNA (clamp)   <-- IDENTICA al plateau
+  request_latency= 30.0000 s  E=3.176229044667e-06 kWh  banda[2.957574e-06, 3.394884e-06]  delta vs 0.2 s= +50.807%  vincola=STIMA INTERNA (clamp)   <-- IDENTICA al plateau
+  request_latency=120.0000 s  E=3.176229044667e-06 kWh  banda[2.957574e-06, 3.394884e-06]  delta vs 0.2 s= +50.807%  vincola=STIMA INTERNA (clamp)   <-- IDENTICA al plateau
+
+=== openai/gpt-4o-mini  output_token_count=100  tps=33.0 ttft=0.6  soglia interna n_out/tps+ttft = 3.6303030303 s ===
+  plateau (energia alla soglia, cioe' con clamp attivo) = 8.929622014584e-06 kWh
+  request_latency=  0.0500 s  E=6.132510272159e-06 kWh  banda[5.449214e-06, 6.815807e-06]  delta vs 0.2 s=  -1.875%  vincola=misurata
+  request_latency=  0.2000 s  E=6.249697772159e-06 kWh  banda[5.566401e-06, 6.932994e-06]  delta vs 0.2 s=  +0.000%  vincola=misurata
+  request_latency=  0.5000 s  E=6.484072772159e-06 kWh  banda[5.800776e-06, 7.167369e-06]  delta vs 0.2 s=  +3.750%  vincola=misurata
+  request_latency=  1.0000 s  E=6.874697772159e-06 kWh  banda[6.191401e-06, 7.557994e-06]  delta vs 0.2 s= +10.000%  vincola=misurata
+  request_latency=  1.4000 s  E=7.187197772159e-06 kWh  banda[6.503901e-06, 7.870494e-06]  delta vs 0.2 s= +15.001%  vincola=misurata
+  request_latency=  1.5000 s  E=7.265322772159e-06 kWh  banda[6.582026e-06, 7.948619e-06]  delta vs 0.2 s= +16.251%  vincola=misurata
+  request_latency=  1.5500 s  E=7.304385272159e-06 kWh  banda[6.621089e-06, 7.987682e-06]  delta vs 0.2 s= +16.876%  vincola=misurata
+  request_latency=  1.5697 s  E=7.319775897159e-06 kWh  banda[6.636479e-06, 8.003073e-06]  delta vs 0.2 s= +17.122%  vincola=misurata
+  request_latency=  1.5700 s  E=7.320010272159e-06 kWh  banda[6.636714e-06, 8.003307e-06]  delta vs 0.2 s= +17.126%  vincola=misurata
+  request_latency=  1.6000 s  E=7.343447772159e-06 kWh  banda[6.660151e-06, 8.026744e-06]  delta vs 0.2 s= +17.501%  vincola=misurata
+  request_latency=  2.0000 s  E=7.655947772159e-06 kWh  banda[6.972651e-06, 8.339244e-06]  delta vs 0.2 s= +22.501%  vincola=misurata
+  request_latency=  3.6000 s  E=8.905947772159e-06 kWh  banda[8.222651e-06, 9.589244e-06]  delta vs 0.2 s= +42.502%  vincola=misurata
+  request_latency=  3.7000 s  E=8.929622014584e-06 kWh  banda[8.246325e-06, 9.612919e-06]  delta vs 0.2 s= +42.881%  vincola=STIMA INTERNA (clamp)   <-- IDENTICA al plateau
+  request_latency=  5.0000 s  E=8.929622014584e-06 kWh  banda[8.246325e-06, 9.612919e-06]  delta vs 0.2 s= +42.881%  vincola=STIMA INTERNA (clamp)   <-- IDENTICA al plateau
+  request_latency=  6.6606 s  E=8.929622014584e-06 kWh  banda[8.246325e-06, 9.612919e-06]  delta vs 0.2 s= +42.881%  vincola=STIMA INTERNA (clamp)   <-- IDENTICA al plateau
+  request_latency= 10.0000 s  E=8.929622014584e-06 kWh  banda[8.246325e-06, 9.612919e-06]  delta vs 0.2 s= +42.881%  vincola=STIMA INTERNA (clamp)   <-- IDENTICA al plateau
+  request_latency= 30.0000 s  E=8.929622014584e-06 kWh  banda[8.246325e-06, 9.612919e-06]  delta vs 0.2 s= +42.881%  vincola=STIMA INTERNA (clamp)   <-- IDENTICA al plateau
+  request_latency=120.0000 s  E=8.929622014584e-06 kWh  banda[8.246325e-06, 9.612919e-06]  delta vs 0.2 s= +42.881%  vincola=STIMA INTERNA (clamp)   <-- IDENTICA al plateau
+
+=== openai/gpt-4o-mini  output_token_count=200  tps=33.0 ttft=0.6  soglia interna n_out/tps+ttft = 6.6606060606 s ===
+  plateau (energia alla soglia, cioe' con clamp attivo) = 1.739049402917e-05 kWh
+  request_latency=  0.0500 s  E=1.222595804432e-05 kWh  banda[1.085936e-05, 1.359255e-05]  delta vs 0.2 s=  -0.949%  vincola=misurata
+  request_latency=  0.2000 s  E=1.234314554432e-05 kWh  banda[1.097655e-05, 1.370974e-05]  delta vs 0.2 s=  +0.000%  vincola=misurata
+  request_latency=  0.5000 s  E=1.257752054432e-05 kWh  banda[1.121093e-05, 1.394411e-05]  delta vs 0.2 s=  +1.899%  vincola=misurata
+  request_latency=  1.0000 s  E=1.296814554432e-05 kWh  banda[1.160155e-05, 1.433474e-05]  delta vs 0.2 s=  +5.064%  vincola=misurata
+  request_latency=  1.4000 s  E=1.328064554432e-05 kWh  banda[1.191405e-05, 1.464724e-05]  delta vs 0.2 s=  +7.595%  vincola=misurata
+  request_latency=  1.5000 s  E=1.335877054432e-05 kWh  banda[1.199218e-05, 1.472536e-05]  delta vs 0.2 s=  +8.228%  vincola=misurata
+  request_latency=  1.5500 s  E=1.339783304432e-05 kWh  banda[1.203124e-05, 1.476443e-05]  delta vs 0.2 s=  +8.545%  vincola=misurata
+  request_latency=  1.5697 s  E=1.341322366932e-05 kWh  banda[1.204663e-05, 1.477982e-05]  delta vs 0.2 s=  +8.669%  vincola=misurata
+  request_latency=  1.5700 s  E=1.341345804432e-05 kWh  banda[1.204686e-05, 1.478005e-05]  delta vs 0.2 s=  +8.671%  vincola=misurata
+  request_latency=  1.6000 s  E=1.343689554432e-05 kWh  banda[1.207030e-05, 1.480349e-05]  delta vs 0.2 s=  +8.861%  vincola=misurata
+  request_latency=  2.0000 s  E=1.374939554432e-05 kWh  banda[1.238280e-05, 1.511599e-05]  delta vs 0.2 s= +11.393%  vincola=misurata
+  request_latency=  3.6000 s  E=1.499939554432e-05 kWh  banda[1.363280e-05, 1.636599e-05]  delta vs 0.2 s= +21.520%  vincola=misurata
+  request_latency=  3.7000 s  E=1.507752054432e-05 kWh  banda[1.371093e-05, 1.644411e-05]  delta vs 0.2 s= +22.153%  vincola=misurata
+  request_latency=  5.0000 s  E=1.609314554432e-05 kWh  banda[1.472655e-05, 1.745974e-05]  delta vs 0.2 s= +30.381%  vincola=misurata
+  request_latency=  6.6606 s  E=1.739048929432e-05 kWh  banda[1.602390e-05, 1.875708e-05]  delta vs 0.2 s= +40.892%  vincola=misurata
+  request_latency= 10.0000 s  E=1.739049402917e-05 kWh  banda[1.602390e-05, 1.875709e-05]  delta vs 0.2 s= +40.892%  vincola=STIMA INTERNA (clamp)   <-- IDENTICA al plateau
+  request_latency= 30.0000 s  E=1.739049402917e-05 kWh  banda[1.602390e-05, 1.875709e-05]  delta vs 0.2 s= +40.892%  vincola=STIMA INTERNA (clamp)   <-- IDENTICA al plateau
+  request_latency=120.0000 s  E=1.739049402917e-05 kWh  banda[1.602390e-05, 1.875709e-05]  delta vs 0.2 s= +40.892%  vincola=STIMA INTERNA (clamp)   <-- IDENTICA al plateau
+
+Lettura: finche' la misura e' sotto n_out/tps + ttft il tempo di rete
+entra nel termine server; sopra, la riga dichiara una latenza che NON ha
+influito sul numero e l'energia resta IDENTICA al plateau. Servono
+cloud_latency_used_s e cloud_latency_binding (misurata | stima-interna).

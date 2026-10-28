@@ -1,0 +1,147 @@
+{
+  "timestamp": "20261023_143603",
+  "wall_zero": "2026-10-23T14:33:00.905",
+  "fasi": [
+    [
+      "idle",
+      45.0
+    ],
+    [
+      "load",
+      90.0
+    ],
+    [
+      "idle2",
+      45.0
+    ]
+  ],
+  "fasi_durata_reale_s": {
+    "idle": 45.153,
+    "load": 91.015,
+    "idle2": 45.074
+  },
+  "tokens_load": 736,
+  "per_fase": {
+    "idle": {
+      "n": 45,
+      "emi_J": 531.24,
+      "emi_meter_s": 44.15,
+      "emi_W": 12.03,
+      "lhm_mean_W": 12.03,
+      "lhm_sd_W": 2.83,
+      "cw_J_fase": 537.203,
+      "cw_s_fase": 44.827,
+      "cw_W_finestra_uguale": 11.98,
+      "cw_n_campioni_05s": 154,
+      "cw_ritagliato_s": 0.325,
+      "cw_win_note": null,
+      "emi_J_finestra_uguale": 545.365,
+      "emi_W_finestra_uguale": 12.17,
+      "rapporto_cw_div_EMI_finestra_uguale": 0.985,
+      "hw_n": 0,
+      "hw_mean_W": null,
+      "hw_sd_W": null
+    },
+    "load": {
+      "n": 22,
+      "emi_J": 1866.0,
+      "emi_meter_s": 83.78,
+      "emi_W": 22.27,
+      "lhm_mean_W": 25.94,
+      "lhm_sd_W": 2.22,
+      "cw_J_fase": 2038.514,
+      "cw_s_fase": 90.698,
+      "cw_W_finestra_uguale": 22.48,
+      "cw_n_campioni_05s": 295,
+      "cw_ritagliato_s": 0.316,
+      "cw_win_note": null,
+      "emi_J_finestra_uguale": 2014.045,
+      "emi_W_finestra_uguale": 22.21,
+      "rapporto_cw_div_EMI_finestra_uguale": 1.0121,
+      "hw_n": 0,
+      "hw_mean_W": null,
+      "hw_sd_W": null
+    },
+    "idle2": {
+      "n": 45,
+      "emi_J": 528.6,
+      "emi_meter_s": 44.07,
+      "emi_W": 11.99,
+      "lhm_mean_W": 12.23,
+      "lhm_sd_W": 2.41,
+      "cw_J_fase": null,
+      "cw_s_fase": null,
+      "cw_W_finestra_uguale": null,
+      "cw_n_campioni_05s": null,
+      "cw_ritagliato_s": null,
+      "cw_win_note": "buffer di integrazione non copre la finestra della fase",
+      "emi_J_finestra_uguale": null,
+      "emi_W_finestra_uguale": null,
+      "rapporto_cw_div_EMI_finestra_uguale": null,
+      "hw_n": 0,
+      "hw_mean_W": null,
+      "hw_sd_W": null
+    }
+  },
+  "codecarbon_per_fase": [
+    {
+      "fase": "idle",
+      "cum_duration_s": 53.434,
+      "delta_duration_s": 53.434,
+      "delta_cpu_energy_J": 565.4,
+      "cpu_power_W_fase": 10.58
+    },
+    {
+      "fase": "load",
+      "cum_duration_s": 144.469,
+      "delta_duration_s": 91.035,
+      "delta_cpu_energy_J": 2294.46,
+      "cpu_power_W_fase": 25.2
+    },
+    {
+      "fase": "idle2",
+      "cum_duration_s": 189.551,
+      "delta_duration_s": 45.083,
+      "delta_cpu_energy_J": 386.63,
+      "cpu_power_W_fase": 8.58
+    }
+  ],
+  "codecarbon_backend": [
+    "RAM()",
+    "CPU(Cpu Load)"
+  ],
+  "codecarbon_notes": [],
+  "confronto": {
+    "EMI_W_base": 12.01,
+    "EMI_W_load": 22.27,
+    "EMI_incrementale_J": 859.8,
+    "EMI_J_per_token": 1.1682,
+    "LHM_W_base": 12.13,
+    "LHM_W_load": 25.94,
+    "LHM_incrementale_W": 13.81,
+    "LHM_incrementale_J": 1242.9,
+    "LHM_finestra_uguale_W_base": 11.98,
+    "LHM_finestra_uguale_W_load": 22.48,
+    "LHM_finestra_uguale_incrementale_J": 952.3,
+    "EMI_finestra_uguale_W_base": 12.17,
+    "EMI_finestra_uguale_W_load": 22.21,
+    "EMI_finestra_uguale_incrementale_J": 910.6,
+    "rapporto_LHM_div_EMI_incrementale_finestra_uguale": 1.0458,
+    "J_per_token_LHM_finestra_uguale": 1.2939,
+    "rapporto_LHM_div_EMI_J_per_token_finestra_uguale": 1.1076,
+    "CodeCarbon_W_base": 9.58,
+    "CodeCarbon_W_load": 25.2,
+    "CodeCarbon_incrementale_W": 15.62,
+    "HWiNFO_W_base": null,
+    "HWiNFO_W_load": null,
+    "HWiNFO_incrementale_W": null,
+    "HWiNFO_incrementale_J": null,
+    "J_per_token_LHM": 1.6887,
+    "J_per_token_HWiNFO": null,
+    "offset_LHM_meno_EMI_W": 0.12,
+    "offset_HWiNFO_meno_EMI_W": null
+  },
+  "confronto_note": "EMI = contatore hardware cumulativo PKG, riferimento di scala; SRUM (secondo consumatore degli stessi contatori) lo replica a +/-4% su finestre identiche, quindi la decodifica ctypes e' corretta ma SRUM NON e' un arbitro indipendente. LHM = power-integration di produzione: dopo il guard su SensorType (energy_session.py _read_power_w_direct, 23/10) il match per nome non cade piu' sull'omonimo sensore Temperature (IntelCpu.cs:401) e l'offset LHM-EMI e' passato da +54,5 W a +0,22 W (lhm_readpath_probe_20261023_132621). CodeCarbon su questa macchina = modello cpu_load (80 W * (0.1 + 0.9*load^3)), NON una misura: termine di confronto metodologico, non arbitro. HWiNFO = package letto dalla Shared Memory (calibrato a caldo vs EMI), testimone NON passivo perche' il suo polling e' carico CPU. *_finestra_uguale = LHM integrato con trapezio sul buffer 0,05 s ed EMI interpolato sull'asse mono dei tick, sulla STESSA finestra [inizio fase, fine fase]: il rapporto e' same-window e same-clock, e non dipende piu' dal punto in cui il tick 1 Hz capita (sul load il tick e' bloccato dalla richiesta Ollama). I J/token di LHM e HWiNFO senza suffisso usano invece (W_load - W_base) * durata_fase con i soli campioni istantanei: sono quelli metodologicamente piu' deboli e restano nel JSON solo come termine di confronto.",
+  "hwinfo": "ASSENTE",
+  "hwinfo_note": "OSError: OpenFileMapping fallita (err=2): la Shared Memory di HWiNFO non e' esposta. Abilita 'Shared Memory Support' in Impostazioni -> Generale/Interfaccia utente (manuale p.14) e tieni attiva la finestra sensori."
+}
