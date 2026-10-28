@@ -541,6 +541,10 @@ def _basic_record(run_id, session_id, model_name, model_label, provider, mode,
         # valore.
         "cloud_emissions_method": "",
         "energibridge_csv": "",
+        # D14: la riga nasce su un canale INTERNO; il merge del risultato
+        # locale lo riscrive dal profiler. Una riga che non arriva a misurare
+        # resta False, che e' corretto: nessun contatore esterno l'ha prodotta.
+        "external_counter": False,
         "notes": [],
     }
     return rec
@@ -989,6 +993,11 @@ def run_unified_benchmark(
                     energy_calculation_method=(
                         getattr(local, "energy_calculation_method", "") or ""
                     ),
+                    # D14: stesso canale, ma come BOOLEANO: chi filtra
+                    # esclude le righe a contatore esterno senza leggere
+                    # l'etichetta.
+                    external_counter=bool(
+                        getattr(local, "external_counter", False)),
                     # provenienza del contatore (alt_lhm §3): grezzi, unita',
                     # dominio, cadenza osservata, versione del lettore
                     raw_start=_na_or(getattr(local, "raw_start", None)),
@@ -1162,6 +1171,10 @@ def run_unified_benchmark(
                         energy_calculation_method=(
                             getattr(client_local, "energy_calculation_method", "") or ""
                         ),
+                        # D14: anche la riga cloud dichiara se il contatore
+                        # del CLIENT e' esterno (il server non si misura qui)
+                        external_counter=bool(
+                            getattr(client_local, "external_counter", False)),
                         # provenienza del contatore del CLIENT (il server non
                         # e' misurato qui: cloud_energy_method lo dichiara)
                         raw_start=_na_or(getattr(client_local, "raw_start", None)),

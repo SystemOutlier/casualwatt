@@ -190,6 +190,13 @@ CSV_COLUMNS: List[str] = [
     # l'end-to-end non e' calcolabile, vuoto quando i token mancano: mai uno
     # zero inventato. Accodate in coda: migrazione per nome via ensure_header.
     "energy_per_total_token_j", "tokens_per_joule", "kwh_per_million_tokens",
+    # D14 (28-10-2026): esclusione esplicita dei contatori esterni. True solo
+    # per ``energy-file``: CW_ENERGY_FILE e' un override di selezione fornito
+    # dall'utente, non un canale della catena. False per ogni canale locale,
+    # catene GPU NVML/AMD SMI comprese. Booleano e non un'etichetta: un
+    # filtro non deve dipendere dal testo di ``energy_calculation_method``.
+    # Accodata in coda: migrazione per nome via ensure_header.
+    "external_counter",
 ]
 
 

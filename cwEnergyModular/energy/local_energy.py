@@ -94,7 +94,7 @@ from typing import Dict, List, Optional
 
 import psutil
 
-from .energy_session import SESSION, SystemSample
+from .energy_session import SESSION, SystemSample, is_external_counter
 
 
 @dataclass
@@ -146,6 +146,11 @@ class LocalEnergyResult:
     # "power-integration"/"librehardwaremonitor*" restano validi per le righe
     # gia' archiviate in experiment_results/, non sono piu' prodotti.
     energy_calculation_method: str = ""
+    # True solo quando il numero della riga viene da un contatore ESTERNO alla
+    # catena (energy-file via CW_ENERGY_FILE). Booleano e non un'etichetta:
+    # escludere i contatori esterni da un'analisi deve essere un filtro, non
+    # un confronto fra stringhe.
+    external_counter: bool = False
     # ---- provenienza del contatore (contratto alt_lhm §3) ----------------
     # Valori GREZZI agli estremi della finestra, nell'unita' nativa del canale:
     # pWh per EMI, uJ per RAPL. Un campo vuoto dichiara l'assenza; un numero
@@ -391,6 +396,9 @@ class CasualWattLocalEnergyProfiler:
         # diversi -- emi-counter, rapl, energy-file -- non era
         # auto-descrittivo senza il file di run metadata.
         res.energy_calculation_method = method
+        # D14: stesso canale, lettura diversa. Un filtro non deve dedurre
+        # "esterno" dal testo del token.
+        res.external_counter = is_external_counter(method)
 
         # ---- provenienza del contatore (raw + cadenza reale + versione) ---
         # Contratto di alt_lhm §3: senza i valori grezzi e la cadenza

@@ -144,7 +144,9 @@ def test_colonne_e_export(tmp_path):
         "cloud_latency_threshold_s", "cloud_latency_binding",
         # Metriche per token (emendazione a P5, 28-10-2026), in coda.
         "energy_per_total_token_j", "tokens_per_joule",
-        "kwh_per_million_tokens"]
+        "kwh_per_million_tokens",
+        # D14: contatore esterno, in coda.
+        "external_counter"]
 
     p = tmp_path / "out.csv"
     export_results_csv([{"run_id": "r1", "cpu_share_window_s": 1.5,
