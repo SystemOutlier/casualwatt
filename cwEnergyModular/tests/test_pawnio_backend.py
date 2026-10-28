@@ -41,13 +41,14 @@ class FakeLib:
     """Sostituto di ``_PawnIOLib``: registri statici + contatore a lista."""
 
     def __init__(self, *, unit_msr, energy_msr, unit_raw, energy_values,
-                 lib_version="2.0.0", fail_on=()):
+                 lib_version="2.0.0", fail_on=(), fail_open=None):
         self.unit_msr = unit_msr
         self.energy_msr = energy_msr
         self.unit_raw = unit_raw
         self.energy_values = list(energy_values)
         self.lib_version = lib_version
         self.fail_on = set(fail_on)
+        self.fail_open = fail_open
         self.read_log = []
         self.opened = False
         self.loaded = False
@@ -59,6 +60,8 @@ class FakeLib:
 
     def open(self):
         self.opened = True
+        if self.fail_open is not None:
+            raise pb.PawnIOLibError("pawnio_open", self.fail_open)
 
     def load(self, blob):
         self.loaded = True
@@ -320,6 +323,35 @@ def test_chiusura_rende_il_backend_non_disponibile(tmp_path):
     assert backend.available is False
     assert fake.closed is True
     assert backend.read_cumulative_energy_j() is None
+
+
+def test_accesso_negato_dichiara_il_privilegio(tmp_path):
+    """Da token ristretto pawnio_open risponde 0x80070005 (misurato il
+    28-10-2026): il canale manca per privilegio, e la ragione lo dice invece
+    di confonderlo con un driver rotto."""
+    mod_dir, _, hashes = _module(tmp_path)
+    spec = pb.VENDORS["intel"]
+    lib = FakeLib(unit_msr=spec["unit_msr"], energy_msr=spec["energy_msr"],
+                  unit_raw=UNIT_INTEL, energy_values=(), fail_open=0x80070005)
+    backend, _ = _build(mod_dir=mod_dir, hashes=hashes, lib=lib)
+
+    assert backend.available is False
+    assert backend.reason == "access_denied"
+    assert any("elevato" in n for n in backend.notes)
+    assert backend.probe()["reason"] == "access_denied"
+
+
+def test_altro_errore_di_apertura_resta_pawnio_unavailable(tmp_path):
+    """Solo E_ACCESSDENIED ha una ragione propria: un HRESULT diverso non
+    diventa 'access_denied' per assonanza."""
+    mod_dir, _, hashes = _module(tmp_path)
+    spec = pb.VENDORS["intel"]
+    lib = FakeLib(unit_msr=spec["unit_msr"], energy_msr=spec["energy_msr"],
+                  unit_raw=UNIT_INTEL, energy_values=(), fail_open=0x80004005)
+    backend, _ = _build(mod_dir=mod_dir, hashes=hashes, lib=lib)
+
+    assert backend.available is False
+    assert backend.reason == "pawnio_unavailable"
 
 
 def test_find_modules_dir_rispetta_la_variabile(tmp_path, monkeypatch):

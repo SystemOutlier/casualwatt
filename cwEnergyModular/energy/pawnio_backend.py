@@ -34,6 +34,10 @@ Fatti verificati alla fonte il 28-10-2026
   assume. Il driver installato e' firmato "Microsoft Windows Hardware
   Compatibility Publisher" (``Get-AuthenticodeSignature``, 28-10-2026) e
   gira con HVCI attivo (``HypervisorEnforcedCodeIntegrity\\Enabled = 1``).
+  La **lettura richiede un processo elevato**: da token ristretto
+  ``pawnio_open`` risponde ``0x80070005`` (misurato il 28-10-2026, ragione
+  ``access_denied``). Il percorso EMI non ha questo requisito, ed e' uno dei
+  motivi per cui resta primo in catena.
 
 Cosa **non** fa
 ---------------
@@ -296,6 +300,7 @@ class PawnIOLibError(Exception):
     """Errore HRESULT di PawnIOLib, con il codice esatto."""
 
     def __init__(self, call: str, hr: int) -> None:
+        self.call = call
         self.hr = hr & 0xFFFFFFFF
         super().__init__(f"{call} hr=0x{self.hr:08X}")
 
@@ -474,8 +479,20 @@ class PawnIOMSRBackend:
             lib.load(path.read_bytes())
             self.lib_version = lib.version()
         except Exception as exc:  # noqa: BLE001 - ragione dichiarata
-            self.reason = "pawnio_unavailable"
-            self.notes.append(f"PawnIOLib/load: {type(exc).__name__}: {exc}")
+            if (isinstance(exc, PawnIOLibError) and exc.call == "pawnio_open"
+                    and exc.hr == 0x80070005):
+                # misurato il 28-10-2026: da token ristretto pawnio_open
+                # risponde E_ACCESSDENIED, quindi il canale richiede un
+                # processo elevato. La ragione si distingue perche' la riga
+                # deve dire *perche'* il fallback non c'e'.
+                self.reason = "access_denied"
+                self.notes.append(
+                    "PawnIOLib/pawnio_open: accesso negato (0x80070005): il "
+                    "driver richiede un processo elevato")
+            else:
+                self.reason = "pawnio_unavailable"
+                self.notes.append(
+                    f"PawnIOLib/load: {type(exc).__name__}: {exc}")
             try:
                 lib.close()
             except Exception:

@@ -1,0 +1,84 @@
+{
+ "method": "pawnio-counter",
+ "mode": "aba",
+ "started_utc": "2026-10-27T23:43:54Z",
+ "phase_s": 60.0,
+ "warmup_s": 30.0,
+ "criteria": {
+  "level_pass_w": 1.0,
+  "cadence_tol": 0.1,
+  "cadence_target_s": 0.05,
+  "rules": "livello: |P_B-P_A1|<1.0 W e |P_B-P_A2|<1.0 W; cadenza: intervallo medio entro il 10% di 50 ms; B limite superiore (in produzione un solo backend)"
+ },
+ "probe": {
+  "pass": true,
+  "reason": "",
+  "vendor": "intel",
+  "service": "running",
+  "hvci": "enabled",
+  "driver_path": "C:\\WINDOWS\\System32\\DriverStore\\FileRepository\\pawnio.inf_amd64_a92d2610b0f4c4c8\\PawnIO.sys",
+  "driver_signature": "Valid",
+  "driver_signer": "CN=Microsoft Windows Hardware Compatibility Publisher, O=Microsoft Corporation, L=Redmond, S=Washington, C=US",
+  "module_version": "0.2.11",
+  "module_path": "C:\\Users\\Massimo\\AppData\\Local\\CasualWatt\\pawnio-modules\\0.2.11\\IntelMSR.bin",
+  "module_sha256": "d6ed85d65ab17a22f813ef98207d6d537155ee2ded5976a21cb48413c9b92e5f",
+  "lib_version": "2.0.0",
+  "unit_msr": "0x606",
+  "unit_raw": "0xA0E03",
+  "energy_msr": "0x611",
+  "quantum_j": 6.103515625e-05,
+  "wraps": 0,
+  "resets": 0,
+  "notes": [
+   "PawnIO: intel, modulo IntelMSR.bin (0.2.11), unita' 0x606=0xA0E03 -> quantum 6.10351562e-05 J, contatore 0x611 a 32 bit, HVCI enabled, firma Valid"
+  ]
+ },
+ "pawnio_sampler": {
+  "reads": 1188,
+  "valid": 1188,
+  "interval_mean_s": 0.05056,
+  "interval_p95_s": 0.050855,
+  "latency_p50_us": 82.5,
+  "counter_advanced_j": 696.051453
+ },
+ "phases": [
+  {
+   "name": "A1",
+   "emi_j": 684.262071,
+   "window_s": 60.033657,
+   "power_w": 11.398,
+   "emi_ticks": 60,
+   "cpu_s": 0.0
+  },
+  {
+   "name": "B",
+   "emi_j": 696.140479,
+   "window_s": 60.066063,
+   "power_w": 11.5896,
+   "emi_ticks": 60,
+   "cpu_s": 0.25
+  },
+  {
+   "name": "A2",
+   "emi_j": 641.76636,
+   "window_s": 60.038252,
+   "power_w": 10.6893,
+   "emi_ticks": 60,
+   "cpu_s": 0.0156
+  }
+ ],
+ "level": {
+  "delta_b_minus_a1_w": 0.1916,
+  "delta_b_minus_a2_w": 0.9003,
+  "drift_a1_a2_w": 0.7087,
+  "attributable": true,
+  "level_pass": true,
+  "note": "B e' un limite superiore: in produzione gira un solo backend, qui EMI (1 Hz, strumento) e PawnIO (20 Hz, osservatore) insieme"
+ },
+ "cadence": {
+  "target_s": 0.05,
+  "mean_s": 0.05056,
+  "pass": true
+ },
+ "verdict": "ok"
+}
