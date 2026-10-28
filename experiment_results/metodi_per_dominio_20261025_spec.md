@@ -473,7 +473,7 @@ Precisazioni.
 - **E1.** Il device e' enumerato per GUID di interfaccia con SetupAPI, senza
   filtro di produttore: `energy_session` seleziona Windows e basta, poi chiede
   il contatore e accetta il canale **solo se la prima lettura riesce**
-  (`energy/energy_session.py:136-152`, `:154-182`). Fino al 26/10 il percorso
+  (`energy/energy_session.py:139-164`, `:166-193`). Fino al 26/10 il percorso
   prendeva la prima interfaccia apribile e il primo canale del record, e
   l'ordine `pkg, dram, pp0, pp1` era assunto dalla posizione: erano i difetti
   F11 e F13. **Dal 27/10/2026 il lettore verifica il meter invece di
@@ -525,13 +525,15 @@ Precisazioni.
   di EMI. E' questa la ragione tecnica del ritiro: non un canale in piu', ma lo
   stesso registro con una derivata in piu' e una cadenza in piu'. I sensori
   Energy-CPU di LHM richiedono token elevato -- senza UAC la libreria si aggancia
-  ma legge zero o `None` (`energy/energy_session.py:557`) -- quindi la copertura
+  ma legge zero o `None` (percorso LHM rimosso il 27/10/2026, D18, commit
+  `3562875`) -- quindi la copertura
   che offriva era, sul caso "permessi", parziale. Restano validi e citabili i
   risultati ottenuti col canale finche' era selezionabile: accordo a finestra
   uguale con EMI, differenziale A-B-A, costo di osservazione. La selezione del
   sensore era per `SensorType`, non per nome: il nome da solo ha gia' prodotto il
-  difetto che integrava i gradi Celsius di un sensore Temperature omonimo (guard a
-  `energy/energy_session.py:656-663`), ed e' la ragione per cui il sostituto P1
+  difetto che integrava i gradi Celsius di un sensore Temperature omonimo (guard
+  su `SensorType`, rimosso con LHM il 27/10/2026, D18; fix `1422d1b`), ed e' la
+  ragione per cui il sostituto P1
   sceglie il registro per indirizzo e il dominio per metadato, non per nome.
 - **P2.** E' un secondo percorso di **accesso**, non un secondo canale: legge
   lo stesso registro di E1. Nella catena conta come fallback di disponibilita'
@@ -650,7 +652,7 @@ Precisazioni.
   produce nulla: Windows 10, AMD senza canale energia, macchine virtuali, Mac
   Intel. **Non entra pero' nella catena** e non prende un token di
   `energy_calculation_method` (AGENTS.md: `MEASURED_METHODS` ammette solo canali
-  di misura, `energy/energy_session.py:64-65`). Le condizioni sono quelle gia'
+  di misura, `energy/energy_session.py:73-74`). Le condizioni sono quelle gia'
   scritte nella valutazione che questa specifica completa: campo proprio
   (`energy_estimate_j`), etichetta propria (`estimate-load-tdp`), **spento di
   default** e acceso solo per opt-in esplicito, mai a confronto con una misura e
@@ -759,7 +761,7 @@ la riga `IntelCpu.cs` della sorgente 0.9.6) e noi re-integriamo quella potenza:
 la catena presentava come percorso alternativo la
 stessa sorgente con una derivata in piu', e in piu' passava da un sensore scelto
 per nome, che e' la forma esatta del difetto che integrava gradi Celsius
-(`energy/energy_session.py:656-663`, fix `1422d1b`). LHM esce quindi
+(`guard` su `SensorType`, uscito con LHM il 27/10/2026, D18; fix `1422d1b`). LHM esce quindi
 dall'implementazione, e resta nel documento **come metodo provato e superato**:
 le sue misure sono l'evidenza che il canale EMI e' corretto a finestra uguale
 (rapporti 0,9947-1,0082 per fase, differenziale A-B-A 1,013-1,023, offset
@@ -871,7 +873,7 @@ Cinque obblighi, e come sono stati assolti:
   (EMI no), e la riga lo dichiara nei `notes`: un percorso che richiede
   elevazione cambia il profilo operativo.
 
-Il token e' in `MEASURED_METHODS` (`energy/energy_session.py:72`) e la catena
+Il token e' in `MEASURED_METHODS` (`energy/energy_session.py:73-74`) e la catena
 Windows e' **`emi-counter` → `pawnio-counter` → `unavailable`**: il secondo si
 apre solo se il primo non c'e', perche' legge lo stesso registro e sommarli
 conterebbe due volte. L'ammissione richiedeva due misure, e ci sono entrambe:
@@ -933,7 +935,7 @@ Precisazioni.
 - **N2 e' whole-device.** `idle_gpu_power_w` e' letto ma non assegnato da
   nessun percorso di produzione: `gpu_idle_provenance` e' `missing` per
   costruzione e `gpu_energy_attributed_j` e' l'energia dell'**intera scheda**
-  nella finestra (`energy/local_energy.py:525-535`). Non e' la stessa
+  nella finestra (`energy/local_energy.py:849-880`). Non e' la stessa
   grandezza di `ollama_active_energy_j`.
 - **N1, se implementato, sostituisce N2 come canale primario.** Nella catena
   diventa il primo livello e N2 scende a fallback: un contatore non ha bisogno
@@ -942,7 +944,7 @@ Precisazioni.
   canale GPU NVIDIA.
 - **N3 e' M3: ripartizione proporzionale.** Ripartisce l'energia board attiva
   tra i PID secondo la frazione di utilizzazione GPU
-  (`energy/energy_session.py:2515-2540`): e' un modello, etichettato
+  (`energy/energy_session.py:1574-1613`): e' un modello, etichettato
   informativo, non una lettura per processo. La quota di utilizzazione non e'
   una quota di energia, e il risultato non si presenta come misurata.
 - **A2, A3, I2: stesso confine, interfacce diverse.** AMD SMI e' l'interfaccia
@@ -986,7 +988,7 @@ Precisazioni.
 | EI | Monitoraggio Attivita' "Energy Impact" | nessuno | indice composito relativo, non joule | **non usato** | [A] |
 
 Oggi il codice risponde `unavailable` su macOS
-(`energy/energy_session.py:206-212`). La catena progettata e'
+(`energy/energy_session.py:153-164`). La catena progettata e'
 `powermetrics -> unavailable`; il delta batteria e' un limite di sistema, non
 un fallback di dominio, e non si presenta come energia della CPU. "Energy
 Impact" non e' energia: non entra nella catena.
@@ -1205,7 +1207,7 @@ livello di catena (controprova o riferimento).
 `nvml-power-integral`), AMD con AMD SMI (`amdsmi-energy` ->
 `amdsmi-power-integral`): non esiste una catena NVML -> AMD SMI per la stessa
 scheda, e i due backend non girano mai in parallelo. Nel codice il selettore
-`_open_gpu_monitor()` prova NVML e poi AMD SMI (`energy/energy_session.py:1751-1766`):
+`_open_gpu_monitor()` prova NVML e poi AMD SMI (`energy/energy_session.py:1760-1775`):
 e' un controllo di presenza del driver, non un gradino di fallback. Ne segue un
 limite dichiarato degli host misti: con entrambi i driver installati vince NVML
 e una scheda AMD presente nella stessa macchina non viene letta.
@@ -1378,7 +1380,7 @@ fine lavoro e' 500.
 
 1. **Nessun fallback silenzioso.** Il canale effettivo va nella riga, non solo
    nel log: `energy_calculation_method` per il package CPU
-   (`energy/local_energy.py:122-132`), `package_window_source` per la finestra,
+   (`energy/local_energy.py:134-148`), `package_window_source` per la finestra,
    `idle_provenance` per la baseline, `measurement_boundary` per il confine,
    `cloud_energy_method` per il server, `network_measurement_boundary` per la
    rete. Un fallback presentato come contatore e' un errore di metodo.
@@ -1815,12 +1817,13 @@ con la catena dei metodi.
 **Le tre grandezze, definite.** `d_ollama` e' il delta dei secondi CPU
 (`utime + stime`, cumulati) dell'**albero del motore** nella finestra — radici
 per nome piu' i discendenti, incluso il runner
-(`energy/energy_session.py:1687`, `:1779-1790`). `d_busy`
+(`energy/energy_session.py:813-824`, `:938-939`; la lettura `utime+stime` sta in
+`energy/worker_tree.py:149-176`). `d_busy`
 e' il delta dei **secondi CPU busy aggregati per core** del sistema nella stessa
 finestra, calcolato come `totale − idle` dalla stessa chiamata `cpu_times(percpu=True)`
-(`energy/energy_session.py:1747-1769`): non sono secondi di tempo a muro, sono
+(`energy/energy_session.py:781-802`): non sono secondi di tempo a muro, sono
 core-secondi, e il loro tetto e' `core × Δt` — capacita' verificabile a
-posteriori (`casualwatt_csv_export.py:110-111`). `s_cpu = d_ollama / d_busy` e'
+posteriori (`casualwatt_csv_export.py:114`). `s_cpu = d_ollama / d_busy` e'
 quindi una **quota di core**, non una quota di tempo: puo' essere 0,917 anche
 quando il motore occupa una frazione piccola del muro, perche' il denominatore e'
 gia' una somma su tutti i core.
@@ -1832,7 +1835,7 @@ gia' una somma su tutti i core.
   dichiara (P6.6).
 - **GPU.** L'energia board attiva moltiplicata per la frazione di utilizzazione
   dei PID e' M3, informativa, e non sostituisce N2: la procedura e' la riga **N3**
-  di §3.2 (`nvmlDeviceGetProcessUtilization`, `energy/energy_session.py:2515-2540`),
+  di §3.2 (`nvmlDeviceGetProcessUtilization`, `energy/energy_session.py:1574-1613`),
   con lo stesso statuto e lo stesso divieto. La quota di utilizzazione non e' una
   quota di energia.
 - **Nessun fallback inventato.** Se l'attribuzione non e' calcolabile, il
@@ -1880,18 +1883,18 @@ eccezioni vanno rivalidate al freeze.
 
 | # | difetto | dove | effetto | chiuso da |
 |---|---|---|---|---|
-| F1 | contatori NIC illeggibili -> la riga finisce a `network_energy_j = 0` | il tracker restituisce `None` + nota "N/A" (`energy/network_energy.py:270-274`), ma `benchmark_unified.py:1176` (`.5f` su `None` -> `TypeError`), `:1179` (`except`), `:1190` (locale e rete `0.0`) | un guasto diventava uno zero numerico, e una richiesta riuscita diventava una riga d'errore | **CHIUSO il 26-10-2026**: `:1176` usa `_j_log` (`:1269-1275`), il tracker resta intatto; `tests/test_rete_nic_confine.py` blocca sia il `None -> "N/A"` sia il testo di formattazione. Da rivalidare al freeze P5 |
-| F2 | cloud non stimabile -> `cloud_energy_j = 0` mentre il metodo dice `unavailable` | era `benchmark_unified.py:1101` (`est.energy_j or 0.0`); oggi `:1145` passa `est.energy_j` nudo e `_finalize_energy_fields` `:500-537` scrive `"N/A"` | la colonna energia contraddiceva il token di metodo, e la somma end-to-end era bassa | **CHIUSO in `HEAD` dal commit `027609c`** (26/10), con `tests/test_cloud_energy_none_preservato.py` che blocca sia `None -> "N/A"` sia `0.0 -> 0.0`; da rivalidare al freeze P5 |
-| F3 | GPU senza token di metodo stabile e senza baseline idle | `casualwatt_csv_export.py:63`, `:77`; `energy/local_energy.py:525-535` | GPU non confrontabile per riga; energia whole-device | D2 per il token; la baseline e' priorita' 9 di §12 e chiede hardware che questo host non ha |
-| F4 | proxy cloud non distinto nel token di metodo | `energy/cloud_energy.py:138-254` | C2 e C3 hanno la stessa etichetta; il proxy e' solo nelle note | D3 |
-| F5 | LHM Energy non dimostrato contatore, e assente sul host | `energy/energy_session.py:770-830`; `lhm_gui_report_20261023_analisi.md:46-99` | non entrava nella catena, ma il token esisteva e la catena contava LHM come secondo percorso | **chiuso il 27-10-2026 da D18**: LHM esce dall'implementazione, il token non e' piu' un'opzione e il secondo percorso e' P1 ([P]) |
-| F6 | RAPL, AMD e macOS mai esercitati | `energy/rapl_backend.py:87-158`; `energy/energy_session.py:206-212` | "implementato" non e' "provato"; 3 test saltati | non si chiude con codice (§11): D11 rende leggibile la ragione, le priorita' 7 e 10 di §12 portano l'hardware |
-| F7 | coefficiente di rete: citazione sbagliata e confine invertito rispetto alla fonte | `config.py:332-362`; `energy/network_energy.py:10-29` | il valore `2,7e-6` era giusto ma attribuito a un altro articolo (IEEE Network, DOI 10.1109/MNET.2011.5730522) e descritto con l'accesso incluso, mentre la fonte lo esclude; `0,46` e `20,0` uJ/bit attribuiti ad Aslan senza fonte per `20,0` | **corretto il 26-10-2026**: fonte Proc. IEEE 99(1):149-167, DOI 10.1109/JPROC.2010.2060451; accesso escluso; `0,46` = scenario cloud privato; `20,0` senza fonte. Resta aperto il confronto empirico (D8) |
-| F8 | una `CW_ENERGY_FILE` dimenticata fa misurare un file al posto del package | `energy/energy_session.py:182-197`, `:1419` | il metodo per riga e' `energy-file`, ma il run somiglia a una misura EMI finche' non si legge quella colonna | D14: etichetta **e** un flag booleano `external_counter` sulla riga, perche' un'etichetta testuale non e' un filtro |
-| F9 | local mode: `cloud_energy_j = 0.0` senza `cloud_energy_method` ne' `cloud_estimation_boundary` | era `benchmark_unified.py:467` (commento "default rete/cloud a zero (regola 12.1)"), `:469` (lo zero), `:474` (il confine della **rete** c'e', quello del cloud no) | zero legittimo ma **solo a meta'**: la rete dichiara perche' non consuma, il cloud no, quindi lo zero cloud non si distingue da una stima fallita | **CHIUSO il 27-10-2026**: la riga locale scrive `cloud_energy_method = "not-applicable"` e `cloud_estimation_boundary = "not-applicable (local mode)"` accanto allo zero (`benchmark_unified.py:508-517`), mentre la riga cloud non pre-etichetta alcun metodo; `tests/test_cloud_energy_none_preservato.py` blocca entrambe le condizioni. D4 + regola 9 |
-| F10 | note e docstring attribuiscono il canale EMI a "Intel", mentre il codice non filtra per produttore | era `energy/emi_backend.py:8`, `:43`, `:185-187`; `energy/energy_session.py:188-190` | su una macchina AMD la ragione di guasto direbbe "driver Intel assente" anche se il filtro non esiste; chi legge il log deduce un vincolo che il codice non impone | **CHIUSO il 27-10-2026** per il testo operativo: la ragione dice "driver del canale energia assente o non esposto" (`energy/emi_backend.py:402-407`), e la catena e' quella di `energy/energy_session.py:136-152`. Le menzioni di Intel nella docstring (`:7-16`) descrivono il registro e la macchina di prova, non un filtro. La verifica su AMD resta [P] |
+| F1 | contatori NIC illeggibili -> la riga finisce a `network_energy_j = 0` | il tracker restituisce `None` + nota "N/A" (`energy/network_energy.py:319-322`), ma il log del runner formattava con `.5f` un valore assente (-> `TypeError`), l'`except` scriveva la riga d'errore e il ramo locale usava `0.0` per rete e cloud | un guasto diventava uno zero numerico, e una richiesta riuscita diventava una riga d'errore | **CHIUSO il 26-10-2026**: il log passa da `_j_log` (`benchmark_unified.py:1343-1350`), il tracker resta intatto; `tests/test_rete_nic_confine.py` blocca sia il `None -> "N/A"` sia il testo di formattazione. Da rivalidare al freeze P5 |
+| F2 | cloud non stimabile -> `cloud_energy_j = 0` mentre il metodo dice `unavailable` | era `est.energy_j or 0.0` nel runner; oggi `benchmark_unified.py:1215` passa `est.energy_j` nudo e `_finalize_energy_fields` (`:549-703`) scrive `"N/A"` | la colonna energia contraddiceva il token di metodo, e la somma end-to-end era bassa | **CHIUSO in `HEAD` dal commit `027609c`** (26/10), con `tests/test_cloud_energy_none_preservato.py` che blocca sia `None -> "N/A"` sia `0.0 -> 0.0`; da rivalidare al freeze P5 |
+| F3 | GPU senza token di metodo stabile e senza baseline idle | `casualwatt_csv_export.py:63`, `:77`; `energy/local_energy.py:849-880` | GPU non confrontabile per riga; energia whole-device | D2 per il token; la baseline e' priorita' 9 di §12 e chiede hardware che questo host non ha |
+| F4 | proxy cloud non distinto nel token di metodo | `energy/cloud_energy.py:304-481` | C2 e C3 hanno la stessa etichetta; il proxy e' solo nelle note | D3 |
+| F5 | LHM Energy non dimostrato contatore, e assente sul host | percorso LHM rimosso il 27/10/2026 (D18, commit `3562875`); `lhm_gui_report_20261023_analisi.md:46-99` | non entrava nella catena, ma il token esisteva e la catena contava LHM come secondo percorso | **chiuso il 27-10-2026 da D18**: LHM esce dall'implementazione, il token non e' piu' un'opzione e il secondo percorso e' P1 ([P]) |
+| F6 | RAPL, AMD e macOS mai esercitati | `energy/rapl_backend.py:87-158`; `energy/energy_session.py:153-164` | "implementato" non e' "provato"; 3 test saltati | non si chiude con codice (§11): D11 rende leggibile la ragione, le priorita' 7 e 10 di §12 portano l'hardware |
+| F7 | coefficiente di rete: citazione sbagliata e confine invertito rispetto alla fonte | `config.py:335-372`; `energy/network_energy.py:10-29` | il valore `2,7e-6` era giusto ma attribuito a un altro articolo (IEEE Network, DOI 10.1109/MNET.2011.5730522) e descritto con l'accesso incluso, mentre la fonte lo esclude; `0,46` e `20,0` uJ/bit attribuiti ad Aslan senza fonte per `20,0` | **corretto il 26-10-2026**: fonte Proc. IEEE 99(1):149-167, DOI 10.1109/JPROC.2010.2060451; accesso escluso; `0,46` = scenario cloud privato; `20,0` senza fonte. Resta aperto il confronto empirico (D8) |
+| F8 | una `CW_ENERGY_FILE` dimenticata fa misurare un file al posto del package | `energy/energy_session.py:523-554`, `:1419` | il metodo per riga e' `energy-file`, ma il run somiglia a una misura EMI finche' non si legge quella colonna | D14: etichetta **e** un flag booleano `external_counter` sulla riga, perche' un'etichetta testuale non e' un filtro |
+| F9 | local mode: `cloud_energy_j = 0.0` senza `cloud_energy_method` ne' `cloud_estimation_boundary` | era `benchmark_unified.py:501` (commento "default rete/cloud a zero (regola 12.1)"), `:502-503` (lo zero), `:508` (il confine della **rete** c'e', quello del cloud no) | zero legittimo ma **solo a meta'**: la rete dichiara perche' non consuma, il cloud no, quindi lo zero cloud non si distingue da una stima fallita | **CHIUSO il 27-10-2026**: la riga locale scrive `cloud_energy_method = "not-applicable"` e `cloud_estimation_boundary = "not-applicable (local mode)"` accanto allo zero (`benchmark_unified.py:516-517`), mentre la riga cloud non pre-etichetta alcun metodo; `tests/test_cloud_energy_none_preservato.py` blocca entrambe le condizioni. D4 + regola 9 |
+| F10 | note e docstring attribuiscono il canale EMI a "Intel", mentre il codice non filtra per produttore | era `energy/emi_backend.py:8`, `:43`, `:185-187`; `energy/energy_session.py:187-193` | su una macchina AMD la ragione di guasto direbbe "driver Intel assente" anche se il filtro non esiste; chi legge il log deduce un vincolo che il codice non impone | **CHIUSO il 27-10-2026** per il testo operativo: la ragione dice "driver del canale energia assente o non esposto" (`energy/emi_backend.py:402-407`), e la catena e' quella di `energy/energy_session.py:139-164`. Le menzioni di Intel nella docstring (`energy/emi_backend.py:7-16`) descrivono il registro e la macchina di prova, non un filtro. La verifica su AMD resta [P] |
 | F11 | selezione del primo device apribile / zona `intel-rapl:0` cablata | era `energy/emi_backend.py:195-200` (Windows) e `energy/rapl_backend.py:45-48` (Linux) | su multi-die o multi-socket i canali specchiati rischiano di essere sommati o di scegliere il package sbagliato (CodeCarbon dichiara di scartare i canali specchiati sul proprio backend Windows EMI) | D15: enumerare per `name`, deduplicare, poi sommare i package distinti; ragione `ambiguous_domain` finche' non e' risolto (§4.1, riga 26). **Meta' Linux chiusa il 27-10-2026**: `energy/rapl_backend.py:128-158`, `tests/test_rapl_zone.py` (8 test, incluso il canale specchiato contato una volta). **Meta' Windows chiusa il 27-10-2026**: enumerazione di tutte le interfacce e scelta del device CPU dal metadato (`energy/emi_backend.py:226-285`), `tests/test_emi_selezione.py` (16 test: tre device, nessun CPU, due PKG distinti, PKG specchiato). Resta non implementata la **somma** dei package distinti, che e' D15 e chiede hardware multi-socket |
-| F12 | sotto VPN lo stesso pacchetto contato due volte (interfaccia tunnel + fisica che lo trasporta) | era la somma di tutte le non-loopback, senza selezione | il termine di rete si gonfia di un fattore che dipende dalla configurazione, e la riga non dice quali interfacce ha sommato | **CHIUSO il 26-10-2026**: fisiche per default, virtuali e tunnel escluse, ricaduta dichiarata su tutte le non-loopback quando le fisiche vedono 0 B; il confine riporta i nomi (`energy/network_energy.py:81-214`, `:261-322`); la lettura aggregata dichiara di non separare il loopback e sorgenti miste danno `None`, non `0.0`; `tests/test_rete_nic_confine.py` blocca i casi. Il delta negativo resta troncato nel valore applicato ma e' conservato in `upload_bytes_raw`/`download_bytes_raw` con `negative_increment`; le colonne CSV sono obbligo di P5 |
+| F12 | sotto VPN lo stesso pacchetto contato due volte (interfaccia tunnel + fisica che lo trasporta) | era la somma di tutte le non-loopback, senza selezione | il termine di rete si gonfia di un fattore che dipende dalla configurazione, e la riga non dice quali interfacce ha sommato | **CHIUSO il 26-10-2026**: fisiche per default, virtuali e tunnel escluse, ricaduta dichiarata su tutte le non-loopback quando le fisiche vedono 0 B; il confine riporta i nomi (`energy/network_energy.py:129-265`, `:319-369`); la lettura aggregata dichiara di non separare il loopback e sorgenti miste danno `None`, non `0.0`; `tests/test_rete_nic_confine.py` blocca i casi. Il delta negativo resta troncato nel valore applicato ma e' conservato in `upload_bytes_raw`/`download_bytes_raw` con `negative_increment`; le colonne CSV sono obbligo di P5 |
 | F13 | il lettore EMI non interroga versione ne' metadato: il dominio di ogni canale e' assunto dalla posizione | era `energy/emi_backend.py:73` e `:301-302` (indice 0 = pkg, sempre), `:31-37` (la conferma per nome era una sonda esterna del 24/10, su una macchina); nel file non c'era nessuna chiamata a `GET_VERSION`, `GET_METADATA_SIZE`, `GET_METADATA` | su un meter V1 (un solo canale), o con canali in ordine diverso, il valore e' plausibile ma di un dominio diverso, e la riga lo chiama comunque `emi-counter`; su V1 il guasto arriva come "IOCTL fallito" invece della ragione vera; l'unita' pWh non e' verificata prima della conversione | **CHIUSO in codice il 27-10-2026 da D17** (§3.1.1): versione, metadato, nome del canale, `ChannelCount` e unita' letti; il record si legge a 16 byte per canale, il V1 si scarta con la ragione e un canale di nome ambiguo non produce dominio (`energy/emi_backend.py:158-214`, `:476-501`, `:526-548`); `backend_version` passa a `emi-reader/2`. Aperta resta l'**evidenza** su AMD e su un V1 reale. Chiude anche la meta' "quale canale" di F11 |
 
 ---
@@ -2024,15 +2027,16 @@ presentano come lavoro in corso.
 
 Codice (letto il 25-26/10, righe verificate):
 
-- `energy/energy_session.py:57-73` (canali ammessi, con la nota D18),
-  `:136-152` (catena di selezione, senza filtro di produttore), `:154-182`
-  (`_try_emi`), `:143-146` (ramo macOS/non supportato), `:632` e `:864-890`
-  (`utime+stime` dell'albero Ollama), `:691-712` (`d_busy` = totale − idle
-  per core, da una sola lettura), `:722-733` (ricostruzione dell'albero),
-  `:1350-1367` (NVML potenza), `:1381-1416` (NVML per processo).
-  **LHM non c'e' piu'** (D18): le righe `:870-871` e `:656-663` citate da
-  questa lista fino al 26/10 sono uscite con il blocco LHM; il fix `1422d1b`
-  resta in git come storia.
+- `energy/energy_session.py:58-74` (canali ammessi, con la nota D18),
+  `:139-164` (catena di selezione, senza filtro di produttore), `:166-193`
+  (`_try_emi`), `:153-164` (ramo macOS/non supportato), `:938-939` e
+  `energy/worker_tree.py:149-176` (`utime+stime` dell'albero Ollama),
+  `:781-802` (`d_busy` = totale − idle per core, da una sola lettura),
+  `:813-824` (ricostruzione dell'albero), `:1545-1563` (NVML potenza),
+  `:1574-1613` (NVML per processo).
+  **LHM non c'e' piu'** (D18, commit `3562875`): le righe citate da questa lista
+  fino al 26/10 sono uscite con il blocco LHM; il fix `1422d1b` resta in git
+  come storia.
 - `energy/emi_backend.py:7-16` (stesso registro di LHM, nessun admin),
   `:18-43` (record per canale, unita', non additivita', mappatura per nome),
   `:95-110` (IOCTL del contratto, versioni, token di dominio),
@@ -2048,36 +2052,37 @@ Codice (letto il 25-26/10, righe verificate):
   `package-`), `:128-158` (enumerazione con deduplica dei canali specchiati),
   `:148` (il controllo e' `os.access`), `:190-198` (riporto rifiutato senza
   massimo per zona), `:302-327` (`diagnose`).
-- `energy/local_energy.py:122-132` (campi per riga), `:152-156`
-  (`d_ollama_cpu_s`, `d_busy_s`), `:503-590` (GPU), `:525-535` (idle GPU e
+- `energy/local_energy.py:101-222` (campi per riga), `:167-168`
+  (`d_ollama_cpu_s`, `d_busy_s`), `:762-928` (GPU), `:849-880` (idle GPU e
   whole-device).
-- `energy/cloud_energy.py:1-52`, `:138-146` (`prompt_tokens` fra gli argomenti),
-  `:176-181` (proxy dichiarato), `:188-195` (input esclusi), `:196-219` (clamp di
-  latenza, Punto #119), `:239-241` (versione EcoLogits dentro `method`), `:138-254`
+- `energy/cloud_energy.py:1-81` (docstring del modulo, rettifiche del 26/10),
+  `:304-312` (`prompt_tokens` fra gli argomenti),
+  `:375-382` (proxy dichiarato), `:389-395` (input esclusi), `:396-413` (clamp di
+  latenza, Punto #119), `:456-458` (versione EcoLogits dentro `method`), `:304-481`
   (EcoLogits, proxy, confini).
-- `cloud_estimator.py:192-219` (cache per `(provider, modello, tok_out,
+- `cloud_estimator.py:193-238` (cache per `(provider, modello, tok_out,
   latenza)`).
-- `energy/network_energy.py:81-165` (loopback, marcatori di nome, descrizioni
+- `energy/network_energy.py:129-265` (loopback, marcatori di nome, descrizioni
   dei driver dal registro, scelta delle interfacce con ricaduta dichiarata),
-  `:211-341` (risultato con grezzo firmato e nomi, `_read` per interfaccia,
-  `measure` con guasto e sorgenti miste -> `None` e confine con i nomi; `:263-277`
-  i due casi degradati; `:317-341` payload), `tests/test_rete_nic_confine.py`
+  `:266-369` (risultato con grezzo firmato e nomi, `_read` per interfaccia,
+  `measure` con guasto e sorgenti miste -> `None` e confine con i nomi; `:319-330`
+  i due casi degradati; `:331-369` payload), `tests/test_rete_nic_confine.py`
   (12 test: VPN contata una volta, ricaduta dichiarata, loopback escluso,
   alias senza marcatori classificato dalla descrizione del driver, aggregato che
   dichiara di non separarlo, letture di natura diversa -> `None`, delta
   negativo conservato, `None` non formattato con `.5f`).
-- `config.py:332-362` (fonte, confine e conversioni dichiarati nel commento), `:363`
-  (valore del coefficiente).
-- `benchmark_unified.py:1141-1145` (`cloud_j = est.energy_j`: il vecchio `or 0.0`
-  e' rimosso dal commit `027609c`), `:500-634` (`_finalize_energy_fields`: `"N/A"`
+- `config.py:335-372` (fonte, confine e provenienza dichiarati nel commento),
+  `:374-376` (valore del coefficiente).
+- `benchmark_unified.py:1211-1215` (`cloud_j = est.energy_j`: il vecchio `or 0.0`
+  e' rimosso dal commit `027609c`), `:549-703` (`_finalize_energy_fields`: `"N/A"`
   per componente assente, `end_to_end_energy_j = "N/A"`, nota con il nome della
   componente mancante, derivati di efficienza non calcolati su denominatore
-  fittizio), `:467-474` (zero di confine in local mode, regola 12.1 -- **non**
-  toccato), `:1269-1277` (`_j_log`, log N/A-aware),
+  fittizio), `:501-508` (zero di confine in local mode, regola 12.1 -- **non**
+  toccato), `:1343-1350` (`_j_log`, log N/A-aware),
   `tests/test_cloud_energy_none_preservato.py` (9 test, blocca `None -> "N/A"`
   **e** `0.0 -> 0.0`).
-- `casualwatt_csv_export.py:17-108` (schema), `:44`, `:46`, `:63`, `:77`,
-  `:110-111` (capacita' `d_busy_s <= core x finestra`).
+- `casualwatt_csv_export.py:17-193` (schema), `:44`, `:46`, `:63`, `:77`,
+  `:112-114` (capacita' `d_busy_s <= core x finestra`).
 - `probes/cw_probe.py` (sonda di sola lettura, **tracciata** dal commit `bb32e26`
   del 26/10: `:9` machine, `:31-58` hypervisor/WSL, `:92-126` zone powercap con
   leggibilita', `:127-162` NVML e tentativo di contatore energia, `:181-190`

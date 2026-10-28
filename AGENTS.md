@@ -90,9 +90,9 @@ stanno solo le regole che un agente puo' violare senza accorgersene.
   lettura via PawnIO **richiede un processo elevato**: da token UAC filtrato o
   SAFER `pawnio_open` risponde `0x80070005` e la ragione e' `access_denied`
   (misurato il 28-10-2026). EMI non ha questo requisito. Il canale va scritto per
-  riga in `energy_calculation_method` (`energy/local_energy.py:134`), la finestra
+  riga in `energy_calculation_method` (`energy/local_energy.py:148`), la finestra
   in `package_window_source` (`exact-counter | samples-fallback | unavailable`,
-  `:124`), l'origine della baseline in `idle_provenance` (`:125`) e, dalla v4, in
+  `:138`), l'origine della baseline in `idle_provenance` (`:139`) e, dalla v4, in
   `baseline_backend` — campo del protocollo P1.3, non ancora presente nel codice.
   Mai presentare un fallback come un contatore, ne' un integrale come un
   contatore.
@@ -123,7 +123,7 @@ stanno solo le regole che un agente puo' violare senza accorgersene.
 - **Solo i token di canale reali.**
   `MEASURED_METHODS = ("emi-counter", "pawnio-counter", "power-integration",
   "librehardwaremonitor-energy", "energy-file", "rapl")`
-  (`energy/energy_session.py:72-73`). La lista dice **quali righe portano un
+  (`energy/energy_session.py:73-74`). La lista dice **quali righe portano un
   numero**, non cosa sa fare il codice oggi: `power-integration` e
   `librehardwaremonitor-energy` restano per i CSV archiviati in
   `experiment_results/` (v1-v3, four-way, A-B-A) misurati con quei canali, e
@@ -149,7 +149,7 @@ stanno solo le regole che un agente puo' violare senza accorgersene.
   dipendente dall'esito che deve correggere (P1.14, motivazione causale).
 - **Nessun troncamento.** Gli incrementi negativi si conservano con il flag
   `negative_increment`. La produzione attuale applica un clamp a zero in
-  tre punti (`energy/local_energy.py:496`, `:514`, `:532`); la v4
+  tre punti (`energy/local_energy.py:512`, `:530`, `:548`); la v4
   non lo fa e la differenza va dichiarata. La regola non nasce con la v4: era
   gia' DP-A nella specifica `METODI_E_FORMULE.md` del 21-10
   (`Ê_att = E_pkg^raw − E_base`, "firmata, mai clampata"), documento che sta in
@@ -158,7 +158,7 @@ stanno solo le regole che un agente puo' violare senza accorgersene.
   codice di produzione e' dunque in ritardo di una generazione di metodo rispetto
   alla specifica. Uno zero legittimo e' dichiarato, non inventato: baseline non
   calibrata -> `baseline_energy_j = 0` con `idle_provenance = "uncalibrated"`
-  (`energy/local_energy.py:196-203`).
+  (`energy/local_energy.py:373-382`).
 - **Linguaggio dell'incertezza.** "Semi-range conservativi", mai "deviazione
   standard": con `n = 3` non si stima una varianza. Nessun `sqrt(...)` del
   protocollo e' una propagazione di varianza: sono combinazioni in quadratura di
