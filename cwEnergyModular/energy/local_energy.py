@@ -960,7 +960,10 @@ class CasualWattLocalEnergyProfiler:
                 "[metodo storico, fuori dall'implementazione dal 27/10/2026]"
             ),
             "rapl": "RAPL package counter via /sys/class/powercap (Linux)",
-            "energy-file": "[DEV/TEST non-Windows] user-provided joule counter file",
+            "energy-file": (
+                "[DEV/TEST] user-provided joule counter file "
+                "(any platform, selection override)"
+            ),
             "unavailable": (
                 "LOCAL CPU ENERGY MEASUREMENT UNAVAILABLE: needs the Windows "
                 "EMI energy channel, the PawnIO MSR counter, or RAPL on Linux"
