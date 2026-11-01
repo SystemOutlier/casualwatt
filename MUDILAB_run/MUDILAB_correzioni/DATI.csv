@@ -1,0 +1,7 @@
+Unnamed: 0,ILiCost,Name,Surnames,OtherCar,HomeBase,DrivHist,RiskAversion,Age,SocioEcon,Airbag,GoodStudent,Antilock,Mileage,SeniorTrain,DrivingSkill,Accident,RuggedAuto,ThisCarCost,VehicleYear
+0,Thousand,Lorenzo,Liscia,True,Secure,Zero,Cautious,Adult,Middle,False,False,False,TwentyThou,False,Normal,NaN,Football,Thousand,Older
+1,TenThou,Carlo,Zallio,True,Secure,Zero,Normal,Adult,Middle,True,False,False,FiftyThou,False,Normal,Severe,EggShell,TenThou,Older
+2,Thousand,Caterina,Basteri,True,City,Many,Adventurous,Adult,UpperMiddle,False,False,False,TwentyThou,False,SubStandard,Moderate,EggShell,TenThou,Older
+3,Thousand,Davide,Mastronardo,True,Suburb,Zero,Normal,Adult,Middle,True,False,True,FiftyThou,False,Normal,NaN,Football,Thousand,Current
+4,Thousand,Luca,Uboldi,True,Suburb,Many,Normal,Senior,UpperMiddle,True,False,True,TwentyThou,True,SubStandard,NaN,Football,Thousand,Current
+5,TenThou,Giulia,Rossi,False,City,Zero,Cautious,Young,Low,True,True,False,TenThou,False,Excellent,NaN,Football,Thousand,Current

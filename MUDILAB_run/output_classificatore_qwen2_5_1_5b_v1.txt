@@ -1,0 +1,22 @@
+modello: qwen2.5:1.5b   endpoint: v1   ripetizioni: 3   temperatura: 0
+
+id   attesa              4 etichette                       5 etichette
+--------------------------------------------------------------------------------------------
+CP1  backward_reasoning  backward_reasoningx3              backward_reasoningx3
+CP2  backward_reasoning  backward_reasoningx3              backward_reasoningx3
+CP3  backward_reasoning  coherencex3                       coherencex3
+IN1  intervention        backward_reasoningx3              coherencex3
+IN2  intervention        interventionx3                    interventionx3
+IN3  intervention        backward_reasoningx3              backward_reasoningx3
+CO1  coherence           coherencex3                       coherencex3
+CO2  coherence           coherencex3                       coherencex3
+CO3  coherence           coherencex3                       coherencex3
+CF1  counterfactual      backward_reasoningx3              interventionx3
+CF2  counterfactual      interventionx3                    interventionx3
+CF3  counterfactual      backward_reasoningx3              interventionx3
+--------------------------------------------------------------------------------------------
+controfattuali instradate come counterfactual: 0/3
+altre query che cambiano etichetta aggiungendo la quinta: 1 (IN1)
+altre query senza un'etichetta in risposta (confronto non possibile): 0
+
+ESITO: DA RIFERIRE

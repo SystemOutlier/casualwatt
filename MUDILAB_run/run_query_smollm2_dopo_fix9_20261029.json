@@ -1,0 +1,43 @@
+{
+  "model": "smollm2:1.7b",
+  "source": {
+    "agents": "agents_corretto.py",
+    "tools": "tools_corretto.py",
+    "funtions": "funtions_corretto.py"
+  },
+  "task": "Given that the driving quality is normal, how likely is it that the age of the driver is senior?",
+  "seconds_total": 25.912,
+  "tool_ok": false,
+  "tool_calls": {
+    "read_graph": {
+      "invocazioni": 0,
+      "eccezioni": 0
+    },
+    "cau_inference": {
+      "invocazioni": 0,
+      "eccezioni": 0
+    }
+  },
+  "errore_tool": {},
+  "cattura_eccezioni": {
+    "read_graph": "installata",
+    "cau_inference": "installata"
+  },
+  "steps": [
+    {
+      "step": "translator",
+      "seconds": 6.44,
+      "text": "The query cannot be answered with the provided information."
+    },
+    {
+      "step": "classificator",
+      "seconds": 3.781,
+      "text": "normal"
+    },
+    {
+      "step": "causal_A",
+      "seconds": 15.691,
+      "text": ""
+    }
+  ]
+}

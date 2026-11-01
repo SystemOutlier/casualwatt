@@ -1,0 +1,22 @@
+modello: tinyllama:latest   endpoint: v1   ripetizioni: 3   temperatura: 0
+
+id   attesa              4 etichette                       5 etichette
+--------------------------------------------------------------------------------------------
+CP1  backward_reasoning  [Based on the given text, the driving quality is normal, and ]x3[Based on the given text, the driving quality is normal, and ]x3
+CP2  backward_reasoning  [The damage to a car is classified as Mild, which is a measur]x3[The damage to a car is classified as Mild, which is a measur]x3
+CP3  backward_reasoning  [The answer to the question "Given the neighbourhood is Subur]x3[The given text states that the neighbourhood is Suburb. Subu]x2, [The given text states that the neighbourhood is Suburb, whic]
+IN1  intervention        [Yes, the criterion for assigning the label "probability of s]x3[Yes, the user's question is correct. The task is to estimate]x3
+IN2  intervention        [Yes, the probability of excellent driving skill if age is ch]x3[Yes, you can assign the label "probability of excellent driv]x3
+IN3  intervention        [Yes, the criterion for assigning the label "Probability of o]x3[Yes, the criterion for the label "backward_reasoning" is whe]x2, [Yes, the criterion for assigning the label "Probability of o]
+CO1  coherence           [Yes, a mild severity accident involving a car valued at $1,0]x3[Yes, a mild severity accident involving a car valued at $1,0]x3
+CO2  coherence           [Yes, drive quality Normal is compatible with proposed cost H]x3[Yes, drive quality Normal is compatible with proposed cost H]x3
+CO3  coherence           [Yes, socio-economic status (SES) and Fair Cushioning system ]x3[Yes, socio-economic status (SES) and Fair Cushioning system ]x3
+CF1  counterfactual      [If a person's risk aversion were "Cautious" rather than "Psy]x3[If a person's risk aversion were "Cautious" rather than "Psy]x3
+CF2  counterfactual      [If this customer were a senior citizen rather than an adult,]x3[If this customer were a senior citizen rather than an adult,]x3
+CF3  counterfactual      [If the customer had been wealthy rather than working-class, ]x3[If the customer had been wealthy rather than working-class, ]x3
+--------------------------------------------------------------------------------------------
+controfattuali instradate come counterfactual: 0/3
+altre query che cambiano etichetta aggiungendo la quinta: 0
+altre query senza un'etichetta in risposta (confronto non possibile): 9 (CP1, CP2, CP3, IN1, IN2, IN3, CO1, CO2, CO3)
+
+ESITO: DA RIFERIRE

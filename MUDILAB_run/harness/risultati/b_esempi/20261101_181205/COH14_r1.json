@@ -1,0 +1,90 @@
+{
+  "variante": "b_esempi",
+  "descrizione": "via B con il classificatore ancorato alla forma della domanda: regola di forma e un esempio per etichetta dopo il prompt originale",
+  "cambia_rispetto_a_b_base": "solo il passo classificator: istruzioni = label_integro + regola + 4 esempi; traduttore e spiegazione invariati, nessuno schema",
+  "task_id": "COH14",
+  "ripetizione": 1,
+  "rete": "C:\\Users\\Massimo\\Documents\\CasualWatt\\CWProject\\MUDILAB_run\\benchmark\\insurance_grafo_perturbato.bif",
+  "rete_hash": "8b572235b98da1c3716b68a7ad20bd17d80a12bcb8f92c8aee15ec1e5e780443",
+  "provenienza": {
+    "varianti\\b_esempi.py": "631a3b535e694483b51184bb685caebbbe99782d05def9bfe57831542b4a2592",
+    "run_orchestrato.py": "2cd29d3496a82b1342c24117c822be7706756e5fc3d0a3ab54eaad8ca8ed1036",
+    "run_query.py": "656b7c752aa14decaf6906354458618e99dbc1ffc0c8e51b88df5af3a1789df5",
+    "traduzione_controllata.py": "311af808cfbcb2261e46a2d15a36cac7e930713a812a9f496190f8214d8197ae",
+    "classificazione_controllata.py": "aed3579e01aee401b6457bebabb3a8e502b14fa4267f9d214a06478b9871978d",
+    "consegna\\agents_corretto.py": "f6b8e2fe9960b77665b7eafb08686c92068108df101350a0cb1c37ecb89de1ba",
+    "consegna\\tools_corretto.py": "949cac8de8f5f00438e13e0287b4e6418023d8ba11ddf7a692f8dc11fab2bb5a",
+    "consegna\\funtions_corretto.py": "685516c8042e8a8a094d48cf1cdedf3c844504ac23d19d4c31d15c9b0f2e119d",
+    "consegna\\insurance_grafo.bif": "39f9e706e9208e720a55a98b6811188b33a7292335a53373a9343a0c7065dab4"
+  },
+  "errore_variante": "cau_inference: ValueError: coherence: 'Not necessary' non e' uno stato di ILiCost, stati: ['Thousand', 'TenThou', 'HundredThou', 'Million']",
+  "risultato": {
+    "modalita": "orchestrata",
+    "model": "llama3.2:3b-instruct-q4_K_M",
+    "modello_spiegazione": "llama3.2:3b-instruct-q4_K_M",
+    "source": {
+      "agents": "agents_corretto.py",
+      "tools": "tools_corretto.py",
+      "funtions": "funtions_corretto.py"
+    },
+    "opzioni": {
+      "temperature": 0.0
+    },
+    "opzioni_passi": null,
+    "spiegazione": true,
+    "rete": "C:\\Users\\Massimo\\Documents\\CasualWatt\\CWProject\\MUDILAB_run\\benchmark\\insurance_grafo_perturbato.bif",
+    "task": "Is it coherent that the injury liability cost is a million dollars given that the car is a luxury model and that the car has no anti-theft device?",
+    "etichetta": "coherence",
+    "traduzione": {
+      "input": {
+        "ILiCost": "Million",
+        "MakeModel": "Luxury",
+        "AntiTheft": "False"
+      },
+      "output": {
+        "ILiCost": "Not necessary"
+      }
+    },
+    "controllo_traduzione": null,
+    "errore": "cau_inference: ValueError: coherence: 'Not necessary' non e' uno stato di ILiCost, stati: ['Thousand', 'TenThou', 'HundredThou', 'Million']",
+    "seconds_total": 4.578,
+    "misura": {
+      "attiva": false,
+      "disponibile": false,
+      "errore": "",
+      "note": [
+        "misura disattivata (--senza-misura)",
+        "riscaldamento routing (llama3.2:3b-instruct-q4_K_M) scartato: 0.128 s",
+        "riscaldamento spiegazione (llama3.2:3b-instruct-q4_K_M) scartato: 0.116 s"
+      ]
+    },
+    "steps": [
+      {
+        "step": "translator",
+        "seconds": 3.856,
+        "tokens": {
+          "input_token_count": 1365,
+          "output_token_count": 41,
+          "total_token_count": 1406
+        },
+        "misura": {
+          "misura": "non disponibile"
+        },
+        "text": "{\"input\": {\"ILiCost\": \"Million\", \"MakeModel\": \"Luxury\", \"AntiTheft\": \"False\"}, \"output\": {\"ILiCost\": \"Not necessary\"}}"
+      },
+      {
+        "step": "classificator",
+        "seconds": 0.657,
+        "tokens": {
+          "input_token_count": 593,
+          "output_token_count": 3,
+          "total_token_count": 596
+        },
+        "misura": {
+          "misura": "non disponibile"
+        },
+        "text": "coherence"
+      }
+    ]
+  }
+}

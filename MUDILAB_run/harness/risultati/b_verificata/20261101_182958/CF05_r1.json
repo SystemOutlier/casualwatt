@@ -1,0 +1,184 @@
+{
+  "variante": "b_verificata",
+  "descrizione": "via B con il traduttore ancorato al grafo: vocabolario letto dal BIF, citazioni obbligatorie, scarto dichiarato prima del tool",
+  "cambia_rispetto_a_b_base": "solo il passo translator: prompt + vocabolario del grafo + chiave 'citazioni', e validazione nel codice; classificatore invariato",
+  "task_id": "CF05",
+  "ripetizione": 1,
+  "rete": "C:\\Users\\Massimo\\Documents\\CasualWatt\\CWProject\\MUDILAB_run\\consegna\\insurance_grafo.bif",
+  "rete_hash": "39f9e706e9208e720a55a98b6811188b33a7292335a53373a9343a0c7065dab4",
+  "provenienza": {
+    "varianti\\b_verificata.py": "806fd8969f7c035106a55386dd8b150bad471518c40d44872d77cb9a76a3bac7",
+    "run_orchestrato.py": "2cd29d3496a82b1342c24117c822be7706756e5fc3d0a3ab54eaad8ca8ed1036",
+    "run_query.py": "656b7c752aa14decaf6906354458618e99dbc1ffc0c8e51b88df5af3a1789df5",
+    "traduzione_controllata.py": "311af808cfbcb2261e46a2d15a36cac7e930713a812a9f496190f8214d8197ae",
+    "classificazione_controllata.py": "aed3579e01aee401b6457bebabb3a8e502b14fa4267f9d214a06478b9871978d",
+    "consegna\\agents_corretto.py": "f6b8e2fe9960b77665b7eafb08686c92068108df101350a0cb1c37ecb89de1ba",
+    "consegna\\tools_corretto.py": "949cac8de8f5f00438e13e0287b4e6418023d8ba11ddf7a692f8dc11fab2bb5a",
+    "consegna\\funtions_corretto.py": "685516c8042e8a8a094d48cf1cdedf3c844504ac23d19d4c31d15c9b0f2e119d",
+    "consegna\\insurance_grafo.bif": "39f9e706e9208e720a55a98b6811188b33a7292335a53373a9343a0c7065dab4"
+  },
+  "errore_variante": "",
+  "risultato": {
+    "modalita": "orchestrata",
+    "model": "llama3.2:3b-instruct-q4_K_M",
+    "modello_spiegazione": "llama3.2:3b-instruct-q4_K_M",
+    "source": {
+      "agents": "agents_corretto.py",
+      "tools": "tools_corretto.py",
+      "funtions": "funtions_corretto.py"
+    },
+    "opzioni": {
+      "temperature": 0.0
+    },
+    "opzioni_passi": {
+      "translator": {
+        "response_format": {
+          "type": "json_schema",
+          "json_schema": {
+            "name": "traduzione_verificabile",
+            "strict": true,
+            "schema": {
+              "type": "object",
+              "properties": {
+                "input": {
+                  "type": "object",
+                  "additionalProperties": {
+                    "type": "string"
+                  }
+                },
+                "output": {
+                  "type": "object",
+                  "minProperties": 1,
+                  "maxProperties": 1,
+                  "additionalProperties": {
+                    "type": "string"
+                  }
+                },
+                "citazioni": {
+                  "type": "object",
+                  "minProperties": 1,
+                  "additionalProperties": {
+                    "type": "string"
+                  }
+                }
+              },
+              "required": [
+                "input",
+                "output",
+                "citazioni"
+              ],
+              "additionalProperties": false
+            }
+          }
+        }
+      }
+    },
+    "spiegazione": true,
+    "rete": "C:\\Users\\Massimo\\Documents\\CasualWatt\\CWProject\\MUDILAB_run\\consegna\\insurance_grafo.bif",
+    "task": "We observed that the car is an older model and that the damage to this car is severe. What would the probability that the damage to this car is severe be if the world had been such that the car is a current-year model?",
+    "etichetta": "counterfactual",
+    "etichette_nel_testo": [
+      "counterfactual"
+    ],
+    "traduzione": {
+      "input": {
+        "VehicleYear": "Older"
+      },
+      "output": {
+        "ThisCarDam": "Severe"
+      }
+    },
+    "controllo_traduzione": {
+      "regole": [
+        "vocabolario",
+        "nessuna-evidenza",
+        "citazione",
+        "disgiunzione"
+      ],
+      "scartate": [
+        {
+          "lato": "input",
+          "variabile": "ThisCarDam",
+          "valore": "Severe",
+          "regola": "disgiunzione",
+          "dettaglio": "la variabile e' gia' il target della domanda"
+        }
+      ],
+      "motivo": "",
+      "etichetta": "counterfactual",
+      "evidenze": {
+        "VehicleYear": "Older"
+      },
+      "target": {
+        "ThisCarDam": "Severe"
+      },
+      "citazione_output": "non richiesta"
+    },
+    "numero": "The answer is between 0.0191 and 0.1309",
+    "seconds_total": 33.648,
+    "misura": {
+      "attiva": false,
+      "disponibile": false,
+      "errore": "",
+      "note": [
+        "misura disattivata (--senza-misura)",
+        "riscaldamento routing (llama3.2:3b-instruct-q4_K_M) scartato: 0.151 s",
+        "riscaldamento spiegazione (llama3.2:3b-instruct-q4_K_M) scartato: 0.096 s"
+      ]
+    },
+    "totale": {
+      "misura": "non disponibile"
+    },
+    "fuori_dai_passi_j": null,
+    "steps": [
+      {
+        "step": "translator",
+        "seconds": 13.601,
+        "tokens": {
+          "input_token_count": 1967,
+          "output_token_count": 63,
+          "total_token_count": 2030
+        },
+        "misura": {
+          "misura": "non disponibile"
+        },
+        "text": "{\"input\": {\"VehicleYear\": \"Older\", \"ThisCarDam\": \"Severe\"}, \"output\": {\"ThisCarDam\": \"Severe\"}, \"citazioni\": {\"VehicleYear\": \"the car is an older model\", \"ThisCarDam\": \"the damage to this car is severe\"}}"
+      },
+      {
+        "step": "classificator",
+        "seconds": 1.448,
+        "tokens": {
+          "input_token_count": 291,
+          "output_token_count": 4,
+          "total_token_count": 295
+        },
+        "misura": {
+          "misura": "non disponibile"
+        },
+        "text": "counterfactual"
+      },
+      {
+        "step": "cau_inference",
+        "seconds": 0.976,
+        "tokens": {},
+        "misura": {
+          "misura": "non disponibile"
+        },
+        "text": "The answer is between 0.0191 and 0.1309"
+      },
+      {
+        "step": "causal_A",
+        "seconds": 17.622,
+        "tokens": {
+          "input_token_count": 327,
+          "output_token_count": 140,
+          "total_token_count": 467
+        },
+        "misura": {
+          "misura": "non disponibile"
+        },
+        "text": "The probability that the damage to this car is severe if the world had been such that the car is a current-year model is between 0.0191 and 0.1309.\n\nIf the car were a current-year model, the severe damage to this car would be largely due to the inherent quality of the vehicle, as current-year models are expected to be more reliable and durable. However, the fact that the car is an older model suggests that it may have been involved in an accident or had a pre-existing condition that contributed to the damage. The counterfactual scenario assumes that the car's age is not a factor, and the damage is solely due to the car's quality."
+      }
+    ]
+  }
+}

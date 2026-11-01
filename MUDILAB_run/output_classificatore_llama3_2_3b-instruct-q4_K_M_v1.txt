@@ -1,0 +1,22 @@
+modello: llama3.2:3b-instruct-q4_K_M   endpoint: v1   ripetizioni: 3   temperatura: 0
+
+id   attesa              4 etichette                       5 etichette
+--------------------------------------------------------------------------------------------
+CP1  backward_reasoning  influencex2, coherence            coherencex3
+CP2  backward_reasoning  coherencex3                       coherencex3
+CP3  backward_reasoning  coherencex3                       coherencex3
+IN1  intervention        interventionx3                    interventionx3
+IN2  intervention        interventionx3                    interventionx3
+IN3  intervention        coherencex3                       coherencex3
+CO1  coherence           coherencex3                       coherencex3
+CO2  coherence           coherencex3                       coherencex3
+CO3  coherence           coherencex3                       coherencex3
+CF1  counterfactual      interventionx3                    counterfactualx3
+CF2  counterfactual      influencex3                       influencex3
+CF3  counterfactual      interventionx3                    counterfactualx3
+--------------------------------------------------------------------------------------------
+controfattuali instradate come counterfactual: 2/3 (CF1, CF3)
+altre query che cambiano etichetta aggiungendo la quinta: 1 (CP1)
+altre query senza un'etichetta in risposta (confronto non possibile): 0
+
+ESITO: DA RIFERIRE
