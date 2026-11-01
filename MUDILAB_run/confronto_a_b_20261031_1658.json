@@ -1,0 +1,199 @@
+{
+  "query": "Given that the driving quality is normal, how likely is it that the age of the driver is senior?",
+  "modello": "llama3.2:3b",
+  "source": {
+    "agents": "agents_corretto.py",
+    "tools": "tools_corretto.py",
+    "funtions": "funtions_corretto.py"
+  },
+  "riferimento": 0.212,
+  "ripetizioni": 3,
+  "calibrazione": true,
+  "temperatura": {
+    "a": "predefinita di Ollama",
+    "b": 0.0
+  },
+  "misura_note": {
+    "attiva": true,
+    "disponibile": true,
+    "errore": "",
+    "note": [
+      "canale emi-counter",
+      "bordo di riscaldamento scartato: 11.781 s",
+      "baseline calibrata: 13.993 W"
+    ]
+  },
+  "run": [
+    {
+      "variante": "a",
+      "secondi": 48.664,
+      "energia_pkg_j": 1591.002305,
+      "energia_pkg_raw_j": 1591.002305,
+      "energia_attiva_j": 909.460758,
+      "attiva_valida": true,
+      "canale": "emi-counter",
+      "finestra": "exact-counter",
+      "idle": "calibrated",
+      "tool_ok": false,
+      "tool_calls": {
+        "read_graph": {
+          "invocazioni": 1,
+          "eccezioni": 1
+        },
+        "cau_inference": {
+          "invocazioni": 1,
+          "eccezioni": 1
+        }
+      },
+      "errore_tool": {
+        "read_graph": "FileNotFoundError: read_graph: grafo non trovato in data\\driving-quality.csv",
+        "cau_inference": "FileNotFoundError: cau_inference: grafo non trovato in data\\driving-quality.csv"
+      },
+      "numeri_nel_testo": [
+        1.0
+      ],
+      "atteso_trovato": false,
+      "errore": null,
+      "ripetizione": 1
+    },
+    {
+      "variante": "b",
+      "secondi": 15.329,
+      "energia_pkg_j": 509.909492,
+      "energia_pkg_raw_j": 509.909492,
+      "energia_attiva_j": 294.702329,
+      "attiva_valida": true,
+      "canale": "emi-counter",
+      "finestra": "exact-counter",
+      "idle": "calibrated",
+      "etichetta": "coherence",
+      "traduzione": {
+        "input": {
+          "DrivQuality": "Normal"
+        },
+        "output": {
+          "Age": "Senior"
+        }
+      },
+      "numero": "Evidences are NOT strongly compatible with a single Age of Senior with a probability of 0.21",
+      "numero_numerico": null,
+      "atteso_trovato": false,
+      "errore": null,
+      "ripetizione": 1
+    },
+    {
+      "variante": "a",
+      "secondi": 38.094,
+      "energia_pkg_j": 1177.967889,
+      "energia_pkg_raw_j": 1177.967889,
+      "energia_attiva_j": 644.439665,
+      "attiva_valida": true,
+      "canale": "emi-counter",
+      "finestra": "exact-counter",
+      "idle": "calibrated",
+      "tool_ok": false,
+      "tool_calls": {
+        "read_graph": {
+          "invocazioni": 1,
+          "eccezioni": 1
+        },
+        "cau_inference": {
+          "invocazioni": 0,
+          "eccezioni": 0
+        }
+      },
+      "errore_tool": {
+        "read_graph": "FileNotFoundError: read_graph: grafo non trovato in {'DrivQuality': 'Normal', 'Age': 'Senior'}"
+      },
+      "numeri_nel_testo": [
+        1.0
+      ],
+      "atteso_trovato": false,
+      "errore": null,
+      "ripetizione": 2
+    },
+    {
+      "variante": "b",
+      "secondi": 9.848,
+      "energia_pkg_j": 275.259389,
+      "energia_pkg_raw_j": 275.259389,
+      "energia_attiva_j": 136.892799,
+      "attiva_valida": true,
+      "canale": "emi-counter",
+      "finestra": "exact-counter",
+      "idle": "calibrated",
+      "etichetta": "coherence",
+      "traduzione": {
+        "input": {
+          "DrivQuality": "Normal"
+        },
+        "output": {
+          "Age": "Senior"
+        }
+      },
+      "numero": "Evidences are NOT strongly compatible with a single Age of Senior with a probability of 0.21",
+      "numero_numerico": null,
+      "atteso_trovato": false,
+      "errore": null,
+      "ripetizione": 2
+    },
+    {
+      "variante": "a",
+      "secondi": 39.278,
+      "energia_pkg_j": 1131.819803,
+      "energia_pkg_raw_j": 1131.819803,
+      "energia_attiva_j": 581.868148,
+      "attiva_valida": true,
+      "canale": "emi-counter",
+      "finestra": "exact-counter",
+      "idle": "calibrated",
+      "tool_ok": false,
+      "tool_calls": {
+        "read_graph": {
+          "invocazioni": 1,
+          "eccezioni": 1
+        },
+        "cau_inference": {
+          "invocazioni": 0,
+          "eccezioni": 0
+        }
+      },
+      "errore_tool": {
+        "read_graph": "FileNotFoundError: read_graph: grafo non trovato in {'DrivQuality': 'Normal', 'Age': 'Senior'}"
+      },
+      "numeri_nel_testo": [],
+      "atteso_trovato": false,
+      "errore": null,
+      "ripetizione": 3
+    },
+    {
+      "variante": "b",
+      "secondi": 11.122,
+      "energia_pkg_j": 294.542892,
+      "energia_pkg_raw_j": 294.542892,
+      "energia_attiva_j": 138.488828,
+      "attiva_valida": true,
+      "canale": "emi-counter",
+      "finestra": "exact-counter",
+      "idle": "calibrated",
+      "etichetta": "coherence",
+      "traduzione": {
+        "input": {
+          "DrivQuality": "Normal"
+        },
+        "output": {
+          "Age": "Senior"
+        }
+      },
+      "numero": "Evidences are NOT strongly compatible with a single Age of Senior with a probability of 0.21",
+      "numero_numerico": null,
+      "atteso_trovato": false,
+      "errore": null,
+      "ripetizione": 3
+    }
+  ],
+  "rivalutazione": {
+    "quando": "2026-10-31 17:22",
+    "regola": "(a) tool_ok e 0.212 nel testo; (b) etichetta backward_reasoning e 0.212 nel numero; tolleranza 5e-4"
+  }
+}

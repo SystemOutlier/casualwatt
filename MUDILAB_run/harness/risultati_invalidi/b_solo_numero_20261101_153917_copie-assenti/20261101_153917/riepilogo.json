@@ -1,0 +1,684 @@
+{
+  "variante": "b_solo_numero",
+  "modello": "tinyllama:latest",
+  "modello_spiegazione": "tinyllama:latest",
+  "provenienza": {
+    "varianti\\b_solo_numero.py": "996df7c5cb989cdef4d389aa5f7303bd6e8fa5db0a997c91f737816cc2ab2964",
+    "run_orchestrato.py": "3707d6db818444fcc92f878e7586c42ad4aab1b06f65c7e50df322941df053ff",
+    "run_query.py": "656b7c752aa14decaf6906354458618e99dbc1ffc0c8e51b88df5af3a1789df5",
+    "consegna\\agents_corretto.py": "f6b8e2fe9960b77665b7eafb08686c92068108df101350a0cb1c37ecb89de1ba",
+    "consegna\\tools_corretto.py": "949cac8de8f5f00438e13e0287b4e6418023d8ba11ddf7a692f8dc11fab2bb5a",
+    "consegna\\funtions_corretto.py": "685516c8042e8a8a094d48cf1cdedf3c844504ac23d19d4c31d15c9b0f2e119d",
+    "consegna\\insurance_grafo.bif": "39f9e706e9208e720a55a98b6811188b33a7292335a53373a9343a0c7065dab4"
+  },
+  "opzioni_harness": {
+    "ripetizioni": 1,
+    "misura": false,
+    "calibra_idle": false,
+    "riscalda_modelli": true,
+    "scarta_primo_run": false
+  },
+  "misura": {
+    "attiva": false,
+    "disponibile": false,
+    "errore": "",
+    "note": [
+      "misura disattivata (--senza-misura)",
+      "riscaldamento routing (tinyllama:latest) scartato: 0.109 s",
+      "riscaldamento spiegazione (tinyllama:latest) scartato: 0.086 s"
+    ]
+  },
+  "n_query": 81,
+  "n_run": 81,
+  "n_falliti": 81,
+  "esiti": [
+    {
+      "task_id": "CP1",
+      "ripetizione": 1,
+      "file": "CP1_r1.json",
+      "secondi": 0.002,
+      "etichetta": null,
+      "errore": "AttributeError: module 'agents' has no attribute 'translator_senza_tool'"
+    },
+    {
+      "task_id": "CND01",
+      "ripetizione": 1,
+      "file": "CND01_r1.json",
+      "secondi": 0.002,
+      "etichetta": null,
+      "errore": "AttributeError: module 'agents' has no attribute 'translator_senza_tool'"
+    },
+    {
+      "task_id": "CND02",
+      "ripetizione": 1,
+      "file": "CND02_r1.json",
+      "secondi": 0.002,
+      "etichetta": null,
+      "errore": "AttributeError: module 'agents' has no attribute 'translator_senza_tool'"
+    },
+    {
+      "task_id": "CND05",
+      "ripetizione": 1,
+      "file": "CND05_r1.json",
+      "secondi": 0.001,
+      "etichetta": null,
+      "errore": "AttributeError: module 'agents' has no attribute 'translator_senza_tool'"
+    },
+    {
+      "task_id": "CND06",
+      "ripetizione": 1,
+      "file": "CND06_r1.json",
+      "secondi": 0.001,
+      "etichetta": null,
+      "errore": "AttributeError: module 'agents' has no attribute 'translator_senza_tool'"
+    },
+    {
+      "task_id": "CND09",
+      "ripetizione": 1,
+      "file": "CND09_r1.json",
+      "secondi": 0.003,
+      "etichetta": null,
+      "errore": "AttributeError: module 'agents' has no attribute 'translator_senza_tool'"
+    },
+    {
+      "task_id": "CND10",
+      "ripetizione": 1,
+      "file": "CND10_r1.json",
+      "secondi": 0.003,
+      "etichetta": null,
+      "errore": "AttributeError: module 'agents' has no attribute 'translator_senza_tool'"
+    },
+    {
+      "task_id": "CND13",
+      "ripetizione": 1,
+      "file": "CND13_r1.json",
+      "secondi": 0.002,
+      "etichetta": null,
+      "errore": "AttributeError: module 'agents' has no attribute 'translator_senza_tool'"
+    },
+    {
+      "task_id": "CND14",
+      "ripetizione": 1,
+      "file": "CND14_r1.json",
+      "secondi": 0.002,
+      "etichetta": null,
+      "errore": "AttributeError: module 'agents' has no attribute 'translator_senza_tool'"
+    },
+    {
+      "task_id": "CND17",
+      "ripetizione": 1,
+      "file": "CND17_r1.json",
+      "secondi": 0.001,
+      "etichetta": null,
+      "errore": "AttributeError: module 'agents' has no attribute 'translator_senza_tool'"
+    },
+    {
+      "task_id": "CND18",
+      "ripetizione": 1,
+      "file": "CND18_r1.json",
+      "secondi": 0.002,
+      "etichetta": null,
+      "errore": "AttributeError: module 'agents' has no attribute 'translator_senza_tool'"
+    },
+    {
+      "task_id": "CND21",
+      "ripetizione": 1,
+      "file": "CND21_r1.json",
+      "secondi": 0.001,
+      "etichetta": null,
+      "errore": "AttributeError: module 'agents' has no attribute 'translator_senza_tool'"
+    },
+    {
+      "task_id": "CND22",
+      "ripetizione": 1,
+      "file": "CND22_r1.json",
+      "secondi": 0.001,
+      "etichetta": null,
+      "errore": "AttributeError: module 'agents' has no attribute 'translator_senza_tool'"
+    },
+    {
+      "task_id": "CND25",
+      "ripetizione": 1,
+      "file": "CND25_r1.json",
+      "secondi": 0.001,
+      "etichetta": null,
+      "errore": "AttributeError: module 'agents' has no attribute 'translator_senza_tool'"
+    },
+    {
+      "task_id": "CND26",
+      "ripetizione": 1,
+      "file": "CND26_r1.json",
+      "secondi": 0.004,
+      "etichetta": null,
+      "errore": "AttributeError: module 'agents' has no attribute 'translator_senza_tool'"
+    },
+    {
+      "task_id": "CND29",
+      "ripetizione": 1,
+      "file": "CND29_r1.json",
+      "secondi": 0.002,
+      "etichetta": null,
+      "errore": "AttributeError: module 'agents' has no attribute 'translator_senza_tool'"
+    },
+    {
+      "task_id": "CND30",
+      "ripetizione": 1,
+      "file": "CND30_r1.json",
+      "secondi": 0.002,
+      "etichetta": null,
+      "errore": "AttributeError: module 'agents' has no attribute 'translator_senza_tool'"
+    },
+    {
+      "task_id": "CND33",
+      "ripetizione": 1,
+      "file": "CND33_r1.json",
+      "secondi": 0.002,
+      "etichetta": null,
+      "errore": "AttributeError: module 'agents' has no attribute 'translator_senza_tool'"
+    },
+    {
+      "task_id": "CND34",
+      "ripetizione": 1,
+      "file": "CND34_r1.json",
+      "secondi": 0.002,
+      "etichetta": null,
+      "errore": "AttributeError: module 'agents' has no attribute 'translator_senza_tool'"
+    },
+    {
+      "task_id": "CND37",
+      "ripetizione": 1,
+      "file": "CND37_r1.json",
+      "secondi": 0.002,
+      "etichetta": null,
+      "errore": "AttributeError: module 'agents' has no attribute 'translator_senza_tool'"
+    },
+    {
+      "task_id": "CND38",
+      "ripetizione": 1,
+      "file": "CND38_r1.json",
+      "secondi": 0.001,
+      "etichetta": null,
+      "errore": "AttributeError: module 'agents' has no attribute 'translator_senza_tool'"
+    },
+    {
+      "task_id": "INT01",
+      "ripetizione": 1,
+      "file": "INT01_r1.json",
+      "secondi": 0.001,
+      "etichetta": null,
+      "errore": "AttributeError: module 'agents' has no attribute 'translator_senza_tool'"
+    },
+    {
+      "task_id": "INT02",
+      "ripetizione": 1,
+      "file": "INT02_r1.json",
+      "secondi": 0.002,
+      "etichetta": null,
+      "errore": "AttributeError: module 'agents' has no attribute 'translator_senza_tool'"
+    },
+    {
+      "task_id": "INT05",
+      "ripetizione": 1,
+      "file": "INT05_r1.json",
+      "secondi": 0.003,
+      "etichetta": null,
+      "errore": "AttributeError: module 'agents' has no attribute 'translator_senza_tool'"
+    },
+    {
+      "task_id": "INT06",
+      "ripetizione": 1,
+      "file": "INT06_r1.json",
+      "secondi": 0.002,
+      "etichetta": null,
+      "errore": "AttributeError: module 'agents' has no attribute 'translator_senza_tool'"
+    },
+    {
+      "task_id": "INT09",
+      "ripetizione": 1,
+      "file": "INT09_r1.json",
+      "secondi": 0.003,
+      "etichetta": null,
+      "errore": "AttributeError: module 'agents' has no attribute 'translator_senza_tool'"
+    },
+    {
+      "task_id": "INT10",
+      "ripetizione": 1,
+      "file": "INT10_r1.json",
+      "secondi": 0.001,
+      "etichetta": null,
+      "errore": "AttributeError: module 'agents' has no attribute 'translator_senza_tool'"
+    },
+    {
+      "task_id": "INT13",
+      "ripetizione": 1,
+      "file": "INT13_r1.json",
+      "secondi": 0.001,
+      "etichetta": null,
+      "errore": "AttributeError: module 'agents' has no attribute 'translator_senza_tool'"
+    },
+    {
+      "task_id": "INT14",
+      "ripetizione": 1,
+      "file": "INT14_r1.json",
+      "secondi": 0.001,
+      "etichetta": null,
+      "errore": "AttributeError: module 'agents' has no attribute 'translator_senza_tool'"
+    },
+    {
+      "task_id": "INT17",
+      "ripetizione": 1,
+      "file": "INT17_r1.json",
+      "secondi": 0.001,
+      "etichetta": null,
+      "errore": "AttributeError: module 'agents' has no attribute 'translator_senza_tool'"
+    },
+    {
+      "task_id": "INT18",
+      "ripetizione": 1,
+      "file": "INT18_r1.json",
+      "secondi": 0.001,
+      "etichetta": null,
+      "errore": "AttributeError: module 'agents' has no attribute 'translator_senza_tool'"
+    },
+    {
+      "task_id": "INT21",
+      "ripetizione": 1,
+      "file": "INT21_r1.json",
+      "secondi": 0.001,
+      "etichetta": null,
+      "errore": "AttributeError: module 'agents' has no attribute 'translator_senza_tool'"
+    },
+    {
+      "task_id": "INT22",
+      "ripetizione": 1,
+      "file": "INT22_r1.json",
+      "secondi": 0.001,
+      "etichetta": null,
+      "errore": "AttributeError: module 'agents' has no attribute 'translator_senza_tool'"
+    },
+    {
+      "task_id": "INT25",
+      "ripetizione": 1,
+      "file": "INT25_r1.json",
+      "secondi": 0.003,
+      "etichetta": null,
+      "errore": "AttributeError: module 'agents' has no attribute 'translator_senza_tool'"
+    },
+    {
+      "task_id": "INT26",
+      "ripetizione": 1,
+      "file": "INT26_r1.json",
+      "secondi": 0.003,
+      "etichetta": null,
+      "errore": "AttributeError: module 'agents' has no attribute 'translator_senza_tool'"
+    },
+    {
+      "task_id": "INT29",
+      "ripetizione": 1,
+      "file": "INT29_r1.json",
+      "secondi": 0.002,
+      "etichetta": null,
+      "errore": "AttributeError: module 'agents' has no attribute 'translator_senza_tool'"
+    },
+    {
+      "task_id": "INT30",
+      "ripetizione": 1,
+      "file": "INT30_r1.json",
+      "secondi": 0.001,
+      "etichetta": null,
+      "errore": "AttributeError: module 'agents' has no attribute 'translator_senza_tool'"
+    },
+    {
+      "task_id": "INT33",
+      "ripetizione": 1,
+      "file": "INT33_r1.json",
+      "secondi": 0.002,
+      "etichetta": null,
+      "errore": "AttributeError: module 'agents' has no attribute 'translator_senza_tool'"
+    },
+    {
+      "task_id": "INT34",
+      "ripetizione": 1,
+      "file": "INT34_r1.json",
+      "secondi": 0.001,
+      "etichetta": null,
+      "errore": "AttributeError: module 'agents' has no attribute 'translator_senza_tool'"
+    },
+    {
+      "task_id": "INT37",
+      "ripetizione": 1,
+      "file": "INT37_r1.json",
+      "secondi": 0.001,
+      "etichetta": null,
+      "errore": "AttributeError: module 'agents' has no attribute 'translator_senza_tool'"
+    },
+    {
+      "task_id": "INT38",
+      "ripetizione": 1,
+      "file": "INT38_r1.json",
+      "secondi": 0.001,
+      "etichetta": null,
+      "errore": "AttributeError: module 'agents' has no attribute 'translator_senza_tool'"
+    },
+    {
+      "task_id": "COH01",
+      "ripetizione": 1,
+      "file": "COH01_r1.json",
+      "secondi": 0.004,
+      "etichetta": null,
+      "errore": "AttributeError: module 'agents' has no attribute 'translator_senza_tool'"
+    },
+    {
+      "task_id": "COH02",
+      "ripetizione": 1,
+      "file": "COH02_r1.json",
+      "secondi": 0.002,
+      "etichetta": null,
+      "errore": "AttributeError: module 'agents' has no attribute 'translator_senza_tool'"
+    },
+    {
+      "task_id": "COH05",
+      "ripetizione": 1,
+      "file": "COH05_r1.json",
+      "secondi": 0.003,
+      "etichetta": null,
+      "errore": "AttributeError: module 'agents' has no attribute 'translator_senza_tool'"
+    },
+    {
+      "task_id": "COH06",
+      "ripetizione": 1,
+      "file": "COH06_r1.json",
+      "secondi": 0.002,
+      "etichetta": null,
+      "errore": "AttributeError: module 'agents' has no attribute 'translator_senza_tool'"
+    },
+    {
+      "task_id": "COH09",
+      "ripetizione": 1,
+      "file": "COH09_r1.json",
+      "secondi": 0.001,
+      "etichetta": null,
+      "errore": "AttributeError: module 'agents' has no attribute 'translator_senza_tool'"
+    },
+    {
+      "task_id": "COH10",
+      "ripetizione": 1,
+      "file": "COH10_r1.json",
+      "secondi": 0.001,
+      "etichetta": null,
+      "errore": "AttributeError: module 'agents' has no attribute 'translator_senza_tool'"
+    },
+    {
+      "task_id": "COH13",
+      "ripetizione": 1,
+      "file": "COH13_r1.json",
+      "secondi": 0.001,
+      "etichetta": null,
+      "errore": "AttributeError: module 'agents' has no attribute 'translator_senza_tool'"
+    },
+    {
+      "task_id": "COH14",
+      "ripetizione": 1,
+      "file": "COH14_r1.json",
+      "secondi": 0.001,
+      "etichetta": null,
+      "errore": "AttributeError: module 'agents' has no attribute 'translator_senza_tool'"
+    },
+    {
+      "task_id": "COH17",
+      "ripetizione": 1,
+      "file": "COH17_r1.json",
+      "secondi": 0.001,
+      "etichetta": null,
+      "errore": "AttributeError: module 'agents' has no attribute 'translator_senza_tool'"
+    },
+    {
+      "task_id": "COH18",
+      "ripetizione": 1,
+      "file": "COH18_r1.json",
+      "secondi": 0.005,
+      "etichetta": null,
+      "errore": "AttributeError: module 'agents' has no attribute 'translator_senza_tool'"
+    },
+    {
+      "task_id": "COH21",
+      "ripetizione": 1,
+      "file": "COH21_r1.json",
+      "secondi": 0.002,
+      "etichetta": null,
+      "errore": "AttributeError: module 'agents' has no attribute 'translator_senza_tool'"
+    },
+    {
+      "task_id": "COH22",
+      "ripetizione": 1,
+      "file": "COH22_r1.json",
+      "secondi": 0.001,
+      "etichetta": null,
+      "errore": "AttributeError: module 'agents' has no attribute 'translator_senza_tool'"
+    },
+    {
+      "task_id": "COH25",
+      "ripetizione": 1,
+      "file": "COH25_r1.json",
+      "secondi": 0.002,
+      "etichetta": null,
+      "errore": "AttributeError: module 'agents' has no attribute 'translator_senza_tool'"
+    },
+    {
+      "task_id": "COH26",
+      "ripetizione": 1,
+      "file": "COH26_r1.json",
+      "secondi": 0.001,
+      "etichetta": null,
+      "errore": "AttributeError: module 'agents' has no attribute 'translator_senza_tool'"
+    },
+    {
+      "task_id": "COH29",
+      "ripetizione": 1,
+      "file": "COH29_r1.json",
+      "secondi": 0.002,
+      "etichetta": null,
+      "errore": "AttributeError: module 'agents' has no attribute 'translator_senza_tool'"
+    },
+    {
+      "task_id": "COH30",
+      "ripetizione": 1,
+      "file": "COH30_r1.json",
+      "secondi": 0.001,
+      "etichetta": null,
+      "errore": "AttributeError: module 'agents' has no attribute 'translator_senza_tool'"
+    },
+    {
+      "task_id": "COH33",
+      "ripetizione": 1,
+      "file": "COH33_r1.json",
+      "secondi": 0.001,
+      "etichetta": null,
+      "errore": "AttributeError: module 'agents' has no attribute 'translator_senza_tool'"
+    },
+    {
+      "task_id": "COH34",
+      "ripetizione": 1,
+      "file": "COH34_r1.json",
+      "secondi": 0.004,
+      "etichetta": null,
+      "errore": "AttributeError: module 'agents' has no attribute 'translator_senza_tool'"
+    },
+    {
+      "task_id": "COH37",
+      "ripetizione": 1,
+      "file": "COH37_r1.json",
+      "secondi": 0.003,
+      "etichetta": null,
+      "errore": "AttributeError: module 'agents' has no attribute 'translator_senza_tool'"
+    },
+    {
+      "task_id": "COH38",
+      "ripetizione": 1,
+      "file": "COH38_r1.json",
+      "secondi": 0.002,
+      "etichetta": null,
+      "errore": "AttributeError: module 'agents' has no attribute 'translator_senza_tool'"
+    },
+    {
+      "task_id": "CF01",
+      "ripetizione": 1,
+      "file": "CF01_r1.json",
+      "secondi": 0.001,
+      "etichetta": null,
+      "errore": "AttributeError: module 'agents' has no attribute 'translator_senza_tool'"
+    },
+    {
+      "task_id": "CF02",
+      "ripetizione": 1,
+      "file": "CF02_r1.json",
+      "secondi": 0.001,
+      "etichetta": null,
+      "errore": "AttributeError: module 'agents' has no attribute 'translator_senza_tool'"
+    },
+    {
+      "task_id": "CF05",
+      "ripetizione": 1,
+      "file": "CF05_r1.json",
+      "secondi": 0.001,
+      "etichetta": null,
+      "errore": "AttributeError: module 'agents' has no attribute 'translator_senza_tool'"
+    },
+    {
+      "task_id": "CF06",
+      "ripetizione": 1,
+      "file": "CF06_r1.json",
+      "secondi": 0.003,
+      "etichetta": null,
+      "errore": "AttributeError: module 'agents' has no attribute 'translator_senza_tool'"
+    },
+    {
+      "task_id": "CF09",
+      "ripetizione": 1,
+      "file": "CF09_r1.json",
+      "secondi": 0.001,
+      "etichetta": null,
+      "errore": "AttributeError: module 'agents' has no attribute 'translator_senza_tool'"
+    },
+    {
+      "task_id": "CF10",
+      "ripetizione": 1,
+      "file": "CF10_r1.json",
+      "secondi": 0.002,
+      "etichetta": null,
+      "errore": "AttributeError: module 'agents' has no attribute 'translator_senza_tool'"
+    },
+    {
+      "task_id": "CF13",
+      "ripetizione": 1,
+      "file": "CF13_r1.json",
+      "secondi": 0.002,
+      "etichetta": null,
+      "errore": "AttributeError: module 'agents' has no attribute 'translator_senza_tool'"
+    },
+    {
+      "task_id": "CF14",
+      "ripetizione": 1,
+      "file": "CF14_r1.json",
+      "secondi": 0.001,
+      "etichetta": null,
+      "errore": "AttributeError: module 'agents' has no attribute 'translator_senza_tool'"
+    },
+    {
+      "task_id": "CF17",
+      "ripetizione": 1,
+      "file": "CF17_r1.json",
+      "secondi": 0.001,
+      "etichetta": null,
+      "errore": "AttributeError: module 'agents' has no attribute 'translator_senza_tool'"
+    },
+    {
+      "task_id": "CF18",
+      "ripetizione": 1,
+      "file": "CF18_r1.json",
+      "secondi": 0.001,
+      "etichetta": null,
+      "errore": "AttributeError: module 'agents' has no attribute 'translator_senza_tool'"
+    },
+    {
+      "task_id": "CF21",
+      "ripetizione": 1,
+      "file": "CF21_r1.json",
+      "secondi": 0.001,
+      "etichetta": null,
+      "errore": "AttributeError: module 'agents' has no attribute 'translator_senza_tool'"
+    },
+    {
+      "task_id": "CF22",
+      "ripetizione": 1,
+      "file": "CF22_r1.json",
+      "secondi": 0.001,
+      "etichetta": null,
+      "errore": "AttributeError: module 'agents' has no attribute 'translator_senza_tool'"
+    },
+    {
+      "task_id": "CF25",
+      "ripetizione": 1,
+      "file": "CF25_r1.json",
+      "secondi": 0.001,
+      "etichetta": null,
+      "errore": "AttributeError: module 'agents' has no attribute 'translator_senza_tool'"
+    },
+    {
+      "task_id": "CF26",
+      "ripetizione": 1,
+      "file": "CF26_r1.json",
+      "secondi": 0.001,
+      "etichetta": null,
+      "errore": "AttributeError: module 'agents' has no attribute 'translator_senza_tool'"
+    },
+    {
+      "task_id": "CF29",
+      "ripetizione": 1,
+      "file": "CF29_r1.json",
+      "secondi": 0.001,
+      "etichetta": null,
+      "errore": "AttributeError: module 'agents' has no attribute 'translator_senza_tool'"
+    },
+    {
+      "task_id": "CF30",
+      "ripetizione": 1,
+      "file": "CF30_r1.json",
+      "secondi": 0.001,
+      "etichetta": null,
+      "errore": "AttributeError: module 'agents' has no attribute 'translator_senza_tool'"
+    },
+    {
+      "task_id": "CF33",
+      "ripetizione": 1,
+      "file": "CF33_r1.json",
+      "secondi": 0.002,
+      "etichetta": null,
+      "errore": "AttributeError: module 'agents' has no attribute 'translator_senza_tool'"
+    },
+    {
+      "task_id": "CF34",
+      "ripetizione": 1,
+      "file": "CF34_r1.json",
+      "secondi": 0.001,
+      "etichetta": null,
+      "errore": "AttributeError: module 'agents' has no attribute 'translator_senza_tool'"
+    },
+    {
+      "task_id": "CF37",
+      "ripetizione": 1,
+      "file": "CF37_r1.json",
+      "secondi": 0.004,
+      "etichetta": null,
+      "errore": "AttributeError: module 'agents' has no attribute 'translator_senza_tool'"
+    },
+    {
+      "task_id": "CF38",
+      "ripetizione": 1,
+      "file": "CF38_r1.json",
+      "secondi": 0.002,
+      "etichetta": null,
+      "errore": "AttributeError: module 'agents' has no attribute 'translator_senza_tool'"
+    }
+  ]
+}

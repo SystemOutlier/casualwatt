@@ -1,0 +1,184 @@
+{
+  "variante": "b_composta",
+  "descrizione": "via B con i due passi di routing corretti insieme: traduttore ancorato al grafo con scarto dichiarato, e classificatore sulla forma della domanda",
+  "cambia_rispetto_a_b_base": "passo translator come b_verificata (citazione richiesta sull'input, non sull'output) e passo classificator come b_esempi; spiegazione invariata",
+  "task_id": "INT06",
+  "ripetizione": 1,
+  "rete": "C:\\Users\\Massimo\\Documents\\CasualWatt\\CWProject\\MUDILAB_run\\benchmark\\insurance_grafo_perturbato.bif",
+  "rete_hash": "8b572235b98da1c3716b68a7ad20bd17d80a12bcb8f92c8aee15ec1e5e780443",
+  "provenienza": {
+    "varianti\\b_composta.py": "2838b3e9f3448e7ee59faa6a9615ebf37c7d2f23feef75e9aa1e1abdc974c0e4",
+    "run_orchestrato.py": "2cd29d3496a82b1342c24117c822be7706756e5fc3d0a3ab54eaad8ca8ed1036",
+    "run_query.py": "656b7c752aa14decaf6906354458618e99dbc1ffc0c8e51b88df5af3a1789df5",
+    "traduzione_controllata.py": "311af808cfbcb2261e46a2d15a36cac7e930713a812a9f496190f8214d8197ae",
+    "classificazione_controllata.py": "aed3579e01aee401b6457bebabb3a8e502b14fa4267f9d214a06478b9871978d",
+    "consegna\\agents_corretto.py": "f6b8e2fe9960b77665b7eafb08686c92068108df101350a0cb1c37ecb89de1ba",
+    "consegna\\tools_corretto.py": "949cac8de8f5f00438e13e0287b4e6418023d8ba11ddf7a692f8dc11fab2bb5a",
+    "consegna\\funtions_corretto.py": "685516c8042e8a8a094d48cf1cdedf3c844504ac23d19d4c31d15c9b0f2e119d",
+    "consegna\\insurance_grafo.bif": "39f9e706e9208e720a55a98b6811188b33a7292335a53373a9343a0c7065dab4"
+  },
+  "errore_variante": "",
+  "risultato": {
+    "modalita": "orchestrata",
+    "model": "llama3.2:3b-instruct-q4_K_M",
+    "modello_spiegazione": "llama3.2:3b-instruct-q4_K_M",
+    "source": {
+      "agents": "agents_corretto.py",
+      "tools": "tools_corretto.py",
+      "funtions": "funtions_corretto.py"
+    },
+    "opzioni": {
+      "temperature": 0.0
+    },
+    "opzioni_passi": {
+      "translator": {
+        "response_format": {
+          "type": "json_schema",
+          "json_schema": {
+            "name": "traduzione_verificabile",
+            "strict": true,
+            "schema": {
+              "type": "object",
+              "properties": {
+                "input": {
+                  "type": "object",
+                  "additionalProperties": {
+                    "type": "string"
+                  }
+                },
+                "output": {
+                  "type": "object",
+                  "minProperties": 1,
+                  "maxProperties": 1,
+                  "additionalProperties": {
+                    "type": "string"
+                  }
+                },
+                "citazioni": {
+                  "type": "object",
+                  "minProperties": 1,
+                  "additionalProperties": {
+                    "type": "string"
+                  }
+                }
+              },
+              "required": [
+                "input",
+                "output",
+                "citazioni"
+              ],
+              "additionalProperties": false
+            }
+          }
+        }
+      }
+    },
+    "spiegazione": true,
+    "rete": "C:\\Users\\Massimo\\Documents\\CasualWatt\\CWProject\\MUDILAB_run\\benchmark\\insurance_grafo_perturbato.bif",
+    "task": "What is the probability that the damage to this car is moderate if we intervene to make it so that the customer has completed the senior driver training?",
+    "etichetta": "intervention",
+    "etichette_nel_testo": [
+      "intervention"
+    ],
+    "traduzione": {
+      "input": {
+        "SeniorTrain": "True"
+      },
+      "output": {
+        "ThisCarDam": "Moderate"
+      }
+    },
+    "controllo_traduzione": {
+      "regole": [
+        "vocabolario",
+        "nessuna-evidenza",
+        "citazione",
+        "disgiunzione"
+      ],
+      "scartate": [
+        {
+          "lato": "input",
+          "variabile": "ThisCarDam",
+          "valore": "Moderate",
+          "regola": "disgiunzione",
+          "dettaglio": "la variabile e' gia' il target della domanda"
+        }
+      ],
+      "motivo": "",
+      "etichetta": "intervention",
+      "evidenze": {
+        "SeniorTrain": "True"
+      },
+      "target": {
+        "ThisCarDam": "Moderate"
+      },
+      "citazione_output": "non richiesta"
+    },
+    "numero": "The probability of ThisCarDam equal to Moderate given the current intervention is 0.207",
+    "seconds_total": 32.44,
+    "misura": {
+      "attiva": false,
+      "disponibile": false,
+      "errore": "",
+      "note": [
+        "misura disattivata (--senza-misura)",
+        "riscaldamento routing (llama3.2:3b-instruct-q4_K_M) scartato: 3.697 s",
+        "riscaldamento spiegazione (llama3.2:3b-instruct-q4_K_M) scartato: 0.519 s"
+      ]
+    },
+    "totale": {
+      "misura": "non disponibile"
+    },
+    "fuori_dai_passi_j": null,
+    "steps": [
+      {
+        "step": "translator",
+        "seconds": 7.26,
+        "tokens": {
+          "input_token_count": 1949,
+          "output_token_count": 71,
+          "total_token_count": 2020
+        },
+        "misura": {
+          "misura": "non disponibile"
+        },
+        "text": "{\"input\": {\"ThisCarDam\": \"Moderate\", \"SeniorTrain\": \"True\"}, \"output\": {\"ThisCarDam\": \"Moderate\"}, \"citazioni\": {\"ThisCarDam\": \"the damage to this car is moderate\", \"SeniorTrain\": \"we intervene to make it so that the customer has completed the senior driver training\"}}"
+      },
+      {
+        "step": "classificator",
+        "seconds": 8.03,
+        "tokens": {
+          "input_token_count": 592,
+          "output_token_count": 3,
+          "total_token_count": 595
+        },
+        "misura": {
+          "misura": "non disponibile"
+        },
+        "text": "intervention"
+      },
+      {
+        "step": "cau_inference",
+        "seconds": 0.091,
+        "tokens": {},
+        "misura": {
+          "misura": "non disponibile"
+        },
+        "text": "The probability of ThisCarDam equal to Moderate given the current intervention is 0.207"
+      },
+      {
+        "step": "causal_A",
+        "seconds": 17.059,
+        "tokens": {
+          "input_token_count": 309,
+          "output_token_count": 138,
+          "total_token_count": 447
+        },
+        "misura": {
+          "misura": "non disponibile"
+        },
+        "text": "The probability that the damage to this car is moderate if we intervene to make it so that the customer has completed the senior driver training is 0.207.\n\nIntervening to make the customer complete the senior driver training would likely reduce the likelihood of moderate damage to the car, as the training is intended to improve driving skills and reduce the risk of accidents. However, the exact impact of the intervention on the car's damage is uncertain, and the probability of moderate damage occurring under the intervention is only 0.207. This suggests that while the intervention may reduce the risk of moderate damage, it is not a guarantee, and other factors may still contribute to the car's condition."
+      }
+    ]
+  }
+}

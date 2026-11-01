@@ -1,0 +1,686 @@
+{
+  "variante": "b_esempi",
+  "modello": "llama3.2:3b-instruct-q4_K_M",
+  "modello_spiegazione": "llama3.2:3b-instruct-q4_K_M",
+  "provenienza": {
+    "varianti\\b_esempi.py": "631a3b535e694483b51184bb685caebbbe99782d05def9bfe57831542b4a2592",
+    "run_orchestrato.py": "2cd29d3496a82b1342c24117c822be7706756e5fc3d0a3ab54eaad8ca8ed1036",
+    "run_query.py": "656b7c752aa14decaf6906354458618e99dbc1ffc0c8e51b88df5af3a1789df5",
+    "traduzione_controllata.py": "311af808cfbcb2261e46a2d15a36cac7e930713a812a9f496190f8214d8197ae",
+    "classificazione_controllata.py": "aed3579e01aee401b6457bebabb3a8e502b14fa4267f9d214a06478b9871978d",
+    "consegna\\agents_corretto.py": "f6b8e2fe9960b77665b7eafb08686c92068108df101350a0cb1c37ecb89de1ba",
+    "consegna\\tools_corretto.py": "949cac8de8f5f00438e13e0287b4e6418023d8ba11ddf7a692f8dc11fab2bb5a",
+    "consegna\\funtions_corretto.py": "685516c8042e8a8a094d48cf1cdedf3c844504ac23d19d4c31d15c9b0f2e119d",
+    "consegna\\insurance_grafo.bif": "39f9e706e9208e720a55a98b6811188b33a7292335a53373a9343a0c7065dab4"
+  },
+  "opzioni_harness": {
+    "ripetizioni": 1,
+    "misura": false,
+    "calibra_idle": false,
+    "riscalda_modelli": true,
+    "scarta_primo_run": false
+  },
+  "misura": {
+    "attiva": false,
+    "disponibile": false,
+    "errore": "",
+    "note": [
+      "misura disattivata (--senza-misura)",
+      "riscaldamento routing (llama3.2:3b-instruct-q4_K_M) scartato: 0.128 s",
+      "riscaldamento spiegazione (llama3.2:3b-instruct-q4_K_M) scartato: 0.116 s"
+    ]
+  },
+  "n_query": 81,
+  "n_run": 81,
+  "n_falliti": 38,
+  "esiti": [
+    {
+      "task_id": "CP1",
+      "ripetizione": 1,
+      "file": "CP1_r1.json",
+      "secondi": 7.668,
+      "etichetta": "backward_reasoning",
+      "errore": ""
+    },
+    {
+      "task_id": "CND01",
+      "ripetizione": 1,
+      "file": "CND01_r1.json",
+      "secondi": 14.237,
+      "etichetta": "backward_reasoning",
+      "errore": ""
+    },
+    {
+      "task_id": "CND02",
+      "ripetizione": 1,
+      "file": "CND02_r1.json",
+      "secondi": 12.265,
+      "etichetta": "backward_reasoning",
+      "errore": ""
+    },
+    {
+      "task_id": "CND05",
+      "ripetizione": 1,
+      "file": "CND05_r1.json",
+      "secondi": 11.917,
+      "etichetta": "backward_reasoning",
+      "errore": ""
+    },
+    {
+      "task_id": "CND06",
+      "ripetizione": 1,
+      "file": "CND06_r1.json",
+      "secondi": 10.953,
+      "etichetta": "backward_reasoning",
+      "errore": ""
+    },
+    {
+      "task_id": "CND09",
+      "ripetizione": 1,
+      "file": "CND09_r1.json",
+      "secondi": 13.63,
+      "etichetta": "backward_reasoning",
+      "errore": ""
+    },
+    {
+      "task_id": "CND10",
+      "ripetizione": 1,
+      "file": "CND10_r1.json",
+      "secondi": 10.749,
+      "etichetta": "backward_reasoning",
+      "errore": ""
+    },
+    {
+      "task_id": "CND13",
+      "ripetizione": 1,
+      "file": "CND13_r1.json",
+      "secondi": 3.93,
+      "etichetta": "backward_reasoning",
+      "errore": "cau_inference: ValueError: CarValue='TwentyThou, FiftyThou, Million, FiveThou' non e' uno stato ammesso da CarValue; stati: ['FiveThou', 'TenThou', 'TwentyThou', 'FiftyThou', 'Million']"
+    },
+    {
+      "task_id": "CND14",
+      "ripetizione": 1,
+      "file": "CND14_r1.json",
+      "secondi": 10.995,
+      "etichetta": "backward_reasoning",
+      "errore": ""
+    },
+    {
+      "task_id": "CND17",
+      "ripetizione": 1,
+      "file": "CND17_r1.json",
+      "secondi": 9.218,
+      "etichetta": "backward_reasoning",
+      "errore": ""
+    },
+    {
+      "task_id": "CND18",
+      "ripetizione": 1,
+      "file": "CND18_r1.json",
+      "secondi": 10.134,
+      "etichetta": "backward_reasoning",
+      "errore": ""
+    },
+    {
+      "task_id": "CND21",
+      "ripetizione": 1,
+      "file": "CND21_r1.json",
+      "secondi": 13.823,
+      "etichetta": "backward_reasoning",
+      "errore": ""
+    },
+    {
+      "task_id": "CND22",
+      "ripetizione": 1,
+      "file": "CND22_r1.json",
+      "secondi": 11.254,
+      "etichetta": "backward_reasoning",
+      "errore": ""
+    },
+    {
+      "task_id": "CND25",
+      "ripetizione": 1,
+      "file": "CND25_r1.json",
+      "secondi": 12.203,
+      "etichetta": "backward_reasoning",
+      "errore": ""
+    },
+    {
+      "task_id": "CND26",
+      "ripetizione": 1,
+      "file": "CND26_r1.json",
+      "secondi": 12.247,
+      "etichetta": "backward_reasoning",
+      "errore": ""
+    },
+    {
+      "task_id": "CND29",
+      "ripetizione": 1,
+      "file": "CND29_r1.json",
+      "secondi": 10.558,
+      "etichetta": "backward_reasoning",
+      "errore": ""
+    },
+    {
+      "task_id": "CND30",
+      "ripetizione": 1,
+      "file": "CND30_r1.json",
+      "secondi": 10.117,
+      "etichetta": "backward_reasoning",
+      "errore": ""
+    },
+    {
+      "task_id": "CND33",
+      "ripetizione": 1,
+      "file": "CND33_r1.json",
+      "secondi": 9.809,
+      "etichetta": "backward_reasoning",
+      "errore": ""
+    },
+    {
+      "task_id": "CND34",
+      "ripetizione": 1,
+      "file": "CND34_r1.json",
+      "secondi": 9.79,
+      "etichetta": "backward_reasoning",
+      "errore": ""
+    },
+    {
+      "task_id": "CND37",
+      "ripetizione": 1,
+      "file": "CND37_r1.json",
+      "secondi": 3.749,
+      "etichetta": "backward_reasoning",
+      "errore": "cau_inference: ValueError: MedCost='Thousand, TenThou, HundredThou, Million' non e' uno stato ammesso da MedCost; stati: ['Thousand', 'TenThou', 'HundredThou', 'Million']"
+    },
+    {
+      "task_id": "CND38",
+      "ripetizione": 1,
+      "file": "CND38_r1.json",
+      "secondi": 8.393,
+      "etichetta": "backward_reasoning",
+      "errore": ""
+    },
+    {
+      "task_id": "INT01",
+      "ripetizione": 1,
+      "file": "INT01_r1.json",
+      "secondi": 4.003,
+      "etichetta": "intervention",
+      "errore": "cau_inference: InvalidArgument: [pyAgrum] Invalid argument: The 3 parts of the query (on, doing, knowing) must be pairwise disjoint."
+    },
+    {
+      "task_id": "INT02",
+      "ripetizione": 1,
+      "file": "INT02_r1.json",
+      "secondi": 4.354,
+      "etichetta": "intervention",
+      "errore": "cau_inference: InvalidArgument: [pyAgrum] Invalid argument: The 3 parts of the query (on, doing, knowing) must be pairwise disjoint."
+    },
+    {
+      "task_id": "INT05",
+      "ripetizione": 1,
+      "file": "INT05_r1.json",
+      "secondi": 3.69,
+      "etichetta": "intervention",
+      "errore": "cau_inference: InvalidArgument: [pyAgrum] Invalid argument: The 3 parts of the query (on, doing, knowing) must be pairwise disjoint."
+    },
+    {
+      "task_id": "INT06",
+      "ripetizione": 1,
+      "file": "INT06_r1.json",
+      "secondi": 3.583,
+      "etichetta": "intervention",
+      "errore": "cau_inference: InvalidArgument: [pyAgrum] Invalid argument: The 3 parts of the query (on, doing, knowing) must be pairwise disjoint."
+    },
+    {
+      "task_id": "INT09",
+      "ripetizione": 1,
+      "file": "INT09_r1.json",
+      "secondi": 219.272,
+      "etichetta": "intervention",
+      "errore": ""
+    },
+    {
+      "task_id": "INT10",
+      "ripetizione": 1,
+      "file": "INT10_r1.json",
+      "secondi": 4.524,
+      "etichetta": "intervention",
+      "errore": "cau_inference: InvalidArgument: [pyAgrum] Invalid argument: The 3 parts of the query (on, doing, knowing) must be pairwise disjoint."
+    },
+    {
+      "task_id": "INT13",
+      "ripetizione": 1,
+      "file": "INT13_r1.json",
+      "secondi": 4.256,
+      "etichetta": "intervention",
+      "errore": "cau_inference: InvalidArgument: [pyAgrum] Invalid argument: The 3 parts of the query (on, doing, knowing) must be pairwise disjoint."
+    },
+    {
+      "task_id": "INT14",
+      "ripetizione": 1,
+      "file": "INT14_r1.json",
+      "secondi": 15.932,
+      "etichetta": "intervention",
+      "errore": ""
+    },
+    {
+      "task_id": "INT17",
+      "ripetizione": 1,
+      "file": "INT17_r1.json",
+      "secondi": 168.698,
+      "etichetta": "intervention",
+      "errore": "cau_inference: Exception: bad allocation"
+    },
+    {
+      "task_id": "INT18",
+      "ripetizione": 1,
+      "file": "INT18_r1.json",
+      "secondi": 13.861,
+      "etichetta": "intervention",
+      "errore": ""
+    },
+    {
+      "task_id": "INT21",
+      "ripetizione": 1,
+      "file": "INT21_r1.json",
+      "secondi": 3.791,
+      "etichetta": "intervention",
+      "errore": "cau_inference: InvalidArgument: [pyAgrum] Invalid argument: The 3 parts of the query (on, doing, knowing) must be pairwise disjoint."
+    },
+    {
+      "task_id": "INT22",
+      "ripetizione": 1,
+      "file": "INT22_r1.json",
+      "secondi": 3.54,
+      "etichetta": "intervention",
+      "errore": "cau_inference: InvalidArgument: [pyAgrum] Invalid argument: The 3 parts of the query (on, doing, knowing) must be pairwise disjoint."
+    },
+    {
+      "task_id": "INT25",
+      "ripetizione": 1,
+      "file": "INT25_r1.json",
+      "secondi": 2.893,
+      "etichetta": "intervention",
+      "errore": "cau_inference: KeyError: \"variabile 'DrivingQuality' assente dal grafo\""
+    },
+    {
+      "task_id": "INT26",
+      "ripetizione": 1,
+      "file": "INT26_r1.json",
+      "secondi": 12.626,
+      "etichetta": "intervention",
+      "errore": ""
+    },
+    {
+      "task_id": "INT29",
+      "ripetizione": 1,
+      "file": "INT29_r1.json",
+      "secondi": 3.627,
+      "etichetta": "intervention",
+      "errore": "cau_inference: InvalidArgument: [pyAgrum] Invalid argument: The 3 parts of the query (on, doing, knowing) must be pairwise disjoint."
+    },
+    {
+      "task_id": "INT30",
+      "ripetizione": 1,
+      "file": "INT30_r1.json",
+      "secondi": 9.89,
+      "etichetta": "intervention",
+      "errore": ""
+    },
+    {
+      "task_id": "INT33",
+      "ripetizione": 1,
+      "file": "INT33_r1.json",
+      "secondi": 11.932,
+      "etichetta": "intervention",
+      "errore": ""
+    },
+    {
+      "task_id": "INT34",
+      "ripetizione": 1,
+      "file": "INT34_r1.json",
+      "secondi": 3.645,
+      "etichetta": "intervention",
+      "errore": "cau_inference: InvalidArgument: [pyAgrum] Invalid argument: The 3 parts of the query (on, doing, knowing) must be pairwise disjoint."
+    },
+    {
+      "task_id": "INT37",
+      "ripetizione": 1,
+      "file": "INT37_r1.json",
+      "secondi": 4.097,
+      "etichetta": "intervention",
+      "errore": "cau_inference: InvalidArgument: [pyAgrum] Invalid argument: The 3 parts of the query (on, doing, knowing) must be pairwise disjoint."
+    },
+    {
+      "task_id": "INT38",
+      "ripetizione": 1,
+      "file": "INT38_r1.json",
+      "secondi": 14.784,
+      "etichetta": "intervention",
+      "errore": ""
+    },
+    {
+      "task_id": "COH01",
+      "ripetizione": 1,
+      "file": "COH01_r1.json",
+      "secondi": 14.24,
+      "etichetta": "coherence",
+      "errore": ""
+    },
+    {
+      "task_id": "COH02",
+      "ripetizione": 1,
+      "file": "COH02_r1.json",
+      "secondi": 16.325,
+      "etichetta": "coherence",
+      "errore": ""
+    },
+    {
+      "task_id": "COH05",
+      "ripetizione": 1,
+      "file": "COH05_r1.json",
+      "secondi": 13.374,
+      "etichetta": "coherence",
+      "errore": ""
+    },
+    {
+      "task_id": "COH06",
+      "ripetizione": 1,
+      "file": "COH06_r1.json",
+      "secondi": 16.781,
+      "etichetta": "coherence",
+      "errore": ""
+    },
+    {
+      "task_id": "COH09",
+      "ripetizione": 1,
+      "file": "COH09_r1.json",
+      "secondi": 14.963,
+      "etichetta": "coherence",
+      "errore": ""
+    },
+    {
+      "task_id": "COH10",
+      "ripetizione": 1,
+      "file": "COH10_r1.json",
+      "secondi": 13.979,
+      "etichetta": "coherence",
+      "errore": ""
+    },
+    {
+      "task_id": "COH13",
+      "ripetizione": 1,
+      "file": "COH13_r1.json",
+      "secondi": 12.683,
+      "etichetta": "coherence",
+      "errore": ""
+    },
+    {
+      "task_id": "COH14",
+      "ripetizione": 1,
+      "file": "COH14_r1.json",
+      "secondi": 4.58,
+      "etichetta": "coherence",
+      "errore": "cau_inference: ValueError: coherence: 'Not necessary' non e' uno stato di ILiCost, stati: ['Thousand', 'TenThou', 'HundredThou', 'Million']"
+    },
+    {
+      "task_id": "COH17",
+      "ripetizione": 1,
+      "file": "COH17_r1.json",
+      "secondi": 4.503,
+      "etichetta": "coherence",
+      "errore": "cau_inference: ValueError: coherence: 'Not necessary' non e' uno stato di OtherCarCost, stati: ['Thousand', 'TenThou', 'HundredThou', 'Million']"
+    },
+    {
+      "task_id": "COH18",
+      "ripetizione": 1,
+      "file": "COH18_r1.json",
+      "secondi": 3.895,
+      "etichetta": "coherence",
+      "errore": "cau_inference: KeyError: \"variabile 'Senior' assente dal grafo\""
+    },
+    {
+      "task_id": "COH21",
+      "ripetizione": 1,
+      "file": "COH21_r1.json",
+      "secondi": 13.211,
+      "etichetta": "coherence",
+      "errore": ""
+    },
+    {
+      "task_id": "COH22",
+      "ripetizione": 1,
+      "file": "COH22_r1.json",
+      "secondi": 10.085,
+      "etichetta": "coherence",
+      "errore": ""
+    },
+    {
+      "task_id": "COH25",
+      "ripetizione": 1,
+      "file": "COH25_r1.json",
+      "secondi": 13.057,
+      "etichetta": "coherence",
+      "errore": ""
+    },
+    {
+      "task_id": "COH26",
+      "ripetizione": 1,
+      "file": "COH26_r1.json",
+      "secondi": 15.61,
+      "etichetta": "coherence",
+      "errore": ""
+    },
+    {
+      "task_id": "COH29",
+      "ripetizione": 1,
+      "file": "COH29_r1.json",
+      "secondi": 13.423,
+      "etichetta": "coherence",
+      "errore": ""
+    },
+    {
+      "task_id": "COH30",
+      "ripetizione": 1,
+      "file": "COH30_r1.json",
+      "secondi": 10.965,
+      "etichetta": "coherence",
+      "errore": ""
+    },
+    {
+      "task_id": "COH33",
+      "ripetizione": 1,
+      "file": "COH33_r1.json",
+      "secondi": 14.595,
+      "etichetta": "coherence",
+      "errore": ""
+    },
+    {
+      "task_id": "COH34",
+      "ripetizione": 1,
+      "file": "COH34_r1.json",
+      "secondi": 13.82,
+      "etichetta": "coherence",
+      "errore": ""
+    },
+    {
+      "task_id": "COH37",
+      "ripetizione": 1,
+      "file": "COH37_r1.json",
+      "secondi": 11.604,
+      "etichetta": "coherence",
+      "errore": ""
+    },
+    {
+      "task_id": "COH38",
+      "ripetizione": 1,
+      "file": "COH38_r1.json",
+      "secondi": 13.24,
+      "etichetta": "coherence",
+      "errore": ""
+    },
+    {
+      "task_id": "CF01",
+      "ripetizione": 1,
+      "file": "CF01_r1.json",
+      "secondi": 4.36,
+      "etichetta": "counterfactual",
+      "errore": "cau_inference: ValueError: counterfactual: serve esattamente una variabile di input, trovate ['Airbag', 'Cushioning']"
+    },
+    {
+      "task_id": "CF02",
+      "ripetizione": 1,
+      "file": "CF02_r1.json",
+      "secondi": 3.938,
+      "etichetta": "counterfactual",
+      "errore": "cau_inference: ValueError: counterfactual: serve esattamente una variabile di input, trovate ['Airbag', 'Cushioning']"
+    },
+    {
+      "task_id": "CF05",
+      "ripetizione": 1,
+      "file": "CF05_r1.json",
+      "secondi": 4.315,
+      "etichetta": "counterfactual",
+      "errore": "cau_inference: ValueError: counterfactual: serve esattamente una variabile di input, trovate ['VehicleYear', 'ThisCarDam']"
+    },
+    {
+      "task_id": "CF06",
+      "ripetizione": 1,
+      "file": "CF06_r1.json",
+      "secondi": 4.255,
+      "etichetta": "counterfactual",
+      "errore": "cau_inference: ValueError: counterfactual: serve esattamente una variabile di input, trovate ['Airbag', 'Cushioning']"
+    },
+    {
+      "task_id": "CF09",
+      "ripetizione": 1,
+      "file": "CF09_r1.json",
+      "secondi": 4.54,
+      "etichetta": "counterfactual",
+      "errore": "cau_inference: ValueError: counterfactual: serve esattamente una variabile di input, trovate ['VehicleYear', 'Antilock']"
+    },
+    {
+      "task_id": "CF10",
+      "ripetizione": 1,
+      "file": "CF10_r1.json",
+      "secondi": 5.128,
+      "etichetta": "counterfactual",
+      "errore": "cau_inference: ValueError: counterfactual: serve esattamente una variabile di input, trovate ['AntiTheft', 'ThisCarCost']"
+    },
+    {
+      "task_id": "CF13",
+      "ripetizione": 1,
+      "file": "CF13_r1.json",
+      "secondi": 4.242,
+      "etichetta": "counterfactual",
+      "errore": "cau_inference: ValueError: counterfactual: serve esattamente una variabile di input, trovate ['Antilock', 'Accident']"
+    },
+    {
+      "task_id": "CF14",
+      "ripetizione": 1,
+      "file": "CF14_r1.json",
+      "secondi": 4.19,
+      "etichetta": "counterfactual",
+      "errore": "cau_inference: ValueError: counterfactual: serve esattamente una variabile di input, trovate ['Antilock', 'Accident']"
+    },
+    {
+      "task_id": "CF17",
+      "ripetizione": 1,
+      "file": "CF17_r1.json",
+      "secondi": 4.83,
+      "etichetta": "counterfactual",
+      "errore": "cau_inference: ValueError: counterfactual: serve esattamente una variabile di input, trovate ['AntiTheft', 'ThisCarCost']"
+    },
+    {
+      "task_id": "CF18",
+      "ripetizione": 1,
+      "file": "CF18_r1.json",
+      "secondi": 4.41,
+      "etichetta": "counterfactual",
+      "errore": "cau_inference: ValueError: counterfactual: serve esattamente una variabile di input, trovate ['Theft', 'ThisCarCost']"
+    },
+    {
+      "task_id": "CF21",
+      "ripetizione": 1,
+      "file": "CF21_r1.json",
+      "secondi": 4.254,
+      "etichetta": "counterfactual",
+      "errore": "cau_inference: ValueError: counterfactual: serve esattamente una variabile di input, trovate ['Airbag', 'Cushioning']"
+    },
+    {
+      "task_id": "CF22",
+      "ripetizione": 1,
+      "file": "CF22_r1.json",
+      "secondi": 4.606,
+      "etichetta": "counterfactual",
+      "errore": "cau_inference: ValueError: counterfactual: serve esattamente una variabile di input, trovate ['AntiTheft', 'ThisCarCost']"
+    },
+    {
+      "task_id": "CF25",
+      "ripetizione": 1,
+      "file": "CF25_r1.json",
+      "secondi": 4.137,
+      "etichetta": "counterfactual",
+      "errore": "cau_inference: ValueError: counterfactual: serve esattamente una variabile di input, trovate ['AntiTheft', 'Theft']"
+    },
+    {
+      "task_id": "CF26",
+      "ripetizione": 1,
+      "file": "CF26_r1.json",
+      "secondi": 4.734,
+      "etichetta": "counterfactual",
+      "errore": "cau_inference: ValueError: counterfactual: serve esattamente una variabile di input, trovate ['AntiTheft', 'ThisCarCost']"
+    },
+    {
+      "task_id": "CF29",
+      "ripetizione": 1,
+      "file": "CF29_r1.json",
+      "secondi": 4.269,
+      "etichetta": "counterfactual",
+      "errore": "cau_inference: ValueError: counterfactual: serve esattamente una variabile di input, trovate ['Airbag', 'Cushioning']"
+    },
+    {
+      "task_id": "CF30",
+      "ripetizione": 1,
+      "file": "CF30_r1.json",
+      "secondi": 4.487,
+      "etichetta": "counterfactual",
+      "errore": "cau_inference: ValueError: counterfactual: serve esattamente una variabile di input, trovate ['VehicleYear', 'RuggedAuto']"
+    },
+    {
+      "task_id": "CF33",
+      "ripetizione": 1,
+      "file": "CF33_r1.json",
+      "secondi": 4.03,
+      "etichetta": "counterfactual",
+      "errore": "cau_inference: ValueError: counterfactual: serve esattamente una variabile di input, trovate ['SeniorTrain', 'DrivingSkill']"
+    },
+    {
+      "task_id": "CF34",
+      "ripetizione": 1,
+      "file": "CF34_r1.json",
+      "secondi": 4.27,
+      "etichetta": "counterfactual",
+      "errore": "cau_inference: ValueError: counterfactual: serve esattamente una variabile di input, trovate ['Antilock', 'Accident']"
+    },
+    {
+      "task_id": "CF37",
+      "ripetizione": 1,
+      "file": "CF37_r1.json",
+      "secondi": 4.614,
+      "etichetta": "counterfactual",
+      "errore": "cau_inference: ValueError: counterfactual: serve esattamente una variabile di input, trovate ['VehicleYear', 'ThisCarCost']"
+    },
+    {
+      "task_id": "CF38",
+      "ripetizione": 1,
+      "file": "CF38_r1.json",
+      "secondi": 4.752,
+      "etichetta": "counterfactual",
+      "errore": "cau_inference: ValueError: counterfactual: serve esattamente una variabile di input, trovate ['AntiTheft', 'ThisCarCost']"
+    }
+  ]
+}

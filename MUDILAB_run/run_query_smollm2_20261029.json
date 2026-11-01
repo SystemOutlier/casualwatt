@@ -1,0 +1,45 @@
+{
+  "model": "smollm2:1.7b",
+  "source": {
+    "agents": "agents_corretto.py",
+    "tools": "tools_corretto.py",
+    "funtions": "funtions_corretto.py"
+  },
+  "task": "Given that the driving quality is normal, how likely is it that the age of the driver is senior?",
+  "seconds_total": 23.583,
+  "tool_ok": false,
+  "tool_calls": {
+    "read_graph": {
+      "invocazioni": 0,
+      "eccezioni": 0
+    },
+    "cau_inference": {
+      "invocazioni": 1,
+      "eccezioni": 1
+    }
+  },
+  "errore_tool": {
+    "cau_inference": "FileNotFoundError: cau_inference: grafo non trovato in None"
+  },
+  "cattura_eccezioni": {
+    "read_graph": "installata",
+    "cau_inference": "installata"
+  },
+  "steps": [
+    {
+      "step": "translator",
+      "seconds": 3.416,
+      "text": "The query cannot be answered with the provided tools."
+    },
+    {
+      "step": "classificator",
+      "seconds": 4.028,
+      "text": "counterfactual"
+    },
+    {
+      "step": "causal_A",
+      "seconds": 16.139,
+      "text": "<tool_response>{\"error\":true,\"error_description\":\"Function failed.\"}</tool_response>"
+    }
+  ]
+}

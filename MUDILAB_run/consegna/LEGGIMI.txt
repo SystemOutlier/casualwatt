@@ -1,0 +1,575 @@
+Gentile Professoressa,
+
+ho preso i suoi file e ho provato a far girare la pipeline senza modificare
+agents.py, tools.py e funtions.py, usando tinyllama:latest come mi ha indicato.
+Le scrivo cosa ho trovato, cosa ho corretto in copie separate e cosa resta da
+decidere. I numeri di riga si riferiscono ai suoi file originali, non alle copie.
+
+=====================================================================
+1. Con i file cosi' come sono la pipeline non parte
+=====================================================================
+
+Con tinyllama Ollama risponde con un errore 400: "tinyllama:latest does not
+support tools". Il modello ha solo la capability completion, quindi il
+traduttore non puo' essere istanziato per come e' scritto: agents.py riga 44 gli
+dichiara tools=[read_graph]. Non e' un problema di qualita' delle risposte, e'
+l'API che rifiuta la richiesta.
+
+Il classificatore, che non ha tool, risponde (circa sette secondi), ma non
+emette alcuna etichetta: sulle 12 query di riferimento ne riconosce zero, su
+entrambi gli endpoint (/v1 e /api/chat), e non e' un troncamento, perche' ho
+letto la risposta intera. In 10 casi il testo non contiene nemmeno una parola
+ammessa; negli altri 2 la cita dentro una frase ("the criterion for assigning
+the label ... is backward_reasoning"), e il confronto per uguaglianza di
+tools.py riga 51 non la accetta. Restituisce la risposta alla domanda invece
+della classificazione. Non e' il prompt che non arriva: il template di
+tinyllama ha il posto per il messaggio di sistema, l'ho verificato con ollama
+show. E non cambia nemmeno aggiungendo la quinta etichetta: quel prompt l'ho
+provato, zero etichette anche li'. cau_inference confronta l'etichetta per
+uguaglianza esatta (righe 51, 63, 68, 92, 122), quindi con tinyllama nessuna
+query arriva a un ramo.
+
+Il pacchetto inoltre non e' autosufficiente: agents.py riga 8 importa
+HuggingFaceChatClient da un client.py che non c'e', e la sezione #CLIENTS e'
+vuota, quindi gpt5 e small (righe 37 e 67) non sono definiti. Per far girare il
+codice ho dovuto aggirare entrambe le cose dall'esterno, senza toccare i suoi
+file.
+
+=====================================================================
+2. Difetti che ho trovato leggendo, ognuno verificabile a riga
+=====================================================================
+
+tools.py
+
+- riga 45: eval(features) esegue come codice Python il testo prodotto dal
+  modello. Funziona finche' il modello scrive solo il dizionario, ma espone
+  all'esecuzione di codice arbitrario e si rompe appena aggiunge un blocco
+  markdown.
+- riga 41: se path e' None il percorso del grafo e'
+  "C:/Users/Samsung/Documents/DOTTORATO/...", cioe' una cartella del suo
+  computer. Da qualsiasi altra macchina gum.loadBN solleva IOError.
+- riga 63: il ramo e' 'conterfactual', ma il classificatore puo' emettere solo
+  backward_reasoning, intervention, coherence e influence (agents.py riga 24).
+  Quel ramo non viene mai raggiunto, e le tre query controfattuali del notebook
+  non trovano nessuna risposta.
+- righe 94 e 96: list(input_.keys()) == 2 confronta una lista con un intero,
+  quindi e' sempre falso. Nel ramo coherence viene aggiunta solo la prima
+  evidenza, e il caso di tre variabili in input non e' gestito.
+- righe 74-80: se input contiene piu' di due variabili nessuno dei due rami
+  assegna formula, e il controllo "if formula is None" solleva
+  UnboundLocalError.
+- riga 36, web_search: chiama il metodo sulla classe invece che su un'istanza,
+  non legge nessuna chiave API e passa URL dove Tavily si aspetta hostname.
+  Cosi' com'e' non puo' funzionare.
+
+funtions.py
+
+- righe 127-136: il ramo dim == 2 usa m, che viene definito solo nel ramo
+  dim == 3. Righe 138-147: il ramo dim == 1 usa col_nox, n e m, che li' non
+  esistono. Entrambi sollevano NameError. Oggi il problema e' nascosto dal fatto
+  che i controfattuali non partono, come al punto precedente.
+- riga 6: pd.read_csv('DATI.csv') all'import con un percorso relativo alla
+  cartella da cui si lancia lo script. Se lo script parte da un'altra cartella
+  l'import fallisce.
+- riga 175: print(f'imp: {imp[1]}') e' un residuo di debug che scrive sullo
+  stdout a ogni controfattuale.
+
+agents.py
+
+- righe 72-79: prompt_descr e' una tupla di stringhe, non una stringa
+  concatenata.
+
+=====================================================================
+3. Cosa ho corretto
+=====================================================================
+
+Ho fatto tre copie di lavoro, da non confondere con i suoi originali:
+agents_corretto.py, tools_corretto.py, funtions_corretto.py. In ogni copia il
+codice originale resta commentato e sotto c'e' la correzione con una riga che
+dice perche'. In sintesi:
+
+- import mai usati tolti dalle copie: pyro, pyro.distributions e torch in
+  funtions.py, dice_ml, torch e cinque moduli sklearn in tools.py, e
+  pyagrum.causal.notebook. Nessuna riga dei suoi file li usava. Restavano
+  perche' bloccano l'import su un ambiente pulito: senza pyro o senza dice_ml
+  il modulo si ferma sull'import, prima di arrivare a una sola correzione
+  (misurato il 31-10-2026 con Python 3.14). Togliendoli il comportamento non
+  cambia: verifica_copie.py stampa lo stesso output di prima, riga per riga;
+- il testo del traduttore non viene piu' eseguito: si tolgono le recinzioni
+  markdown, si provano anche le virgolette tipografiche che llama3.2:3b scrive
+  al posto di quelle dritte, e si prova json.loads e poi ast.literal_eval;
+  'input' e 'output' devono essere due dizionari con 'output' di una sola
+  chiave;
+- il percorso del grafo: 'None' e 'null' scritti come parola valgono come
+  percorso assente. I modelli li passano spesso come stringa, e una stringa e'
+  vera per Python, quindi il default non scattava e si cercava un file che si
+  chiama None (FileNotFoundError: grafo non trovato in None). Con None vero il
+  file accanto al modulo si trova;
+- ogni nome di variabile viene verificato contro il grafo, e il valore
+  "Not necessary" viene scartato dall'evidenza invece di essere passato a
+  pyagrum come se fosse un dato osservato;
+- anche il valore di ogni evidenza e' verificato contro gli stati che il grafo
+  ammette per quella variabile: con una cella vuota in DATI.csv (che arriva
+  come 'nan') o con uno stato che quella variabile non ha, l'errore dice quale
+  voce della query non va bene. Senza questo controllo l'inferenza si ferma
+  comunque, ma con un messaggio di pyagrum sull'etichetta sconosciuta;
+- l'etichetta viene normalizzata, il refuso conterfactual e' accettato come
+  alias di counterfactual, e un'etichetta sconosciuta produce un errore
+  leggibile invece di lasciare answer non assegnata;
+- il ramo coherence passa tutte le evidenze, il ramo intervention regge da una
+  a piu' variabili e anche il caso senza valore di output, il ramo
+  controfattuale riceve il nome della variabile e non il dizionario;
+- il ramo coherence riporta la probabilita' con quattro decimali come gli altri
+  rami: prima due decimali stampavano "0.0" una probabilita' piccola ma
+  calcolata (0.004876), e chi legge non poteva distinguerla da uno zero esatto;
+- in funtions la binarizzazione e' generica su un numero qualsiasi di genitori,
+  complex_prob non divide piu' per zero, non ci sono print di debug e le soglie
+  restano alle sue formule;
+- i percorsi di DATI.csv e del .bif sono risolti rispetto al file, non alla
+  cartella di avvio;
+- i due client sono definiti nel file e leggono modello, indirizzo e chiave
+  dalle variabili d'ambiente.
+
+Per verificare ho scritto verifica_copie.py, che non chiama nessun modello: carica
+le due copie e prova ogni ramo di cau_inference piu' i casi che devono fallire.
+L'output e' allegato. La prima riga utile e' quella che conta:
+
+    backward_reasoning: The probability of Age is Senior given the provided
+    conditions is 0.212
+
+Il riferimento calcolato indipendentemente con pyagrum sul suo
+insurance_grafo.bif e' 0.2117, quindi 0.2117 arrotondato a tre decimali fa
+0.212. La sua formula e' corretta: quello che non funzionava erano i
+collegamenti.
+
+Una cosa che le segnalo invece di darla per buona: il ramo controfattuale ora
+gira su tutte e tre le query, e la Py che prima veniva da DATI.csv ora viene
+dalla marginale del grafo. Sul caso di prova l'intervallo passa da
+"between 0.0031 and 0.0031" (Py dal file, che vale zero su sei righe) a
+"between 0.0028 and 0.0031" (Py dal grafo, 0.000478). La ragione della scelta
+e' misurata e sta al punto 5.
+
+=====================================================================
+4. Il problema che resta non e' nel codice
+=====================================================================
+
+Corretti i difetti, il punto che blocca la misura e' un altro: e' il modello a
+dover chiamare cau_inference, e la chiamata non arriva al codice.
+
+Ho provato nove modelli locali fra 1 e 8 miliardi di parametri. Quelli con
+supporto ai tool portano la pipeline fino in fondo, ma in nessun caso in cui il
+modello non ha chiamato il tool il numero scritto nella risposta veniva dal
+calcolo. Ho contato le invocazioni: zero. I valori riportati in quei run sono
+stati 0.5, 0.8 e 0.866, contro un riferimento di 0.212.
+
+E' un guasto silenzioso: la risposta finale contiene un numero plausibile anche
+quando il calcolo non e' stato eseguito. Senza contare le invocazioni non e'
+distinguibile da un numero calcolato, ed e' per questo che nella mia
+strumentazione ho aggiunto un controllo che scarta il run quando cau_inference
+non e' stato eseguito.
+
+Ho poi isolato la causa, e il modello non c'entra. Ollama espone due interfacce:
+/api/chat, la sua, e /v1/chat/completions, quella compatibile OpenAI, che e'
+l'unica che il client del framework sa usare. Con la stessa richiesta (stessi
+messaggi, stesso tool, temperatura 0) llama3.1:8b su /api/chat restituisce una
+chiamata strutturata, con label backward_reasoning e il dizionario giusto; sullo
+stesso modello su /v1 risponde con quel JSON dentro il testo, e in una prova
+troncato a meta'. Il modello il tool lo sa chiamare: e' la strada /v1 a non
+restituire la chiamata, quindi il framework non ha nulla da eseguire. Se il
+client parlasse /api/chat, il suo llama3.1:8b chiamerebbe; e' una modifica al
+client, quindi e' una scelta sua e non la faccio.
+
+Sugli altri modelli il livello /v1 non si perde. Restituiscono chiamate
+strutturate qwen2.5:1.5b, llama3.2:1b, llama3.2:3b e smollm2:1.7b; scrivono il
+JSON dentro il testo llama3.1:8b, qwen2.5-coder:7b e llama3.2:3b-instruct-q4_K_M;
+phi3:3.8b risponde 400 perche' non dichiara il supporto ai tool. Con llama3.2:3b,
+che chiama, il framework ha eseguito davvero
+read_graph e cau_inference (invocazioni contate: 1 e 1), quindi la chiamata si
+puo' rimettere in piedi. Ma gli argomenti erano sbagliati: path="None" scritto
+come parola, e il dizionario con le virgolette tipografiche, i due difetti di
+contratto che ho corretto nelle copie; resta la sostanza, cioe' etichetta
+intervention al posto di backward_reasoning e un tool inventato (trinomial_cdf)
+al posto del dizionario. Sotto gli 8 miliardi la chiamata funziona, la scelta di
+cosa chiamare e con quali argomenti no.
+
+Da qui le strade sono tre, e nessuna la decido io:
+
+(a) usare un modello che segua davvero il protocollo dei tool. Nella prova fatta
+    il 3B chiama ma sbaglia l'etichetta, e l'8B chiama solo se il client non
+    passa da /v1: quindi la scelta non e' solo "un modello piu' grande". E' una
+    scelta sua anche perche' cambia il comportamento della pipeline e il costo
+    del run: un modello piu' grande cambia tempo e energia per richiesta, quindi
+    cambia anche il numero che misuro;
+(b) togliere il modello dal percorso di invocazione: leggere il dizionario del
+    traduttore e l'etichetta del classificatore e chiamare cau_inference dal
+    codice, come fa lo script di verifica. Il numero diventa riproducibile per
+    costruzione, ma questo sostituisce il suo esperto causale con una chiamata
+    diretta, quindi e' una modifica al suo disegno e non la faccio senza il suo
+    assenso;
+(c) una soluzione sua, che tenga conto di come intendeva il ruolo dell'esperto.
+
+Le prime due le ho anche misurate sulla stessa query, nello stesso processo e
+nella stessa finestra EMI, con le varianti alternate (A B A B A B) e il primo
+run di ciascuna scartato come riscaldamento. Mediane di tre run:
+
+    modello      variante                       s      J package   validi
+    llama3.2:3b  (a) modello chiama i tool     39,28  1178,0      0/3
+                 (b) codice chiama il tool      11,12   294,5      0/3
+    llama3.1:8b  (a) modello chiama i tool     73,50  2306,6      0/3
+                 (b) codice chiama il tool      20,51   588,9      3/3
+
+Sul 3B (a) chiama davvero read_graph, ma passa un percorso CSV o il dizionario
+delle evidenze; sull'8B non arriva nemmeno a una chiamata valida. Su nessuno dei
+due (a) produce 0.212, quindi i suoi joule sono il costo di un run senza
+risultato, circa quattro volte (b) in energia e tre volte e mezzo in tempo. Sul
+3B (b) sbaglia l'etichetta (coherence): il limite dei modelli piccoli resta
+quello descritto qui sopra, non quello dei tool. Il dettaglio, comprese le due
+asimmetrie dichiarate (temperatura e baseline), e' al punto 4 di
+RISULTATI_decisioni_20261031.md; i due JSON hanno ogni run con gli argomenti dei
+tool, il testo delle eccezioni e il numero finale. I secondi assoluti sono piu'
+alti dei run (b) eseguiti uno dietro l'altro, perche' a ogni cambio di variante
+la cache dei prompt riparte in parte; A e B stanno comunque nello stesso regime.
+
+Per non lasciarle solo una proposta, la variante (b) l'ho resa eseguibile:
+run_orchestrato.py fa i primi due passi con i suoi agenti, chiama cau_inference
+dal codice e lascia all'esperto causale la sola spiegazione. Con llama3.1:8b la
+query di prova da 0.212 in 14-18 secondi con il modello gia' caricato, e in
+76-78 quando il modello va caricato: etichetta backward_reasoning, dizionario
+{"input": {"DrivQuality": "Normal"}, "output": {"Age": "Senior"}}. Non e' la sua
+pipeline e non la sostituisce: serve a mostrarle il confronto. In quella
+variante il numero e' quello del suo cau_inference, la spiegazione e' del modello,
+e ho dovuto dirle di non citare altri numeri perche' al primo tentativo ne aveva
+inventati quattro accanto a un risultato corretto.
+
+Una cosa che ho visto solo ripetendo il run: con la temperatura predefinita di
+Ollama il traduttore non e' deterministico. Su tre run della stessa domanda due
+hanno scritto {"Age": "Senior"} e hanno dato 0.212, uno ha scritto
+{"Age": "Adult"} e ha dato 0.651. Tutti e tre i numeri sono corretti, ma per due
+domande diverse: P(Age=Adult | DrivQuality=Normal) vale 0.651 sul suo grafo. Il
+numero resta quello del suo cau_inference, ma la domanda che gli arriva dipende
+da come il modello traduce, e senza leggere il dizionario le due risposte sono
+indistinguibili. Per questo il JSON di ogni run scrive etichetta e dizionario
+accanto al risultato, e per questo nella variante (b) i tre passi girano con
+temperature 0: ripetuto tre volte, da sempre lo stesso dizionario, lo stesso
+0.212 e gli stessi token. L'opzione sta nel JSON (campo opzioni) e la sua
+run_query.py non e' toccata, quindi la pipeline originale continua a campionare
+come fa di suo. Se vuole la stessa ripetibilita' anche li', e' una riga nel
+client, ma e' una scelta sua.
+
+La stessa variante (b) con modelli piu' piccoli dice dove sta il limite. Con
+llama3.2:1b e llama3.2:3b, temperatura 0, il traduttore da lo stesso dizionario
+dell'8B in tutti e due; il classificatore no: il 1B scrive influence, il 3B
+scrive coherence, e nessuno dei due sceglie backward_reasoning. Il numero che
+esce non e' quindi 0.212: il 1B finisce sul ramo influence, che restituisce gli
+archi del grafo al posto di una probabilita'; il 3B sul ramo coherence, che
+riporta 0.21 con un'altra affermazione (compatibilita' dell'evidenza, non la
+probabilita' richiesta). L'energia invece scende molto, sulle due cifre dello
+stesso host: 165 J e 6,0 s col 1B, 208 J e 7,2 s col 3B, contro 494 J e 17,8 s
+con l'8B. Cioe' un terzo dell'energia per un risultato sbagliato: il passo che
+decide quale domanda fare e' anche il piu' economico, e non e' quello che si
+puo' permettere di sbagliare.
+
+Da li' ho provato la combinazione che tiene il passo giusto e toglie il costo
+della spiegazione, che nell'8B e' circa il 70% dell'energia. Classificatore e
+traduttore restano sull'8B, perche' sono i due passi che decidono la domanda; la
+sola spiegazione passa a un modello piccolo. run_orchestrato.py lo fa con la
+variabile MUDILAB_MODEL_SPIEGAZIONE. Tre configurazioni, stessa domanda, tutte e
+tre con etichetta backward_reasoning, lo stesso dizionario e lo stesso 0.212.
+Secondi e joule del run intero, joule dei quattro passi nell'ordine in cui
+girano (traduttore, classificatore, cau_inference, spiegazione):
+
+    config.   joule (run)      secondi    trad.  class.   cau_inf.  spieg.
+    8B + 8B   486,8 / 538,8  17,3-19,0  110-121  22,8-31  1,4-4,8  350-376
+    8B + 1B   236,2 / 258,8    8,7-9,1   109-120  21,4-27  2,3-2,9  101-104
+    8B + 3B   288,7 (un run)  10,6       110,4    22,3     2,2      149,8
+
+Due run per le prime due configurazioni e uno per la terza: lo scarto fra due
+run della stessa configurazione e' del 10% in joule (stesso output, stessi
+token), quindi le cifre vanno lette a quel livello. Su quel livello la
+differenza c'e' ed e' grande: col 1B il totale e' circa la meta' (47-56% in meno
+secondo la coppia di run), col 3B il 41-46% in meno, e il risparmio e' tutto nel
+quarto passo, che passa da 350-376 J a 101-104 J. I primi tre passi costano
+uguale nelle tre configurazioni, e cau_inference non e' un modello. Il modello
+piccolo scrive anche un po' piu' testo (+13 token col 1B, +4 col 3B).
+Quello che i numeri dicono e' che il passo che non deve sbagliare resta sul
+modello grande, e quello che puo' permettersi di essere meno preciso costa un
+terzo.
+
+Due trappole di misura, entrambe costate un run sbagliato e ora gestite dallo
+script. La prima e' il caricamento del modello: a freddo llama3.1:8b costa
+77,5 s e 2644,5 J contro 494 J a caldo, cioe' circa 2150 J che non sono
+inferenza; --riscalda-modelli li paga fuori dalla finestra. La seconda e' la
+cache dei prompt di Ollama: la stessa richiesta del traduttore, 1346 token di
+prompt, a cache calda ne riusa 1320 e ne elabora 26 in 1,3 s, a cache fredda ne
+riusa 5 e ne elabora 1341 in 39 s (34,5 token/s). Ricaricare un modello svuota
+quella cache, quindi la prima esecuzione dopo il caricamento paga i secondi
+dell'elaborazione. Per questo il confronto qui sopra scarta la
+prima esecuzione di ogni configurazione (--scarta-primo-run) e misura la
+seconda: la 8B + 1B, senza quell'accorgimento, era risultata 1800,9 J invece
+dei 236-259 della seconda esecuzione.
+
+=====================================================================
+5. Riferimenti e mappature da confermare
+=====================================================================
+
+A parte il codice: ho calcolato i riferimenti esatti con pyagrum sul suo
+insurance_grafo.bif per le nove query non controfattuali. Su sei di queste la
+corrispondenza fra la formulazione della query e le variabili del grafo e'
+interpretativa e vorrei una sua conferma. In particolare "damage to a car" l'ho
+letto come ThisCarDam e non come Accident, e "driving skill excellent" come
+DrivQuality, perche' nel grafo DrivingSkill ha lo stato Expert e non Excellent.
+
+Le mappature sono in ground_truth.csv, allegato: una riga per query, con
+`expected_probability` calcolata sul suo grafo e una colonna `mapping_status`.
+Le tre marcate `probable` sono mappature dirette; le sei marcate `review` sono
+quelle su cui vorrei il suo parere:
+
+    CP2  damage to a car -> ThisCarDam invece di Accident
+    IN1  severe car damage -> ThisCarDam invece di Accident
+    IN2  driving skill excellent -> DrivQuality perche' DrivingSkill ha Expert
+    CO1  mild accident -> Accident=Mild invece di ThisCarDam=Mild
+    CO2  proposed cost HundredThousand -> PropCost, direzione target/evidenza
+    CO3  Fair cushioning -> P(Cushioning=Fair | SocioEcon=Wealthy), direzione
+
+Sulle tre query controfattuali il riferimento non e' unico finche' non si fissa
+da dove viene Py = P(Y=y). Quel punto l'ho chiuso con una misura, non con una
+preferenza.
+
+Il ramo controfattuale di cobound (funtions.py riga 156) usa i limiti di Tian e
+Pearl. Quattro termini vengono dal grafo; Py e' la marginale dello stesso giunto
+da cui escono p_xy, Pxny, p_noxy e Pnxy, quindi non e' un parametro libero. La
+funzione la prendeva da DATI.csv (riga 179: ny/data.shape[0]), che ha 6 righe e
+20 colonne.
+
+Due misure sul file dicono che non puo' essere quella la fonte. I bersagli di
+due delle tre query, DrivQuality e Theft, non sono nemmeno colonne: con Py dal
+file quelle query non partono. E le 17 variabili comuni al grafo e al file hanno
+distribuzioni diverse, fino a 0,804 di distanza in variazione totale su Accident
+(0,716 nel grafo, nessuna delle sei righe con quel valore): non sono lo stesso
+campione.
+
+Ho provato le due fonti su 500 modelli causali artificiali con accoppiamento
+noto, dove la quantita' che l'intervallo deve contenere, la probabilita' di
+necessita' e sufficienza, si calcola per enumerazione (verifica_py.py, nel
+pacchetto):
+
+    Py esatta, marginale del giunto      PNS fuori dall'intervallo:  0/500
+    Py stimata su 6 righe                PNS fuori dall'intervallo: 129/500
+                                         intervallo rovesciato:      23/500
+    Py x 1.446 (il fattore di CF2)       PNS fuori dall'intervallo:  47/500
+
+Con la Py del giunto la formula regge in tutti i 500 casi. Con una stima su sei
+righe la probabilita' vera cade fuori dall'intervallo in un caso su quattro, e
+uno su ventuno produce un intervallo rovesciato, cioe' con l'estremo inferiore
+maggiore del superiore: un intervallo che non contiene nulla. L'ultima riga e'
+l'errore che si commetterebbe davvero su CF2, dove la frequenza nel file e'
+1/6 = 0.1667 contro 0.1153 del grafo.
+
+Ho quindi fissato Py alla marginale del grafo (FIX 11 in tools_corretto.py:
+cau_inference la calcola e la passa a cobound). Da li' i tre riferimenti si
+calcolano tutti, senza leggere DATI.csv, e coincidono con ground_truth.csv:
+
+    CF1  RiskAversion=Cautious -> DrivQuality=Excellent   0.0827 - 0.2396
+    CF2  Age=Senior -> Accident=Severe                    0 - 0.074
+    CF3  SocioEcon=Wealthy -> Theft=True                  0 - 0.0
+
+(L'estremo inferiore si stampa "0" e non "0.0" perche' cobound fa max(0, ...)
+partendo dall'intero: e' il testo, non il valore.)
+
+Il parametro py resta in cobound, quindi la variante a file si puo' ancora
+calcolare: per CF2 da' 0.0404 - 0.074, per CF1 e CF3 non parte perche' la
+colonna manca. Le due colonne expected_lower_file / expected_upper_file in
+ground_truth.csv restano come traccia di quel confronto.
+
+Sulla CF1 l'estremo inferiore e' retto dal termine PYx - PYnox = 0.0827, che non
+contiene Py: quel valore non dipende da come si stima Py.
+
+Sulla CF3 va detto una cosa, perche' "between 0 and 0.0" si legge come "nessun
+effetto" e non lo e'. P(Theft=True | do(SocioEcon=Wealthy)) vale 4.87e-05: il
+limite superiore e' corretto ed e' piu' piccolo dell'ultimo decimale che cobound
+stampa (round a 4 decimali). Ho lasciato il formato com'e', perche' e' il suo, e
+lo dichiaro qui: su quella query quattro decimali non bastano.
+
+expected_probability resta vuota su queste tre righe: un intervallo non e' una
+probabilita' puntuale, e un confronto a tolleranza su quella colonna non avrebbe
+senso. Se le serve un confronto automatico, va deciso anche come si confrontano
+due intervalli.
+
+=====================================================================
+Allegati
+=====================================================================
+
+Da leggere per primo, se vuole solo l'esito delle due decisioni:
+RISULTATI_decisioni_20261031.md, con le tabelle delle misure e i comandi che
+le rigenerano.
+
+I suoi file, invariati, che servono a tutte le verifiche:
+
+insurance_grafo.bif     il suo grafo
+DATI.csv                i suoi dati
+
+Copie corrette: il codice originale resta commentato dentro, sotto c'e' la
+correzione.
+
+agents_corretto.py      copia corretta di agents.py
+tools_corretto.py       copia corretta di tools.py
+funtions_corretto.py    copia corretta di funtions.py
+
+Dentro agents_corretto.py ci sono due aggiunte, non modifiche: translator_senza_tool
+e causal_A_senza_tool sono gli stessi agenti senza i tool, con il testo dei prompt
+identico (quello del traduttore e' stato solo spostato in una costante per poterlo
+riusare). translator e causal_A sono invariati. Servivano perche' un agente senza
+tool si puo' solo costruire: il framework unisce i tool passati a ogni chiamata
+invece di sostituirli, e le istruzioni non sono leggibili dall'oggetto.
+
+Verifiche deterministiche, senza modello:
+
+verifica_copie.py       prova ogni ramo di cau_inference
+output_verifica.txt     l'output reale di verifica_copie.py
+tabella_confronto.py    i 13 casi del punto 3, eseguiti sui due lati
+tabella_confronto.md    il suo output, su questa macchina
+verifica_righe_dati.py  le sei righe di DATI.csv usate come query, sui due lati
+verifica_righe_dati.md  il suo output, su questa macchina
+verifica_conterfactual.py  il ramo controfattuale con ogni etichetta che il
+                        classificatore puo' produrre, e con le due grafie;
+                        --gruppo originale, --gruppo corretto
+verifica_py.py          la misura del punto 5: distanza fra la marginale del
+                        grafo e le frequenze di DATI.csv, e 500 modelli
+                        artificiali con accoppiamento noto per provare se
+                        l'intervallo contiene la PNS vera
+verifica_ground_truth.py  esegue cau_inference sulle 12 righe di
+                        ground_truth.csv, con l'etichetta che il classificatore
+                        dovrebbe emettere, e confronta con il valore atteso
+aggiungi_controfattuali.py  ricalcola le tre righe controfattuali di
+                        ground_truth.csv; rilanciato sullo stesso file lascia
+                        le nove righe e riscrive solo CF1-CF3
+ground_truth.csv        riferimenti: 9 query, piu' 3 controfattuali con due
+                        intervalli ciascuna (due fonti di Py)
+
+Per far girare la pipeline con un modello (questa parte e' mia, non sua):
+
+verifica_classificatore.py  la sola classificazione delle 12 query, con
+                        quattro e con cinque etichette, sullo stesso modello
+                        (--modello, default tinyllama:latest): serve a dire se
+                        la quinta etichetta sposta le altre nove
+output_classificatore_*.txt  i suoi output reali su questa macchina:
+                        tinyllama:latest su /v1 e su /api/chat, poi
+                        llama3.2:3b-instruct-q4_K_M e qwen2.5:1.5b su /v1,
+                        tre ripetizioni a temperatura 0
+run_query.py            esegue i tre passi e stampa un JSON con i tempi, le
+                        invocazioni dei tool, un flag tool_ok e, se un tool ha
+                        fallito, il messaggio dell'eccezione (errore_tool)
+run.cmd                 lo stesso da cmd.exe, per comodita'
+                        (nello zip compare come run.cmd.txt: prima di usarlo va
+                        rinominato run.cmd, altrimenti cmd.exe non lo esegue;
+                        senza rinominarlo si ottiene lo stesso con python
+                        run_query.py, che e' quello che run.cmd lancia)
+client.py               stub: agents.py importa HuggingFaceChatClient da un
+                        client.py che non e' stato fornito. Esiste solo per far
+                        passare quell'import nell'originale, e solleva se
+                        qualcuno lo usa davvero
+run_orchestrato.py      la variante (b): due agenti, cau_inference chiamato dal
+                        codice, spiegazione all'esperto causale. Stampa i token
+                        di ogni passo e, se il modulo di misura e' raggiungibile,
+                        i joule di ogni passo; --senza-misura li omette,
+                        --calibra-idle aggiunge le tre finestre da 30 secondi;
+                        MUDILAB_MODEL_SPIEGAZIONE manda la sola spiegazione su
+                        un secondo modello, e --riscalda-modelli e
+                        --scarta-primo-run tolgono dalla misura il caricamento
+                        dei modelli e la cache fredda dei prompt
+run_orchestrato_esempio_8b.json       la prima riga della tabella della sezione
+                                      4: il run 8B + 8B, con etichetta,
+                                      dizionario, 0.212, token e joule per passo
+run_orchestrato_esempio_8b_1b.json    idem, con la spiegazione sul 1B
+run_orchestrato_esempio_8b_3b.json    idem, con la spiegazione sul 3B
+confronto_a_b.py        le due varianti (a) e (b) nello stesso processo, sulla
+                        stessa query e nella stessa finestra EMI, alternate e
+                        con il primo run di ciascuna scartato; --rivaluta
+                        ricalcola il verdetto dai JSON gia' scritti, senza
+                        rifare nessun run
+confronto_a_b_20261031_1658.json  i sei run sul 3B: secondi, joule, argomenti
+                        dei tool, testo delle eccezioni, numero finale
+confronto_a_b_20261031_1710.json  idem sull'8B
+confronto_riepilogo_20261031.txt  le due tabelle, rigenerate con --rivaluta
+SINTESI_invocazione_tool.txt  una pagina: cosa ho provato, cosa succede, le due vie
+
+Come si lanciano
+---------------------------------------------------------------------
+
+Dalla cartella in cui ha scompattato, con il python del suo ambiente:
+
+    python verifica_copie.py
+    python verifica_ground_truth.py
+    python verifica_py.py
+    python verifica_conterfactual.py --gruppo corretto
+    python tabella_confronto.py --orig "C:\percorso\della\sua\cartella"
+    python verifica_righe_dati.py --orig "C:\percorso\della\sua\cartella"
+
+Le ultime due hanno bisogno anche dei suoi file originali, perche' eseguono la
+stessa chiamata sui due lati: --orig indica la cartella che contiene agents.py,
+tools.py e funtions.py. Scrivono un .md accanto a se'.
+
+Un avviso per la lettura di tabella_confronto.md: il caso
+"cau_inference(..., path=None)" sull'originale usa il percorso assoluto scritto
+a riga 41 di tools.py, e quel percorso e' il suo. Sulla sua macchina quel caso
+potra' quindi riuscire invece di fermarsi: e' il difetto stesso, il codice
+funziona solo dove quel percorso esiste. Il caso della cartella di avvio
+diversa invece dipende dal solo read_csv relativo e si riproduce ovunque.
+
+ground_truth.csv si rigenera con
+
+    python aggiungi_controfattuali.py
+
+che riscrive lo stesso file.
+
+La pipeline con un modello richiede Ollama e le librerie di agent_framework:
+
+    set MUDILAB_ORIG=C:\percorso\della\sua\cartella
+    python run_query.py "la domanda"
+
+per usare le copie corrette invece degli originali basta mettere
+set MUDILAB_COPIE=1 prima, e in quel caso i suoi originali non servono. run.cmd
+fa lo stesso da cmd.exe; il modello si sceglie con MUDILAB_MODEL o come secondo
+argomento:
+
+    run.cmd "la domanda" llama3.2:3b
+
+La variante (b) si lancia allo stesso modo:
+
+    set MUDILAB_COPIE=1
+    python run_orchestrato.py "la domanda"
+
+Stampa lo stesso JSON di run_query.py con in piu' i token di ogni passo e, se il
+modulo di misura del mio repository e' raggiungibile, i joule di ogni passo.
+Su una macchina dove quel modulo non c'e' lo script gira lo stesso: nel campo
+"misura" scrive che l'energia non e' disponibile e perche'.
+
+Il confronto (a)/(b) fa le due varianti di sopra in un solo processo, quindi ha
+bisogno del modulo di misura e di Ollama:
+
+    set MUDILAB_COPIE=1
+    python confronto_a_b.py --modello llama3.2:3b
+    python confronto_a_b.py --modello llama3.1:8b
+
+Scrive un JSON accanto a se' e stampa la tabella. Senza il modulo di misura non
+parte (--senza-calibrazione toglie solo le tre finestre di baseline, non la
+misura): i joule sono il punto del confronto.
+
+La variante ibrida cambia solo il modello della spiegazione:
+
+    set MUDILAB_COPIE=1
+    set MUDILAB_MODEL_SPIEGAZIONE=llama3.2:1b
+    python run_orchestrato.py "la domanda" --scarta-primo-run
+
+--scarta-primo-run esegue una volta la pipeline senza usare quel risultato, cosi'
+la misura cade sulla seconda esecuzione, quando i modelli sono in memoria e la
+cache dei prompt e' calda; con MUDILAB_MODEL_SPIEGAZIONE uguale al modello
+principale il comportamento e' quello di prima, senza secondo modello.
+
+Su una macchina senza Graphviz pyagrum stampa all'import "Graphviz is not
+installed": riguarda solo il disegno della rete, l'inferenza non lo usa, e
+nell'output allegato non compare perche' l'avviso va sullo stderr.
+
+Resto in attesa, poi procedo con la misura.
+
+Massimo

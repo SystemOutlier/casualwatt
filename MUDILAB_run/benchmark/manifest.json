@@ -1,0 +1,286 @@
+{
+  "generato": "2026-11-01T14:50:10",
+  "seed": 7,
+  "n_per_ramo": 40,
+  "toll": 0.0005,
+  "soglia_coherence": 0.6,
+  "righe": 161,
+  "reti": {
+    "base": {
+      "percorso": "consegna/insurance_grafo.bif",
+      "sha256": "39f9e706e9208e720a55a98b6811188b33a7292335a53373a9343a0c7065dab4"
+    },
+    "perturbata": {
+      "percorso": "benchmark/insurance_grafo_perturbato.bif",
+      "sha256": "8b572235b98da1c3716b68a7ad20bd17d80a12bcb8f92c8aee15ec1e5e780443"
+    }
+  },
+  "conteggi": {
+    "ramo": {
+      "coherence": 40,
+      "cond_prob": 41,
+      "counterfactual": 40,
+      "inter": 40
+    },
+    "split": {
+      "dev": 81,
+      "held-out": 80
+    },
+    "rete": {
+      "benchmark/insurance_grafo_perturbato.bif": 80,
+      "consegna/insurance_grafo.bif": 81
+    },
+    "decisione": {
+      "compatible": 20,
+      "non_compatibile": 20
+    }
+  },
+  "scartati_layer_deterministico": {
+    "counterfactual": {
+      "Airbag|MedCost: eccezione UndefinedElement": {
+        "Airbag|MedCost": 14
+      },
+      "AntiTheft|PropCost: eccezione UndefinedElement": {
+        "AntiTheft|PropCost": 8
+      },
+      "Antilock|ILiCost: eccezione UndefinedElement": {
+        "Antilock|ILiCost": 4
+      },
+      "Antilock|MedCost: eccezione UndefinedElement": {
+        "Antilock|MedCost": 4
+      },
+      "Antilock|OtherCarCost: eccezione UndefinedElement": {
+        "Antilock|OtherCarCost": 3
+      },
+      "Antilock|PropCost: eccezione UndefinedElement": {
+        "Antilock|PropCost": 2
+      },
+      "Antilock|ThisCarCost: eccezione UndefinedElement": {
+        "Antilock|ThisCarCost": 6
+      },
+      "Antilock|ThisCarDam: eccezione UndefinedElement": {
+        "Antilock|ThisCarDam": 3
+      },
+      "SeniorTrain|Accident: eccezione UndefinedElement": {
+        "SeniorTrain|Accident": 2
+      },
+      "SeniorTrain|DrivHist: eccezione UndefinedElement": {
+        "SeniorTrain|DrivHist": 3
+      },
+      "SeniorTrain|DrivQuality: eccezione UndefinedElement": {
+        "SeniorTrain|DrivQuality": 5
+      },
+      "SeniorTrain|ILiCost: eccezione UndefinedElement": {
+        "SeniorTrain|ILiCost": 3
+      },
+      "SeniorTrain|MedCost: eccezione UndefinedElement": {
+        "SeniorTrain|MedCost": 1
+      },
+      "SeniorTrain|PropCost: eccezione UndefinedElement": {
+        "SeniorTrain|PropCost": 4
+      },
+      "SeniorTrain|ThisCarCost: eccezione UndefinedElement": {
+        "SeniorTrain|ThisCarCost": 2
+      },
+      "SeniorTrain|ThisCarDam: eccezione UndefinedElement": {
+        "SeniorTrain|ThisCarDam": 1
+      },
+      "Theft|PropCost: eccezione IncompatibleEvidence": {
+        "Theft|PropCost": 6
+      },
+      "Theft|PropCost: eccezione UndefinedElement": {
+        "Theft|PropCost": 6
+      },
+      "Theft|ThisCarCost: eccezione IncompatibleEvidence": {
+        "Theft|ThisCarCost": 8
+      },
+      "VehicleYear|ILiCost: eccezione UndefinedElement": {
+        "VehicleYear|ILiCost": 3
+      },
+      "VehicleYear|MedCost: eccezione UndefinedElement": {
+        "VehicleYear|MedCost": 3
+      },
+      "VehicleYear|OtherCarCost: eccezione UndefinedElement": {
+        "VehicleYear|OtherCarCost": 1
+      },
+      "VehicleYear|PropCost: eccezione UndefinedElement": {
+        "VehicleYear|PropCost": 2
+      }
+    },
+    "inter": {
+      "Theft|PropCost: eccezione IncompatibleEvidence": {
+        "Theft|PropCost": 1
+      },
+      "Theft|ThisCarCost: eccezione IncompatibleEvidence": {
+        "Theft|ThisCarCost": 2
+      }
+    }
+  },
+  "esclusi_degeneri": {
+    "coherence": {
+      "probabilita' al bordo (0.0000)": 1
+    },
+    "cond_prob": {
+      "probabilita' al bordo (1.0000)": 3
+    },
+    "counterfactual": {
+      "intervallo nullo [0.0, 0.0]": 2,
+      "intervallo nullo [0.8314, 0.8314]": 1
+    },
+    "inter": {
+      "probabilita' al bordo (0.0000)": 2
+    }
+  },
+  "cause_binarie": [
+    "Airbag",
+    "AntiTheft",
+    "Antilock",
+    "SeniorTrain",
+    "Theft",
+    "VehicleYear"
+  ],
+  "vocabolario": {
+    "Accident": [
+      "Mild",
+      "Moderate",
+      "None",
+      "Severe"
+    ],
+    "Age": [
+      "Adolescent",
+      "Adult",
+      "Senior"
+    ],
+    "Airbag": [
+      "False",
+      "True"
+    ],
+    "AntiTheft": [
+      "False",
+      "True"
+    ],
+    "Antilock": [
+      "False",
+      "True"
+    ],
+    "CarValue": [
+      "FiftyThou",
+      "FiveThou",
+      "Million",
+      "TenThou",
+      "TwentyThou"
+    ],
+    "Cushioning": [
+      "Excellent",
+      "Fair",
+      "Good",
+      "Poor"
+    ],
+    "DrivHist": [
+      "Many",
+      "One",
+      "Zero"
+    ],
+    "DrivQuality": [
+      "Excellent",
+      "Normal",
+      "Poor"
+    ],
+    "DrivingSkill": [
+      "Expert",
+      "Normal",
+      "SubStandard"
+    ],
+    "GoodStudent": [
+      "False",
+      "True"
+    ],
+    "HomeBase": [
+      "City",
+      "Rural",
+      "Secure",
+      "Suburb"
+    ],
+    "ILiCost": [
+      "HundredThou",
+      "Million",
+      "TenThou",
+      "Thousand"
+    ],
+    "MakeModel": [
+      "Economy",
+      "FamilySedan",
+      "Luxury",
+      "SportsCar",
+      "SuperLuxury"
+    ],
+    "MedCost": [
+      "HundredThou",
+      "Million",
+      "TenThou",
+      "Thousand"
+    ],
+    "Mileage": [
+      "FiftyThou",
+      "FiveThou",
+      "TwentyThou"
+    ],
+    "OtherCar": [
+      "False",
+      "True"
+    ],
+    "OtherCarCost": [
+      "HundredThou",
+      "Million",
+      "TenThou",
+      "Thousand"
+    ],
+    "PropCost": [
+      "HundredThou",
+      "Million",
+      "TenThou",
+      "Thousand"
+    ],
+    "RiskAversion": [
+      "Adventurous",
+      "Cautious",
+      "Normal",
+      "Psychopath"
+    ],
+    "RuggedAuto": [
+      "EggShell",
+      "Football",
+      "Tank"
+    ],
+    "SeniorTrain": [
+      "False",
+      "True"
+    ],
+    "SocioEcon": [
+      "Middle",
+      "Prole",
+      "UpperMiddle",
+      "Wealthy"
+    ],
+    "Theft": [
+      "False",
+      "True"
+    ],
+    "ThisCarCost": [
+      "HundredThou",
+      "Million",
+      "TenThou",
+      "Thousand"
+    ],
+    "ThisCarDam": [
+      "Mild",
+      "Moderate",
+      "None",
+      "Severe"
+    ],
+    "VehicleYear": [
+      "Current",
+      "Older"
+    ]
+  }
+}

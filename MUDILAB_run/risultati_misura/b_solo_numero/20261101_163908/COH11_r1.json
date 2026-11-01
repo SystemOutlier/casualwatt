@@ -1,0 +1,134 @@
+{
+  "variante": "b_solo_numero",
+  "descrizione": "via B con due passi di modello: il numero del tool senza spiegazione",
+  "cambia_rispetto_a_b_base": "spiegazione=False: salta il terzo passo (causal_A)",
+  "task_id": "COH11",
+  "ripetizione": 1,
+  "rete": "C:\\Users\\Massimo\\Documents\\CasualWatt\\CWProject\\MUDILAB_run\\consegna\\insurance_grafo.bif",
+  "rete_hash": "39f9e706e9208e720a55a98b6811188b33a7292335a53373a9343a0c7065dab4",
+  "provenienza": {
+    "varianti\\b_solo_numero.py": "996df7c5cb989cdef4d389aa5f7303bd6e8fa5db0a997c91f737816cc2ab2964",
+    "run_orchestrato.py": "3707d6db818444fcc92f878e7586c42ad4aab1b06f65c7e50df322941df053ff",
+    "run_query.py": "656b7c752aa14decaf6906354458618e99dbc1ffc0c8e51b88df5af3a1789df5",
+    "consegna\\agents_corretto.py": "f6b8e2fe9960b77665b7eafb08686c92068108df101350a0cb1c37ecb89de1ba",
+    "consegna\\tools_corretto.py": "949cac8de8f5f00438e13e0287b4e6418023d8ba11ddf7a692f8dc11fab2bb5a",
+    "consegna\\funtions_corretto.py": "685516c8042e8a8a094d48cf1cdedf3c844504ac23d19d4c31d15c9b0f2e119d",
+    "consegna\\insurance_grafo.bif": "39f9e706e9208e720a55a98b6811188b33a7292335a53373a9343a0c7065dab4"
+  },
+  "errore_variante": "",
+  "risultato": {
+    "modalita": "orchestrata",
+    "model": "llama3.2:3b-instruct-q4_K_M",
+    "modello_spiegazione": "llama3.2:3b-instruct-q4_K_M",
+    "source": {
+      "agents": "agents_corretto.py",
+      "tools": "tools_corretto.py",
+      "funtions": "funtions_corretto.py"
+    },
+    "opzioni": {
+      "temperature": 0.0
+    },
+    "opzioni_passi": null,
+    "spiegazione": false,
+    "rete": "C:\\Users\\Massimo\\Documents\\CasualWatt\\CWProject\\MUDILAB_run\\consegna\\insurance_grafo.bif",
+    "task": "Is it coherent that the household owns another car given that the customer has one recorded driving incident and that the total property cost is one thousand dollars?",
+    "etichetta": "coherence",
+    "etichette_nel_testo": [
+      "coherence"
+    ],
+    "traduzione": {
+      "input": {
+        "OtherCar": "True",
+        "Theft": "False",
+        "ThisCarCost": "Thousand",
+        "MedCost": "Thousand",
+        "ILiCost": "Thousand",
+        "PropCost": "Thousand",
+        "OtherCarCost": "Thousand"
+      },
+      "output": {
+        "OtherCar": "True"
+      }
+    },
+    "numero": "Evidences are compatible with a single OtherCar of True with a probability of 1.0",
+    "seconds_total": 8.952,
+    "misura": {
+      "attiva": true,
+      "disponibile": true,
+      "errore": "",
+      "note": [
+        "canale emi-counter",
+        "bordo di riscaldamento scartato: 5.524 s",
+        "baseline calibrata: 11.789 W",
+        "riscaldamento routing (llama3.2:3b-instruct-q4_K_M) scartato: 5.224 s",
+        "riscaldamento spiegazione (llama3.2:3b-instruct-q4_K_M) scartato: 0.107 s",
+        "primo run scartato (caricamento e cache dei prompt)"
+      ]
+    },
+    "totale": {
+      "energia_pkg_j": 248.458978,
+      "energia_pkg_raw_j": 248.458978,
+      "energia_attiva_j": 142.715479,
+      "attiva_valida": true,
+      "canale": "emi-counter",
+      "finestra": "exact-counter",
+      "idle": "calibrated"
+    },
+    "fuori_dai_passi_j": 3.128934,
+    "steps": [
+      {
+        "step": "translator",
+        "seconds": 7.97,
+        "tokens": {
+          "input_token_count": 1363,
+          "output_token_count": 71,
+          "total_token_count": 1434
+        },
+        "misura": {
+          "energia_pkg_j": 219.155127,
+          "energia_pkg_raw_j": 219.155127,
+          "energia_attiva_j": 124.986399,
+          "attiva_valida": true,
+          "canale": "emi-counter",
+          "finestra": "exact-counter",
+          "idle": "calibrated"
+        },
+        "text": "{\"input\": {\"OtherCar\": \"True\", \"Theft\": \"False\", \"ThisCarCost\": \"Thousand\", \"MedCost\": \"Thousand\", \"ILiCost\": \"Thousand\", \"PropCost\": \"Thousand\", \"OtherCarCost\": \"Thousand\"}, \"output\": {\"OtherCar\": \"True\"}}"
+      },
+      {
+        "step": "classificator",
+        "seconds": 0.743,
+        "tokens": {
+          "input_token_count": 272,
+          "output_token_count": 3,
+          "total_token_count": 275
+        },
+        "misura": {
+          "energia_pkg_j": 24.651808,
+          "energia_pkg_raw_j": 24.651808,
+          "energia_attiva_j": 15.609067,
+          "attiva_valida": true,
+          "canale": "emi-counter",
+          "finestra": "exact-counter",
+          "idle": "calibrated"
+        },
+        "text": "coherence"
+      },
+      {
+        "step": "cau_inference",
+        "seconds": 0.045,
+        "tokens": {},
+        "misura": {
+          "energia_pkg_j": 1.523109,
+          "energia_pkg_raw_j": 1.523109,
+          "energia_attiva_j": 0.625707,
+          "attiva_valida": true,
+          "canale": "emi-counter",
+          "finestra": "exact-counter",
+          "idle": "calibrated"
+        },
+        "text": "Evidences are compatible with a single OtherCar of True with a probability of 1.0"
+      }
+    ]
+  }
+}
