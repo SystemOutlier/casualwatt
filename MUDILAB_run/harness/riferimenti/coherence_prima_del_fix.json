@@ -1,0 +1,782 @@
+{
+  "cartella_riferimento": "20261101_183106",
+  "regola_citazione": "in produzione (gate sulla frase attivo) -- 32/81",
+  "exception_surface": [
+    {
+      "prova": "variabile inesistente",
+      "solleva": "pyagrum.pyagrumcpp.NotFound",
+      "in_gum": true,
+      "messaggio": "[pyAgrum] Object not found: No element with the key <NonCes variable>"
+    },
+    {
+      "prova": "stato inesistente",
+      "solleva": "pyagrum.pyagrumcpp.OutOfBounds",
+      "in_gum": true,
+      "messaggio": "[pyAgrum] Out of bound error: label 'Falso' is unknown in Antilock:Labelized({True|False})"
+    },
+    {
+      "prova": "evidenza incoerente sulla stessa variabile",
+      "solleva": "pyagrum.pyagrumcpp.InvalidArgument",
+      "in_gum": true,
+      "messaggio": "[pyAgrum] Invalid argument:  node 11 already has an evidence. Please use chgEvidence()."
+    },
+    {
+      "prova": "inferenza su rete carica ma senza evidenze",
+      "solleva": null
+    }
+  ],
+  "righe": [
+    {
+      "task_id": "COH01",
+      "query": "Is it coherent that the medical cost is one thousand dollars given that the car is an older model and that the repair cost for this car is one thousand dollars?",
+      "etichetta_run": "coherence",
+      "traduzione": {
+        "input": {
+          "ThisCarCost": "Thousand"
+        },
+        "output": {
+          "MedCost": "Thousand"
+        }
+      },
+      "atteso": {
+        "input": {
+          "VehicleYear": "Older",
+          "ThisCarCost": "Thousand"
+        },
+        "output": {
+          "MedCost": "Thousand"
+        }
+      },
+      "prob_oracolo": 0.9879544398,
+      "decisione_oracolo": "compatible",
+      "motivo_controllo": "",
+      "esito_tool": "calcolato",
+      "testo_risposta": "Evidences are compatible with a single MedCost of Thousand with a probability of 0.991",
+      "mappatura": {
+        "input_mancanti": [
+          "vehicleyear"
+        ],
+        "input_in_piu": [],
+        "output_atteso": {
+          "medcost": "thousand"
+        },
+        "output_avuto": {
+          "medcost": "thousand"
+        },
+        "target_invertito": false,
+        "esatta": false
+      }
+    },
+    {
+      "task_id": "COH02",
+      "query": "Is it coherent that the car has an antilock braking system given that the driver is senior and that the customer is not a good student?",
+      "etichetta_run": "coherence",
+      "traduzione": {
+        "input": {
+          "GoodStudent": "False"
+        },
+        "output": {
+          "Age": "Senior"
+        }
+      },
+      "atteso": {
+        "input": {
+          "Age": "Senior",
+          "GoodStudent": "False"
+        },
+        "output": {
+          "Antilock": "True"
+        }
+      },
+      "prob_oracolo": 0.7679832451,
+      "decisione_oracolo": "compatible",
+      "motivo_controllo": "",
+      "esito_tool": "calcolato",
+      "testo_risposta": "Evidences are NOT strongly compatible with a single Age of Senior with a probability of 0.3946",
+      "mappatura": {
+        "input_mancanti": [
+          "age"
+        ],
+        "input_in_piu": [],
+        "output_atteso": {
+          "antilock": "true"
+        },
+        "output_avuto": {
+          "age": "senior"
+        },
+        "target_invertito": true,
+        "esatta": false
+      }
+    },
+    {
+      "task_id": "COH05",
+      "query": "Is it coherent that the repair cost for this car is a million dollars given that the car is eggshell-fragile and that the repair cost for the other car is one thousand dollars?",
+      "etichetta_run": "coherence",
+      "traduzione": {
+        "input": {
+          "ThisCarCost": "Million"
+        },
+        "output": {
+          "ThisCarDam": "Severe"
+        }
+      },
+      "atteso": {
+        "input": {
+          "RuggedAuto": "EggShell",
+          "OtherCarCost": "Thousand"
+        },
+        "output": {
+          "ThisCarCost": "Million"
+        }
+      },
+      "prob_oracolo": 0.0002444291,
+      "decisione_oracolo": "non_compatibile",
+      "motivo_controllo": "",
+      "esito_tool": "calcolato",
+      "testo_risposta": "Evidences are NOT strongly compatible with a single ThisCarDam of Severe with a probability of 0.5958",
+      "mappatura": {
+        "input_mancanti": [
+          "othercarcost",
+          "ruggedauto"
+        ],
+        "input_in_piu": [
+          "thiscarcost"
+        ],
+        "output_atteso": {
+          "thiscarcost": "million"
+        },
+        "output_avuto": {
+          "thiscardam": "severe"
+        },
+        "target_invertito": false,
+        "esatta": false
+      }
+    },
+    {
+      "task_id": "COH06",
+      "query": "Is it coherent that the driving skill is normal given that the car has an anti-theft device and that the cushioning is excellent?",
+      "etichetta_run": null,
+      "traduzione": null,
+      "atteso": {
+        "input": {
+          "AntiTheft": "True",
+          "Cushioning": "Excellent"
+        },
+        "output": {
+          "DrivingSkill": "Normal"
+        }
+      },
+      "prob_oracolo": 0.4293044673,
+      "decisione_oracolo": "non_compatibile",
+      "motivo_controllo": "'output' deve avere esattamente una chiave: {'AntiTheft': 'False', 'Cushioning': 'Excellent'}",
+      "esito_tool": "non arrivato al tool"
+    },
+    {
+      "task_id": "COH09",
+      "query": "Is it coherent that the repair cost for this car is a hundred thousand dollars given that the car is a current-year model and that the damage to this car is severe?",
+      "etichetta_run": null,
+      "traduzione": null,
+      "atteso": {
+        "input": {
+          "VehicleYear": "Current",
+          "ThisCarDam": "Severe"
+        },
+        "output": {
+          "ThisCarCost": "HundredThou"
+        }
+      },
+      "prob_oracolo": 0.6521655962,
+      "decisione_oracolo": "compatible",
+      "motivo_controllo": "coherence: servono almeno 1 evidenza/e, restano []; scartate: ThisCarDam='Severe' (citazione: citazione assente o vuota), VehicleYear='Current' (citazione: citazione assente o vuota), ThisCarCost='HundredThou' (disgiunzione: la variabile e' gia' il target della domanda)",
+      "esito_tool": "non arrivato al tool"
+    },
+    {
+      "task_id": "COH10",
+      "query": "Is it coherent that the customer has completed the senior driver training given that the customer is a good student and that the car is worth twenty thousand dollars?",
+      "etichetta_run": "coherence",
+      "traduzione": {
+        "input": {
+          "GoodStudent": "True",
+          "CarValue": "TwentyThou"
+        },
+        "output": {
+          "SeniorTrain": "False"
+        }
+      },
+      "atteso": {
+        "input": {
+          "GoodStudent": "True",
+          "CarValue": "TwentyThou"
+        },
+        "output": {
+          "SeniorTrain": "True"
+        }
+      },
+      "prob_oracolo": 0.6346713747,
+      "decisione_oracolo": "compatible",
+      "motivo_controllo": "",
+      "esito_tool": "calcolato",
+      "testo_risposta": "Evidences are NOT strongly compatible with a single SeniorTrain of False with a probability of 0.3653",
+      "mappatura": {
+        "input_mancanti": [],
+        "input_in_piu": [],
+        "output_atteso": {
+          "seniortrain": "true"
+        },
+        "output_avuto": {
+          "seniortrain": "false"
+        },
+        "target_invertito": false,
+        "esatta": false
+      }
+    },
+    {
+      "task_id": "COH13",
+      "query": "Is it coherent that the socio-economic status is working-class given that the mileage is fifty thousand miles and that the driver is senior?",
+      "etichetta_run": "coherence",
+      "traduzione": {
+        "input": {
+          "Mileage": "FiftyThou"
+        },
+        "output": {
+          "SocioEcon": "Wealthy"
+        }
+      },
+      "atteso": {
+        "input": {
+          "Mileage": "FiftyThou",
+          "Age": "Senior"
+        },
+        "output": {
+          "SocioEcon": "Prole"
+        }
+      },
+      "prob_oracolo": 0.4999999934,
+      "decisione_oracolo": "non_compatibile",
+      "motivo_controllo": "",
+      "esito_tool": "calcolato",
+      "testo_risposta": "Evidences are NOT strongly compatible with a single SocioEcon of Wealthy with a probability of 0.01",
+      "mappatura": {
+        "input_mancanti": [
+          "age"
+        ],
+        "input_in_piu": [],
+        "output_atteso": {
+          "socioecon": "prole"
+        },
+        "output_avuto": {
+          "socioecon": "wealthy"
+        },
+        "target_invertito": false,
+        "esatta": false
+      }
+    },
+    {
+      "task_id": "COH14",
+      "query": "Is it coherent that the injury liability cost is a million dollars given that the car is a luxury model and that the car has no anti-theft device?",
+      "etichetta_run": "coherence",
+      "traduzione": {
+        "input": {
+          "MakeModel": "Luxury",
+          "AntiTheft": "False"
+        },
+        "output": {
+          "ILiCost": "Million"
+        }
+      },
+      "atteso": {
+        "input": {
+          "MakeModel": "Luxury",
+          "AntiTheft": "False"
+        },
+        "output": {
+          "ILiCost": "Million"
+        }
+      },
+      "prob_oracolo": 0.3005530252,
+      "decisione_oracolo": "non_compatibile",
+      "motivo_controllo": "",
+      "esito_tool": "calcolato",
+      "testo_risposta": "Evidences are NOT strongly compatible with a single ILiCost of Million with a probability of 0.3006",
+      "mappatura": {
+        "input_mancanti": [],
+        "input_in_piu": [],
+        "output_atteso": {
+          "ilicost": "million"
+        },
+        "output_avuto": {
+          "ilicost": "million"
+        },
+        "target_invertito": false,
+        "esatta": true
+      }
+    },
+    {
+      "task_id": "COH17",
+      "query": "Is it coherent that the repair cost for the other car is one thousand dollars given that the car has an airbag and that the driving skill is sub-standard?",
+      "etichetta_run": "coherence",
+      "traduzione": {
+        "input": {
+          "Airbag": "True",
+          "DrivingSkill": "SubStandard"
+        },
+        "output": {
+          "OtherCarCost": "Thousand"
+        }
+      },
+      "atteso": {
+        "input": {
+          "Airbag": "True",
+          "DrivingSkill": "SubStandard"
+        },
+        "output": {
+          "OtherCarCost": "Thousand"
+        }
+      },
+      "prob_oracolo": 0.6718531146,
+      "decisione_oracolo": "compatible",
+      "motivo_controllo": "",
+      "esito_tool": "calcolato",
+      "testo_risposta": "Evidences are compatible with a single OtherCarCost of Thousand with a probability of 0.6719",
+      "mappatura": {
+        "input_mancanti": [],
+        "input_in_piu": [],
+        "output_atteso": {
+          "othercarcost": "thousand"
+        },
+        "output_avuto": {
+          "othercarcost": "thousand"
+        },
+        "target_invertito": false,
+        "esatta": true
+      }
+    },
+    {
+      "task_id": "COH18",
+      "query": "Is it coherent that the household owns another car given that the customer has completed the senior driver training and that the driver is senior?",
+      "etichetta_run": "coherence",
+      "traduzione": {
+        "input": {
+          "SeniorTrain": "True",
+          "Age": "Senior"
+        },
+        "output": {
+          "OtherCar": "False"
+        }
+      },
+      "atteso": {
+        "input": {
+          "SeniorTrain": "True",
+          "Age": "Senior"
+        },
+        "output": {
+          "OtherCar": "True"
+        }
+      },
+      "prob_oracolo": 0.7237576809,
+      "decisione_oracolo": "compatible",
+      "motivo_controllo": "",
+      "esito_tool": "calcolato",
+      "testo_risposta": "Evidences are NOT strongly compatible with a single OtherCar of False with a probability of 0.2762",
+      "mappatura": {
+        "input_mancanti": [],
+        "input_in_piu": [],
+        "output_atteso": {
+          "othercar": "true"
+        },
+        "output_avuto": {
+          "othercar": "false"
+        },
+        "target_invertito": false,
+        "esatta": false
+      }
+    },
+    {
+      "task_id": "COH21",
+      "query": "Is it coherent that the repair cost for the other car is one thousand dollars given that the driver is an adult and that the repair cost for this car is ten thousand dollars?",
+      "etichetta_run": "coherence",
+      "traduzione": {
+        "input": {
+          "ThisCarCost": "TenThou"
+        },
+        "output": {
+          "SocioEcon": "Middle"
+        }
+      },
+      "atteso": {
+        "input": {
+          "Age": "Adult",
+          "ThisCarCost": "TenThou"
+        },
+        "output": {
+          "OtherCarCost": "Thousand"
+        }
+      },
+      "prob_oracolo": 0.3204859136,
+      "decisione_oracolo": "non_compatibile",
+      "motivo_controllo": "",
+      "esito_tool": "calcolato",
+      "testo_risposta": "Evidences are NOT strongly compatible with a single SocioEcon of Middle with a probability of 0.3517",
+      "mappatura": {
+        "input_mancanti": [
+          "age"
+        ],
+        "input_in_piu": [],
+        "output_atteso": {
+          "othercarcost": "thousand"
+        },
+        "output_avuto": {
+          "socioecon": "middle"
+        },
+        "target_invertito": false,
+        "esatta": false
+      }
+    },
+    {
+      "task_id": "COH22",
+      "query": "Is it coherent that the neighbourhood is secure given that the mileage is twenty thousand miles and that the car has no antilock braking system?",
+      "etichetta_run": "coherence",
+      "traduzione": {
+        "input": {
+          "Antilock": "False"
+        },
+        "output": {
+          "HomeBase": "Suburb"
+        }
+      },
+      "atteso": {
+        "input": {
+          "Mileage": "TwentyThou",
+          "Antilock": "False"
+        },
+        "output": {
+          "HomeBase": "Secure"
+        }
+      },
+      "prob_oracolo": 0.1543227609,
+      "decisione_oracolo": "non_compatibile",
+      "motivo_controllo": "",
+      "esito_tool": "calcolato",
+      "testo_risposta": "Evidences are NOT strongly compatible with a single HomeBase of Suburb with a probability of 0.3237",
+      "mappatura": {
+        "input_mancanti": [
+          "mileage"
+        ],
+        "input_in_piu": [],
+        "output_atteso": {
+          "homebase": "secure"
+        },
+        "output_avuto": {
+          "homebase": "suburb"
+        },
+        "target_invertito": false,
+        "esatta": false
+      }
+    },
+    {
+      "task_id": "COH25",
+      "query": "Is it coherent that the car has an airbag given that the car has an antilock braking system and that the driving quality is poor?",
+      "etichetta_run": "coherence",
+      "traduzione": {
+        "input": {
+          "Antilock": "True",
+          "DrivQuality": "Poor"
+        },
+        "output": {
+          "Airbag": "False"
+        }
+      },
+      "atteso": {
+        "input": {
+          "Antilock": "True",
+          "DrivQuality": "Poor"
+        },
+        "output": {
+          "Airbag": "True"
+        }
+      },
+      "prob_oracolo": 0.951120196,
+      "decisione_oracolo": "compatible",
+      "motivo_controllo": "",
+      "esito_tool": "calcolato",
+      "testo_risposta": "Evidences are NOT strongly compatible with a single Airbag of False with a probability of 0.0489",
+      "mappatura": {
+        "input_mancanti": [],
+        "input_in_piu": [],
+        "output_atteso": {
+          "airbag": "true"
+        },
+        "output_avuto": {
+          "airbag": "false"
+        },
+        "target_invertito": false,
+        "esatta": false
+      }
+    },
+    {
+      "task_id": "COH26",
+      "query": "Is it coherent that the customer has completed the senior driver training given that the customer has a psychopathic risk aversion and that the car is worth twenty thousand dollars?",
+      "etichetta_run": "coherence",
+      "traduzione": {
+        "input": {
+          "RiskAversion": "Psychopath",
+          "CarValue": "TwentyThou"
+        },
+        "output": {
+          "SeniorTrain": "False"
+        }
+      },
+      "atteso": {
+        "input": {
+          "RiskAversion": "Psychopath",
+          "CarValue": "TwentyThou"
+        },
+        "output": {
+          "SeniorTrain": "True"
+        }
+      },
+      "prob_oracolo": 0.7169521293,
+      "decisione_oracolo": "compatible",
+      "motivo_controllo": "",
+      "esito_tool": "calcolato",
+      "testo_risposta": "Evidences are NOT strongly compatible with a single SeniorTrain of False with a probability of 0.283",
+      "mappatura": {
+        "input_mancanti": [],
+        "input_in_piu": [],
+        "output_atteso": {
+          "seniortrain": "true"
+        },
+        "output_avuto": {
+          "seniortrain": "false"
+        },
+        "target_invertito": false,
+        "esatta": false
+      }
+    },
+    {
+      "task_id": "COH29",
+      "query": "Is it coherent that the car has been stolen given that the car has an antilock braking system and that the customer is not a good student?",
+      "etichetta_run": "coherence",
+      "traduzione": {
+        "input": {
+          "Antilock": "False"
+        },
+        "output": {
+          "GoodStudent": "False"
+        }
+      },
+      "atteso": {
+        "input": {
+          "Antilock": "True",
+          "GoodStudent": "False"
+        },
+        "output": {
+          "Theft": "True"
+        }
+      },
+      "prob_oracolo": 0.0012833709,
+      "decisione_oracolo": "non_compatibile",
+      "motivo_controllo": "",
+      "esito_tool": "calcolato",
+      "testo_risposta": "Evidences are compatible with a single GoodStudent of False with a probability of 0.9639",
+      "mappatura": {
+        "input_mancanti": [
+          "goodstudent"
+        ],
+        "input_in_piu": [],
+        "output_atteso": {
+          "theft": "true"
+        },
+        "output_avuto": {
+          "goodstudent": "false"
+        },
+        "target_invertito": true,
+        "esatta": false
+      }
+    },
+    {
+      "task_id": "COH30",
+      "query": "Is it coherent that the household owns no other car given that the car is an economy model and that the mileage is fifty thousand miles?",
+      "etichetta_run": "coherence",
+      "traduzione": {
+        "input": {
+          "MakeModel": "Economy",
+          "Mileage": "FiftyThou"
+        },
+        "output": {
+          "OtherCar": "True"
+        }
+      },
+      "atteso": {
+        "input": {
+          "MakeModel": "Economy",
+          "Mileage": "FiftyThou"
+        },
+        "output": {
+          "OtherCar": "False"
+        }
+      },
+      "prob_oracolo": 0.2759339001,
+      "decisione_oracolo": "non_compatibile",
+      "motivo_controllo": "",
+      "esito_tool": "calcolato",
+      "testo_risposta": "Evidences are compatible with a single OtherCar of True with a probability of 0.7241",
+      "mappatura": {
+        "input_mancanti": [],
+        "input_in_piu": [],
+        "output_atteso": {
+          "othercar": "false"
+        },
+        "output_avuto": {
+          "othercar": "true"
+        },
+        "target_invertito": false,
+        "esatta": false
+      }
+    },
+    {
+      "task_id": "COH33",
+      "query": "Is it coherent that the household owns another car given that the repair cost for the other car is a hundred thousand dollars and that the repair cost for this car is a hundred thousand dollars?",
+      "etichetta_run": null,
+      "traduzione": null,
+      "atteso": {
+        "input": {
+          "OtherCarCost": "HundredThou",
+          "ThisCarCost": "HundredThou"
+        },
+        "output": {
+          "OtherCar": "True"
+        }
+      },
+      "prob_oracolo": 0.8070586763,
+      "decisione_oracolo": "compatible",
+      "motivo_controllo": "coherence: servono almeno 1 evidenza/e, restano []; scartate: OtherCarCost='hundred thousand dollars' (vocabolario: 'hundred thousand dollars' non e' uno stato di OtherCarCost; stati: ['Thousand', 'TenThou', 'HundredThou', 'Million']), ThisCarCost='hundred thousand dollars' (vocabolario: 'hundred thousand dollars' non e' uno stato di ThisCarCost; stati: ['Thousand', 'TenThou', 'HundredThou', 'Million'])",
+      "esito_tool": "non arrivato al tool"
+    },
+    {
+      "task_id": "COH34",
+      "query": "Is it coherent that the customer is a good student given that the neighbourhood is rural and that the car has no antilock braking system?",
+      "etichetta_run": "coherence",
+      "traduzione": {
+        "input": {
+          "HomeBase": "Rural",
+          "Antilock": "False"
+        },
+        "output": {
+          "GoodStudent": "False"
+        }
+      },
+      "atteso": {
+        "input": {
+          "HomeBase": "Rural",
+          "Antilock": "False"
+        },
+        "output": {
+          "GoodStudent": "True"
+        }
+      },
+      "prob_oracolo": 0.6825630175,
+      "decisione_oracolo": "compatible",
+      "motivo_controllo": "",
+      "esito_tool": "calcolato",
+      "testo_risposta": "Evidences are NOT strongly compatible with a single GoodStudent of False with a probability of 0.3174",
+      "mappatura": {
+        "input_mancanti": [],
+        "input_in_piu": [],
+        "output_atteso": {
+          "goodstudent": "true"
+        },
+        "output_avuto": {
+          "goodstudent": "false"
+        },
+        "target_invertito": false,
+        "esatta": false
+      }
+    },
+    {
+      "task_id": "COH37",
+      "query": "Is it coherent that the car has an antilock braking system given that the mileage is five thousand miles and that the car has an airbag?",
+      "etichetta_run": "coherence",
+      "traduzione": {
+        "input": {
+          "Antilock": "True",
+          "Airbag": "True"
+        },
+        "output": {
+          "Theft": "False"
+        }
+      },
+      "atteso": {
+        "input": {
+          "Mileage": "FiveThou",
+          "Airbag": "True"
+        },
+        "output": {
+          "Antilock": "True"
+        }
+      },
+      "prob_oracolo": 0.4418011778,
+      "decisione_oracolo": "non_compatibile",
+      "motivo_controllo": "",
+      "esito_tool": "calcolato",
+      "testo_risposta": "Evidences are compatible with a single Theft of False with a probability of 0.9987",
+      "mappatura": {
+        "input_mancanti": [
+          "mileage"
+        ],
+        "input_in_piu": [
+          "antilock"
+        ],
+        "output_atteso": {
+          "antilock": "true"
+        },
+        "output_avuto": {
+          "theft": "false"
+        },
+        "target_invertito": false,
+        "esatta": false
+      }
+    },
+    {
+      "task_id": "COH38",
+      "query": "Is it coherent that the damage to this car is mild given that the driving skill is normal and that the car has no anti-theft device?",
+      "etichetta_run": "coherence",
+      "traduzione": {
+        "input": {
+          "AntiTheft": "False"
+        },
+        "output": {
+          "ThisCarDam": "Severe"
+        }
+      },
+      "atteso": {
+        "input": {
+          "DrivingSkill": "Normal",
+          "AntiTheft": "False"
+        },
+        "output": {
+          "ThisCarDam": "Mild"
+        }
+      },
+      "prob_oracolo": 0.221500296,
+      "decisione_oracolo": "non_compatibile",
+      "motivo_controllo": "",
+      "esito_tool": "calcolato",
+      "testo_risposta": "Evidences are NOT strongly compatible with a single ThisCarDam of Severe with a probability of 0.202",
+      "mappatura": {
+        "input_mancanti": [
+          "drivingskill"
+        ],
+        "input_in_piu": [],
+        "output_atteso": {
+          "thiscardam": "mild"
+        },
+        "output_avuto": {
+          "thiscardam": "severe"
+        },
+        "target_invertito": false,
+        "esatta": false
+      }
+    }
+  ]
+}
