@@ -23,7 +23,8 @@ Che cosa verifica (i punti richiesti a-g):
      compatibilita' e la nota che lo dichiara;
   c. ``d_ollama > d_busy`` produce ``cpu_time_share_raw > 1``,
      ``share_anomaly = "d_ollama>d_busy"`` e share limitato a 1; lo stesso
-     vale per ``d_busy = 0`` e per un denominatore oltre la capacita' fisica;
+     vale per ``d_busy = 0`` e per un denominatore oltre la capacita' fisica,
+     che invalida l'attribuzione;
   d. un processo nato a meta' finestra conta dal suo inizio; uno perso prima
      di t_end alza ``worker_exit_in_window`` (fino alla riga CSV);
   e. stesso PID con ``create_time`` diverso non e' lo stesso processo: il
@@ -176,6 +177,42 @@ def test_c_denominatore_nullo_o_oltre_la_capacita_si_dichiara(monkeypatch):
     over = _profile(_FakeSession(), direct_cpu_delta=1.0, direct_busy_delta=21.0)
     assert over.cpu_time_share_raw == pytest.approx(1.0 / 21.0)
     assert over.share_anomaly == "d_busy>capacita'"
+    assert over.cpu_time_share_valid is False
+    assert over.ollama_active_energy_j == 0.0
+    assert any("anomalia dello share (d_busy>capacita')" in n
+               for n in over.notes)
+
+
+def test_c_reset_contatore_ai_bordi_non_degrada_al_fallback():
+    """Un delta package negativo resta invalido e non viene nascosto dai campioni."""
+    session = _FakeSession(package_j=100.0, idle_w=10.0)
+    start = {
+        "t_counter_mono": T0,
+        "t_cpu_mid": T0,
+        "counter": {"pkg_j": 100.0, "pkg_pwh": 1000.0,
+                    "ts_100ns": 10_000_000},
+    }
+    end = {
+        "t_counter_mono": T0 + 1.0,
+        "t_cpu_mid": T0 + 1.0,
+        "counter": {"pkg_j": 95.0, "pkg_pwh": 950.0,
+                    "ts_100ns": 20_000_000},
+    }
+
+    res = _profile(
+        session,
+        direct_cpu_delta=1.0,
+        direct_busy_delta=2.0,
+        edge_start=start,
+        edge_end=end,
+    )
+
+    assert res.package_energy_raw_j == pytest.approx(-5.0)
+    assert res.package_window_source == "counter-invalid"
+    assert res.emi_edge_source == "counter-invalid"
+    assert res.active_valid is False
+    assert res.ollama_active_energy_j == 0.0
+    assert any("delta negativo del contatore package" in n for n in res.notes)
 
 
 # ------------------------------------------------------------------ d

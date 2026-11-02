@@ -4,7 +4,7 @@ energy/local_energy.py — Profilo energetico causale per inferenza LOCALE.
 
 Formule implementate (sezione 2 della specifica, nessuna invenzione):
 
-    E_attiva = max(0, E_package - P_idle * dt)
+    E_attiva = E_package - P_idle * dt
     E_ollama = E_attiva * s
     s        = dt_cpu_ollama / dt_cpu_busy
 
@@ -111,9 +111,10 @@ class LocalEnergyResult:
     # E_package - baseline CON SEGNO. Negativo significa "la finestra ha
     # consumato meno della baseline": e' un dato, non un errore da azzerare.
     active_energy_raw_j: float = 0.0
-    # True solo se la sottrazione ha senso: raw >= 0, P_idle calibrata e
-    # package effettivamente letto. Con active_valid=False, active_energy_j
-    # (troncato) non e' una quantita' misurabile.
+    # True solo se la sottrazione ha senso: raw >= 0, P_idle calibrata,
+    # package effettivamente letto e contatore non invalidato. Con
+    # active_valid=False, active_energy_j resta osservabile ma non e' una
+    # quantita' utilizzabile per l'attribuzione.
     active_valid: bool = False
     ollama_active_energy_j: float = 0.0
     cpu_time_share: float = 0.0
@@ -136,7 +137,8 @@ class LocalEnergyResult:
     # ("calibrated" | "missing"); "" se la GPU dedicata non e' stata misurata.
     gpu_idle_provenance: str = ""
     igpu_energy_j: Optional[float] = None   # informativo, MAI sommato
-    package_window_source: str = ""         # exact-counter | samples-fallback
+    package_window_source: str = ""         # exact-counter | samples-fallback |
+                                             # counter-invalid | unavailable
     idle_provenance: Optional[str] = None   # calibrated|session|uncalibrated
     measurement_boundary: str = ""
     cpu_attribution_method: str = ""
@@ -428,12 +430,28 @@ class CasualWattLocalEnergyProfiler:
         # nessuna interpolazione sui campioni a ~0,25-0,5 s. Il percorso sui
         # campioni resta SOLO come fallback dichiarato nelle note.
         e_package: Optional[float] = None
+        counter_increment_invalid = False
         # P5: con la coppia di bordi e nessuna sottofinestra da scorporare,
         # l'energia e' la DIFFERENZA dei due valori del contatore: nessuna
         # interpolazione fra campioni, nessun percorso sul buffer. Se il
         # contatore manca si torna al buffer e il token lo dichiara.
         if has_edges and not excl:
+            edge_delta = self._edge_counter_delta(edge_start, edge_end)
+            if edge_delta is not None and edge_delta < 0.0:
+                counter_increment_invalid = True
+                e_package = edge_delta
+                res.package_window_source = "counter-invalid"
+                res.emi_edge_source = "counter-invalid"
+                notes.append(
+                    "delta negativo del contatore package ai bordi "
+                    f"({edge_delta:+.6f} J): reset o riporto; "
+                    "la finestra e' invalida e non usa il fallback sui campioni"
+                )
+            elif edge_delta is not None:
+                e_package = None
             e_edge = self._edge_energy_j(edge_start, edge_end)
+            if counter_increment_invalid:
+                e_edge = None
             if e_edge is not None:
                 e_package = e_edge
                 res.emi_edge_source = "direct-ioctl"
@@ -463,7 +481,7 @@ class CasualWattLocalEnergyProfiler:
                     f"bordi ({edge_reason}): energia dal buffer a 0,05 s "
                     "(interpolazione dichiarata, emi_edge_source=buffer-interp)")
         exact_fn = getattr(self.session, "package_energy_exact_between", None)
-        if e_package is None and callable(exact_fn):
+        if e_package is None and not counter_increment_invalid and callable(exact_fn):
             try:
                 e_package = exact_fn(t_start, t_end, excl)
             except Exception as exc:  # mai un crash: degrada al fallback
@@ -486,7 +504,7 @@ class CasualWattLocalEnergyProfiler:
                     "the two measurement edges (one IOCTL per edge; no "
                     "interpolation, no integration)"
                 )
-            else:
+            elif not counter_increment_invalid:
                 _edge_txt = (
                     "window read exactly at t_start/t_end from the 0.05 s "
                     + ("cumulative package counter buffer (no integration)"
@@ -498,7 +516,7 @@ class CasualWattLocalEnergyProfiler:
                 "(E_attiva * d_ollama/d_busy; share of system BUSY time, "
                 "not of capacity); " + _edge_txt
             )
-        else:
+        elif not counter_increment_invalid:
             # FALLBACK dichiarato: differenza dei campioni interpolati
             pkg_first = next((s.package_energy_j for s in samples if s.package_energy_j is not None), None)
             pkg_last = next(
@@ -568,6 +586,7 @@ class CasualWattLocalEnergyProfiler:
         res.active_valid = bool(
             active_raw >= 0.0
             and not idle_missing
+            and not counter_increment_invalid
             and res.package_window_source != "unavailable"
         )
         if active_raw < 0.0:
@@ -693,12 +712,14 @@ class CasualWattLocalEnergyProfiler:
                 res.cpu_share_source = "samples-fallback"
             # D5: valida solo se il denominatore esiste, il numeratore e'
             # osservabile e la quota non e' stata clampata da un rapporto
-            # incoerente. L'anomalia di capacita' resta un flag, non invalida
-            # il rapporto (d_busy e' comunque il denominatore misurato).
+            # incoerente. Un denominatore oltre la capacita' teorica indica
+            # letture non sincronizzate o una finestra incoerente: resta
+            # dichiarato nei grezzi, ma non alimenta l'attribuzione.
             res.cpu_time_share_valid = bool(
                 d_ollama_observed
                 and share_raw is not None
                 and d_ollama <= dt_cpu_busy + 1e-9
+                and "d_busy>capacita'" not in anomalies
             )
             # D1: una riga non valida conserva il numero convenzionale ma non
             # alimenta l'attribuzione.
@@ -1016,6 +1037,19 @@ class CasualWattLocalEnergyProfiler:
             return None
         cnt = edge.get("counter")
         return cnt if isinstance(cnt, dict) else None
+
+    @classmethod
+    def _edge_counter_delta(cls, edge_start: Optional[Dict[str, object]],
+                            edge_end: Optional[Dict[str, object]]) -> Optional[float]:
+        """Delta package grezzo ai bordi, inclusi reset e riporto."""
+        cnt0 = cls._edge_counter(edge_start)
+        cnt1 = cls._edge_counter(edge_end)
+        if cnt0 is None or cnt1 is None:
+            return None
+        try:
+            return float(cnt1["pkg_j"]) - float(cnt0["pkg_j"])
+        except (KeyError, TypeError, ValueError):
+            return None
 
     @classmethod
     def _edge_counter_ts(cls, edge: Optional[Dict[str, object]]) -> Optional[int]:
