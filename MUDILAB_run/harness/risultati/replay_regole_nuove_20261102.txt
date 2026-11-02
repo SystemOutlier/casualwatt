@@ -1,0 +1,55 @@
+cartella: 20261102_191401
+comando: MUDILAB_COPIE=1 C:\Users\Massimo\Documents\CasualWatt\CWProject\MUDILabV\mudilab_env\Scripts\python.exe replay_traduzione.py risultati_misura/b_composta/20261102_191401 --regole output=libero,cf-target-stretto,cf-target-domanda,stati-alias --riferimento output=libero
+righe con un testo di traduttore: 240, senza: 0
+
+--- output=libero: 240 righe riprodotte
+  corretta    77   es. CF12: 
+  numero      61   es. CF07: stampato [0.0464, 0.2934] atteso [0.0, 0.0761]
+  rifiutata  102   es. CF03: counterfactual: servono almeno 1 evidenza/e, restano []; sca
+  per ramo (corrette / riprodotte): cond_prob 27/60, inter 17/60, coherence 18/60, counterfactual 15/60
+  corrette/prodotte = 77/240
+
+--- cf-target-stretto: 240 righe riprodotte
+  corretta    74   es. CF12: 
+  numero      40   es. CF07: stampato [0.0464, 0.2934] atteso [0.0, 0.0761]
+  rifiutata  126   es. CF03: output AntiTheft='True': il target non compare nella clausol
+  per ramo (corrette / riprodotte): cond_prob 27/60, inter 17/60, coherence 18/60, counterfactual 12/60
+  corrette/prodotte = 74/240
+  contro output=libero: 0 corrette in piu', 3 corrette in meno
+    corretta -> rifiutata: 3 run (CF19)
+    numero -> rifiutata: 21 run (CF11, CF20, CF24, CF27, CF32, CF35, CF39)
+    perse: CF19
+
+--- cf-target-domanda: 240 righe riprodotte
+  corretta    77   es. CF12: 
+  numero      40   es. CF07: stampato [0.0464, 0.2934] atteso [0.0, 0.0761]
+  rifiutata  123   es. CF03: output AntiTheft='True': il target non compare nella clausol
+  per ramo (corrette / riprodotte): cond_prob 27/60, inter 17/60, coherence 18/60, counterfactual 15/60
+  corrette/prodotte = 77/240
+  contro output=libero: 0 corrette in piu', 0 corrette in meno
+    numero -> rifiutata: 21 run (CF11, CF20, CF24, CF27, CF32, CF35, CF39)
+
+--- stati-alias: 240 righe riprodotte
+  corretta    91   es. CF12: 
+  numero      73   es. CF07: stampato [0.0464, 0.2934] atteso [0.0, 0.0761]
+  rifiutata   76   es. CF03: counterfactual: servono almeno 1 evidenza/e, restano []; sca
+  per ramo (corrette / riprodotte): cond_prob 30/60, inter 28/60, coherence 18/60, counterfactual 15/60
+  corrette/prodotte = 91/240
+  normalizzazioni di stato: 74, valori in prosa non risolti: 26, etichette in collisione: 0
+    Accident:moderate -> Moderate x3
+    CarValue:fifty thousand dollars -> FiftyThou x3
+    DrivingSkill:sub-standard -> SubStandard x3
+    HomeBase:city -> City x3
+    HomeBase:rural -> Rural x3
+    ILiCost:hundred thousand -> HundredThou x2
+    OtherCarCost:ten thousand dollars -> TenThou x12
+    PropCost:hundred thousand -> HundredThou x12
+    PropCost:hundred thousand dollars -> HundredThou x6
+    PropCost:ten thousand dollars -> TenThou x15
+    ThisCarCost:hundred thousand dollars -> HundredThou x3
+    ThisCarCost:ten thousand dollars -> TenThou x6
+    ThisCarDam:mild -> Mild x3
+  contro output=libero: 14 corrette in piu', 0 corrette in meno
+    rifiutata -> corretta: 14 run (CND08, INT04, INT07, INT32, INT35)
+    rifiutata -> numero: 12 run (COH24, INT16, INT19, INT27)
+    guadagnate: CND08, INT04, INT07, INT32, INT35

@@ -27,12 +27,30 @@ run reale, perche' la classificazione e' un passo di modello. Una variante che
 cambia il classificatore (`b_esempi`) va schermata davvero, non riproducibile qui.
 
 Uso:  MUDILAB_COPIE=1 python replay_traduzione.py harness/risultati/b_verificata/20261101_174518
-      --regole output=obbligatorio|output=se-citata|output=libero|libero+parola-stato|senza-verbatim
-      (default: tutte e cinque, a confronto)
+      --regole output=obbligatorio|output=se-citata|output=libero|libero+parola-stato|senza-verbatim|cf-target-domanda|cf-target-stretto|stati-alias
+      (default: tutte e otto, a confronto; --riferimento output=libero conta i delta
+      contro il protocollo con cui sono presi i joule del 02-11)
+
+Gli ultimi tre regimi sono le due regole chieste il 02-11 dopo l'analisi dei rami
+deboli (`harness/risultati/analisi_rami_deboli_20261102.txt`): `cf-target-domanda`
+accende l'ancoraggio del target controfattuale alla clausola interrogativa,
+`cf-target-stretto` e' la stessa regola pero' senza il terzo ramo sulla citazione,
+e serve a misurare cosa vale quel ramo; `stati-alias` normalizza il confronto fra
+lo stato scritto in prosa e l'etichetta del `.bif`. Il conto, fatto il 02-11 sui 240
+run di `risultati_misura/b_composta/20261102_191401`
+(`harness/risultati/replay_regole_nuove_20261102.txt`): `cf-target-domanda` 77
+corrette come il riferimento, 21 run fermati prima del tool e nessuna riga buona
+persa; `cf-target-stretto` 74, tre buone uccise su CF19; `stati-alias` 91, +14 e zero
+perse, con 74 normalizzazioni e 12 righe che dal rifiuto passano a `numero` perche'
+l'alias smette di fermare un errore di variabile. Nessuna delle tre e' in vigore in
+produzione: i due regimi controfattuali non muovono il punteggio, e il regime degli
+stati lo muove ma con un effetto collaterale dichiarato. Il metodo in produzione resta
+quello misurato il 02-11, perche' 'confrontare non significa adottare'.
 """
 
 import argparse
 import json
+import re
 import sys
 from collections import Counter
 from pathlib import Path
@@ -43,7 +61,12 @@ sys.path.insert(0, str(HERE / "harness"))
 sys.dont_write_bytecode = True
 
 REGIMI = ("output=obbligatorio", "output=se-citata", "output=libero",
-          "libero+parola-stato", "senza-verbatim")
+          "libero+parola-stato", "senza-verbatim",
+          "cf-target-domanda", "cf-target-stretto", "stati-alias")
+
+# Nell'ordine delle colonne di `benchmark.csv`: serve per stampare il "per ramo",
+# che e' l'unico modo di vedere che una regola su un ramo ne sposta un altro.
+RAMI = ("cond_prob", "inter", "coherence", "counterfactual")
 
 # Le due regole alternative, misurate qui e non nel modulo: `valida` chiama
 # `_citazione_valida` per nome globale, quindi sostituirla su `TC` per la durata
@@ -120,19 +143,167 @@ def _regola_senza_verbatim(TC):
     return versione
 
 
-def _regola_alt(TC, regime):
-    """(funzione di verifica, `citazione_output`) per un regime del replay.
+# -- il regime `stati-alias`: la prosa del modello come sinonimo dell'etichetta -------
+#
+# Perche' si misura qui e non in produzione. `valida` confronta la stringa scritta
+# dal traduttore con le etichette del `.bif` a uguaglianza esatta, e sull'held-out
+# del 02-11 quel confronto ferma il target di 26 run `inter` su 60: nove task per tre
+# ripetizioni, meno la prima ripetizione di INT35 che si era gia' fermata sulla
+# cardinalita' (`analisi_rami_deboli_20261102.txt`, sezioni 2 e 3). Cosa fa l'alias su
+# quei nove, riga per riga: INT04, INT07, INT32, INT35 diventano corrette; INT16,
+# INT19, INT27 arrivano al tool con il numero sbagliato perche' la prosa e' legittima
+# ma la variabile no (`PropCost` dove l'oracolo chiede un altro costo); INT39 resta
+# ferma perche' lo stato booleano e' scritto come frase; INT24 resta ferma su un altro
+# gate, e questo va detto perche' e' un cambio di motivo: normalizzato l'output, cadono
+# in `input` la ripetizione del target (disgiunzione) e `Mileage='fifty thousand
+# miles'` (vocabolario), e la riga si ferma sulla cardinalita'.
+#
+# La normalizzazione che si vorrebbe provare e' una tabella di sinonimi generata
+# **dalle etichette stesse**, non scritta a mano: `HundredThou` ->
+# "hundred thousand", perche' il CamelCase spezza e `Thou` e' l'abbreviazione di
+# `Thousand` nel `.bif` della relatrice. Generarla dal grafo e' quello che rende il
+# controllo verificabile: la tabella e' la stessa per tutte le righe e si puo'
+# dichiarare iniettiva variabile per variabile, che e' il prerequisito per non
+# inventarsi uno stato.
+#
+# Cio' che NON copre, e va detto prima del numero: gli stati booleani scritti come
+# frase, cioe' il caso di INT39 qui sopra. `AntiTheft='no antilock braking system'`
+# contro le etichette `True|False` non ha alcuna forma in prosa derivabile
+# dall'etichetta, e nessuna delle regole sotto lo recupera. La normalizzazione degli
+# stati non e' la risposta a quel caso, e il numero del regime va letto con questa
+# riga esclusa.
+#
+# Misurata (02-11, 240 run di `risultati_misura/b_composta/20261102_191401`, output
+# in `harness/risultati/replay_regole_nuove_20261102.txt`): **91 corrette contro le
+# 77** di `output=libero`, +14 e **zero perse** -- CND08, INT04, INT07, INT32 e INT35,
+# quattro task per tre ripetizioni e INT35 per due. 74 normalizzazioni, 26 prose non
+# risolte (INT39 con le sue tre ripetizioni sta qui), 0 collisioni di tabella sulle
+# 27 variabili. Il prezzo non e' nel saldo: 12
+# righe passano da `rifiutata` a `numero` (COH24, INT16, INT19, INT27) perche' sono
+# errori veri di **variabile** -- l'oracolo chiede `ThisCarCost`, il modello scrive
+# `PropCost` -- e il confronto letterale le fermava per un motivo che non c'entrava.
+# La regola non e' adottata: questo numero dice cosa vale, non cambia il metodo in
+# produzione, che e' una decisione separata e vuole un run misurato.
+PAROLE_VALUTA = ("dollars", "dollar", "usd")
+ESPANSIONI = {"thou": "thousand"}
 
-    I tre regimi di `citazione_output` non toccano `_citazione_valida`; i due che
-    la sostituiscono giocano un asse diverso, quello di come si valuta una
-    citazione scritta, e per quello `citazione_output` resta `False`.
+
+def _forma_prosa(etichetta: str) -> str:
+    """La prosa che un'etichetta del grafo scrive di se' stessa, in forma-canone."""
+    spezzato = re.findall(r"[A-Z]{2,}(?![a-z])|[A-Z][a-z0-9]*|[a-z0-9]+", str(etichetta))
+    return " ".join(ESPANSIONI.get(w.lower(), w.lower()) for w in spezzato)
+
+
+def _pulisci_prosa(TC, valore: str) -> str:
+    """Il valore scritto senza la moneta e senza la punteggiatura."""
+    return " ".join(w for w in TC._norm(valore).split() if w not in PAROLE_VALUTA)
+
+
+def alias_di(stati: list) -> tuple:
+    """({prosa: etichetta}, [(prosa, [etichette collisionanti])]) per una variabile.
+
+    Il secondo valore e' l'iniettivita' verificata, non assunta: se due etichette
+    della stessa variabile producono la stessa prosa, la voce viene **tolta** dalla
+    tabella. Una normalizzazione ambigua non e' una normalizzazione: scegliere una
+    delle due significa inventarsi lo stato, che e' esattamente cio' che il gate
+    esiste per impedire.
+    """
+    righe = {}
+    for s in stati:
+        righe.setdefault(_forma_prosa(s), []).append(s)
+    tabella, collisioni = {}, []
+    for prosa, etichette in righe.items():
+        if len(etichette) > 1:
+            collisioni.append((prosa, etichette))
+        else:
+            tabella[prosa] = etichette[0]
+    return tabella, collisioni
+
+
+def _stato_alias(TC, conto: Counter):
+    """Sostituzione di `TC.stato_del_grafo`: uguaglianza esatta, poi la tabella.
+
+    La tabella si costruisce dall'elenco di stati che `valida` ha gia' in mano, non
+    da un vocabolario globale: le righe perturbate girano su reti diverse e una
+    tabella unica sarebbe una tabella della rete sbagliata. Per lo stesso motivo la
+    cache e' chiave (variabile, tuple(stati)), non la sola variabile.
+    """
+    cache = {}
+
+    def versione(valore: str, variabile: str, stati: list):
+        if valore in stati:
+            return valore
+        chiave = (variabile, tuple(stati))
+        tabella = cache.get(chiave)
+        if tabella is None:
+            tabella, collisioni = alias_di(stati)
+            cache[chiave] = tabella
+            for prosa, etichette in collisioni:
+                conto[f"collisione:{variabile}:{prosa}"] += len(etichette)
+        etichetta = tabella.get(_pulisci_prosa(TC, valore))
+        if etichetta is None:
+            conto["mancato"] += 1
+            return None
+        conto["normalizzato"] += 1
+        conto[f"coppia:{variabile}:{valore} -> {etichetta}"] += 1
+        return etichetta
+    return versione
+
+
+def _ancoraggio_senza_citazione(TC):
+    """L'ancoraggio del target con i soli due rami sulla parola dello stato e del nome.
+
+    E' la variante stretta, e serve a misurare cosa vale il terzo ramo: senza di
+    questo numero non si sa se la citazione salva tre righe buone o ne lascia
+    passare anche lei ventiquattro sbagliate. `valida` chiama `ancoraggio_target` per
+    nome globale, quindi la sostituzione dura quanto il regime.
+
+    Misurata (02-11, gli stessi 240 run): **74 corrette contro le 77** -- ferma 24
+    run e tre di questi sono righe buone, tutte CF19 (`Theft=True` scritto "the car
+    has been stolen"), che e' esattamente il foro che il terzo ramo copre. Con il
+    terzo ramo, regime `cf-target-domanda`: 77 corrette, identiche al riferimento, e
+    21 run fermati prima del tool.
+    """
+    def versione(variabile, valore, query_norm, cit=None):
+        span = TC.clausola_domanda(query_norm)
+        if not span:
+            return "forma della domanda non riconosciuta"
+        if TC._norm(valore) and TC._norm(valore) in span:
+            return ""
+        if any(w in span for w in TC._parole(variabile)):
+            return ""
+        return "il target non compare nella clausola della domanda"
+    return versione
+
+
+def _pacchetto(TC, regime, conto: Counter):
+    """({attributo di TC: funzione}, `citazione_output`, kwarg di `valida`).
+
+    Un pacchetto per regime, su tre assi ortogonali. Le `sostituzioni` montano una
+    versione alternativa di una funzione che `valida` chiama per nome globale --
+    `_citazione_valida` (come si valuta una citazione scritta), `stato_del_grafo`
+    (come si confronta uno stato con le etichette del `.bif`), `ancoraggio_target`
+    (quanti rami ha l'ancoraggio del controfattuale). I regimi di `citazione_output`
+    non sostituiscono niente e cambiano solo il flag; i due regimi `cf-target-*`
+    accendono il flag che il modulo gia' espone spento. Cio' che un regime non
+    tocca resta il default di produzione, scritto nei JSON del 02-11.
+
+    Il `conto` serve alle sostituzioni di stato: una normalizzazione e' un dato, non
+    una riga buona, e va elencata coppia per coppia.
     """
     if regime == "libero+parola-stato":
-        return _regola_parola_stato(TC), False
+        return {"_citazione_valida": _regola_parola_stato(TC)}, False, {}
     if regime == "senza-verbatim":
-        return _regola_senza_verbatim(TC), False
-    return None, {"output=obbligatorio": True, "output=se-citata": "se-citata",
-                  "output=libero": False}[regime]
+        return {"_citazione_valida": _regola_senza_verbatim(TC)}, False, {}
+    if regime == "cf-target-domanda":
+        return {}, False, {"target_nella_domanda": True}
+    if regime == "cf-target-stretto":
+        return ({"ancoraggio_target": _ancoraggio_senza_citazione(TC)}, False,
+                {"target_nella_domanda": True})
+    if regime == "stati-alias":
+        return {"stato_del_grafo": _stato_alias(TC, conto)}, False, {}
+    return ({}, {"output=obbligatorio": True, "output=se-citata": "se-citata",
+                 "output=libero": False}[regime], {})
 
 
 def _righe(cartella: Path):
@@ -154,8 +325,16 @@ def _righe(cartella: Path):
     return elaborabili, escluse
 
 
-def riproduci(d: dict, r: dict, passi: dict, regime: str, gt: dict, TC, tools, _confronta):
-    """(esito, dettaglio) per un regime dato, sullo stesso testo della riga reale."""
+def riproduci(d: dict, r: dict, passi: dict, pacchetto: tuple, gt: dict, TC, tools,
+              _confronta):
+    """(esito, dettaglio) per un regime dato, sullo stesso testo della riga reale.
+
+    Il `pacchetto` arriva da `main`, costruito una volta per regime: le sostituzioni
+    sono montate prima di chiamare questa funzione e la cache degli alias vive quanto
+    il regime, non quanto la riga. Costruirla qui dentro vorrebbe dire richiudere
+    `alias_di` per ogni riga e, soprattutto, montare una funzione mentre se ne
+    valuta un'altra.
+    """
     task_id = d["task_id"]
     riga_gt = gt[task_id]
     etichetta = str(r.get("etichetta") or "").strip().lower()
@@ -166,9 +345,9 @@ def riproduci(d: dict, r: dict, passi: dict, regime: str, gt: dict, TC, tools, _
         etichetta = etichetta_dal_testo(passi["classificator"]["text"])
     rete = d.get("rete") or None
 
-    _alt, regola = _regola_alt(TC, regime)
+    regola, kw = pacchetto[1:]
     traduzione, esito = TC.valida(passi["translator"]["text"], etichetta,
-                                  riga_gt["query"], rete, citazione_output=regola)
+                                  riga_gt["query"], rete, citazione_output=regola, **kw)
     if traduzione is None:
         return "rifiutata", esito["motivo"][:60]
     if etichetta != riga_gt["etichetta_attesa"]:
@@ -193,6 +372,8 @@ def main():
     ap = argparse.ArgumentParser()
     ap.add_argument("cartella", help="la marca di uno screening, es. harness/risultati/b_verificata/<ts>")
     ap.add_argument("--regole", default=",".join(REGIMI))
+    ap.add_argument("--riferimento", default="output=libero",
+                    help="il regime contro cui contare il delta; `''` per non confrontare")
     a = ap.parse_args()
 
     argv = sys.argv
@@ -213,27 +394,101 @@ def main():
             raise SystemExit(f"regime sconosciuto: {x!r}; validi: {', '.join(REGIMI)}")
 
     memorizzate, escluse = _righe(cartella)
+    # Il riferimento per primo, o i delta dei regimi che lo precedono non avrebbero
+    # niente da confrontare e stamperebbero un vuoto come se fosse un risultato.
+    if a.riferimento in regimi:
+        regimi.insert(0, regimi.pop(regimi.index(a.riferimento)))
     print(f"cartella: {cartella.name}")
+    # Il comando, riscritto nell'output: questo file e' l'evidenza sotto una regola,
+    # e un'evoluzione senza la riga che l'ha prodotta e' un numero che nessuno puo'
+    # rigenerare (AGENTS.md, sezione struttura dei file). Ricostruito dagli argomenti
+    # parsed, non da `sys.argv`: `run_query` lo riscrive all'import, e un header che
+    # perde l'interprete non e' piu' una riga di comando.
+    print("comando: MUDILAB_COPIE=1 "
+          f"{sys.executable} {Path(__file__).name} {a.cartella} "
+          f"--regole {a.regole} --riferimento {a.riferimento}")
     print(f"righe con un testo di traduttore: {len(memorizzate)}, "
           f"senza: {len(escluse)}{(' (' + ', '.join(map(str, escluse)) + ')') if escluse else ''}")
+    esiti_riferimento = {}
     for regime in regimi:
-        originale = TC._citazione_valida
-        alt, _regola = _regola_alt(TC, regime)
-        if alt is not None:
-            TC._citazione_valida = alt
         conti = Counter()
         esempio = {}
-        for d, r, passi, _p in memorizzate:
-            esito, dettaglio = riproduci(d, r, passi, regime, gt, TC, tools, _confronta)
-            conti[esito] += 1
-            esempio.setdefault(esito, f"{d['task_id']}: {dettaglio}")
-        TC._citazione_valida = originale
+        rami_conti = {}
+        esiti_regime = {}
+        originale = {}
+        conto = Counter()
+        # Il pacchetto e' uno per regime, non una funzione per asse: un regime puo'
+        # montare due sostituzioni (una citazione e un ancoraggio) e la riga che le
+        # vede entrambe deve vederle insieme, come le vedrebbe una variante reale.
+        # Le sostituzioni si montano su `TC` perche' `valida` chiama quelle funzioni
+        # per nome globale; si smontano nel `finally`, perche' un `KeyboardInterrupt`
+        # a meta' regime lascerebbe il modulo con la regola sbagliata per i regimi
+        # che vengono dopo, e il numero stampato dopo sarebbe della regola sbagliata.
+        pacchetto = _pacchetto(TC, regime, conto)
+        for nome, versione in pacchetto[0].items():
+            originale[nome] = getattr(TC, nome)
+            setattr(TC, nome, versione)
+        try:
+            for d, r, passi, _p in memorizzate:
+                esito, dettaglio = riproduci(d, r, passi, pacchetto, gt, TC, tools,
+                                             _confronta)
+                conti[esito] += 1
+                esempio.setdefault(esito, f"{d['task_id']}: {dettaglio}")
+                ramo = gt[d["task_id"]]["ramo"]
+                rami_conti.setdefault(ramo, Counter())[esito] += 1
+                esiti_regime[_p.name] = (ramo, esito)
+        finally:
+            for nome, versione in originale.items():
+                setattr(TC, nome, versione)
         n = sum(conti.values())
         print(f"\n--- {regime}: {n} righe riprodotte")
         for esito in ("corretta", "numero", "etichetta", "rifiutata", "tool"):
             if conti[esito]:
                 print(f"  {esito:10s} {conti[esito]:3d}   es. {esempio.get(esito, '-')}")
+        print("  per ramo (corrette / riprodotte): " + ", ".join(
+            f"{ramo} {rami_conti[ramo]['corretta']}/{sum(rami_conti[ramo].values())}"
+            for ramo in RAMI if ramo in rami_conti))
         print(f"  corrette/prodotte = {conti['corretta']}/{n}")
+        if conto:
+            print(f"  normalizzazioni di stato: {conto['normalizzato']}, "
+                  f"valori in prosa non risolti: {conto['mancato']}, "
+                  f"etichette in collisione: "
+                  f"{sum(v for k, v in conto.items() if k.startswith('collisione:')) or 0}")
+            for chiave in sorted(conto):
+                if chiave.startswith("coppia:"):
+                    print(f"    {chiave[len('coppia:'):]} x{conto[chiave]}")
+        # Il delta contro il riferimento e' il numero che decide, non il totale:
+        # una regola che aggiunge tre corrette togliendone due non e' un miglioramento.
+        # E il conteggio delle sole corrette non basta nemmeno lui: una riga che
+        # passa da `rifiutata` a `numero` non guadagna nulla e perde il rifiuto
+        # dichiarato, che e' l'informazione che la regola primaria produce. Quindi
+        # qui si stampano TUTTE le transizioni, grouped by (da, a).
+        if esiti_riferimento and regime != a.riferimento:
+            transizioni = {}
+            for file, (ramo, es) in esiti_regime.items():
+                prima = esiti_riferimento.get(file, ("", ""))[1]
+                if prima and prima != es:
+                    transizioni.setdefault((prima, es), []).append(file)
+            print(f"  contro {a.riferimento}: "
+                  f"{sum(len(v) for k, v in transizioni.items() if k[1] == 'corretta')}"
+                  f" corrette in piu', "
+                  f"{sum(len(v) for k, v in transizioni.items() if k[0] == 'corretta')}"
+                  " corrette in meno")
+            for (prima, dopo), file in sorted(transizioni.items()):
+                task = ", ".join(sorted({f.split('_r')[0] for f in file}))
+                print(f"    {prima} -> {dopo}: {len(file)} run ({task})")
+            guadagnate = [f for f, (_r, es) in esiti_regime.items()
+                          if es == "corretta"
+                          and esiti_riferimento.get(f, ("", ""))[1] != "corretta"]
+            perse = [f for f, (_r, es) in esiti_regime.items()
+                     if esiti_riferimento.get(f, ("", ""))[1] == "corretta"
+                     and es != "corretta"]
+            for etichetta, elenchi in (("guadagnate", guadagnate), ("perse", perse)):
+                if elenchi:
+                    print(f"    {etichetta}: " + ", ".join(sorted(
+                        {f.split('_r')[0] for f in elenchi})))
+        if regime == a.riferimento:
+            esiti_riferimento = esiti_regime
 
 
 if __name__ == "__main__":
