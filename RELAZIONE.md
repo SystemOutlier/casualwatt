@@ -1,5 +1,18 @@
 # Relazione Tecnica — `consumi_ollama.py`
 
+> **Stato di questo documento.** Descrive `consumi_ollama.py`, il tool monofile
+> legacy, ed è la verifica del 15/10/2026 su quel codice: le formule per TDP
+> (`P_idle = 0.10 × TDP`, `PL2 = 1.40 × TDP`, «Scenario C — Fallback totale») sono
+> di quel tool e stanno in `consumi_ollama.py:438-440`. **Non è il metodo di misura
+> di CasualWatt.** Su Windows il metodo principale legge il contatore cumulativo EMI
+> del package (`emi-counter`, `README.md:3`); la catena dichiarata è `emi-counter` →
+> `pawnio-counter` → `unavailable`, e nessuna stima TDP entra nel percorso di misura
+> (`AGENTS.md:135-136`, `cwEnergyModular/energy/energy_session.py:598` e `:670`). La
+> stima per TDP è il percorso di CodeCarbon, che la tesi usa come contrasto. `AGENTS.md:318-320`
+> elenca questo script fra i materiali fuori dal percorso di misura. Il metodo
+> vigente, con le decisioni congelate P1-P4, sta in
+> `experiment_results/protocollo_v4_20261024.md`.
+
 **Framework Python per il monitoraggio del consumo energetico delle sessioni locali di Ollama su Windows 11**
 
 | Voce | Dettaglio |
