@@ -47,6 +47,21 @@ Le regole di scarto, in ordine:
                  qui prima: toglie l'ingresso in `input`, non quello in `output`,
                  perche' l'output e' la domanda.
 
+  `target-ancorato` **spento di default**, perche' non fa parte del protocollo con
+                 cui sono presi i joule del 02-11. Acceso da
+                 `valida(..., target_nella_domanda=True)`, vale solo per
+                 l'etichetta `counterfactual`: il target deve comparire nella
+                 clausola interrogativa della domanda, non nella clausola
+                 ipotetica. Motivo misurato: 27 run su 42 controfattuali arrivati
+                 al tool hanno come target l'antecedente manipolato. Contato su
+                 replay il 02-11 (`replay_traduzione.py`, 240 run,
+                 `harness/risultati/replay_regole_nuove_20261102.txt`): ferma 21
+                 run che sarebbero arrivati al tool con la domanda sbagliata, non
+                 ne recupera e non ne uccide nessuno -- le corrette restano 77,
+                 identiche al riferimento. Resta spento: non cambia il punteggio,
+                 cambia solo il calcolo speso, e quello si misura con un run, non
+                 qui dentro.
+
 Nessun fallback silenzioso, e nessuna scelta al posto del modello. Se restano due
 evidenze dove il ramo ne vuole una sola (`tools_corretto.py:327`) la riga viene
 rifiutata con il motivo, non risolta tenendone una a caso: una scelta inventata
@@ -229,8 +244,132 @@ def _chiavi_ammesse(dati: dict) -> bool:
     return set(dati) == {"input", "output", "citazioni"}
 
 
+# -- il confronto fra lo stato scritto e le etichette del grafo -----------------------------
+#
+# Perche' e' una funzione e non un `in`. Il gate scrive `out_v not in voc[out]`, cioe'
+# un'uguaglianza esatta fra la stringa del modello e l'etichetta del `.bif`. E' il
+# protocollo con cui sono presi i joule del 02-11 e resta il default. Ma sull'held-out
+# quel confronto ferma 26 run `inter` su 60 per una ragione sola: il traduttore scrive
+# lo stato **in prosa** -- `PropCost='hundred thousand dollars'` contro l'etichetta
+# `HundredThou`, `OtherCarCost='ten thousand dollars'` contro `TenThou` -- e la rete
+# non vede nessuna delle due parole. Contato riga per riga sui JSON di
+# `risultati_misura/b_composta/20261102_191401`: nove task per tre ripetizioni
+# (INT04, INT07, INT16, INT19, INT24, INT27, INT32, INT35 e INT39), di cui INT39 scrive
+# `AntiTheft='no antilock braking system'` contro gli stati `True|False`, che nessun
+# alias di etichetta puo' toccare. Il numero completo c'e', e non autorizza ancora la
+# regola: il replay del 02-11
+# (`harness/risultati/replay_regole_nuove_20261102.txt`, regime `stati-alias`) porta
+# le corrette da 77 a 91 su 240 con 74 normalizzazioni, 0 collisioni di tabella e 26
+# prose che restano non risolte, e sposta anche 12 righe da `rifiutata` a `numero` --
+# errori veri di variabile che il confronto letterale fermava per motivo diverso.
+# Per questo la ricerca dell'etichetta si puo' sostituire dall'esterno, come
+# `_citazione_valida`: la variante si misura, non si adotta.
+#
+# Ritorna l'etichetta e non un booleano, perche' il tool riceve la stringa: accettare
+# `HundredThou` passando al grafo `hundred thousand dollars` vorrebbe dire spostare il
+# rifiuto dal gate a pyAgrum, cio' e' un errore in piu' dichiarato da un'altra parte.
+def stato_del_grafo(valore: str, variabile: str, stati: list):
+    """L'etichetta del grafo che il valore scritto indica, o None.
+
+    Default: uguaglianza esatta, il protocollo del 02-11. Una variante che normalizza
+    la prosa passa da qui, e sostituisce dall'esterno per il tempo del replay
+    (`replay_traduzione.py --regole stati-alias`): non si adotta con questo default.
+    """
+    return valore if valore in stati else None
+
+
+# -- l'ancoraggio del target alla domanda -------------------------------------------------
+#
+# Perche' esiste. Sull'held-out misurato del 02-11 il ramo counterfactual e' il
+# peggiore (15/60) e la ragione non e' il calcolo: delle 42 righe che il gate
+# lascia arrivare al tool, 27 -- nove task per le tre ripetizioni -- hanno nel
+# dizionario un target **diverso** da quello della domanda, e `corretta` e' vera
+# solo quando il target e' giusto (0 divergenze su 42). Sette di quei nove task
+# mettono come target l'**antecedente** manipolato -- `VehicleYear=Older` (CF11,
+# CF20, CF27, CF32, CF35, CF39) e `SeniorTrain` (CF24), ventuno run -- perche' la
+# forma della domanda controfattuale nomina due stati della stessa variabile:
+# l'osservato nella clausola interrogativa e l'ipotetico nella clausola
+# `if the world had been`, e il traduttore piccolo sceglie la seconda. Gli altri due
+# sono CF07 (`Accident=None` invece di `Moderate`) e CF28 (`PropCost=Million` invece
+# di `ThisCarCost=Thousand`): target un'altra variabile, non l'antecedente.
+# Evidenza: `harness/risultati/analisi_rami_deboli_20261102.txt` sezione 4 e i
+# JSON di `risultati_misura/b_composta/20261102_191401`.
+#
+# Perche' non la citazione. La regola gemella sulla citazione del target non puo'
+# fare questo lavoro: in `b_composta` vale `citazione_output = non richiesta`
+# perche' sull'dev la pretesa rifiutava 40 righe, meta' con il target giusto, e
+# INT03 mostra che il modello omette la citazione dell'output anche quando il
+# target e' quello vero. Qui non si chiede al modello di citare niente: si legge
+# la **domanda**, che e' testo noto al gate, e si verifica che il target che il
+# modello ha scelto stia nella clausola che fa la domanda.
+#
+# Debolezza misurata, non promessa. Il secondo ramo accetta se una parola del nome
+# della variabile compare nella clausola, e per le variabili di costo le parole si
+# sovrappongono: `ThisCarCost` e `PropCost` condividono `cost`, quindi una riga
+# che confonde i due costi **non** viene colta (CF28, `PropCost=Million` al posto
+# di `ThisCarCost=Thousand`). Contato: il replay del 02-11
+# (`harness/risultati/replay_regole_nuove_20261102.txt`) su 240 run con la regola a
+# tre rami ferma 21 run che sarebbero arrivati al tool con il target dell'antecedente
+# (CF11, CF20, CF24, CF27, CF32, CF35, CF39), non ne recupera nessuno e non ne uccide
+# nessuno: le corrette restano 77, identiche al riferimento `output=libero`. CF28
+# passa, come previsto qui sopra. Il guadagno non e' il punteggio -- quelle 21 righe
+# erano gia' `numero` sbagliato -- e' che non consumano il calcolo.
+APERTURA_DOMANDA = "what would the probability that"
+CLAUSOLA_ILOTETICO = "if the world had been"
+
+
+def clausola_domanda(query_norm: str) -> str:
+    """Il testo della domanda fra l'apertura e la clausola ipotetica, o ''.
+
+    La forma e' quella dei template del benchmark (`genera.py:471`). Un testo che
+    non la porta restituisce stringa vuota e **non** e' un rifiuto: la regola dice
+    "non riconosco la forma", non "il target e' sbagliato".
+    """
+    i = query_norm.find(APERTURA_DOMANDA)
+    if i < 0:
+        return ""
+    resto = query_norm[i + len(APERTURA_DOMANDA):]
+    j = resto.find(CLAUSOLA_ILOTETICO)
+    return (resto[:j] if j >= 0 else resto).strip()
+
+
+def ancoraggio_target(variabile: str, valore: str, query_norm: str, cit=None) -> str:
+    """'' se il target e' nella clausola della domanda, altrimenti il motivo.
+
+    Tre rami, come in `_citazione_valida` se ne fanno due: la parola dello stato, o
+    una parola del nome della variabile, o la citazione che il modello stesso ha
+    scritto per il target. Il terzo ramo non e' una cortesia: e' l'unico che copre
+    gli stati **booleani scritti come frase**, dove l'etichetta del grafo non ha
+    alcuna forma in prosa. CF19 chiede `Theft=True` e la domanda scrive "the car has
+    been stolen": li non compare ne' `true` ne' `theft`, e la riga buona muore.
+    Contato su replay (02-11, 240 run,
+    `harness/risultati/replay_regole_nuove_20261102.txt`): con i soli due rami la
+    regola ferma 24 run e **tre di questi sono righe buone**, tutte CF19, e muoiono
+    esattamente su quel foro -- 74 corrette contro le 77 del riferimento. Con il terzo
+    ramo i fermati restano 21 e le buone perse zero.
+
+    Non chiede che la clausola contenga il **valore** alla lettera, perche' nella
+    forma controfattuale il valore del target e' enunciato come fatto osservato nella
+    prima frase e ripreso nella domanda con la stessa perifrasi:
+    `VehicleYear=Current` si scrive "the car is a current-year model".
+    """
+    span = clausola_domanda(query_norm)
+    if not span:
+        return "forma della domanda non riconosciuta"
+    if _norm(valore) and _norm(valore) in span:
+        return ""
+    if any(w in span for w in _parole(variabile)):
+        return ""
+    if isinstance(cit, str) and cit.strip() and _norm(cit) in span:
+        # la citazione vale solo se sta DENTRO la clausola interrogativa: una frase
+        # copiata dalla clausola degli osservati non porta niente, e' l'antecedente
+        # con un vestito diverso
+        return ""
+    return "il target non compare nella clausola della domanda"
+
+
 def valida(grezzo: str, etichetta: str, query: str, path_rete: str | None = None,
-           citazione_output=True):
+           citazione_output=True, target_nella_domanda=False):
     """(traduzione per il tool, esito) oppure (None, esito con `motivo`).
 
     `esito` esce sempre compilato, anche quando la riga viene rifiutata: la riga
@@ -243,10 +382,19 @@ def valida(grezzo: str, etichetta: str, query: str, path_rete: str | None = None
     non e' un gusto: sull'dev la pretesa rifiutava 40 righe, meta' con il target
     giusto e meta' con il target sbagliato (`replay_traduzione.py`), quindi come
     filtro sull'output non separa nulla.
+
+    `target_nella_domanda` accende l'ancoraggio del target alla clausola
+    interrogativa, **solo** per l'etichetta `counterfactual` (vedi
+    `ancoraggio_target`). Default spento perche' il protocollo primario e' quello
+    misurato il 02-11 senza questa regola; la regola e' contata su replay
+    (`harness/risultati/replay_regole_nuove_20261102.txt`), ma un conto offline non
+    e' un metodo adottato. Quando accesa, l'esito lo dichiara: il JSON di ogni riga
+    deve dire con quali regole e' stata verificata.
     """
     import tools  # _parse_features delle copie: virgolette tipografiche e via dicendo
     esito = {"regole": list(LE_REGOLE), "scartate": [], "motivo": "",
              "etichetta": etichetta, "evidenze": None, "target": None,
+             "stati_normalizzati": {},
              "citazione_output": _nome_regola(citazione_output)}
 
     try:
@@ -278,10 +426,18 @@ def valida(grezzo: str, etichetta: str, query: str, path_rete: str | None = None
     if str(out_v).strip().lower() == NESSUNA_EVIDENZA:
         esito["motivo"] = "output: lo stato e' 'Not necessary', la domanda non ha target"
         return None, esito
-    if out_v not in voc[out]:
+    etichetta_out = stato_del_grafo(out_v, out, voc[out])
+    if etichetta_out is None:
         esito["motivo"] = (f"output: {out_v!r} non e' uno stato di {out}; "
                            f"stati: {voc[out]}")
         return None, esito
+    if etichetta_out != out_v:
+        # la normalizzazione c'e' stata: si dichiara, perche' il dizionario che il
+        # tool riceve non e' piu' quello che il modello ha scritto
+        esito["stati_normalizzati"][out] = {"scritto": out_v,
+                                            "etichetta": etichetta_out}
+    # la citazione si confronta con la parola **scritta** dal modello, non con
+    # l'etichetta del grafo: una normalizzazione non puo' irrigidire un altro gate
     motivo = _citazione_valida(citazioni.get(out), out, out_v, query_norm)
     if citazione_output is True or (citazione_output == "se-citata"
                                     and isinstance(citazioni.get(out), str)
@@ -293,7 +449,18 @@ def valida(grezzo: str, etichetta: str, query: str, path_rete: str | None = None
         # la citazione del target c'e' e non regge: la si dichiara senza fermare
         # la riga, perche' `se-citata` e `libero` rinunciano a quel controllo
         esito["avviso_output"] = motivo
-    esito["target"] = {out: out_v}
+    esito["target"] = {out: etichetta_out}
+
+    # --- ancoraggio del target alla domanda, solo controfattuale e solo se acceso
+    if target_nella_domanda and str(etichetta).strip().lower() == "counterfactual":
+        esito["regole"] = esito["regole"] + ["target-ancorato"]
+        esito["clausola_domanda"] = clausola_domanda(query_norm)
+        motivo = ancoraggio_target(out, out_v, query_norm, citazioni.get(out))
+        if motivo:
+            # il target non lo decide il codice: la riga si ferma con il motivo, e
+            # chi legge vede la clausola su cui la regola ha guardato
+            esito["motivo"] = f"output {out}={out_v!r}: {motivo}"
+            return None, esito
 
     # --- input: ogni voce passa le regole, e cio' che cade e' dichiarato
     if not isinstance(dati["input"], dict):
@@ -311,10 +478,14 @@ def valida(grezzo: str, etichetta: str, query: str, path_rete: str | None = None
         if str(valore).strip().lower() == NESSUNA_EVIDENZA:
             scarta("nessuna-evidenza", "il valore dichiara che la variabile non c'entra")
             continue
-        if valore not in voc[nome]:
+        etichetta_v = stato_del_grafo(valore, nome, voc[nome])
+        if etichetta_v is None:
             scarta("vocabolario",
                    f"{valore!r} non e' uno stato di {nome}; stati: {voc[nome]}")
             continue
+        if etichetta_v != valore:
+            esito["stati_normalizzati"][nome] = {"scritto": valore,
+                                                 "etichetta": etichetta_v}
         if nome == out:
             scarta("disgiunzione", "la variabile e' gia' il target della domanda")
             continue
@@ -322,7 +493,7 @@ def valida(grezzo: str, etichetta: str, query: str, path_rete: str | None = None
         if motivo:
             scarta("citazione", motivo)
             continue
-        evidenza[nome] = valore
+        evidenza[nome] = etichetta_v
 
     limiti = EVIDENZE_RICHIESTE.get(str(etichetta).strip().lower())
     if limiti:
@@ -344,7 +515,7 @@ def valida(grezzo: str, etichetta: str, query: str, path_rete: str | None = None
             return None, esito
 
     esito["evidenze"] = evidenza
-    return {"input": evidenza, "output": {out: out_v}}, esito
+    return {"input": evidenza, "output": {out: etichetta_out}}, esito
 
 
 class Traduttore:
@@ -359,11 +530,14 @@ class Traduttore:
     `citazione_output` e' una scelta di protocollo della variante, non un dettaglio
     di chiamata: sta sull'oggetto, cosi' ogni riga del JSON dichiara con quale regola
     e' stata verificata e due run con regole diverse non si spacciano per lo stesso.
+    Lo stesso vale per `target_nella_domanda`, che accende l'ancoraggio del target
+    controfattuale ed e' spento di default.
     """
 
-    def __init__(self, cliente, citazione_output=True):
+    def __init__(self, cliente, citazione_output=True, target_nella_domanda=False):
         self._cliente = cliente
         self._citazione_output = citazione_output
+        self._target_nella_domanda = target_nella_domanda
         self._agenti = {}
 
     def agente(self, path_rete: str | None):
@@ -380,7 +554,8 @@ class Traduttore:
 
     def valida(self, grezzo: str, etichetta: str, query: str, path_rete: str | None = None):
         return valida(grezzo, etichetta, query, path_rete,
-                      citazione_output=self._citazione_output)
+                      citazione_output=self._citazione_output,
+                      target_nella_domanda=self._target_nella_domanda)
 
 
 # ---------------------------------------------------------------------------
@@ -388,11 +563,14 @@ class Traduttore:
 # ---------------------------------------------------------------------------
 
 def _casi():
-    """(nome, grezzo, etichetta, query, esito atteso).
+    """(nome, grezzo, etichetta, query, esito atteso) e opzionalmente i flag di `valida`.
 
     Gli esiti attesi sono ('ok', traduzione) o ('no', motivo che deve comparire).
     Le query sono frasi del benchmark reale, per verificare la citazione su testo
     vero e non su un testo inventato che non nomina ne' variabili ne' stati.
+    Un sesto elemento, facoltativo, sono i `kwarg` da passare a `valida`: serve
+    alle regole non in vigore nel protocollo primario, che vanno provate accese
+    E spente -- altrimenti il caso sintetico non dice quale protocollo fissa.
     """
     q_cp = ("Given that the driving quality is normal, how likely is it that "
             "the age of the driver is senior?")
@@ -405,6 +583,12 @@ def _casi():
              "antilock braking system and that the car is as rugged as a football. "
              "What would the probability that the car is as rugged as a football be "
              "if the world had been such that the car has no airbag?")
+    # La forma di CF19 dell'held-out: un booleano scritto come frase. E' la riga che
+    # distingue le due varianti della regola, quindi serve un testo suo.
+    q_cf3 = ("We observed that the car has been stolen and that the car has no "
+             "anti-theft device. What would the probability that the car has been "
+             "stolen be if the world had been such that the car has no anti-theft "
+             "device?")
     return [
         ("forma buona",
          '{"input": {"DrivQuality": "Normal"}, "output": {"Age": "Senior"},'
@@ -510,6 +694,65 @@ def _casi():
          ' "citazioni": {"DrivQuality": "quality is fine", "Age": "the age of the driver is senior"}}',
          "backward_reasoning", q_cp,
          ("no", "citazione non presente nella query")),
+
+        # -- ancoraggio del target alla domanda (regola spenta di default) ----------
+        #
+        # I quattro casi stanno insieme perche' e' la coppia a dire qualcosa: il primo
+        # mostra che con la regola spenta -- il protocollo con cui sono presi i
+        # joule del 02-11 -- la riga passa, il secondo che accesa si ferma, gli
+        # ultimi due che una riga buona non viene uccisa, ciascuno per un ramo
+        # diverso della regola.
+        ("target = l'antecedente ipotetico, regola spenta: passa (default invariato)",
+         '{"input": {"RuggedAuto": "Football"}, "output": {"Airbag": "False"},'
+         ' "citazioni": {"RuggedAuto": "the car is as rugged as a football",'
+         ' "Airbag": "the car has no airbag"}}',
+         # La citazione del target E' una copia fedele della clausola `if the world
+         # had been`, e la variabile e' un nodo vero con uno stato vero: nessuna
+         # regola oggi in vigore puo' fermare questa riga. E' il foro da cui
+         # passano i 27 run controfattuali dell'held-out.
+         "counterfactual", q_cf,
+         ("ok", {"input": {"RuggedAuto": "Football"}, "output": {"Airbag": "False"}}),
+         {}),
+
+        ("target = l'antecedente ipotetico, regola accesa: la riga si ferma",
+         '{"input": {"RuggedAuto": "Football"}, "output": {"Airbag": "False"},'
+         ' "citazioni": {"RuggedAuto": "the car is as rugged as a football",'
+         ' "Airbag": "the car has no airbag"}}',
+         "counterfactual", q_cf,
+         ("no", "il target non compare nella clausola della domanda"),
+         {"target_nella_domanda": True}),
+
+        ("target = la domanda, regola accesa: passa",
+         '{"input": {"Airbag": "True"}, "output": {"RuggedAuto": "Football"},'
+         ' "citazioni": {"Airbag": "the car has an airbag",'
+         ' "RuggedAuto": "the car is as rugged as a football"}}',
+         # Il secondo ramo della regola e' quello che lavora, qui: lo stato
+         # `Football` non compare nella clausola perche' la frase del benchmark
+         # scrive "as rugged as a football", quindi vale la parola del nome.
+         "counterfactual", q_cf,
+         ("ok", {"input": {"Airbag": "True"}, "output": {"RuggedAuto": "Football"}}),
+         {"target_nella_domanda": True}),
+
+        ("booleano scritto come frase: lo salva la citazione del target",
+         '{"input": {"AntiTheft": "False"}, "output": {"Theft": "True"},'
+         ' "citazioni": {"AntiTheft": "the car has no anti-theft device",'
+         ' "Theft": "the car has been stolen"}}',
+         # CF19 dell'held-out, e il caso che separa le due varianti della regola.
+         # Nella clausola interrogativa non compare ne' la parola dello stato (`true`)
+         # ne' il nome della variabile (`theft`): la domanda dice "the car has been
+         # stolen". Con i soli primi due rami questa riga buona si ferma -- e' il
+         # prezzo che il regime `cf-target-stretto` del replay conta; con il terzo
+         # ramo, sulla citazione del target dentro la clausola, passa.
+         #
+         # `citazione_output` sta a `False` perche' e' il regime su cui la regola va
+         # misurata: quello dei joule del 02-11, dove la citazione del target non si
+         # pretende. Con la pretesa accesa questa stessa riga si fermerebbe un gate
+         # prima, alla regola `citazione` ("la citazione non nomina ne' la variabile
+         # ne' lo stato": `theft` non e' nella frase), e il caso proverebbe l'ancoraggio
+         # su una riga che non arriva nemmeno a guardarlo.
+         "counterfactual", q_cf3,
+         ("ok", {"input": {"AntiTheft": "False"}, "output": {"Theft": "True"}}),
+         {"target_nella_domanda": True, "citazione_output": False}),
     ]
 
 
@@ -519,11 +762,19 @@ def autoverifica(path_rete: str | None = None) -> int:
     Un caso `ok` puo' chiedere anche le voci scartate: scartare in silenzio e'
     esattamente il difetto che la variante combate, quindi il conteggio degli
     scarti e' parte dell'aspettativa, non un dettaglio di stampa.
+
+    I `kwarg` del sesto elemento arrivano a `valida` cosi' come sono: la regola
+    `target-ancorato` non e' in vigore nel protocollo primario e il caso sintetico
+    deve poterla provare accesa e spenta sulla stessa riga. Se il ciclo la
+    ignorasse, i tre casi in fondo a `_casi()` direbbero tutti la stessa cosa e
+    l'autoverifica passerebbe senza verificare niente.
     """
     caduti = 0
     scarti = 0
-    for nome, grezzo, etichetta, query, atteso in _casi():
-        traduzione, esito = valida(grezzo, etichetta, query, path_rete)
+    for caso in _casi():
+        nome, grezzo, etichetta, query, atteso = caso[:5]
+        kwarg = caso[5] if len(caso) > 5 else {}
+        traduzione, esito = valida(grezzo, etichetta, query, path_rete, **kwarg)
         scarti += len(esito["scartate"])
         tipo, dettaglio = atteso[0], atteso[1]
         scartate_attese = atteso[2] if len(atteso) > 2 else []
