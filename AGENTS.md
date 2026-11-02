@@ -13,7 +13,11 @@ e gli ancoraggi di `local_energy.py`/`energy_session.py` sono riverificati al
 **27-10-2026** dopo l'uscita di LHM dall'implementazione (D18, 8 test rimossi) e
 di nuovo al **28-10-2026** dopo NVML, AMD SMI, le tre colonne per token, il
 controllo di timestamp del contatore AMD, il fallback `pawnio-counter` e il flag
-`external_counter` (D14).
+`external_counter` (D14). Il conteggio della suite, le righe dei tre schemi CSV
+e le coordinate dei campi di `local_energy.py` sono riverificati al
+**02-11-2026** dopo `cd881e6b` (provenienza dei token ed energia firmata) e
+`9fa9a44c` (finestre con contatore incoerente non valide): la suite e' a **528**
+e `CSV_COLUMNS` a **174** nomi.
 Se un ancoraggio non torna, il file e' stantio: va corretto, non ignorato.
 
 Fonti primarie, in ordine di autorita':
@@ -91,11 +95,12 @@ stanno solo le regole che un agente puo' violare senza accorgersene.
   lettura via PawnIO **richiede un processo elevato**: da token UAC filtrato o
   SAFER `pawnio_open` risponde `0x80070005` e la ragione e' `access_denied`
   (misurato il 28-10-2026). EMI non ha questo requisito. Il canale va scritto per
-  riga in `energy_calculation_method` (`energy/local_energy.py:148`), la finestra
-  in `package_window_source` (`exact-counter | samples-fallback | unavailable`,
-  `:138`), l'origine della baseline in `idle_provenance` (`:139`) e, dalla v4, in
+  riga in `energy_calculation_method` (`energy/local_energy.py:151`), la finestra
+  in `package_window_source` (`exact-counter | samples-fallback | counter-invalid
+  | unavailable`, `:140-141`; `counter-invalid` dal 02-11-2026, `9fa9a44c`),
+  l'origine della baseline in `idle_provenance` (`:142`) e, dalla v4, in
   `baseline_backend` — campo del protocollo P1.3, non ancora presente nel codice.
-  Il flag `external_counter` (`:153`, D14) dice se quel numero viene da un canale
+  Il flag `external_counter` (`:156`, D14) dice se quel numero viene da un canale
   **esterno** alla catena: vero solo per `energy-file` (`CW_ENERGY_FILE`), falso
   per EMI, PawnIO, RAPL e per le catene GPU. Serve a escludere le righe
   dell'override con un filtro booleano, non confrontando l'etichetta.
@@ -163,7 +168,7 @@ stanno solo le regole che un agente puo' violare senza accorgersene.
   codice di produzione e' dunque in ritardo di una generazione di metodo rispetto
   alla specifica. Uno zero legittimo e' dichiarato, non inventato: baseline non
   calibrata -> `baseline_energy_j = 0` con `idle_provenance = "uncalibrated"`
-  (`energy/local_energy.py:373-382`).
+  (`energy/local_energy.py:380-390`).
 - **Linguaggio dell'incertezza.** "Semi-range conservativi", mai "deviazione
   standard": con `n = 3` non si stima una varianza. Nessun `sqrt(...)` del
   protocollo e' una propagazione di varianza: sono combinazioni in quadratura di
@@ -203,7 +208,7 @@ stanno solo le regole che un agente puo' violare senza accorgersene.
 ## Comandi di verifica
 
 ```
-pytest cwEnergyModular          # 526 raccolti: 523 passati, 3 saltati (10 s)
+pytest cwEnergyModular          # 528 raccolti: 525 passati, 3 saltati (12 s)
 ```
 
 **Mai `pytest` nudo dalla radice**: la raccolta viene interrotta da 6 errori in
@@ -234,13 +239,13 @@ indefiniti.
   PawnIO: sonda del driver e del modulo, unita' derivata, fallback dichiarato di
   EMI), `energy/energy_session.py` (canali, integrazione di
   finestra, interpolazione ai bordi), `energy/local_energy.py` (campi per riga),
-  `casualwatt_csv_export.py` (`CSV_COLUMNS`, righe 17-200;
-  `BLOCK_SUMMARY_COLUMNS`, 208-223; `POINT_SUMMARY_COLUMNS`, 225-233), e il
+  `casualwatt_csv_export.py` (`CSV_COLUMNS`, righe 17-204 — 174 nomi;
+  `BLOCK_SUMMARY_COLUMNS`, 212-227; `POINT_SUMMARY_COLUMNS`, 229-237), e il
   runner v4 `benchmark_v4.py` (sequenza di blocco di P1.5).
-- **I test stanno in due posti**: `cwEnergyModular/tests/` (467 raccolti) e
+- **I test stanno in due posti**: `cwEnergyModular/tests/` (469 raccolti) e
   direttamente in `cwEnergyModular/` (`test_answer_type_evaluation.py`, 35;
   `test_synthetic_window.py`, 2; `test_validazione_valutazione.py`, 22);
-  467 + 59 = 526. Ogni test ha una docstring che
+  469 + 59 = 528. Ogni test ha una docstring che
   dice *perche'* esiste e quale relazione matematica o fisica verifica, non solo
   cosa fa. Al 28-10-2026 la norma non e' rispettata da nove funzioni (13 node
   id, tutte scritte il 27-28/10): otto in `tests/test_pawnio_backend.py`, una in
