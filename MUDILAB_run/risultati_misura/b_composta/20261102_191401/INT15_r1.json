@@ -1,0 +1,217 @@
+{
+  "variante": "b_composta",
+  "descrizione": "via B con i due passi di routing corretti insieme: traduttore ancorato al grafo con scarto dichiarato, e classificatore sulla forma della domanda",
+  "cambia_rispetto_a_b_base": "passo translator come b_verificata (citazione richiesta sull'input, non sull'output) e passo classificator come b_esempi; spiegazione invariata",
+  "task_id": "INT15",
+  "ripetizione": 1,
+  "rete": "C:\\Users\\Massimo\\Documents\\CasualWatt\\CWProject\\MUDILAB_run\\consegna\\insurance_grafo.bif",
+  "rete_hash": "94c01027ef297aed2f36870416729e0335dfc0c84a420b1bc0a24dd6f1f782dd",
+  "provenienza": {
+    "varianti\\b_composta.py": "7da1891fa867950577154ee659796ddc87af274de911b184a05084c0dc7090b4",
+    "run_orchestrato.py": "da1a58e2ac265293239aa1ba5c8a14ff393edfa0985c20a6365440d54da51abe",
+    "run_query.py": "39ba30e59a7f8dbae66774821a10b6ae17b255224c0d8c4eae4e91c9ab478793",
+    "traduzione_controllata.py": "9f477698b96d0614db2a3f1a5437bc41d3154e21ac3670673c95a42de371df1a",
+    "classificazione_controllata.py": "686ff6bc82c85087b08984393f5fc5d256a57f16ac47b8862720c19e439cbba4",
+    "consegna\\agents_corretto.py": "f6b8e2fe9960b77665b7eafb08686c92068108df101350a0cb1c37ecb89de1ba",
+    "consegna\\tools_corretto.py": "adbd7d0f3bf2ee40859bb518e840d35ce6cfa38ae7b568c23f211509185c6559",
+    "consegna\\funtions_corretto.py": "60f8032884a0c62662edb1bf6e81c32ee47c5d6ba2595523461f3556f0b86db2",
+    "consegna\\insurance_grafo.bif": "94c01027ef297aed2f36870416729e0335dfc0c84a420b1bc0a24dd6f1f782dd"
+  },
+  "errore_variante": "",
+  "risultato": {
+    "modalita": "orchestrata",
+    "model": "llama3.2:3b-instruct-q4_K_M",
+    "modello_spiegazione": "llama3.2:3b-instruct-q4_K_M",
+    "source": {
+      "agents": "agents_corretto.py",
+      "tools": "tools_corretto.py",
+      "funtions": "funtions_corretto.py"
+    },
+    "opzioni": {
+      "temperature": 0.0
+    },
+    "opzioni_passi": {
+      "translator": {
+        "response_format": {
+          "type": "json_schema",
+          "json_schema": {
+            "name": "traduzione_verificabile",
+            "strict": true,
+            "schema": {
+              "type": "object",
+              "properties": {
+                "input": {
+                  "type": "object",
+                  "additionalProperties": {
+                    "type": "string"
+                  }
+                },
+                "output": {
+                  "type": "object",
+                  "minProperties": 1,
+                  "maxProperties": 1,
+                  "additionalProperties": {
+                    "type": "string"
+                  }
+                },
+                "citazioni": {
+                  "type": "object",
+                  "minProperties": 1,
+                  "additionalProperties": {
+                    "type": "string"
+                  }
+                }
+              },
+              "required": [
+                "input",
+                "output",
+                "citazioni"
+              ],
+              "additionalProperties": false
+            }
+          }
+        }
+      }
+    },
+    "spiegazione": true,
+    "rete": "C:\\Users\\Massimo\\Documents\\CasualWatt\\CWProject\\MUDILAB_run\\consegna\\insurance_grafo.bif",
+    "task": "What is the probability that the damage to this car is mild if we intervene to make it so that the car is as rugged as a tank?",
+    "etichetta": "intervention",
+    "etichette_nel_testo": [
+      "intervention"
+    ],
+    "traduzione": {
+      "input": {
+        "RuggedAuto": "Tank"
+      },
+      "output": {
+        "ThisCarDam": "Mild"
+      }
+    },
+    "controllo_traduzione": {
+      "regole": [
+        "vocabolario",
+        "nessuna-evidenza",
+        "citazione",
+        "disgiunzione"
+      ],
+      "scartate": [
+        {
+          "lato": "input",
+          "variabile": "ThisCarDam",
+          "valore": "Mild",
+          "regola": "disgiunzione",
+          "dettaglio": "la variabile e' gia' il target della domanda"
+        }
+      ],
+      "motivo": "",
+      "etichetta": "intervention",
+      "evidenze": {
+        "RuggedAuto": "Tank"
+      },
+      "target": {
+        "ThisCarDam": "Mild"
+      },
+      "citazione_output": "non richiesta"
+    },
+    "numero": "The probability of ThisCarDam equal to Mild given the current intervention is 0.097",
+    "seconds_total": 14.937,
+    "misura": {
+      "attiva": true,
+      "disponibile": true,
+      "errore": "",
+      "note": [
+        "canale emi-counter",
+        "bordo di riscaldamento scartato: 1.378 s",
+        "baseline calibrata: 6.480 W",
+        "riscaldamento routing (llama3.2:3b-instruct-q4_K_M) scartato: 2.320 s",
+        "riscaldamento spiegazione (llama3.2:3b-instruct-q4_K_M) scartato: 0.178 s",
+        "primo run scartato (caricamento e cache dei prompt)"
+      ]
+    },
+    "totale": {
+      "energia_pkg_j": 450.506594,
+      "energia_pkg_raw_j": 450.506594,
+      "energia_attiva_j": 353.641869,
+      "attiva_valida": true,
+      "canale": "emi-counter",
+      "finestra": "exact-counter",
+      "idle": "calibrated"
+    },
+    "fuori_dai_passi_j": 1.964688,
+    "steps": [
+      {
+        "step": "translator",
+        "seconds": 6.117,
+        "tokens": {
+          "input_token_count": 1949,
+          "output_token_count": 66,
+          "total_token_count": 2015
+        },
+        "misura": {
+          "energia_pkg_j": 180.271409,
+          "energia_pkg_raw_j": 180.271409,
+          "energia_attiva_j": 140.325404,
+          "attiva_valida": true,
+          "canale": "emi-counter",
+          "finestra": "exact-counter",
+          "idle": "calibrated"
+        },
+        "text": "{\"input\": {\"ThisCarDam\": \"Mild\", \"RuggedAuto\": \"Tank\"}, \"output\": {\"ThisCarDam\": \"Mild\"}, \"citazioni\": {\"ThisCarDam\": \"the damage to this car is mild\", \"RuggedAuto\": \"the car is as rugged as a tank\"}}"
+      },
+      {
+        "step": "classificator",
+        "seconds": 0.607,
+        "tokens": {
+          "input_token_count": 592,
+          "output_token_count": 3,
+          "total_token_count": 595
+        },
+        "misura": {
+          "energia_pkg_j": 19.781995,
+          "energia_pkg_raw_j": 19.781995,
+          "energia_attiva_j": 15.783362,
+          "attiva_valida": true,
+          "canale": "emi-counter",
+          "finestra": "exact-counter",
+          "idle": "calibrated"
+        },
+        "text": "intervention"
+      },
+      {
+        "step": "cau_inference",
+        "seconds": 0.053,
+        "tokens": {},
+        "misura": {
+          "energia_pkg_j": 2.256939,
+          "energia_pkg_raw_j": 2.256939,
+          "energia_attiva_j": 1.844468,
+          "attiva_valida": true,
+          "canale": "emi-counter",
+          "finestra": "exact-counter",
+          "idle": "calibrated"
+        },
+        "text": "The probability of ThisCarDam equal to Mild given the current intervention is 0.097"
+      },
+      {
+        "step": "causal_A",
+        "seconds": 7.976,
+        "tokens": {
+          "input_token_count": 310,
+          "output_token_count": 93,
+          "total_token_count": 403
+        },
+        "misura": {
+          "energia_pkg_j": 246.231563,
+          "energia_pkg_raw_j": 246.231563,
+          "energia_attiva_j": 194.193703,
+          "attiva_valida": true,
+          "canale": "emi-counter",
+          "finestra": "exact-counter",
+          "idle": "calibrated"
+        },
+        "text": "The probability that the damage to this car is mild if we intervene to make it so that the car is as rugged as a tank is 0.097.\n\nIntervening to make the car as rugged as a tank would likely result in the damage being more severe, rather than mild, as tanks are designed to withstand heavy impacts and damage. This suggests that the relationship between ruggedness and damage is not straightforward, and that other factors may be at play."
+      }
+    ]
+  }
+}

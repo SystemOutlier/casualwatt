@@ -1,0 +1,225 @@
+{
+  "variante": "b_composta",
+  "descrizione": "via B con i due passi di routing corretti insieme: traduttore ancorato al grafo con scarto dichiarato, e classificatore sulla forma della domanda",
+  "cambia_rispetto_a_b_base": "passo translator come b_verificata (citazione richiesta sull'input, non sull'output) e passo classificator come b_esempi; spiegazione invariata",
+  "task_id": "COH21",
+  "ripetizione": 1,
+  "rete": "C:\\Users\\Massimo\\Documents\\CasualWatt\\CWProject\\MUDILAB_run\\consegna\\insurance_grafo.bif",
+  "rete_hash": "94c01027ef297aed2f36870416729e0335dfc0c84a420b1bc0a24dd6f1f782dd",
+  "provenienza": {
+    "varianti\\b_composta.py": "7da1891fa867950577154ee659796ddc87af274de911b184a05084c0dc7090b4",
+    "run_orchestrato.py": "da1a58e2ac265293239aa1ba5c8a14ff393edfa0985c20a6365440d54da51abe",
+    "run_query.py": "39ba30e59a7f8dbae66774821a10b6ae17b255224c0d8c4eae4e91c9ab478793",
+    "traduzione_controllata.py": "9f477698b96d0614db2a3f1a5437bc41d3154e21ac3670673c95a42de371df1a",
+    "classificazione_controllata.py": "686ff6bc82c85087b08984393f5fc5d256a57f16ac47b8862720c19e439cbba4",
+    "consegna\\agents_corretto.py": "f6b8e2fe9960b77665b7eafb08686c92068108df101350a0cb1c37ecb89de1ba",
+    "consegna\\tools_corretto.py": "adbd7d0f3bf2ee40859bb518e840d35ce6cfa38ae7b568c23f211509185c6559",
+    "consegna\\funtions_corretto.py": "60f8032884a0c62662edb1bf6e81c32ee47c5d6ba2595523461f3556f0b86db2",
+    "consegna\\insurance_grafo.bif": "94c01027ef297aed2f36870416729e0335dfc0c84a420b1bc0a24dd6f1f782dd"
+  },
+  "errore_variante": "",
+  "risultato": {
+    "modalita": "orchestrata",
+    "model": "llama3.2:3b-instruct-q4_K_M",
+    "modello_spiegazione": "llama3.2:3b-instruct-q4_K_M",
+    "source": {
+      "agents": "agents_corretto.py",
+      "tools": "tools_corretto.py",
+      "funtions": "funtions_corretto.py"
+    },
+    "opzioni": {
+      "temperature": 0.0
+    },
+    "opzioni_passi": {
+      "translator": {
+        "response_format": {
+          "type": "json_schema",
+          "json_schema": {
+            "name": "traduzione_verificabile",
+            "strict": true,
+            "schema": {
+              "type": "object",
+              "properties": {
+                "input": {
+                  "type": "object",
+                  "additionalProperties": {
+                    "type": "string"
+                  }
+                },
+                "output": {
+                  "type": "object",
+                  "minProperties": 1,
+                  "maxProperties": 1,
+                  "additionalProperties": {
+                    "type": "string"
+                  }
+                },
+                "citazioni": {
+                  "type": "object",
+                  "minProperties": 1,
+                  "additionalProperties": {
+                    "type": "string"
+                  }
+                }
+              },
+              "required": [
+                "input",
+                "output",
+                "citazioni"
+              ],
+              "additionalProperties": false
+            }
+          }
+        }
+      }
+    },
+    "spiegazione": true,
+    "rete": "C:\\Users\\Massimo\\Documents\\CasualWatt\\CWProject\\MUDILAB_run\\consegna\\insurance_grafo.bif",
+    "task": "Is it coherent that the repair cost for the other car is one thousand dollars given that the driver is an adult and that the repair cost for this car is ten thousand dollars?",
+    "etichetta": "coherence",
+    "etichette_nel_testo": [
+      "coherence"
+    ],
+    "traduzione": {
+      "input": {
+        "ThisCarCost": "TenThou"
+      },
+      "output": {
+        "SocioEcon": "Middle"
+      }
+    },
+    "controllo_traduzione": {
+      "regole": [
+        "vocabolario",
+        "nessuna-evidenza",
+        "citazione",
+        "disgiunzione"
+      ],
+      "scartate": [
+        {
+          "lato": "input",
+          "variabile": "SocioEcon",
+          "valore": "Middle",
+          "regola": "disgiunzione",
+          "dettaglio": "la variabile e' gia' il target della domanda"
+        },
+        {
+          "lato": "input",
+          "variabile": "Age",
+          "valore": "Adult",
+          "regola": "citazione",
+          "dettaglio": "citazione non presente nella query"
+        }
+      ],
+      "motivo": "",
+      "etichetta": "coherence",
+      "evidenze": {
+        "ThisCarCost": "TenThou"
+      },
+      "target": {
+        "SocioEcon": "Middle"
+      },
+      "citazione_output": "non richiesta",
+      "avviso_output": "citazione non presente nella query"
+    },
+    "numero": "Evidences are NOT strongly compatible with a single SocioEcon of Middle with a probability of 0.3517",
+    "seconds_total": 15.943,
+    "misura": {
+      "attiva": true,
+      "disponibile": true,
+      "errore": "",
+      "note": [
+        "canale emi-counter",
+        "bordo di riscaldamento scartato: 1.416 s",
+        "baseline calibrata: 6.901 W",
+        "riscaldamento routing (llama3.2:3b-instruct-q4_K_M) scartato: 3.605 s",
+        "riscaldamento spiegazione (llama3.2:3b-instruct-q4_K_M) scartato: 0.158 s",
+        "primo run scartato (caricamento e cache dei prompt)"
+      ]
+    },
+    "totale": {
+      "energia_pkg_j": 478.620579,
+      "energia_pkg_raw_j": 478.620579,
+      "energia_attiva_j": 368.521639,
+      "attiva_valida": true,
+      "canale": "emi-counter",
+      "finestra": "exact-counter",
+      "idle": "calibrated"
+    },
+    "fuori_dai_passi_j": 2.243336,
+    "steps": [
+      {
+        "step": "translator",
+        "seconds": 8.551,
+        "tokens": {
+          "input_token_count": 1954,
+          "output_token_count": 91,
+          "total_token_count": 2045
+        },
+        "misura": {
+          "energia_pkg_j": 252.189738,
+          "energia_pkg_raw_j": 252.189738,
+          "energia_attiva_j": 193.039204,
+          "attiva_valida": true,
+          "canale": "emi-counter",
+          "finestra": "exact-counter",
+          "idle": "calibrated"
+        },
+        "text": "{\"input\": {\"SocioEcon\": \"Middle\", \"Age\": \"Adult\", \"ThisCarCost\": \"TenThou\"}, \"output\": {\"SocioEcon\": \"Middle\"}, \"citazioni\": {\"SocioEcon\": \"the socio-economic status of the driver is middle\", \"Age\": \"the age of the driver is adult\", \"ThisCarCost\": \"the repair cost for this car is ten thousand dollars\"}}"
+      },
+      {
+        "step": "classificator",
+        "seconds": 0.723,
+        "tokens": {
+          "input_token_count": 597,
+          "output_token_count": 3,
+          "total_token_count": 600
+        },
+        "misura": {
+          "energia_pkg_j": 24.607217,
+          "energia_pkg_raw_j": 24.607217,
+          "energia_attiva_j": 19.540627,
+          "attiva_valida": true,
+          "canale": "emi-counter",
+          "finestra": "exact-counter",
+          "idle": "calibrated"
+        },
+        "text": "coherence"
+      },
+      {
+        "step": "cau_inference",
+        "seconds": 0.05,
+        "tokens": {},
+        "misura": {
+          "energia_pkg_j": 1.806149,
+          "energia_pkg_raw_j": 1.806149,
+          "energia_attiva_j": 1.387438,
+          "attiva_valida": true,
+          "canale": "emi-counter",
+          "finestra": "exact-counter",
+          "idle": "calibrated"
+        },
+        "text": "Evidences are NOT strongly compatible with a single SocioEcon of Middle with a probability of 0.3517"
+      },
+      {
+        "step": "causal_A",
+        "seconds": 6.505,
+        "tokens": {
+          "input_token_count": 325,
+          "output_token_count": 71,
+          "total_token_count": 396
+        },
+        "misura": {
+          "energia_pkg_j": 197.774139,
+          "energia_pkg_raw_j": 197.774139,
+          "energia_attiva_j": 152.778473,
+          "attiva_valida": true,
+          "canale": "emi-counter",
+          "finestra": "exact-counter",
+          "idle": "calibrated"
+        },
+        "text": "0.3517\n\nThe repair cost for the other car being one thousand dollars is not strongly coherent given that the driver is an adult and the repair cost for this car is ten thousand dollars. The evidence suggests that the socio-economic status of the driver is likely to be middle-class, which is inconsistent with the low repair cost for the other car."
+      }
+    ]
+  }
+}

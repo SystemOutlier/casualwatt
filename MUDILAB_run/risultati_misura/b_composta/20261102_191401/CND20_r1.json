@@ -1,0 +1,210 @@
+{
+  "variante": "b_composta",
+  "descrizione": "via B con i due passi di routing corretti insieme: traduttore ancorato al grafo con scarto dichiarato, e classificatore sulla forma della domanda",
+  "cambia_rispetto_a_b_base": "passo translator come b_verificata (citazione richiesta sull'input, non sull'output) e passo classificator come b_esempi; spiegazione invariata",
+  "task_id": "CND20",
+  "ripetizione": 1,
+  "rete": "C:\\Users\\Massimo\\Documents\\CasualWatt\\CWProject\\MUDILAB_run\\benchmark\\insurance_grafo_perturbato.bif",
+  "rete_hash": "8b572235b98da1c3716b68a7ad20bd17d80a12bcb8f92c8aee15ec1e5e780443",
+  "provenienza": {
+    "varianti\\b_composta.py": "7da1891fa867950577154ee659796ddc87af274de911b184a05084c0dc7090b4",
+    "run_orchestrato.py": "da1a58e2ac265293239aa1ba5c8a14ff393edfa0985c20a6365440d54da51abe",
+    "run_query.py": "39ba30e59a7f8dbae66774821a10b6ae17b255224c0d8c4eae4e91c9ab478793",
+    "traduzione_controllata.py": "9f477698b96d0614db2a3f1a5437bc41d3154e21ac3670673c95a42de371df1a",
+    "classificazione_controllata.py": "686ff6bc82c85087b08984393f5fc5d256a57f16ac47b8862720c19e439cbba4",
+    "consegna\\agents_corretto.py": "f6b8e2fe9960b77665b7eafb08686c92068108df101350a0cb1c37ecb89de1ba",
+    "consegna\\tools_corretto.py": "adbd7d0f3bf2ee40859bb518e840d35ce6cfa38ae7b568c23f211509185c6559",
+    "consegna\\funtions_corretto.py": "60f8032884a0c62662edb1bf6e81c32ee47c5d6ba2595523461f3556f0b86db2",
+    "consegna\\insurance_grafo.bif": "94c01027ef297aed2f36870416729e0335dfc0c84a420b1bc0a24dd6f1f782dd"
+  },
+  "errore_variante": "",
+  "risultato": {
+    "modalita": "orchestrata",
+    "model": "llama3.2:3b-instruct-q4_K_M",
+    "modello_spiegazione": "llama3.2:3b-instruct-q4_K_M",
+    "source": {
+      "agents": "agents_corretto.py",
+      "tools": "tools_corretto.py",
+      "funtions": "funtions_corretto.py"
+    },
+    "opzioni": {
+      "temperature": 0.0
+    },
+    "opzioni_passi": {
+      "translator": {
+        "response_format": {
+          "type": "json_schema",
+          "json_schema": {
+            "name": "traduzione_verificabile",
+            "strict": true,
+            "schema": {
+              "type": "object",
+              "properties": {
+                "input": {
+                  "type": "object",
+                  "additionalProperties": {
+                    "type": "string"
+                  }
+                },
+                "output": {
+                  "type": "object",
+                  "minProperties": 1,
+                  "maxProperties": 1,
+                  "additionalProperties": {
+                    "type": "string"
+                  }
+                },
+                "citazioni": {
+                  "type": "object",
+                  "minProperties": 1,
+                  "additionalProperties": {
+                    "type": "string"
+                  }
+                }
+              },
+              "required": [
+                "input",
+                "output",
+                "citazioni"
+              ],
+              "additionalProperties": false
+            }
+          }
+        }
+      }
+    },
+    "spiegazione": true,
+    "rete": "C:\\Users\\Massimo\\Documents\\CasualWatt\\CWProject\\MUDILAB_run\\benchmark\\insurance_grafo_perturbato.bif",
+    "task": "Given that the socio-economic status is upper-middle, how likely is it that the driver is a teenager?",
+    "etichetta": "backward_reasoning",
+    "etichette_nel_testo": [
+      "backward_reasoning"
+    ],
+    "traduzione": {
+      "input": {
+        "SocioEcon": "UpperMiddle"
+      },
+      "output": {
+        "Age": "Adolescent"
+      }
+    },
+    "controllo_traduzione": {
+      "regole": [
+        "vocabolario",
+        "nessuna-evidenza",
+        "citazione",
+        "disgiunzione"
+      ],
+      "scartate": [],
+      "motivo": "",
+      "etichetta": "backward_reasoning",
+      "evidenze": {
+        "SocioEcon": "UpperMiddle"
+      },
+      "target": {
+        "Age": "Adolescent"
+      },
+      "citazione_output": "non richiesta",
+      "avviso_output": "citazione non presente nella query"
+    },
+    "numero": "The probability of Age is Adolescent given the provided conditions is 0.274",
+    "seconds_total": 16.345,
+    "misura": {
+      "attiva": true,
+      "disponibile": true,
+      "errore": "",
+      "note": [
+        "canale emi-counter",
+        "bordo di riscaldamento scartato: 1.378 s",
+        "baseline calibrata: 6.480 W",
+        "riscaldamento routing (llama3.2:3b-instruct-q4_K_M) scartato: 2.320 s",
+        "riscaldamento spiegazione (llama3.2:3b-instruct-q4_K_M) scartato: 0.178 s",
+        "primo run scartato (caricamento e cache dei prompt)"
+      ]
+    },
+    "totale": {
+      "energia_pkg_j": 488.523441,
+      "energia_pkg_raw_j": 488.523441,
+      "energia_attiva_j": 382.540468,
+      "attiva_valida": true,
+      "canale": "emi-counter",
+      "finestra": "exact-counter",
+      "idle": "calibrated"
+    },
+    "fuori_dai_passi_j": 1.681038,
+    "steps": [
+      {
+        "step": "translator",
+        "seconds": 5.252,
+        "tokens": {
+          "input_token_count": 1941,
+          "output_token_count": 56,
+          "total_token_count": 1997
+        },
+        "misura": {
+          "energia_pkg_j": 159.310467,
+          "energia_pkg_raw_j": 159.310467,
+          "energia_attiva_j": 125.207964,
+          "attiva_valida": true,
+          "canale": "emi-counter",
+          "finestra": "exact-counter",
+          "idle": "calibrated"
+        },
+        "text": "{\"input\": {\"SocioEcon\": \"UpperMiddle\"}, \"output\": {\"Age\": \"Adolescent\"}, \"citazioni\": {\"SocioEcon\": \"the socio-economic status is upper-middle\", \"Age\": \"the age of the driver is adolescent\"}}"
+      },
+      {
+        "step": "classificator",
+        "seconds": 0.648,
+        "tokens": {
+          "input_token_count": 584,
+          "output_token_count": 4,
+          "total_token_count": 588
+        },
+        "misura": {
+          "energia_pkg_j": 20.090533,
+          "energia_pkg_raw_j": 20.090533,
+          "energia_attiva_j": 15.82125,
+          "attiva_valida": true,
+          "canale": "emi-counter",
+          "finestra": "exact-counter",
+          "idle": "calibrated"
+        },
+        "text": "backward_reasoning"
+      },
+      {
+        "step": "cau_inference",
+        "seconds": 0.04,
+        "tokens": {},
+        "misura": {
+          "energia_pkg_j": 1.696166,
+          "energia_pkg_raw_j": 1.696166,
+          "energia_attiva_j": 1.364487,
+          "attiva_valida": true,
+          "canale": "emi-counter",
+          "finestra": "exact-counter",
+          "idle": "calibrated"
+        },
+        "text": "The probability of Age is Adolescent given the provided conditions is 0.274"
+      },
+      {
+        "step": "causal_A",
+        "seconds": 10.307,
+        "tokens": {
+          "input_token_count": 302,
+          "output_token_count": 127,
+          "total_token_count": 429
+        },
+        "misura": {
+          "energia_pkg_j": 305.745237,
+          "energia_pkg_raw_j": 305.745237,
+          "energia_attiva_j": 238.892146,
+          "attiva_valida": true,
+          "canale": "emi-counter",
+          "finestra": "exact-counter",
+          "idle": "calibrated"
+        },
+        "text": "The probability of Age being Adolescent given the provided conditions is 0.274.\n\nGiven that the socio-economic status is upper-middle, the likelihood that the driver is a teenager is relatively low. The causal structure suggests that there is a relationship between socio-economic status and age, but it is not a direct causal link. The probability of 0.274 indicates that, given the upper-middle socio-economic status, the driver is approximately 27.4% likely to be a teenager. This suggests that other factors, such as parental influence, education, and access to resources, play a more significant role in determining the driver's age."
+      }
+    ]
+  }
+}

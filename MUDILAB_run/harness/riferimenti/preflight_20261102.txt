@@ -1,0 +1,33 @@
+# Preflight del canale energetico - 02-11-2026
+# comando: MUDILabV/mudilab_env/Scripts/python.exe MUDILAB_run/harness/preflight_misura.py --secondi 2 --modelli llama3.2:3b-instruct-q4_K_M
+# interprete: 3.12.9  |  psutil: 7.2.2
+# condizioni constatate prima di lanciare: nessun processo python vivo, nessun modello in ollama ps, LibreHardwareMonitor non in esecuzione, RAM libera 17093 MB
+# --- stdout del preflight ---
+RAM libera: 17045 MB (richiesti 6144 MB)
+modello llama3.2:3b-instruct-q4_K_M: presente
+canale: emi-counter
+bordo di riscaldamento: counter_error=''
+finestra di prova: 2.001 s
+energia package: 19.884719 J (grezza 19.884719)
+energia attiva: 19.884719 J (valida: False)
+metodo: emi-counter
+provenienza finestra: exact-counter
+baseline: uncalibrated
+
+NON e' una misura: la finestra e' corta e il carico di fondo puo' essere quello di altre attivita'.
+canale disponibile
+--- exit code: 0 ---
+
+# --- come si legge (rigenerato da questa stessa lettura, non ricopiato) ---
+# Potenza media sulla finestra: 9.9374 W = 19.884719 J / 2.001 s -- valore atteso per una
+# macchina a riposo. Non lo confrontiamo con le baseline di CasualWatt: qui non c'e'
+# stato settle_idle ne' calibrazione, quindi e' un numero di canale, non una baseline.
+# 'valida: False' e 'baseline: uncalibrated' NON sono un guasto: senza --calibra la
+# baseline e' zero per protocollo (AGENTS.md: baseline non calibrata ->
+# baseline_energy_j = 0 con idle_provenance = 'uncalibrated'), quindi l'energia
+# attiva coincide con quella del package e non e' pubblicabile come attiva.
+# Il preflight risponde alla sola domanda per cui esiste: il canale c'e'
+# (emi-counter, finestra exact-counter, counter_error vuoto su tutti e tre i bordi).
+# La calibrazione la paga il run: run_misura.cmd passa --calibra-idle al runner,
+# percio' qui --calibra e' stato omesso di proposito (90 s duplicati).
+# Exit code 0 = canale disponibile.

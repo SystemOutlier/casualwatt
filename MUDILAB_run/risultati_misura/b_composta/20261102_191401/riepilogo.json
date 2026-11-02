@@ -1,0 +1,1961 @@
+{
+  "variante": "b_composta",
+  "modello": "llama3.2:3b-instruct-q4_K_M",
+  "modello_spiegazione": "llama3.2:3b-instruct-q4_K_M",
+  "provenienza": {
+    "varianti\\b_composta.py": "7da1891fa867950577154ee659796ddc87af274de911b184a05084c0dc7090b4",
+    "run_orchestrato.py": "da1a58e2ac265293239aa1ba5c8a14ff393edfa0985c20a6365440d54da51abe",
+    "run_query.py": "39ba30e59a7f8dbae66774821a10b6ae17b255224c0d8c4eae4e91c9ab478793",
+    "traduzione_controllata.py": "9f477698b96d0614db2a3f1a5437bc41d3154e21ac3670673c95a42de371df1a",
+    "classificazione_controllata.py": "686ff6bc82c85087b08984393f5fc5d256a57f16ac47b8862720c19e439cbba4",
+    "consegna\\agents_corretto.py": "f6b8e2fe9960b77665b7eafb08686c92068108df101350a0cb1c37ecb89de1ba",
+    "consegna\\tools_corretto.py": "adbd7d0f3bf2ee40859bb518e840d35ce6cfa38ae7b568c23f211509185c6559",
+    "consegna\\funtions_corretto.py": "60f8032884a0c62662edb1bf6e81c32ee47c5d6ba2595523461f3556f0b86db2",
+    "consegna\\insurance_grafo.bif": "94c01027ef297aed2f36870416729e0335dfc0c84a420b1bc0a24dd6f1f782dd"
+  },
+  "opzioni_harness": {
+    "ripetizioni": 3,
+    "misura": true,
+    "calibra_idle": true,
+    "riscalda_modelli": true,
+    "scarta_primo_run": true
+  },
+  "misura": {
+    "attiva": true,
+    "disponibile": true,
+    "errore": "",
+    "note": [
+      "canale emi-counter",
+      "bordo di riscaldamento scartato: 1.378 s",
+      "baseline calibrata: 6.480 W",
+      "riscaldamento routing (llama3.2:3b-instruct-q4_K_M) scartato: 2.320 s",
+      "riscaldamento spiegazione (llama3.2:3b-instruct-q4_K_M) scartato: 0.178 s",
+      "primo run scartato (caricamento e cache dei prompt)"
+    ]
+  },
+  "n_query": 80,
+  "n_run": 240,
+  "n_falliti": 102,
+  "esiti": [
+    {
+      "task_id": "CND03",
+      "ripetizione": 1,
+      "file": "CND03_r1.json",
+      "secondi": 7.908,
+      "etichetta": null,
+      "errore": "ValueError: controllo_traduzione: backward_reasoning: servono almeno 1 evidenza/e, restano []; scartate: RiskAversion='Normal' (citazione: citazione non presente nella query), SocioEcon='Prole' (disgiunzione: la variabile e' gia' il target della domanda), GoodStudent='False' (citazione: citazione non presente nella query)"
+    },
+    {
+      "task_id": "CND04",
+      "ripetizione": 1,
+      "file": "CND04_r1.json",
+      "secondi": 14.401,
+      "etichetta": "backward_reasoning",
+      "errore": ""
+    },
+    {
+      "task_id": "CND07",
+      "ripetizione": 1,
+      "file": "CND07_r1.json",
+      "secondi": 5.885,
+      "etichetta": null,
+      "errore": "ValueError: controllo_traduzione: backward_reasoning: servono almeno 1 evidenza/e, restano []; scartate: RiskAversion='Normal' (citazione: citazione non presente nella query)"
+    },
+    {
+      "task_id": "CND08",
+      "ripetizione": 1,
+      "file": "CND08_r1.json",
+      "secondi": 6.76,
+      "etichetta": null,
+      "errore": "ValueError: controllo_traduzione: output: 'fifty thousand dollars' non e' uno stato di CarValue; stati: ['FiveThou', 'TenThou', 'TwentyThou', 'FiftyThou', 'Million']"
+    },
+    {
+      "task_id": "CND11",
+      "ripetizione": 1,
+      "file": "CND11_r1.json",
+      "secondi": 12.451,
+      "etichetta": "backward_reasoning",
+      "errore": ""
+    },
+    {
+      "task_id": "CND12",
+      "ripetizione": 1,
+      "file": "CND12_r1.json",
+      "secondi": 4.89,
+      "etichetta": null,
+      "errore": "ValueError: controllo_traduzione: backward_reasoning: servono almeno 1 evidenza/e, restano []; scartate: Antilock='False' (citazione: citazione non presente nella query)"
+    },
+    {
+      "task_id": "CND15",
+      "ripetizione": 1,
+      "file": "CND15_r1.json",
+      "secondi": 12.089,
+      "etichetta": "backward_reasoning",
+      "errore": ""
+    },
+    {
+      "task_id": "CND16",
+      "ripetizione": 1,
+      "file": "CND16_r1.json",
+      "secondi": 12.342,
+      "etichetta": "backward_reasoning",
+      "errore": ""
+    },
+    {
+      "task_id": "CND19",
+      "ripetizione": 1,
+      "file": "CND19_r1.json",
+      "secondi": 11.28,
+      "etichetta": "backward_reasoning",
+      "errore": ""
+    },
+    {
+      "task_id": "CND20",
+      "ripetizione": 1,
+      "file": "CND20_r1.json",
+      "secondi": 16.368,
+      "etichetta": "backward_reasoning",
+      "errore": ""
+    },
+    {
+      "task_id": "CND23",
+      "ripetizione": 1,
+      "file": "CND23_r1.json",
+      "secondi": 12.813,
+      "etichetta": "backward_reasoning",
+      "errore": ""
+    },
+    {
+      "task_id": "CND24",
+      "ripetizione": 1,
+      "file": "CND24_r1.json",
+      "secondi": 13.211,
+      "etichetta": "backward_reasoning",
+      "errore": ""
+    },
+    {
+      "task_id": "CND27",
+      "ripetizione": 1,
+      "file": "CND27_r1.json",
+      "secondi": 4.52,
+      "etichetta": null,
+      "errore": "ValueError: controllo_traduzione: backward_reasoning: servono almeno 1 evidenza/e, restano []; scartate: DrivingSkill='SubStandard' (disgiunzione: la variabile e' gia' il target della domanda)"
+    },
+    {
+      "task_id": "CND28",
+      "ripetizione": 1,
+      "file": "CND28_r1.json",
+      "secondi": 15.803,
+      "etichetta": "backward_reasoning",
+      "errore": ""
+    },
+    {
+      "task_id": "CND31",
+      "ripetizione": 1,
+      "file": "CND31_r1.json",
+      "secondi": 15.459,
+      "etichetta": "backward_reasoning",
+      "errore": ""
+    },
+    {
+      "task_id": "CND32",
+      "ripetizione": 1,
+      "file": "CND32_r1.json",
+      "secondi": 11.662,
+      "etichetta": "backward_reasoning",
+      "errore": ""
+    },
+    {
+      "task_id": "CND35",
+      "ripetizione": 1,
+      "file": "CND35_r1.json",
+      "secondi": 6.261,
+      "etichetta": null,
+      "errore": "ValueError: controllo_traduzione: backward_reasoning: servono almeno 1 evidenza/e, restano []; scartate: SocioEcon='socio-economic status. Values: Prole, Middle, UpperMiddle, Wealthy' (vocabolario: 'socio-economic status. Values: Prole, Middle, UpperMiddle, Wealthy' non e' uno stato di SocioEcon; stati: ['Prole', 'Middle', 'UpperMiddle', 'Wealthy'])"
+    },
+    {
+      "task_id": "CND36",
+      "ripetizione": 1,
+      "file": "CND36_r1.json",
+      "secondi": 4.467,
+      "etichetta": null,
+      "errore": "ValueError: controllo_traduzione: backward_reasoning: servono almeno 1 evidenza/e, restano []; scartate: Theft='False' (citazione: la citazione non nomina ne' la variabile ne' lo stato)"
+    },
+    {
+      "task_id": "CND39",
+      "ripetizione": 1,
+      "file": "CND39_r1.json",
+      "secondi": 5.72,
+      "etichetta": null,
+      "errore": "ValueError: controllo_traduzione: backward_reasoning: servono almeno 1 evidenza/e, restano []; scartate: DrivingSkill='SubStandard' (citazione: citazione non presente nella query)"
+    },
+    {
+      "task_id": "CND40",
+      "ripetizione": 1,
+      "file": "CND40_r1.json",
+      "secondi": 12.997,
+      "etichetta": "backward_reasoning",
+      "errore": ""
+    },
+    {
+      "task_id": "INT03",
+      "ripetizione": 1,
+      "file": "INT03_r1.json",
+      "secondi": 5.2,
+      "etichetta": null,
+      "errore": "ValueError: controllo_traduzione: intervention: servono almeno 1 evidenza/e, restano []; scartate: RiskAversion='Adventurous' (citazione: citazione non presente nella query)"
+    },
+    {
+      "task_id": "INT04",
+      "ripetizione": 1,
+      "file": "INT04_r1.json",
+      "secondi": 7.916,
+      "etichetta": null,
+      "errore": "ValueError: controllo_traduzione: output: 'hundred thousand dollars' non e' uno stato di PropCost; stati: ['Thousand', 'TenThou', 'HundredThou', 'Million']"
+    },
+    {
+      "task_id": "INT07",
+      "ripetizione": 1,
+      "file": "INT07_r1.json",
+      "secondi": 6.342,
+      "etichetta": null,
+      "errore": "ValueError: controllo_traduzione: output: 'ten thousand dollars' non e' uno stato di PropCost; stati: ['Thousand', 'TenThou', 'HundredThou', 'Million']"
+    },
+    {
+      "task_id": "INT08",
+      "ripetizione": 1,
+      "file": "INT08_r1.json",
+      "secondi": 6.737,
+      "etichetta": null,
+      "errore": "ValueError: controllo_traduzione: intervention: servono almeno 1 evidenza/e, restano []; scartate: AntiTheft='True|False' (vocabolario: 'True|False' non e' uno stato di AntiTheft; stati: ['True', 'False']), HomeBase='Secure|City|Suburb|Rural' (vocabolario: 'Secure|City|Suburb|Rural' non e' uno stato di HomeBase; stati: ['Secure', 'City', 'Suburb', 'Rural'])"
+    },
+    {
+      "task_id": "INT11",
+      "ripetizione": 1,
+      "file": "INT11_r1.json",
+      "secondi": 6.615,
+      "etichetta": null,
+      "errore": "ValueError: controllo_traduzione: intervention: servono almeno 1 evidenza/e, restano []; scartate: ThisCarDam='Moderate' (disgiunzione: la variabile e' gia' il target della domanda), MakeModel='Luxury' (citazione: citazione non presente nella query)"
+    },
+    {
+      "task_id": "INT12",
+      "ripetizione": 1,
+      "file": "INT12_r1.json",
+      "secondi": 12.169,
+      "etichetta": "intervention",
+      "errore": ""
+    },
+    {
+      "task_id": "INT15",
+      "ripetizione": 1,
+      "file": "INT15_r1.json",
+      "secondi": 14.961,
+      "etichetta": "intervention",
+      "errore": ""
+    },
+    {
+      "task_id": "INT16",
+      "ripetizione": 1,
+      "file": "INT16_r1.json",
+      "secondi": 6.804,
+      "etichetta": null,
+      "errore": "ValueError: controllo_traduzione: output: 'ten thousand dollars' non e' uno stato di PropCost; stati: ['Thousand', 'TenThou', 'HundredThou', 'Million']"
+    },
+    {
+      "task_id": "INT19",
+      "ripetizione": 1,
+      "file": "INT19_r1.json",
+      "secondi": 6.597,
+      "etichetta": null,
+      "errore": "ValueError: controllo_traduzione: output: 'hundred thousand' non e' uno stato di PropCost; stati: ['Thousand', 'TenThou', 'HundredThou', 'Million']"
+    },
+    {
+      "task_id": "INT20",
+      "ripetizione": 1,
+      "file": "INT20_r1.json",
+      "secondi": 13.689,
+      "etichetta": "intervention",
+      "errore": ""
+    },
+    {
+      "task_id": "INT23",
+      "ripetizione": 1,
+      "file": "INT23_r1.json",
+      "secondi": 14.097,
+      "etichetta": "intervention",
+      "errore": ""
+    },
+    {
+      "task_id": "INT24",
+      "ripetizione": 1,
+      "file": "INT24_r1.json",
+      "secondi": 6.71,
+      "etichetta": null,
+      "errore": "ValueError: controllo_traduzione: output: 'ten thousand dollars' non e' uno stato di OtherCarCost; stati: ['Thousand', 'TenThou', 'HundredThou', 'Million']"
+    },
+    {
+      "task_id": "INT27",
+      "ripetizione": 1,
+      "file": "INT27_r1.json",
+      "secondi": 6.618,
+      "etichetta": null,
+      "errore": "ValueError: controllo_traduzione: output: 'hundred thousand' non e' uno stato di PropCost; stati: ['Thousand', 'TenThou', 'HundredThou', 'Million']"
+    },
+    {
+      "task_id": "INT28",
+      "ripetizione": 1,
+      "file": "INT28_r1.json",
+      "secondi": 7.078,
+      "etichetta": null,
+      "errore": "ValueError: controllo_traduzione: intervention: servono almeno 1 evidenza/e, restano []; scartate: PropCost='Thousand' (citazione: citazione non presente nella query), AntiTheft='True' (disgiunzione: la variabile e' gia' il target della domanda)"
+    },
+    {
+      "task_id": "INT31",
+      "ripetizione": 1,
+      "file": "INT31_r1.json",
+      "secondi": 9.228,
+      "etichetta": null,
+      "errore": "ValueError: controllo_traduzione: intervention: servono almeno 1 evidenza/e, restano []; scartate: Cushioning='Poor|Fair|Good|Excellent' (vocabolario: 'Poor|Fair|Good|Excellent' non e' uno stato di Cushioning; stati: ['Poor', 'Fair', 'Good', 'Excellent']), DrivingSkill='SubStandard|Normal|Expert' (vocabolario: 'SubStandard|Normal|Expert' non e' uno stato di DrivingSkill; stati: ['SubStandard', 'Normal', 'Expert']), Age='Adolescent|Adult|Senior' (vocabolario: 'Adolescent|Adult|Senior' non e' uno stato di Age; stati: ['Adolescent', 'Adult', 'Senior'])"
+    },
+    {
+      "task_id": "INT32",
+      "ripetizione": 1,
+      "file": "INT32_r1.json",
+      "secondi": 6.811,
+      "etichetta": null,
+      "errore": "ValueError: controllo_traduzione: output: 'ten thousand dollars' non e' uno stato di PropCost; stati: ['Thousand', 'TenThou', 'HundredThou', 'Million']"
+    },
+    {
+      "task_id": "INT35",
+      "ripetizione": 1,
+      "file": "INT35_r1.json",
+      "secondi": 5.25,
+      "etichetta": null,
+      "errore": "ValueError: controllo_traduzione: intervention: servono almeno 1 evidenza/e, restano []; scartate: RiskAversion='Adventurous' (citazione: citazione non presente nella query)"
+    },
+    {
+      "task_id": "INT36",
+      "ripetizione": 1,
+      "file": "INT36_r1.json",
+      "secondi": 6.726,
+      "etichetta": null,
+      "errore": "ValueError: controllo_traduzione: intervention: servono almeno 1 evidenza/e, restano []; scartate: ThisCarDam='None' (disgiunzione: la variabile e' gia' il target della domanda), RuggedAuto='Tank' (citazione: citazione non presente nella query)"
+    },
+    {
+      "task_id": "INT39",
+      "ripetizione": 1,
+      "file": "INT39_r1.json",
+      "secondi": 8.581,
+      "etichetta": null,
+      "errore": "ValueError: controllo_traduzione: output: 'no antilock braking system' non e' uno stato di AntiTheft; stati: ['True', 'False']"
+    },
+    {
+      "task_id": "INT40",
+      "ripetizione": 1,
+      "file": "INT40_r1.json",
+      "secondi": 12.737,
+      "etichetta": "intervention",
+      "errore": ""
+    },
+    {
+      "task_id": "COH03",
+      "ripetizione": 1,
+      "file": "COH03_r1.json",
+      "secondi": 16.346,
+      "etichetta": "coherence",
+      "errore": ""
+    },
+    {
+      "task_id": "COH04",
+      "ripetizione": 1,
+      "file": "COH04_r1.json",
+      "secondi": 11.481,
+      "etichetta": null,
+      "errore": "ValueError: controllo_traduzione: coherence: servono almeno 1 evidenza/e, restano []; scartate: OtherCarCost='Thousand' (citazione: citazione non presente nella query), MedCost='Thousand' (citazione: citazione non presente nella query), ThisCarCost='HundredThou' (citazione: citazione non presente nella query), Cushioning='Excellent' (citazione: citazione non presente nella query)"
+    },
+    {
+      "task_id": "COH07",
+      "ripetizione": 1,
+      "file": "COH07_r1.json",
+      "secondi": 17.85,
+      "etichetta": "coherence",
+      "errore": ""
+    },
+    {
+      "task_id": "COH08",
+      "ripetizione": 1,
+      "file": "COH08_r1.json",
+      "secondi": 14.948,
+      "etichetta": "coherence",
+      "errore": ""
+    },
+    {
+      "task_id": "COH11",
+      "ripetizione": 1,
+      "file": "COH11_r1.json",
+      "secondi": 15.864,
+      "etichetta": "coherence",
+      "errore": ""
+    },
+    {
+      "task_id": "COH12",
+      "ripetizione": 1,
+      "file": "COH12_r1.json",
+      "secondi": 18.562,
+      "etichetta": "coherence",
+      "errore": ""
+    },
+    {
+      "task_id": "COH15",
+      "ripetizione": 1,
+      "file": "COH15_r1.json",
+      "secondi": 19.433,
+      "etichetta": "coherence",
+      "errore": ""
+    },
+    {
+      "task_id": "COH16",
+      "ripetizione": 1,
+      "file": "COH16_r1.json",
+      "secondi": 19.631,
+      "etichetta": "coherence",
+      "errore": ""
+    },
+    {
+      "task_id": "COH19",
+      "ripetizione": 1,
+      "file": "COH19_r1.json",
+      "secondi": 8.211,
+      "etichetta": null,
+      "errore": "ValueError: controllo_traduzione: coherence: servono almeno 1 evidenza/e, restano []; scartate: DrivHist='Zero' (citazione: citazione non presente nella query), ILiCost='Thousand' (citazione: citazione non presente nella query), VehicleYear='Older' (citazione: citazione non presente nella query)"
+    },
+    {
+      "task_id": "COH20",
+      "ripetizione": 1,
+      "file": "COH20_r1.json",
+      "secondi": 7.579,
+      "etichetta": null,
+      "errore": "ValueError: controllo_traduzione: coherence: servono almeno 1 evidenza/e, restano []; scartate: OtherCar='True' (citazione: citazione non presente nella query), SeniorTrain='False' (citazione: citazione non presente nella query), AntiTheft='False' (citazione: citazione non presente nella query)"
+    },
+    {
+      "task_id": "COH23",
+      "ripetizione": 1,
+      "file": "COH23_r1.json",
+      "secondi": 14.903,
+      "etichetta": "coherence",
+      "errore": ""
+    },
+    {
+      "task_id": "COH24",
+      "ripetizione": 1,
+      "file": "COH24_r1.json",
+      "secondi": 8.457,
+      "etichetta": null,
+      "errore": "ValueError: controllo_traduzione: output: 'ten thousand dollars' non e' uno stato di OtherCarCost; stati: ['Thousand', 'TenThou', 'HundredThou', 'Million']"
+    },
+    {
+      "task_id": "COH27",
+      "ripetizione": 1,
+      "file": "COH27_r1.json",
+      "secondi": 19.384,
+      "etichetta": "coherence",
+      "errore": ""
+    },
+    {
+      "task_id": "COH28",
+      "ripetizione": 1,
+      "file": "COH28_r1.json",
+      "secondi": 17.581,
+      "etichetta": "coherence",
+      "errore": ""
+    },
+    {
+      "task_id": "COH31",
+      "ripetizione": 1,
+      "file": "COH31_r1.json",
+      "secondi": 18.332,
+      "etichetta": "coherence",
+      "errore": ""
+    },
+    {
+      "task_id": "COH32",
+      "ripetizione": 1,
+      "file": "COH32_r1.json",
+      "secondi": 15.035,
+      "etichetta": "coherence",
+      "errore": ""
+    },
+    {
+      "task_id": "COH35",
+      "ripetizione": 1,
+      "file": "COH35_r1.json",
+      "secondi": 17.368,
+      "etichetta": "coherence",
+      "errore": ""
+    },
+    {
+      "task_id": "COH36",
+      "ripetizione": 1,
+      "file": "COH36_r1.json",
+      "secondi": 15.734,
+      "etichetta": "coherence",
+      "errore": ""
+    },
+    {
+      "task_id": "COH39",
+      "ripetizione": 1,
+      "file": "COH39_r1.json",
+      "secondi": 9.659,
+      "etichetta": null,
+      "errore": "ValueError: controllo_traduzione: output: 'not completed' non e' uno stato di SeniorTrain; stati: ['True', 'False']"
+    },
+    {
+      "task_id": "COH40",
+      "ripetizione": 1,
+      "file": "COH40_r1.json",
+      "secondi": 19.502,
+      "etichetta": "coherence",
+      "errore": ""
+    },
+    {
+      "task_id": "CF03",
+      "ripetizione": 1,
+      "file": "CF03_r1.json",
+      "secondi": 7.29,
+      "etichetta": null,
+      "errore": "ValueError: controllo_traduzione: counterfactual: servono almeno 1 evidenza/e, restano []; scartate: AntiTheft='False' (disgiunzione: la variabile e' gia' il target della domanda), Theft='True' (citazione: la citazione non nomina ne' la variabile ne' lo stato)"
+    },
+    {
+      "task_id": "CF04",
+      "ripetizione": 1,
+      "file": "CF04_r1.json",
+      "secondi": 8.151,
+      "etichetta": null,
+      "errore": "ValueError: controllo_traduzione: 'output' deve avere esattamente una chiave: {'VehicleYear': 'Older', 'ThisCarDam': 'Mild'}"
+    },
+    {
+      "task_id": "CF07",
+      "ripetizione": 1,
+      "file": "CF07_r1.json",
+      "secondi": 19.412,
+      "etichetta": "counterfactual",
+      "errore": ""
+    },
+    {
+      "task_id": "CF08",
+      "ripetizione": 1,
+      "file": "CF08_r1.json",
+      "secondi": 8.071,
+      "etichetta": null,
+      "errore": "ValueError: controllo_traduzione: counterfactual: servono almeno 1 evidenza/e, restano []; scartate: Theft='True' (citazione: la citazione non nomina ne' la variabile ne' lo stato), ThisCarCost='HundredThou' (disgiunzione: la variabile e' gia' il target della domanda)"
+    },
+    {
+      "task_id": "CF11",
+      "ripetizione": 1,
+      "file": "CF11_r1.json",
+      "secondi": 17.725,
+      "etichetta": "counterfactual",
+      "errore": ""
+    },
+    {
+      "task_id": "CF12",
+      "ripetizione": 1,
+      "file": "CF12_r1.json",
+      "secondi": 20.457,
+      "etichetta": "counterfactual",
+      "errore": ""
+    },
+    {
+      "task_id": "CF15",
+      "ripetizione": 1,
+      "file": "CF15_r1.json",
+      "secondi": 7.122,
+      "etichetta": null,
+      "errore": "ValueError: controllo_traduzione: counterfactual: servono almeno 1 evidenza/e, restano []; scartate: AntiTheft='False' (disgiunzione: la variabile e' gia' il target della domanda), Theft='False' (citazione: la citazione non nomina ne' la variabile ne' lo stato)"
+    },
+    {
+      "task_id": "CF16",
+      "ripetizione": 1,
+      "file": "CF16_r1.json",
+      "secondi": 7.518,
+      "etichetta": null,
+      "errore": "ValueError: controllo_traduzione: counterfactual: servono almeno 1 evidenza/e, restano []; scartate: Theft='True' (citazione: la citazione non nomina ne' la variabile ne' lo stato), ThisCarCost='Million' (disgiunzione: la variabile e' gia' il target della domanda)"
+    },
+    {
+      "task_id": "CF19",
+      "ripetizione": 1,
+      "file": "CF19_r1.json",
+      "secondi": 12.355,
+      "etichetta": "counterfactual",
+      "errore": ""
+    },
+    {
+      "task_id": "CF20",
+      "ripetizione": 1,
+      "file": "CF20_r1.json",
+      "secondi": 16.068,
+      "etichetta": "counterfactual",
+      "errore": ""
+    },
+    {
+      "task_id": "CF23",
+      "ripetizione": 1,
+      "file": "CF23_r1.json",
+      "secondi": 18.077,
+      "etichetta": "counterfactual",
+      "errore": ""
+    },
+    {
+      "task_id": "CF24",
+      "ripetizione": 1,
+      "file": "CF24_r1.json",
+      "secondi": 15.281,
+      "etichetta": "counterfactual",
+      "errore": ""
+    },
+    {
+      "task_id": "CF27",
+      "ripetizione": 1,
+      "file": "CF27_r1.json",
+      "secondi": 16.854,
+      "etichetta": "counterfactual",
+      "errore": ""
+    },
+    {
+      "task_id": "CF28",
+      "ripetizione": 1,
+      "file": "CF28_r1.json",
+      "secondi": 22.368,
+      "etichetta": "counterfactual",
+      "errore": ""
+    },
+    {
+      "task_id": "CF31",
+      "ripetizione": 1,
+      "file": "CF31_r1.json",
+      "secondi": 15.62,
+      "etichetta": "counterfactual",
+      "errore": ""
+    },
+    {
+      "task_id": "CF32",
+      "ripetizione": 1,
+      "file": "CF32_r1.json",
+      "secondi": 14.245,
+      "etichetta": "counterfactual",
+      "errore": ""
+    },
+    {
+      "task_id": "CF35",
+      "ripetizione": 1,
+      "file": "CF35_r1.json",
+      "secondi": 16.542,
+      "etichetta": "counterfactual",
+      "errore": ""
+    },
+    {
+      "task_id": "CF36",
+      "ripetizione": 1,
+      "file": "CF36_r1.json",
+      "secondi": 17.304,
+      "etichetta": "counterfactual",
+      "errore": ""
+    },
+    {
+      "task_id": "CF39",
+      "ripetizione": 1,
+      "file": "CF39_r1.json",
+      "secondi": 19.061,
+      "etichetta": "counterfactual",
+      "errore": ""
+    },
+    {
+      "task_id": "CF40",
+      "ripetizione": 1,
+      "file": "CF40_r1.json",
+      "secondi": 7.673,
+      "etichetta": null,
+      "errore": "ValueError: controllo_traduzione: counterfactual: servono almeno 1 evidenza/e, restano []; scartate: Theft='False' (citazione: la citazione non nomina ne' la variabile ne' lo stato), ThisCarCost='Thousand' (disgiunzione: la variabile e' gia' il target della domanda)"
+    },
+    {
+      "task_id": "CND03",
+      "ripetizione": 2,
+      "file": "CND03_r2.json",
+      "secondi": 8.635,
+      "etichetta": null,
+      "errore": "ValueError: controllo_traduzione: backward_reasoning: servono almeno 1 evidenza/e, restano []; scartate: RiskAversion='Normal' (citazione: citazione non presente nella query), SocioEcon='Prole' (disgiunzione: la variabile e' gia' il target della domanda), GoodStudent='False' (citazione: citazione non presente nella query)"
+    },
+    {
+      "task_id": "CND04",
+      "ripetizione": 2,
+      "file": "CND04_r2.json",
+      "secondi": 13.113,
+      "etichetta": "backward_reasoning",
+      "errore": ""
+    },
+    {
+      "task_id": "CND07",
+      "ripetizione": 2,
+      "file": "CND07_r2.json",
+      "secondi": 5.979,
+      "etichetta": null,
+      "errore": "ValueError: controllo_traduzione: backward_reasoning: servono almeno 1 evidenza/e, restano []; scartate: RiskAversion='Normal' (citazione: citazione non presente nella query)"
+    },
+    {
+      "task_id": "CND08",
+      "ripetizione": 2,
+      "file": "CND08_r2.json",
+      "secondi": 6.732,
+      "etichetta": null,
+      "errore": "ValueError: controllo_traduzione: output: 'fifty thousand dollars' non e' uno stato di CarValue; stati: ['FiveThou', 'TenThou', 'TwentyThou', 'FiftyThou', 'Million']"
+    },
+    {
+      "task_id": "CND11",
+      "ripetizione": 2,
+      "file": "CND11_r2.json",
+      "secondi": 6.49,
+      "etichetta": null,
+      "errore": "ValueError: controllo_traduzione: backward_reasoning: servono almeno 1 evidenza/e, restano []; scartate: OtherCarCost='Thousand' (citazione: citazione non presente nella query), Accident='Moderate' (disgiunzione: la variabile e' gia' il target della domanda)"
+    },
+    {
+      "task_id": "CND12",
+      "ripetizione": 2,
+      "file": "CND12_r2.json",
+      "secondi": 5.064,
+      "etichetta": null,
+      "errore": "ValueError: controllo_traduzione: backward_reasoning: servono almeno 1 evidenza/e, restano []; scartate: Antilock='False' (citazione: citazione non presente nella query)"
+    },
+    {
+      "task_id": "CND15",
+      "ripetizione": 2,
+      "file": "CND15_r2.json",
+      "secondi": 12.252,
+      "etichetta": "backward_reasoning",
+      "errore": ""
+    },
+    {
+      "task_id": "CND16",
+      "ripetizione": 2,
+      "file": "CND16_r2.json",
+      "secondi": 12.196,
+      "etichetta": "backward_reasoning",
+      "errore": ""
+    },
+    {
+      "task_id": "CND19",
+      "ripetizione": 2,
+      "file": "CND19_r2.json",
+      "secondi": 11.366,
+      "etichetta": "backward_reasoning",
+      "errore": ""
+    },
+    {
+      "task_id": "CND20",
+      "ripetizione": 2,
+      "file": "CND20_r2.json",
+      "secondi": 16.306,
+      "etichetta": "backward_reasoning",
+      "errore": ""
+    },
+    {
+      "task_id": "CND23",
+      "ripetizione": 2,
+      "file": "CND23_r2.json",
+      "secondi": 12.986,
+      "etichetta": "backward_reasoning",
+      "errore": ""
+    },
+    {
+      "task_id": "CND24",
+      "ripetizione": 2,
+      "file": "CND24_r2.json",
+      "secondi": 13.313,
+      "etichetta": "backward_reasoning",
+      "errore": ""
+    },
+    {
+      "task_id": "CND27",
+      "ripetizione": 2,
+      "file": "CND27_r2.json",
+      "secondi": 4.423,
+      "etichetta": null,
+      "errore": "ValueError: controllo_traduzione: backward_reasoning: servono almeno 1 evidenza/e, restano []; scartate: DrivingSkill='SubStandard' (disgiunzione: la variabile e' gia' il target della domanda)"
+    },
+    {
+      "task_id": "CND28",
+      "ripetizione": 2,
+      "file": "CND28_r2.json",
+      "secondi": 15.784,
+      "etichetta": "backward_reasoning",
+      "errore": ""
+    },
+    {
+      "task_id": "CND31",
+      "ripetizione": 2,
+      "file": "CND31_r2.json",
+      "secondi": 15.41,
+      "etichetta": "backward_reasoning",
+      "errore": ""
+    },
+    {
+      "task_id": "CND32",
+      "ripetizione": 2,
+      "file": "CND32_r2.json",
+      "secondi": 11.942,
+      "etichetta": "backward_reasoning",
+      "errore": ""
+    },
+    {
+      "task_id": "CND35",
+      "ripetizione": 2,
+      "file": "CND35_r2.json",
+      "secondi": 6.279,
+      "etichetta": null,
+      "errore": "ValueError: controllo_traduzione: backward_reasoning: servono almeno 1 evidenza/e, restano []; scartate: SocioEcon='socio-economic status. Values: Prole, Middle, UpperMiddle, Wealthy' (vocabolario: 'socio-economic status. Values: Prole, Middle, UpperMiddle, Wealthy' non e' uno stato di SocioEcon; stati: ['Prole', 'Middle', 'UpperMiddle', 'Wealthy'])"
+    },
+    {
+      "task_id": "CND36",
+      "ripetizione": 2,
+      "file": "CND36_r2.json",
+      "secondi": 4.434,
+      "etichetta": null,
+      "errore": "ValueError: controllo_traduzione: backward_reasoning: servono almeno 1 evidenza/e, restano []; scartate: Theft='False' (citazione: la citazione non nomina ne' la variabile ne' lo stato)"
+    },
+    {
+      "task_id": "CND39",
+      "ripetizione": 2,
+      "file": "CND39_r2.json",
+      "secondi": 5.615,
+      "etichetta": null,
+      "errore": "ValueError: controllo_traduzione: backward_reasoning: servono almeno 1 evidenza/e, restano []; scartate: DrivingSkill='SubStandard' (citazione: citazione non presente nella query)"
+    },
+    {
+      "task_id": "CND40",
+      "ripetizione": 2,
+      "file": "CND40_r2.json",
+      "secondi": 13.016,
+      "etichetta": "backward_reasoning",
+      "errore": ""
+    },
+    {
+      "task_id": "INT03",
+      "ripetizione": 2,
+      "file": "INT03_r2.json",
+      "secondi": 5.241,
+      "etichetta": null,
+      "errore": "ValueError: controllo_traduzione: intervention: servono almeno 1 evidenza/e, restano []; scartate: RiskAversion='Adventurous' (citazione: citazione non presente nella query)"
+    },
+    {
+      "task_id": "INT04",
+      "ripetizione": 2,
+      "file": "INT04_r2.json",
+      "secondi": 7.938,
+      "etichetta": null,
+      "errore": "ValueError: controllo_traduzione: output: 'hundred thousand dollars' non e' uno stato di PropCost; stati: ['Thousand', 'TenThou', 'HundredThou', 'Million']"
+    },
+    {
+      "task_id": "INT07",
+      "ripetizione": 2,
+      "file": "INT07_r2.json",
+      "secondi": 6.19,
+      "etichetta": null,
+      "errore": "ValueError: controllo_traduzione: output: 'ten thousand dollars' non e' uno stato di PropCost; stati: ['Thousand', 'TenThou', 'HundredThou', 'Million']"
+    },
+    {
+      "task_id": "INT08",
+      "ripetizione": 2,
+      "file": "INT08_r2.json",
+      "secondi": 5.907,
+      "etichetta": null,
+      "errore": "ValueError: controllo_traduzione: intervention: servono almeno 1 evidenza/e, restano []; scartate: AntiTheft='True' (citazione: la citazione non nomina ne' la variabile ne' lo stato), HomeBase='Secure' (disgiunzione: la variabile e' gia' il target della domanda)"
+    },
+    {
+      "task_id": "INT11",
+      "ripetizione": 2,
+      "file": "INT11_r2.json",
+      "secondi": 13.166,
+      "etichetta": "intervention",
+      "errore": ""
+    },
+    {
+      "task_id": "INT12",
+      "ripetizione": 2,
+      "file": "INT12_r2.json",
+      "secondi": 12.192,
+      "etichetta": "intervention",
+      "errore": ""
+    },
+    {
+      "task_id": "INT15",
+      "ripetizione": 2,
+      "file": "INT15_r2.json",
+      "secondi": 15.152,
+      "etichetta": "intervention",
+      "errore": ""
+    },
+    {
+      "task_id": "INT16",
+      "ripetizione": 2,
+      "file": "INT16_r2.json",
+      "secondi": 6.814,
+      "etichetta": null,
+      "errore": "ValueError: controllo_traduzione: output: 'ten thousand dollars' non e' uno stato di PropCost; stati: ['Thousand', 'TenThou', 'HundredThou', 'Million']"
+    },
+    {
+      "task_id": "INT19",
+      "ripetizione": 2,
+      "file": "INT19_r2.json",
+      "secondi": 6.477,
+      "etichetta": null,
+      "errore": "ValueError: controllo_traduzione: output: 'hundred thousand' non e' uno stato di PropCost; stati: ['Thousand', 'TenThou', 'HundredThou', 'Million']"
+    },
+    {
+      "task_id": "INT20",
+      "ripetizione": 2,
+      "file": "INT20_r2.json",
+      "secondi": 14.017,
+      "etichetta": "intervention",
+      "errore": ""
+    },
+    {
+      "task_id": "INT23",
+      "ripetizione": 2,
+      "file": "INT23_r2.json",
+      "secondi": 14.088,
+      "etichetta": "intervention",
+      "errore": ""
+    },
+    {
+      "task_id": "INT24",
+      "ripetizione": 2,
+      "file": "INT24_r2.json",
+      "secondi": 7.736,
+      "etichetta": null,
+      "errore": "ValueError: controllo_traduzione: output: 'ten thousand dollars' non e' uno stato di OtherCarCost; stati: ['Thousand', 'TenThou', 'HundredThou', 'Million']"
+    },
+    {
+      "task_id": "INT27",
+      "ripetizione": 2,
+      "file": "INT27_r2.json",
+      "secondi": 6.764,
+      "etichetta": null,
+      "errore": "ValueError: controllo_traduzione: output: 'hundred thousand' non e' uno stato di PropCost; stati: ['Thousand', 'TenThou', 'HundredThou', 'Million']"
+    },
+    {
+      "task_id": "INT28",
+      "ripetizione": 2,
+      "file": "INT28_r2.json",
+      "secondi": 23.15,
+      "etichetta": null,
+      "errore": "ValueError: controllo_traduzione: intervention: servono almeno 1 evidenza/e, restano []; scartate: PropCost='Thousand' (disgiunzione: la variabile e' gia' il target della domanda), OtherCarCost='TenThou' (citazione: citazione assente o vuota), OtherCar='False' (citazione: citazione assente o vuota), MedCost='TenThou' (citazione: citazione assente o vuota), ThisCarCost='TenThou' (citazione: citazione assente o vuota), AntiTheft='True' (citazione: citazione assente o vuota), ILiCost='TenThou' (citazione: citazione assente o vuota), DrivHist='One' (citazione: citazione assente o vuota), MakeModel='SportsCar' (citazione: citazione assente o vuota), ThisCarDam='Mild' (citazione: citazione assente o vuota), VehicleYear='Older' (citazione: citazione assente o vuota), RuggedAuto='Football' (citazione: citazione assente o vuota), Accident='Mild' (citazione: citazione assente o vuota), GoodStudent='False' (citazione: citazione assente o vuota), SocioEcon='Middle' (citazione: citazione assente o vuota), RiskAversion='Normal' (citazione: citazione assente o vuota), DrivQuality='Normal' (citazione: citazione assente o vuota), Mileage='TwentyThou' (citazione: citazione assente o vuota), Antilock='True' (citazione: citazione assente o vuota), DrivingSkill='Normal' (citazione: citazione assente o vuota), SeniorTrain='False' (citazione: citazione assente o vuota), CarValue='TenThou' (citazione: citazione assente o vuota), HomeBase='Suburb' (citazione: citazione assente o vuota), Theft='False' (citazione: citazione assente o vuota)"
+    },
+    {
+      "task_id": "INT31",
+      "ripetizione": 2,
+      "file": "INT31_r2.json",
+      "secondi": 9.333,
+      "etichetta": null,
+      "errore": "ValueError: controllo_traduzione: intervention: servono almeno 1 evidenza/e, restano []; scartate: Cushioning='Poor|Fair|Good|Excellent' (vocabolario: 'Poor|Fair|Good|Excellent' non e' uno stato di Cushioning; stati: ['Poor', 'Fair', 'Good', 'Excellent']), DrivingSkill='SubStandard|Normal|Expert' (vocabolario: 'SubStandard|Normal|Expert' non e' uno stato di DrivingSkill; stati: ['SubStandard', 'Normal', 'Expert']), Age='Adolescent|Adult|Senior' (vocabolario: 'Adolescent|Adult|Senior' non e' uno stato di Age; stati: ['Adolescent', 'Adult', 'Senior'])"
+    },
+    {
+      "task_id": "INT32",
+      "ripetizione": 2,
+      "file": "INT32_r2.json",
+      "secondi": 7.026,
+      "etichetta": null,
+      "errore": "ValueError: controllo_traduzione: output: 'ten thousand dollars' non e' uno stato di PropCost; stati: ['Thousand', 'TenThou', 'HundredThou', 'Million']"
+    },
+    {
+      "task_id": "INT35",
+      "ripetizione": 2,
+      "file": "INT35_r2.json",
+      "secondi": 5.289,
+      "etichetta": null,
+      "errore": "ValueError: controllo_traduzione: output: 'hundred thousand' non e' uno stato di ILiCost; stati: ['Thousand', 'TenThou', 'HundredThou', 'Million']"
+    },
+    {
+      "task_id": "INT36",
+      "ripetizione": 2,
+      "file": "INT36_r2.json",
+      "secondi": 6.579,
+      "etichetta": null,
+      "errore": "ValueError: controllo_traduzione: intervention: servono almeno 1 evidenza/e, restano []; scartate: ThisCarDam='None' (disgiunzione: la variabile e' gia' il target della domanda), RuggedAuto='Tank' (citazione: citazione non presente nella query)"
+    },
+    {
+      "task_id": "INT39",
+      "ripetizione": 2,
+      "file": "INT39_r2.json",
+      "secondi": 8.569,
+      "etichetta": null,
+      "errore": "ValueError: controllo_traduzione: output: 'no antilock braking system' non e' uno stato di AntiTheft; stati: ['True', 'False']"
+    },
+    {
+      "task_id": "INT40",
+      "ripetizione": 2,
+      "file": "INT40_r2.json",
+      "secondi": 12.831,
+      "etichetta": "intervention",
+      "errore": ""
+    },
+    {
+      "task_id": "COH03",
+      "ripetizione": 2,
+      "file": "COH03_r2.json",
+      "secondi": 16.234,
+      "etichetta": "coherence",
+      "errore": ""
+    },
+    {
+      "task_id": "COH04",
+      "ripetizione": 2,
+      "file": "COH04_r2.json",
+      "secondi": 11.574,
+      "etichetta": null,
+      "errore": "ValueError: controllo_traduzione: coherence: servono almeno 1 evidenza/e, restano []; scartate: OtherCarCost='Thousand' (citazione: citazione non presente nella query), MedCost='Thousand' (citazione: citazione non presente nella query), ThisCarCost='HundredThou' (citazione: citazione non presente nella query), Cushioning='Excellent' (citazione: citazione non presente nella query)"
+    },
+    {
+      "task_id": "COH07",
+      "ripetizione": 2,
+      "file": "COH07_r2.json",
+      "secondi": 18.048,
+      "etichetta": "coherence",
+      "errore": ""
+    },
+    {
+      "task_id": "COH08",
+      "ripetizione": 2,
+      "file": "COH08_r2.json",
+      "secondi": 15.031,
+      "etichetta": "coherence",
+      "errore": ""
+    },
+    {
+      "task_id": "COH11",
+      "ripetizione": 2,
+      "file": "COH11_r2.json",
+      "secondi": 16.051,
+      "etichetta": "coherence",
+      "errore": ""
+    },
+    {
+      "task_id": "COH12",
+      "ripetizione": 2,
+      "file": "COH12_r2.json",
+      "secondi": 18.698,
+      "etichetta": "coherence",
+      "errore": ""
+    },
+    {
+      "task_id": "COH15",
+      "ripetizione": 2,
+      "file": "COH15_r2.json",
+      "secondi": 19.519,
+      "etichetta": "coherence",
+      "errore": ""
+    },
+    {
+      "task_id": "COH16",
+      "ripetizione": 2,
+      "file": "COH16_r2.json",
+      "secondi": 19.695,
+      "etichetta": "coherence",
+      "errore": ""
+    },
+    {
+      "task_id": "COH19",
+      "ripetizione": 2,
+      "file": "COH19_r2.json",
+      "secondi": 8.302,
+      "etichetta": null,
+      "errore": "ValueError: controllo_traduzione: coherence: servono almeno 1 evidenza/e, restano []; scartate: DrivHist='Zero' (citazione: citazione non presente nella query), ILiCost='Thousand' (citazione: citazione non presente nella query), VehicleYear='Older' (citazione: citazione non presente nella query)"
+    },
+    {
+      "task_id": "COH20",
+      "ripetizione": 2,
+      "file": "COH20_r2.json",
+      "secondi": 7.563,
+      "etichetta": null,
+      "errore": "ValueError: controllo_traduzione: coherence: servono almeno 1 evidenza/e, restano []; scartate: OtherCar='True' (citazione: citazione non presente nella query), SeniorTrain='False' (citazione: citazione non presente nella query), AntiTheft='False' (citazione: citazione non presente nella query)"
+    },
+    {
+      "task_id": "COH23",
+      "ripetizione": 2,
+      "file": "COH23_r2.json",
+      "secondi": 15.186,
+      "etichetta": "coherence",
+      "errore": ""
+    },
+    {
+      "task_id": "COH24",
+      "ripetizione": 2,
+      "file": "COH24_r2.json",
+      "secondi": 8.534,
+      "etichetta": null,
+      "errore": "ValueError: controllo_traduzione: output: 'ten thousand dollars' non e' uno stato di OtherCarCost; stati: ['Thousand', 'TenThou', 'HundredThou', 'Million']"
+    },
+    {
+      "task_id": "COH27",
+      "ripetizione": 2,
+      "file": "COH27_r2.json",
+      "secondi": 19.677,
+      "etichetta": "coherence",
+      "errore": ""
+    },
+    {
+      "task_id": "COH28",
+      "ripetizione": 2,
+      "file": "COH28_r2.json",
+      "secondi": 17.864,
+      "etichetta": "coherence",
+      "errore": ""
+    },
+    {
+      "task_id": "COH31",
+      "ripetizione": 2,
+      "file": "COH31_r2.json",
+      "secondi": 18.57,
+      "etichetta": "coherence",
+      "errore": ""
+    },
+    {
+      "task_id": "COH32",
+      "ripetizione": 2,
+      "file": "COH32_r2.json",
+      "secondi": 15.045,
+      "etichetta": "coherence",
+      "errore": ""
+    },
+    {
+      "task_id": "COH35",
+      "ripetizione": 2,
+      "file": "COH35_r2.json",
+      "secondi": 17.408,
+      "etichetta": "coherence",
+      "errore": ""
+    },
+    {
+      "task_id": "COH36",
+      "ripetizione": 2,
+      "file": "COH36_r2.json",
+      "secondi": 15.908,
+      "etichetta": "coherence",
+      "errore": ""
+    },
+    {
+      "task_id": "COH39",
+      "ripetizione": 2,
+      "file": "COH39_r2.json",
+      "secondi": 9.709,
+      "etichetta": null,
+      "errore": "ValueError: controllo_traduzione: output: 'not completed' non e' uno stato di SeniorTrain; stati: ['True', 'False']"
+    },
+    {
+      "task_id": "COH40",
+      "ripetizione": 2,
+      "file": "COH40_r2.json",
+      "secondi": 19.57,
+      "etichetta": "coherence",
+      "errore": ""
+    },
+    {
+      "task_id": "CF03",
+      "ripetizione": 2,
+      "file": "CF03_r2.json",
+      "secondi": 7.276,
+      "etichetta": null,
+      "errore": "ValueError: controllo_traduzione: counterfactual: servono almeno 1 evidenza/e, restano []; scartate: AntiTheft='False' (disgiunzione: la variabile e' gia' il target della domanda), Theft='True' (citazione: la citazione non nomina ne' la variabile ne' lo stato)"
+    },
+    {
+      "task_id": "CF04",
+      "ripetizione": 2,
+      "file": "CF04_r2.json",
+      "secondi": 8.243,
+      "etichetta": null,
+      "errore": "ValueError: controllo_traduzione: 'output' deve avere esattamente una chiave: {'VehicleYear': 'Older', 'ThisCarDam': 'Mild'}"
+    },
+    {
+      "task_id": "CF07",
+      "ripetizione": 2,
+      "file": "CF07_r2.json",
+      "secondi": 19.59,
+      "etichetta": "counterfactual",
+      "errore": ""
+    },
+    {
+      "task_id": "CF08",
+      "ripetizione": 2,
+      "file": "CF08_r2.json",
+      "secondi": 8.132,
+      "etichetta": null,
+      "errore": "ValueError: controllo_traduzione: counterfactual: servono almeno 1 evidenza/e, restano []; scartate: Theft='True' (citazione: la citazione non nomina ne' la variabile ne' lo stato), ThisCarCost='HundredThou' (disgiunzione: la variabile e' gia' il target della domanda)"
+    },
+    {
+      "task_id": "CF11",
+      "ripetizione": 2,
+      "file": "CF11_r2.json",
+      "secondi": 17.669,
+      "etichetta": "counterfactual",
+      "errore": ""
+    },
+    {
+      "task_id": "CF12",
+      "ripetizione": 2,
+      "file": "CF12_r2.json",
+      "secondi": 20.293,
+      "etichetta": "counterfactual",
+      "errore": ""
+    },
+    {
+      "task_id": "CF15",
+      "ripetizione": 2,
+      "file": "CF15_r2.json",
+      "secondi": 7.289,
+      "etichetta": null,
+      "errore": "ValueError: controllo_traduzione: counterfactual: servono almeno 1 evidenza/e, restano []; scartate: AntiTheft='False' (disgiunzione: la variabile e' gia' il target della domanda), Theft='False' (citazione: la citazione non nomina ne' la variabile ne' lo stato)"
+    },
+    {
+      "task_id": "CF16",
+      "ripetizione": 2,
+      "file": "CF16_r2.json",
+      "secondi": 7.484,
+      "etichetta": null,
+      "errore": "ValueError: controllo_traduzione: counterfactual: servono almeno 1 evidenza/e, restano []; scartate: Theft='True' (citazione: la citazione non nomina ne' la variabile ne' lo stato), ThisCarCost='Million' (disgiunzione: la variabile e' gia' il target della domanda)"
+    },
+    {
+      "task_id": "CF19",
+      "ripetizione": 2,
+      "file": "CF19_r2.json",
+      "secondi": 12.278,
+      "etichetta": "counterfactual",
+      "errore": ""
+    },
+    {
+      "task_id": "CF20",
+      "ripetizione": 2,
+      "file": "CF20_r2.json",
+      "secondi": 16.109,
+      "etichetta": "counterfactual",
+      "errore": ""
+    },
+    {
+      "task_id": "CF23",
+      "ripetizione": 2,
+      "file": "CF23_r2.json",
+      "secondi": 18.05,
+      "etichetta": "counterfactual",
+      "errore": ""
+    },
+    {
+      "task_id": "CF24",
+      "ripetizione": 2,
+      "file": "CF24_r2.json",
+      "secondi": 15.507,
+      "etichetta": "counterfactual",
+      "errore": ""
+    },
+    {
+      "task_id": "CF27",
+      "ripetizione": 2,
+      "file": "CF27_r2.json",
+      "secondi": 16.761,
+      "etichetta": "counterfactual",
+      "errore": ""
+    },
+    {
+      "task_id": "CF28",
+      "ripetizione": 2,
+      "file": "CF28_r2.json",
+      "secondi": 22.274,
+      "etichetta": "counterfactual",
+      "errore": ""
+    },
+    {
+      "task_id": "CF31",
+      "ripetizione": 2,
+      "file": "CF31_r2.json",
+      "secondi": 15.93,
+      "etichetta": "counterfactual",
+      "errore": ""
+    },
+    {
+      "task_id": "CF32",
+      "ripetizione": 2,
+      "file": "CF32_r2.json",
+      "secondi": 14.358,
+      "etichetta": "counterfactual",
+      "errore": ""
+    },
+    {
+      "task_id": "CF35",
+      "ripetizione": 2,
+      "file": "CF35_r2.json",
+      "secondi": 16.804,
+      "etichetta": "counterfactual",
+      "errore": ""
+    },
+    {
+      "task_id": "CF36",
+      "ripetizione": 2,
+      "file": "CF36_r2.json",
+      "secondi": 17.146,
+      "etichetta": "counterfactual",
+      "errore": ""
+    },
+    {
+      "task_id": "CF39",
+      "ripetizione": 2,
+      "file": "CF39_r2.json",
+      "secondi": 19.145,
+      "etichetta": "counterfactual",
+      "errore": ""
+    },
+    {
+      "task_id": "CF40",
+      "ripetizione": 2,
+      "file": "CF40_r2.json",
+      "secondi": 7.615,
+      "etichetta": null,
+      "errore": "ValueError: controllo_traduzione: counterfactual: servono almeno 1 evidenza/e, restano []; scartate: Theft='False' (citazione: la citazione non nomina ne' la variabile ne' lo stato), ThisCarCost='Thousand' (disgiunzione: la variabile e' gia' il target della domanda)"
+    },
+    {
+      "task_id": "CND03",
+      "ripetizione": 3,
+      "file": "CND03_r3.json",
+      "secondi": 8.627,
+      "etichetta": null,
+      "errore": "ValueError: controllo_traduzione: backward_reasoning: servono almeno 1 evidenza/e, restano []; scartate: RiskAversion='Normal' (citazione: citazione non presente nella query), SocioEcon='Prole' (disgiunzione: la variabile e' gia' il target della domanda), GoodStudent='False' (citazione: citazione non presente nella query)"
+    },
+    {
+      "task_id": "CND04",
+      "ripetizione": 3,
+      "file": "CND04_r3.json",
+      "secondi": 13.142,
+      "etichetta": "backward_reasoning",
+      "errore": ""
+    },
+    {
+      "task_id": "CND07",
+      "ripetizione": 3,
+      "file": "CND07_r3.json",
+      "secondi": 5.992,
+      "etichetta": null,
+      "errore": "ValueError: controllo_traduzione: backward_reasoning: servono almeno 1 evidenza/e, restano []; scartate: RiskAversion='Normal' (citazione: citazione non presente nella query)"
+    },
+    {
+      "task_id": "CND08",
+      "ripetizione": 3,
+      "file": "CND08_r3.json",
+      "secondi": 6.68,
+      "etichetta": null,
+      "errore": "ValueError: controllo_traduzione: output: 'fifty thousand dollars' non e' uno stato di CarValue; stati: ['FiveThou', 'TenThou', 'TwentyThou', 'FiftyThou', 'Million']"
+    },
+    {
+      "task_id": "CND11",
+      "ripetizione": 3,
+      "file": "CND11_r3.json",
+      "secondi": 6.529,
+      "etichetta": null,
+      "errore": "ValueError: controllo_traduzione: backward_reasoning: servono almeno 1 evidenza/e, restano []; scartate: OtherCarCost='Thousand' (citazione: citazione non presente nella query), Accident='Moderate' (disgiunzione: la variabile e' gia' il target della domanda)"
+    },
+    {
+      "task_id": "CND12",
+      "ripetizione": 3,
+      "file": "CND12_r3.json",
+      "secondi": 5.027,
+      "etichetta": null,
+      "errore": "ValueError: controllo_traduzione: backward_reasoning: servono almeno 1 evidenza/e, restano []; scartate: Antilock='False' (citazione: citazione non presente nella query)"
+    },
+    {
+      "task_id": "CND15",
+      "ripetizione": 3,
+      "file": "CND15_r3.json",
+      "secondi": 12.313,
+      "etichetta": "backward_reasoning",
+      "errore": ""
+    },
+    {
+      "task_id": "CND16",
+      "ripetizione": 3,
+      "file": "CND16_r3.json",
+      "secondi": 12.323,
+      "etichetta": "backward_reasoning",
+      "errore": ""
+    },
+    {
+      "task_id": "CND19",
+      "ripetizione": 3,
+      "file": "CND19_r3.json",
+      "secondi": 11.475,
+      "etichetta": "backward_reasoning",
+      "errore": ""
+    },
+    {
+      "task_id": "CND20",
+      "ripetizione": 3,
+      "file": "CND20_r3.json",
+      "secondi": 16.402,
+      "etichetta": "backward_reasoning",
+      "errore": ""
+    },
+    {
+      "task_id": "CND23",
+      "ripetizione": 3,
+      "file": "CND23_r3.json",
+      "secondi": 13.154,
+      "etichetta": "backward_reasoning",
+      "errore": ""
+    },
+    {
+      "task_id": "CND24",
+      "ripetizione": 3,
+      "file": "CND24_r3.json",
+      "secondi": 13.109,
+      "etichetta": "backward_reasoning",
+      "errore": ""
+    },
+    {
+      "task_id": "CND27",
+      "ripetizione": 3,
+      "file": "CND27_r3.json",
+      "secondi": 4.443,
+      "etichetta": null,
+      "errore": "ValueError: controllo_traduzione: backward_reasoning: servono almeno 1 evidenza/e, restano []; scartate: DrivingSkill='SubStandard' (disgiunzione: la variabile e' gia' il target della domanda)"
+    },
+    {
+      "task_id": "CND28",
+      "ripetizione": 3,
+      "file": "CND28_r3.json",
+      "secondi": 16.021,
+      "etichetta": "backward_reasoning",
+      "errore": ""
+    },
+    {
+      "task_id": "CND31",
+      "ripetizione": 3,
+      "file": "CND31_r3.json",
+      "secondi": 15.649,
+      "etichetta": "backward_reasoning",
+      "errore": ""
+    },
+    {
+      "task_id": "CND32",
+      "ripetizione": 3,
+      "file": "CND32_r3.json",
+      "secondi": 12.022,
+      "etichetta": "backward_reasoning",
+      "errore": ""
+    },
+    {
+      "task_id": "CND35",
+      "ripetizione": 3,
+      "file": "CND35_r3.json",
+      "secondi": 6.247,
+      "etichetta": null,
+      "errore": "ValueError: controllo_traduzione: backward_reasoning: servono almeno 1 evidenza/e, restano []; scartate: SocioEcon='socio-economic status. Values: Prole, Middle, UpperMiddle, Wealthy' (vocabolario: 'socio-economic status. Values: Prole, Middle, UpperMiddle, Wealthy' non e' uno stato di SocioEcon; stati: ['Prole', 'Middle', 'UpperMiddle', 'Wealthy'])"
+    },
+    {
+      "task_id": "CND36",
+      "ripetizione": 3,
+      "file": "CND36_r3.json",
+      "secondi": 4.378,
+      "etichetta": null,
+      "errore": "ValueError: controllo_traduzione: backward_reasoning: servono almeno 1 evidenza/e, restano []; scartate: Theft='False' (citazione: la citazione non nomina ne' la variabile ne' lo stato)"
+    },
+    {
+      "task_id": "CND39",
+      "ripetizione": 3,
+      "file": "CND39_r3.json",
+      "secondi": 5.767,
+      "etichetta": null,
+      "errore": "ValueError: controllo_traduzione: backward_reasoning: servono almeno 1 evidenza/e, restano []; scartate: DrivingSkill='SubStandard' (citazione: citazione non presente nella query)"
+    },
+    {
+      "task_id": "CND40",
+      "ripetizione": 3,
+      "file": "CND40_r3.json",
+      "secondi": 13.096,
+      "etichetta": "backward_reasoning",
+      "errore": ""
+    },
+    {
+      "task_id": "INT03",
+      "ripetizione": 3,
+      "file": "INT03_r3.json",
+      "secondi": 5.252,
+      "etichetta": null,
+      "errore": "ValueError: controllo_traduzione: intervention: servono almeno 1 evidenza/e, restano []; scartate: RiskAversion='Adventurous' (citazione: citazione non presente nella query)"
+    },
+    {
+      "task_id": "INT04",
+      "ripetizione": 3,
+      "file": "INT04_r3.json",
+      "secondi": 7.913,
+      "etichetta": null,
+      "errore": "ValueError: controllo_traduzione: output: 'hundred thousand dollars' non e' uno stato di PropCost; stati: ['Thousand', 'TenThou', 'HundredThou', 'Million']"
+    },
+    {
+      "task_id": "INT07",
+      "ripetizione": 3,
+      "file": "INT07_r3.json",
+      "secondi": 6.432,
+      "etichetta": null,
+      "errore": "ValueError: controllo_traduzione: output: 'ten thousand dollars' non e' uno stato di PropCost; stati: ['Thousand', 'TenThou', 'HundredThou', 'Million']"
+    },
+    {
+      "task_id": "INT08",
+      "ripetizione": 3,
+      "file": "INT08_r3.json",
+      "secondi": 5.919,
+      "etichetta": null,
+      "errore": "ValueError: controllo_traduzione: intervention: servono almeno 1 evidenza/e, restano []; scartate: AntiTheft='True' (citazione: la citazione non nomina ne' la variabile ne' lo stato), HomeBase='Secure' (disgiunzione: la variabile e' gia' il target della domanda)"
+    },
+    {
+      "task_id": "INT11",
+      "ripetizione": 3,
+      "file": "INT11_r3.json",
+      "secondi": 13.837,
+      "etichetta": "intervention",
+      "errore": ""
+    },
+    {
+      "task_id": "INT12",
+      "ripetizione": 3,
+      "file": "INT12_r3.json",
+      "secondi": 12.499,
+      "etichetta": "intervention",
+      "errore": ""
+    },
+    {
+      "task_id": "INT15",
+      "ripetizione": 3,
+      "file": "INT15_r3.json",
+      "secondi": 14.896,
+      "etichetta": "intervention",
+      "errore": ""
+    },
+    {
+      "task_id": "INT16",
+      "ripetizione": 3,
+      "file": "INT16_r3.json",
+      "secondi": 6.58,
+      "etichetta": null,
+      "errore": "ValueError: controllo_traduzione: output: 'ten thousand dollars' non e' uno stato di PropCost; stati: ['Thousand', 'TenThou', 'HundredThou', 'Million']"
+    },
+    {
+      "task_id": "INT19",
+      "ripetizione": 3,
+      "file": "INT19_r3.json",
+      "secondi": 6.53,
+      "etichetta": null,
+      "errore": "ValueError: controllo_traduzione: output: 'hundred thousand' non e' uno stato di PropCost; stati: ['Thousand', 'TenThou', 'HundredThou', 'Million']"
+    },
+    {
+      "task_id": "INT20",
+      "ripetizione": 3,
+      "file": "INT20_r3.json",
+      "secondi": 13.75,
+      "etichetta": "intervention",
+      "errore": ""
+    },
+    {
+      "task_id": "INT23",
+      "ripetizione": 3,
+      "file": "INT23_r3.json",
+      "secondi": 13.782,
+      "etichetta": "intervention",
+      "errore": ""
+    },
+    {
+      "task_id": "INT24",
+      "ripetizione": 3,
+      "file": "INT24_r3.json",
+      "secondi": 7.84,
+      "etichetta": null,
+      "errore": "ValueError: controllo_traduzione: output: 'ten thousand dollars' non e' uno stato di OtherCarCost; stati: ['Thousand', 'TenThou', 'HundredThou', 'Million']"
+    },
+    {
+      "task_id": "INT27",
+      "ripetizione": 3,
+      "file": "INT27_r3.json",
+      "secondi": 6.756,
+      "etichetta": null,
+      "errore": "ValueError: controllo_traduzione: output: 'hundred thousand' non e' uno stato di PropCost; stati: ['Thousand', 'TenThou', 'HundredThou', 'Million']"
+    },
+    {
+      "task_id": "INT28",
+      "ripetizione": 3,
+      "file": "INT28_r3.json",
+      "secondi": 23.057,
+      "etichetta": null,
+      "errore": "ValueError: controllo_traduzione: intervention: servono almeno 1 evidenza/e, restano []; scartate: PropCost='Thousand' (disgiunzione: la variabile e' gia' il target della domanda), OtherCarCost='TenThou' (citazione: citazione assente o vuota), OtherCar='False' (citazione: citazione assente o vuota), MedCost='TenThou' (citazione: citazione assente o vuota), ThisCarCost='TenThou' (citazione: citazione assente o vuota), AntiTheft='True' (citazione: citazione assente o vuota), ILiCost='TenThou' (citazione: citazione assente o vuota), DrivHist='One' (citazione: citazione assente o vuota), MakeModel='SportsCar' (citazione: citazione assente o vuota), ThisCarDam='Mild' (citazione: citazione assente o vuota), VehicleYear='Older' (citazione: citazione assente o vuota), RuggedAuto='Football' (citazione: citazione assente o vuota), Accident='Mild' (citazione: citazione assente o vuota), GoodStudent='False' (citazione: citazione assente o vuota), SocioEcon='Middle' (citazione: citazione assente o vuota), RiskAversion='Normal' (citazione: citazione assente o vuota), DrivQuality='Normal' (citazione: citazione assente o vuota), Mileage='TwentyThou' (citazione: citazione assente o vuota), Antilock='True' (citazione: citazione assente o vuota), DrivingSkill='Normal' (citazione: citazione assente o vuota), SeniorTrain='False' (citazione: citazione assente o vuota), CarValue='TenThou' (citazione: citazione assente o vuota), HomeBase='Suburb' (citazione: citazione assente o vuota), Theft='False' (citazione: citazione assente o vuota)"
+    },
+    {
+      "task_id": "INT31",
+      "ripetizione": 3,
+      "file": "INT31_r3.json",
+      "secondi": 9.238,
+      "etichetta": null,
+      "errore": "ValueError: controllo_traduzione: intervention: servono almeno 1 evidenza/e, restano []; scartate: Cushioning='Poor|Fair|Good|Excellent' (vocabolario: 'Poor|Fair|Good|Excellent' non e' uno stato di Cushioning; stati: ['Poor', 'Fair', 'Good', 'Excellent']), DrivingSkill='SubStandard|Normal|Expert' (vocabolario: 'SubStandard|Normal|Expert' non e' uno stato di DrivingSkill; stati: ['SubStandard', 'Normal', 'Expert']), Age='Adolescent|Adult|Senior' (vocabolario: 'Adolescent|Adult|Senior' non e' uno stato di Age; stati: ['Adolescent', 'Adult', 'Senior'])"
+    },
+    {
+      "task_id": "INT32",
+      "ripetizione": 3,
+      "file": "INT32_r3.json",
+      "secondi": 6.778,
+      "etichetta": null,
+      "errore": "ValueError: controllo_traduzione: output: 'ten thousand dollars' non e' uno stato di PropCost; stati: ['Thousand', 'TenThou', 'HundredThou', 'Million']"
+    },
+    {
+      "task_id": "INT35",
+      "ripetizione": 3,
+      "file": "INT35_r3.json",
+      "secondi": 5.184,
+      "etichetta": null,
+      "errore": "ValueError: controllo_traduzione: output: 'hundred thousand' non e' uno stato di ILiCost; stati: ['Thousand', 'TenThou', 'HundredThou', 'Million']"
+    },
+    {
+      "task_id": "INT36",
+      "ripetizione": 3,
+      "file": "INT36_r3.json",
+      "secondi": 6.685,
+      "etichetta": null,
+      "errore": "ValueError: controllo_traduzione: intervention: servono almeno 1 evidenza/e, restano []; scartate: ThisCarDam='None' (disgiunzione: la variabile e' gia' il target della domanda), RuggedAuto='Tank' (citazione: citazione non presente nella query)"
+    },
+    {
+      "task_id": "INT39",
+      "ripetizione": 3,
+      "file": "INT39_r3.json",
+      "secondi": 8.458,
+      "etichetta": null,
+      "errore": "ValueError: controllo_traduzione: output: 'no antilock braking system' non e' uno stato di AntiTheft; stati: ['True', 'False']"
+    },
+    {
+      "task_id": "INT40",
+      "ripetizione": 3,
+      "file": "INT40_r3.json",
+      "secondi": 12.685,
+      "etichetta": "intervention",
+      "errore": ""
+    },
+    {
+      "task_id": "COH03",
+      "ripetizione": 3,
+      "file": "COH03_r3.json",
+      "secondi": 16.246,
+      "etichetta": "coherence",
+      "errore": ""
+    },
+    {
+      "task_id": "COH04",
+      "ripetizione": 3,
+      "file": "COH04_r3.json",
+      "secondi": 11.23,
+      "etichetta": null,
+      "errore": "ValueError: controllo_traduzione: coherence: servono almeno 1 evidenza/e, restano []; scartate: OtherCarCost='Thousand' (citazione: citazione non presente nella query), MedCost='Thousand' (citazione: citazione non presente nella query), ThisCarCost='HundredThou' (citazione: citazione non presente nella query), Cushioning='Excellent' (citazione: citazione non presente nella query)"
+    },
+    {
+      "task_id": "COH07",
+      "ripetizione": 3,
+      "file": "COH07_r3.json",
+      "secondi": 18.135,
+      "etichetta": "coherence",
+      "errore": ""
+    },
+    {
+      "task_id": "COH08",
+      "ripetizione": 3,
+      "file": "COH08_r3.json",
+      "secondi": 14.774,
+      "etichetta": "coherence",
+      "errore": ""
+    },
+    {
+      "task_id": "COH11",
+      "ripetizione": 3,
+      "file": "COH11_r3.json",
+      "secondi": 15.843,
+      "etichetta": "coherence",
+      "errore": ""
+    },
+    {
+      "task_id": "COH12",
+      "ripetizione": 3,
+      "file": "COH12_r3.json",
+      "secondi": 18.393,
+      "etichetta": "coherence",
+      "errore": ""
+    },
+    {
+      "task_id": "COH15",
+      "ripetizione": 3,
+      "file": "COH15_r3.json",
+      "secondi": 19.133,
+      "etichetta": "coherence",
+      "errore": ""
+    },
+    {
+      "task_id": "COH16",
+      "ripetizione": 3,
+      "file": "COH16_r3.json",
+      "secondi": 19.314,
+      "etichetta": "coherence",
+      "errore": ""
+    },
+    {
+      "task_id": "COH19",
+      "ripetizione": 3,
+      "file": "COH19_r3.json",
+      "secondi": 8.257,
+      "etichetta": null,
+      "errore": "ValueError: controllo_traduzione: coherence: servono almeno 1 evidenza/e, restano []; scartate: DrivHist='Zero' (citazione: citazione non presente nella query), ILiCost='Thousand' (citazione: citazione non presente nella query), VehicleYear='Older' (citazione: citazione non presente nella query)"
+    },
+    {
+      "task_id": "COH20",
+      "ripetizione": 3,
+      "file": "COH20_r3.json",
+      "secondi": 7.483,
+      "etichetta": null,
+      "errore": "ValueError: controllo_traduzione: coherence: servono almeno 1 evidenza/e, restano []; scartate: OtherCar='True' (citazione: citazione non presente nella query), SeniorTrain='False' (citazione: citazione non presente nella query), AntiTheft='False' (citazione: citazione non presente nella query)"
+    },
+    {
+      "task_id": "COH23",
+      "ripetizione": 3,
+      "file": "COH23_r3.json",
+      "secondi": 14.735,
+      "etichetta": "coherence",
+      "errore": ""
+    },
+    {
+      "task_id": "COH24",
+      "ripetizione": 3,
+      "file": "COH24_r3.json",
+      "secondi": 8.401,
+      "etichetta": null,
+      "errore": "ValueError: controllo_traduzione: output: 'ten thousand dollars' non e' uno stato di OtherCarCost; stati: ['Thousand', 'TenThou', 'HundredThou', 'Million']"
+    },
+    {
+      "task_id": "COH27",
+      "ripetizione": 3,
+      "file": "COH27_r3.json",
+      "secondi": 19.851,
+      "etichetta": "coherence",
+      "errore": ""
+    },
+    {
+      "task_id": "COH28",
+      "ripetizione": 3,
+      "file": "COH28_r3.json",
+      "secondi": 18.015,
+      "etichetta": "coherence",
+      "errore": ""
+    },
+    {
+      "task_id": "COH31",
+      "ripetizione": 3,
+      "file": "COH31_r3.json",
+      "secondi": 18.63,
+      "etichetta": "coherence",
+      "errore": ""
+    },
+    {
+      "task_id": "COH32",
+      "ripetizione": 3,
+      "file": "COH32_r3.json",
+      "secondi": 14.782,
+      "etichetta": "coherence",
+      "errore": ""
+    },
+    {
+      "task_id": "COH35",
+      "ripetizione": 3,
+      "file": "COH35_r3.json",
+      "secondi": 17.12,
+      "etichetta": "coherence",
+      "errore": ""
+    },
+    {
+      "task_id": "COH36",
+      "ripetizione": 3,
+      "file": "COH36_r3.json",
+      "secondi": 15.502,
+      "etichetta": "coherence",
+      "errore": ""
+    },
+    {
+      "task_id": "COH39",
+      "ripetizione": 3,
+      "file": "COH39_r3.json",
+      "secondi": 9.455,
+      "etichetta": null,
+      "errore": "ValueError: controllo_traduzione: output: 'not completed' non e' uno stato di SeniorTrain; stati: ['True', 'False']"
+    },
+    {
+      "task_id": "COH40",
+      "ripetizione": 3,
+      "file": "COH40_r3.json",
+      "secondi": 19.047,
+      "etichetta": "coherence",
+      "errore": ""
+    },
+    {
+      "task_id": "CF03",
+      "ripetizione": 3,
+      "file": "CF03_r3.json",
+      "secondi": 7.35,
+      "etichetta": null,
+      "errore": "ValueError: controllo_traduzione: counterfactual: servono almeno 1 evidenza/e, restano []; scartate: AntiTheft='False' (disgiunzione: la variabile e' gia' il target della domanda), Theft='True' (citazione: la citazione non nomina ne' la variabile ne' lo stato)"
+    },
+    {
+      "task_id": "CF04",
+      "ripetizione": 3,
+      "file": "CF04_r3.json",
+      "secondi": 8.063,
+      "etichetta": null,
+      "errore": "ValueError: controllo_traduzione: 'output' deve avere esattamente una chiave: {'VehicleYear': 'Older', 'ThisCarDam': 'Mild'}"
+    },
+    {
+      "task_id": "CF07",
+      "ripetizione": 3,
+      "file": "CF07_r3.json",
+      "secondi": 19.333,
+      "etichetta": "counterfactual",
+      "errore": ""
+    },
+    {
+      "task_id": "CF08",
+      "ripetizione": 3,
+      "file": "CF08_r3.json",
+      "secondi": 7.963,
+      "etichetta": null,
+      "errore": "ValueError: controllo_traduzione: counterfactual: servono almeno 1 evidenza/e, restano []; scartate: Theft='True' (citazione: la citazione non nomina ne' la variabile ne' lo stato), ThisCarCost='HundredThou' (disgiunzione: la variabile e' gia' il target della domanda)"
+    },
+    {
+      "task_id": "CF11",
+      "ripetizione": 3,
+      "file": "CF11_r3.json",
+      "secondi": 17.358,
+      "etichetta": "counterfactual",
+      "errore": ""
+    },
+    {
+      "task_id": "CF12",
+      "ripetizione": 3,
+      "file": "CF12_r3.json",
+      "secondi": 20.376,
+      "etichetta": "counterfactual",
+      "errore": ""
+    },
+    {
+      "task_id": "CF15",
+      "ripetizione": 3,
+      "file": "CF15_r3.json",
+      "secondi": 7.097,
+      "etichetta": null,
+      "errore": "ValueError: controllo_traduzione: counterfactual: servono almeno 1 evidenza/e, restano []; scartate: AntiTheft='False' (disgiunzione: la variabile e' gia' il target della domanda), Theft='False' (citazione: la citazione non nomina ne' la variabile ne' lo stato)"
+    },
+    {
+      "task_id": "CF16",
+      "ripetizione": 3,
+      "file": "CF16_r3.json",
+      "secondi": 7.593,
+      "etichetta": null,
+      "errore": "ValueError: controllo_traduzione: counterfactual: servono almeno 1 evidenza/e, restano []; scartate: Theft='True' (citazione: la citazione non nomina ne' la variabile ne' lo stato), ThisCarCost='Million' (disgiunzione: la variabile e' gia' il target della domanda)"
+    },
+    {
+      "task_id": "CF19",
+      "ripetizione": 3,
+      "file": "CF19_r3.json",
+      "secondi": 12.36,
+      "etichetta": "counterfactual",
+      "errore": ""
+    },
+    {
+      "task_id": "CF20",
+      "ripetizione": 3,
+      "file": "CF20_r3.json",
+      "secondi": 16.126,
+      "etichetta": "counterfactual",
+      "errore": ""
+    },
+    {
+      "task_id": "CF23",
+      "ripetizione": 3,
+      "file": "CF23_r3.json",
+      "secondi": 17.979,
+      "etichetta": "counterfactual",
+      "errore": ""
+    },
+    {
+      "task_id": "CF24",
+      "ripetizione": 3,
+      "file": "CF24_r3.json",
+      "secondi": 15.507,
+      "etichetta": "counterfactual",
+      "errore": ""
+    },
+    {
+      "task_id": "CF27",
+      "ripetizione": 3,
+      "file": "CF27_r3.json",
+      "secondi": 16.748,
+      "etichetta": "counterfactual",
+      "errore": ""
+    },
+    {
+      "task_id": "CF28",
+      "ripetizione": 3,
+      "file": "CF28_r3.json",
+      "secondi": 22.325,
+      "etichetta": "counterfactual",
+      "errore": ""
+    },
+    {
+      "task_id": "CF31",
+      "ripetizione": 3,
+      "file": "CF31_r3.json",
+      "secondi": 15.573,
+      "etichetta": "counterfactual",
+      "errore": ""
+    },
+    {
+      "task_id": "CF32",
+      "ripetizione": 3,
+      "file": "CF32_r3.json",
+      "secondi": 14.253,
+      "etichetta": "counterfactual",
+      "errore": ""
+    },
+    {
+      "task_id": "CF35",
+      "ripetizione": 3,
+      "file": "CF35_r3.json",
+      "secondi": 16.822,
+      "etichetta": "counterfactual",
+      "errore": ""
+    },
+    {
+      "task_id": "CF36",
+      "ripetizione": 3,
+      "file": "CF36_r3.json",
+      "secondi": 17.193,
+      "etichetta": "counterfactual",
+      "errore": ""
+    },
+    {
+      "task_id": "CF39",
+      "ripetizione": 3,
+      "file": "CF39_r3.json",
+      "secondi": 19.626,
+      "etichetta": "counterfactual",
+      "errore": ""
+    },
+    {
+      "task_id": "CF40",
+      "ripetizione": 3,
+      "file": "CF40_r3.json",
+      "secondi": 7.728,
+      "etichetta": null,
+      "errore": "ValueError: controllo_traduzione: counterfactual: servono almeno 1 evidenza/e, restano []; scartate: Theft='False' (citazione: la citazione non nomina ne' la variabile ne' lo stato), ThisCarCost='Thousand' (disgiunzione: la variabile e' gia' il target della domanda)"
+    }
+  ]
+}

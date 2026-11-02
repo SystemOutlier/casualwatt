@@ -1,0 +1,210 @@
+{
+  "variante": "b_composta",
+  "descrizione": "via B con i due passi di routing corretti insieme: traduttore ancorato al grafo con scarto dichiarato, e classificatore sulla forma della domanda",
+  "cambia_rispetto_a_b_base": "passo translator come b_verificata (citazione richiesta sull'input, non sull'output) e passo classificator come b_esempi; spiegazione invariata",
+  "task_id": "CND24",
+  "ripetizione": 2,
+  "rete": "C:\\Users\\Massimo\\Documents\\CasualWatt\\CWProject\\MUDILAB_run\\benchmark\\insurance_grafo_perturbato.bif",
+  "rete_hash": "8b572235b98da1c3716b68a7ad20bd17d80a12bcb8f92c8aee15ec1e5e780443",
+  "provenienza": {
+    "varianti\\b_composta.py": "7da1891fa867950577154ee659796ddc87af274de911b184a05084c0dc7090b4",
+    "run_orchestrato.py": "da1a58e2ac265293239aa1ba5c8a14ff393edfa0985c20a6365440d54da51abe",
+    "run_query.py": "39ba30e59a7f8dbae66774821a10b6ae17b255224c0d8c4eae4e91c9ab478793",
+    "traduzione_controllata.py": "9f477698b96d0614db2a3f1a5437bc41d3154e21ac3670673c95a42de371df1a",
+    "classificazione_controllata.py": "686ff6bc82c85087b08984393f5fc5d256a57f16ac47b8862720c19e439cbba4",
+    "consegna\\agents_corretto.py": "f6b8e2fe9960b77665b7eafb08686c92068108df101350a0cb1c37ecb89de1ba",
+    "consegna\\tools_corretto.py": "adbd7d0f3bf2ee40859bb518e840d35ce6cfa38ae7b568c23f211509185c6559",
+    "consegna\\funtions_corretto.py": "60f8032884a0c62662edb1bf6e81c32ee47c5d6ba2595523461f3556f0b86db2",
+    "consegna\\insurance_grafo.bif": "94c01027ef297aed2f36870416729e0335dfc0c84a420b1bc0a24dd6f1f782dd"
+  },
+  "errore_variante": "",
+  "risultato": {
+    "modalita": "orchestrata",
+    "model": "llama3.2:3b-instruct-q4_K_M",
+    "modello_spiegazione": "llama3.2:3b-instruct-q4_K_M",
+    "source": {
+      "agents": "agents_corretto.py",
+      "tools": "tools_corretto.py",
+      "funtions": "funtions_corretto.py"
+    },
+    "opzioni": {
+      "temperature": 0.0
+    },
+    "opzioni_passi": {
+      "translator": {
+        "response_format": {
+          "type": "json_schema",
+          "json_schema": {
+            "name": "traduzione_verificabile",
+            "strict": true,
+            "schema": {
+              "type": "object",
+              "properties": {
+                "input": {
+                  "type": "object",
+                  "additionalProperties": {
+                    "type": "string"
+                  }
+                },
+                "output": {
+                  "type": "object",
+                  "minProperties": 1,
+                  "maxProperties": 1,
+                  "additionalProperties": {
+                    "type": "string"
+                  }
+                },
+                "citazioni": {
+                  "type": "object",
+                  "minProperties": 1,
+                  "additionalProperties": {
+                    "type": "string"
+                  }
+                }
+              },
+              "required": [
+                "input",
+                "output",
+                "citazioni"
+              ],
+              "additionalProperties": false
+            }
+          }
+        }
+      }
+    },
+    "spiegazione": true,
+    "rete": "C:\\Users\\Massimo\\Documents\\CasualWatt\\CWProject\\MUDILAB_run\\benchmark\\insurance_grafo_perturbato.bif",
+    "task": "Given that the car has an anti-theft device, how likely is it that the customer has a normal risk aversion?",
+    "etichetta": "backward_reasoning",
+    "etichette_nel_testo": [
+      "backward_reasoning"
+    ],
+    "traduzione": {
+      "input": {
+        "AntiTheft": "True"
+      },
+      "output": {
+        "RiskAversion": "Normal"
+      }
+    },
+    "controllo_traduzione": {
+      "regole": [
+        "vocabolario",
+        "nessuna-evidenza",
+        "citazione",
+        "disgiunzione"
+      ],
+      "scartate": [],
+      "motivo": "",
+      "etichetta": "backward_reasoning",
+      "evidenze": {
+        "AntiTheft": "True"
+      },
+      "target": {
+        "RiskAversion": "Normal"
+      },
+      "citazione_output": "non richiesta",
+      "avviso_output": "citazione assente o vuota"
+    },
+    "numero": "The probability of RiskAversion is Normal given the provided conditions is 0.169",
+    "seconds_total": 13.288,
+    "misura": {
+      "attiva": true,
+      "disponibile": true,
+      "errore": "",
+      "note": [
+        "canale emi-counter",
+        "bordo di riscaldamento scartato: 1.378 s",
+        "baseline calibrata: 6.480 W",
+        "riscaldamento routing (llama3.2:3b-instruct-q4_K_M) scartato: 2.320 s",
+        "riscaldamento spiegazione (llama3.2:3b-instruct-q4_K_M) scartato: 0.178 s",
+        "primo run scartato (caricamento e cache dei prompt)"
+      ]
+    },
+    "totale": {
+      "energia_pkg_j": 401.922351,
+      "energia_pkg_raw_j": 401.922351,
+      "energia_attiva_j": 315.741092,
+      "attiva_valida": true,
+      "canale": "emi-counter",
+      "finestra": "exact-counter",
+      "idle": "calibrated"
+    },
+    "fuori_dai_passi_j": 2.579324,
+    "steps": [
+      {
+        "step": "translator",
+        "seconds": 4.113,
+        "tokens": {
+          "input_token_count": 1945,
+          "output_token_count": 42,
+          "total_token_count": 1987
+        },
+        "misura": {
+          "energia_pkg_j": 125.228181,
+          "energia_pkg_raw_j": 125.228181,
+          "energia_attiva_j": 98.506793,
+          "attiva_valida": true,
+          "canale": "emi-counter",
+          "finestra": "exact-counter",
+          "idle": "calibrated"
+        },
+        "text": "{\"input\": {\"AntiTheft\": \"True\"}, \"output\": {\"RiskAversion\": \"Normal\"}, \"citazioni\": {\"AntiTheft\": \"the car has an anti-theft device\"}}"
+      },
+      {
+        "step": "classificator",
+        "seconds": 0.689,
+        "tokens": {
+          "input_token_count": 588,
+          "output_token_count": 4,
+          "total_token_count": 592
+        },
+        "misura": {
+          "energia_pkg_j": 22.730003,
+          "energia_pkg_raw_j": 22.730003,
+          "energia_attiva_j": 18.180207,
+          "attiva_valida": true,
+          "canale": "emi-counter",
+          "finestra": "exact-counter",
+          "idle": "calibrated"
+        },
+        "text": "backward_reasoning"
+      },
+      {
+        "step": "cau_inference",
+        "seconds": 0.062,
+        "tokens": {},
+        "misura": {
+          "energia_pkg_j": 2.704984,
+          "energia_pkg_raw_j": 2.704984,
+          "energia_attiva_j": 2.191865,
+          "attiva_valida": true,
+          "canale": "emi-counter",
+          "finestra": "exact-counter",
+          "idle": "calibrated"
+        },
+        "text": "The probability of RiskAversion is Normal given the provided conditions is 0.169"
+      },
+      {
+        "step": "causal_A",
+        "seconds": 8.272,
+        "tokens": {
+          "input_token_count": 306,
+          "output_token_count": 96,
+          "total_token_count": 402
+        },
+        "misura": {
+          "energia_pkg_j": 248.679859,
+          "energia_pkg_raw_j": 248.679859,
+          "energia_attiva_j": 194.994847,
+          "attiva_valida": true,
+          "canale": "emi-counter",
+          "finestra": "exact-counter",
+          "idle": "calibrated"
+        },
+        "text": "The probability of RiskAversion being Normal given the conditions is 0.169.\n\nGiven that the car has an anti-theft device, it is 16.9% likely that the customer has a normal risk aversion. The presence of the anti-theft device suggests that the customer is taking steps to mitigate potential risks, which may indicate a lower risk aversion. However, this relationship is not strong enough to conclusively determine the customer's risk aversion level."
+      }
+    ]
+  }
+}
