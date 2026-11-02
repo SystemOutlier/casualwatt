@@ -51,7 +51,7 @@ import hashlib
 import json
 import statistics
 import sys
-from collections import defaultdict
+from collections import Counter, defaultdict
 from pathlib import Path
 
 HERE = Path(__file__).resolve().parent
@@ -61,6 +61,7 @@ sys.path.insert(0, str(ROOT))
 
 import benchmark as B  # noqa: E402
 from benchmark.genera import _confronta  # noqa: E402
+import etichette as ET  # noqa: E402  (modulo puro: niente copie, niente modello)
 
 CSV_GT = HERE / "benchmark.csv"
 MANIFEST = HERE / "manifest.json"
@@ -96,7 +97,9 @@ def _digest_accettati(percorso: Path, sha_manifest: str) -> dict:
     checkout: su questo host `core.autocrlf` = true (misurato 02-11) e
     `consegna/insurance_grafo.bif` vale 22719 B con 548 LF nell'index git,
     23267 B con 548 coppie CR+LF e zero LF nudi sul disco lavoro; normalizzato
-    da 39f9e706..dab4, che e' il digest del manifest. Le due reti sono lo stesso
+    il file attuale restituisce il digest del manifest, cioe'
+    `39f9e706e9208e720a55a98b6811188b33a7292335a53373a9343a0c7065dab4`.
+    Le due reti sono lo stesso
     grafo: fra il digest del run e quello del manifest c'e' solo il fine riga,
     non una CPT.
 
@@ -183,10 +186,42 @@ def _atteso_colonne(gt: dict):
     return json.loads(inp), {gt["target_variable"]: gt["target_state"]}, atteso
 
 
+def _etichetta_del_run(risultato: dict):
+    """(etichetta, fonte) per un run: prima la chiave scritta, poi il passo.
+
+    Perche' serve. Fino al 02-11 la chiave `etichetta` veniva scritta da
+    `run_orchestrato.run` **solo** nei rami di successo e di `cau_inference`, non
+    nei due percorsi d'errore del gate. `etichetta_ok` valeva quindi
+    `"" == etichetta_attesa` per ogni riga rifiutata: il conteggio diceva 138
+    etichette giuste su 240, che e' esattamente il numero dei superstiti del gate,
+    e veniva letto come "il classificatore sbaglia" (falso: il testo del passo
+    cita l'etichetta attesa in 240 run su 240, misurato il 02-11 in
+    `harness/risultati/analisi_rami_deboli_20261102.txt` sezione 6).
+    Il recupero rilegge lo stesso testo con lo stesso parser del run
+    (`etichette.py`), non con un criterio nuovo.
+
+    Cosa **non** muove: `corretta` resta `etichetta_ok AND numero_ok`, e una riga
+    rifiutata dal gate non ha `numero`, quindi la precisione della misura non
+    cambia. Questa correzione ripara un diagnostico, non il punteggio.
+    Per lo stesso motivo `mappatura_ok` non si tocca: li' il testo da leggere e'
+    del traduttore e la regola applicata e' il gate, non il parsing.
+    """
+    chiave = str(risultato.get("etichetta") or "").strip().lower()
+    if chiave:
+        return chiave, "risultato"
+    for s in risultato.get("steps") or []:
+        if s.get("step") == "classificator":
+            trovata = ET.etichetta_dal_testo_o_nulla(s.get("text") or "")
+            # "passo-senza-etichetta" e' un esito del modello, non un artefatto
+            # mancante: va contato a parte da "assente", che non e' una misura.
+            return (trovata or "", "passo" if trovata else "passo-senza-etichetta")
+    return "", "assente"
+
+
 def _valuta_run(riga: dict, gt: dict, hash_reti: dict) -> dict:
     """Un run: i quattro esiti, l'energia, il motivo se qualcosa non torna."""
     risultato = riga.get("risultato") or {}
-    etichetta = str(risultato.get("etichetta", "")).strip().lower()
+    etichetta, etichetta_fonte = _etichetta_del_run(risultato)
     atteso_in, atteso_out, atteso_num = _atteso_colonne(gt)
 
     traduzione = risultato.get("traduzione")
@@ -213,6 +248,7 @@ def _valuta_run(riga: dict, gt: dict, hash_reti: dict) -> dict:
         "split": gt["split"],
         "rete": gt["rete"],
         "etichetta_ok": etichetta == gt["etichetta_attesa"],
+        "etichetta_fonte": etichetta_fonte,
         "mappatura_ok": mappa_ok,
         "numero_ok": numero_ok,
         "corretta": (etichetta == gt["etichetta_attesa"]) and numero_ok,
@@ -258,6 +294,11 @@ def _aggregato(righe: list) -> dict:
         "corrette": corrette,
         "precisione": (corrette / n) if n else None,
         "etichetta_ok": sum(1 for r in righe if r["etichetta_ok"]),
+        # da dove arriva l'etichetta di ogni riga: "risultato" = scritta dal run,
+        # "passo" = recuperata dal testo del classificatore (le righe che il gate
+        # ha fermato prima della correzione del 02-11), "assente" = ne' l'uno
+        # ne' l'altro, e non e' una misura del classificatore.
+        "etichetta_fonte": dict(Counter(r["etichetta_fonte"] for r in righe)),
         "mappatura_ok": sum(1 for r in righe if r["mappatura_ok"]),
         "numero_ok": sum(1 for r in righe if r["numero_ok"]),
         "energia_j": round(energia, 6) if con_energia else None,

@@ -160,7 +160,9 @@ def riproduci(d: dict, r: dict, passi: dict, regime: str, gt: dict, TC, tools, _
     riga_gt = gt[task_id]
     etichetta = str(r.get("etichetta") or "").strip().lower()
     if not etichetta:
-        from run_orchestrato import etichetta_dal_testo  # lo stesso parser del run
+        # lo stesso parser del run, ma dal modulo puro: `run_orchestrato` all'import
+        # monta la pipeline di `run_query` e fa chdir nella consegna
+        from etichette import etichetta_dal_testo
         etichetta = etichetta_dal_testo(passi["classificator"]["text"])
     rete = d.get("rete") or None
 
