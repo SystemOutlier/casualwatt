@@ -4,6 +4,8 @@ Framework di benchmark energetico per LLM locali (Ollama) e cloud, con interfacc
 
 Target principale: **Windows 11**, Python 3.14 x64. L'app gira **senza privilegi amministrativi**: il contatore EMI si apre a privilegi standard e non esiste più un percorso che richieda l'elevazione (UAC).
 
+**Qual è il documento che serve.** Il metodo vigente, con le decisioni congelate P1-P4 e il formulario F.0-F.17, è in `experiment_results/protocollo_v4_20261024.md`; le regole vincolanti per chi lavora nel repository sono in `AGENTS.md`. `RELAZIONE.md` **non** è la relazione di questo framework: è la verifica del 15/10/2026 del tool monofile legacy `consumi_ollama.py`, che stima la potenza dal TDP e sta fuori dal percorso di misura (`AGENTS.md:135-136`, `AGENTS.md:318-320`).
+
 ## Caratteristiche
 
 - GUI a 3 pannelli: selezione modelli (locali/cloud), esecuzione benchmark, risultati + grafici; sezioni Log e Risultati ridimensionabili (PanedWindow).
