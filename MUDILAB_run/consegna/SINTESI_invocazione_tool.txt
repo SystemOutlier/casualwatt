@@ -1,0 +1,89 @@
+SINTESI — PERCHE' LA PIPELINE NON RESTITUISCE IL NUMERO
+29 ottobre 2026
+--------------------------------------------------------------------
+
+Cosa ho provato, cosa succede, perche', e la decisione che spetta a lei.
+I riferimenti sono ai suoi file, riga per riga.
+
+1. COSA HO PROVATO
+Ho eseguito la sua pipeline senza modificarla, con i modelli locali di
+questa macchina (Ollama). Query: "Given that the driving quality is
+normal, how likely is it that the age of the driver is senior?",
+riferimento 0.2117 (stampato 0.212 da verifica_copie.py). agents.py e
+tools.py non sono stati toccati: le correzioni stanno in tre copie
+separate, allegate.
+
+2. COSA SUCCEDE
+- tinyllama:latest non supporta i tool: Ollama risponde 400 al primo
+  passo, perche' agents.py:44 dichiara tools=[read_graph] sul
+  traduttore. Su 21 modelli locali 16 dichiarano il supporto ai tool.
+- Su 12 modelli fino a 8B, 5 chiamano davvero cau_inference e nessuno
+  restituisce 0.2117. Tre ripetizioni sui 5 che chiamano: 0 run validi
+  su 15.
+- Il guasto piu' frequente non e' "non chiama", e' "chiama con
+  argomenti inventati": read_graph ha ricevuto come path la query
+  stessa, "dict", "data\graph.json", un URL di Wikipedia (14 su 15).
+- "Chiamata riuscita" non basta: un run ha invocato il tool senza
+  eccezioni, con etichetta influence, riportando 0.85 come "influence
+  level". Plausibile e sbagliato: senza il riferimento non si distingue.
+- deepseek-r1:8b (thinking) non ha concluso un run entro 15 minuti su
+  CPU: la via A costa anche tempo, non solo J per token.
+- Nella via B tinyllama:latest non prende piu' il 400 (il traduttore
+  perde il tool), ma scrive prosa invece del JSON e dichiara influence
+  invece di backward_reasoning.
+- Una parte delle chiamate perse non e' del modello ma del trasporto:
+  llama3.1:8b su /api/chat di Ollama emette la chiamata strutturata,
+  su /v1 (la strada che usa il client, compatibile OpenAI) scrive lo
+  stesso JSON dentro il testo. Il modello sa chiamare; e' quella
+  interfaccia a non restituire la chiamata.
+
+3. PERCHE', NEI SUOI FILE
+- read_graph(path: str) (tools.py:21): path e' obbligatorio e senza
+  default, quindi il modello deve inventare un percorso.
+- cau_inference(..., path: Optional[str], ...) (tools.py:39): il
+  default sta dentro la funzione (tools.py:41, il percorso
+  C:/Users/Samsung/...), non nella firma; per lo schema degli
+  argomenti il campo resta obbligatorio.
+- Il classificatore elenca quattro etichette (agents.py:24) mentre il
+  ramo counterfactual esiste (tools.py:63, scritto "conterfactual"):
+  una query di quel tipo non ha un'etichetta che la produca.
+- Con un'etichetta diversa da quella attesa cau_inference risponde
+  comunque: un ramo sbagliato da' un numero plausibile. Il guasto e'
+  silenzioso, non rumoroso. Per questo serve un riferimento esterno.
+
+4. LE DUE VIE (decisione sua)
+A. Un modello che segua il protocollo dei tool. Riduce il guasto, non
+   lo elimina; cambia il profilo energetico (un 8B non e'
+   confrontabile con un 1B in J per token). Misurato il 29-10:
+   llama3.2:1b, 3b, smollm2:1.7b e qwen2.5:1.5b chiamano su /v1, ma
+   sotto gli 8B sbagliano etichetta o argomenti; llama3.1:8b chiama
+   solo se il client non passa da /v1.
+B. Orchestrazione deterministica: il codice legge etichetta e
+   dizionario del traduttore, li valida e chiama cau_inference da se'.
+   L'esperto causale scrive la sola spiegazione.
+   Provata (run_orchestrato.py): llama3.1:8b, 0.212 in 14-18 s a caldo
+   e temperature 0; tre run, stesso dizionario, stessi token. Il
+   numero e' del suo cau_inference, la spiegazione del modello. A
+   temperatura predefinita il traduttore variava (un run su tre:
+   Age=Adult, 0.651, giusto per l'altra domanda); la sua run_query.py
+   resta com'e'. Costo: l'esperto non calcola piu', read_graph diventa
+   superfluo. Con 1B e 3B la stessa via costa un terzo dell'energia
+   (165 e 208 J contro 494) ma sbaglia il classificatore (influence,
+   coherence): il passo che decide la domanda e' anche il piu'
+   economico, e non e' quello che si puo' sbagliare.
+   Ibrida, misurata il 29-10: 8B su traduttore e classificatore, 1B (o
+   3B) sulla sola spiegazione. Stesso 0.212 e stessa etichetta in tutte
+   e tre: 487-539 J con 8B+8B, 236-259 con 8B+1B (circa -50%), 289 con
+   8B+3B (-43%). Il risparmio e' tutto nel quarto passo (350-376 ->
+   101-104 J col 1B), che nell'8B e' circa il 70% dell'energia; fra
+   due run della stessa configurazione lo scarto e' del 10%.
+A+B e' la piu' solida e la piu' lontana dal suo originale.
+
+5. CONFINE
+Non ho modificato agents.py, tools.py, DATI.csv ne' insurance_grafo.bif.
+Le tre copie corrette danno 0.212 sul caso di riferimento. Per il resto:
+LEGGIMI.txt (cosa cambia e perche'), tabella_confronto.md (originale
+contro copia, 13 casi), verifica_righe_dati.md (le 6 righe di DATI.csv
+come query), output_verifica.txt (i rami senza modello).
+
+Massimo

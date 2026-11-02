@@ -1,0 +1,32 @@
+confronto (a)/(b) - riepilogo rigenerato con --rivaluta il 2026-10-31
+I JSON accanto a questo file hanno i run grezzi (secondi, joule, tool, testo).
+
+=== llama3.2:3b - confronto_a_b_20261031_1658.json ===
+rivalutato confronto_a_b_20261031_1658.json (modello llama3.2:3b)
+
+#  variante        s     J pkg  J active      W  valido esito
+--------------------------------------------------------------------------------------------
+1  a           48.66    1591.0     909.5   32.7  no     tool_ok=False [1.0] errore=FileNotFoundError: read_graph: grafo non trovato in data\dri
+2  b           15.33     509.9     294.7   33.3  no     etichetta=coherence numero=Evidences are NOT strongly compatible with a singl
+3  a           38.09    1178.0     644.4   30.9  no     tool_ok=False [1.0] errore=FileNotFoundError: read_graph: grafo non trovato in {'DrivQu
+4  b            9.85     275.3     136.9   28.0  no     etichetta=coherence numero=Evidences are NOT strongly compatible with a singl
+5  a           39.28    1131.8     581.9   28.8  no     tool_ok=False [] errore=FileNotFoundError: read_graph: grafo non trovato in {'DrivQu
+6  b           11.12     294.5     138.5   26.5  no     etichetta=coherence numero=Evidences are NOT strongly compatible with a singl
+--------------------------------------------------------------------------------------------
+(a) run misurati 3   validi 0/3   secondi mediani 39.28   joule mediani 1178.0
+(b) run misurati 3   validi 0/3   secondi mediani 11.12   joule mediani 294.5
+
+=== llama3.1:8b - confronto_a_b_20261031_1710.json ===
+rivalutato confronto_a_b_20261031_1710.json (modello llama3.1:8b)
+
+#  variante        s     J pkg  J active      W  valido esito
+--------------------------------------------------------------------------------------------
+1  a           73.50    2306.6     980.5   31.4  no     tool_ok=False [] errore=FileNotFoundError: read_graph: grafo non trovato in data.csv
+2  b           27.70     863.4     363.1   31.2  si     etichetta=backward_reasoning numero=The probability of Age is Senior given the provide
+3  a           74.69    2586.8    1239.2   34.6  no     tool_ok=False []
+4  b           20.51     588.9     218.3   28.7  si     etichetta=backward_reasoning numero=The probability of Age is Senior given the provide
+5  a           68.72    2159.4     919.1   31.4  no     tool_ok=False [] errore=FileNotFoundError: read_graph: grafo non trovato in driveQua
+6  b           19.62     567.1     212.7   28.9  si     etichetta=backward_reasoning numero=The probability of Age is Senior given the provide
+--------------------------------------------------------------------------------------------
+(a) run misurati 3   validi 0/3   secondi mediani 73.50   joule mediani 2306.6
+(b) run misurati 3   validi 3/3   secondi mediani 20.51   joule mediani 588.9

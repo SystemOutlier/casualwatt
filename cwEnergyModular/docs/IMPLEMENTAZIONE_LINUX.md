@@ -30,7 +30,7 @@ Implementato backend Linux per CasualWatt basato su contatori hardware **RAPL** 
    - Requisiti hardware/software
    - Configurazione permessi (root, gruppo power, chmod temporaneo)
    - Troubleshooting
-   - Confronto con altri backend (LHM, EnviroLLM, CodeCarbon)
+   - Confronto con altri backend (EMI/PawnIO, EnviroLLM, CodeCarbon)
    - Validazione scientifica per la tesi
 
 ### File modificati
@@ -58,7 +58,7 @@ Implementato backend Linux per CasualWatt basato su contatori hardware **RAPL** 
 ```
 Costruttore _CPUJouleSource
   ├─ CW_ENERGY_FILE impostato? → "energy-file" (dev/test)
-  ├─ Windows? → LHM (power-integration o librehardwaremonitor-energy)
+  ├─ Windows? → EMI, poi PawnIO (emi-counter o pawnio-counter)
   ├─ Linux? → RAPL (rapl)
   └─ Altro (macOS) → "unavailable" (future work)
 ```
@@ -144,7 +144,7 @@ python main.py
 
 ## Confronto metodologico
 
-| Caratteristica | Windows (LHM) | Linux (RAPL) | EnviroLLM | CodeCarbon |
+| Caratteristica | Windows (EMI/PawnIO) | Linux (RAPL) | EnviroLLM | CodeCarbon |
 |---|---|---|---|---|
 | **Tipo** | Misura firmware | Misura hardware | Stima statica | Stima TDP |
 | **Sorgente** | CPU Package sensor | energy_uj | 50W + cpu%*2 | TDP * cpu% |
@@ -159,7 +159,7 @@ python main.py
 
 ### Cross-platform validation
 Stesso hardware in dual boot Windows/Linux:
-1. Eseguire identiche query su Windows (LHM)
+1. Eseguire identiche query su Windows (EMI/PawnIO)
 2. Riavviare in Linux
 3. Eseguire stesse query su Linux (RAPL)
 4. Confrontare energia per query: differenza attesa < 5%

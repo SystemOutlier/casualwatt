@@ -119,7 +119,7 @@ Il contatore RAPL `energy_uj` è cumulativo e wraps around quando raggiunge `max
 
 ### Confronto con altri backend
 
-| Caratteristica | Windows (LHM) | Linux (RAPL) | EnviroLLM | CodeCarbon |
+| Caratteristica | Windows (EMI/PawnIO) | Linux (RAPL) | EnviroLLM | CodeCarbon |
 |---|---|---|---|---|
 | **Tipo** | Misura firmware | Misura hardware | Stima statica | Stima TDP |
 | **Sorgente** | CPU Package sensor | energy_uj | 50W + cpu%*2 | TDP * cpu% |
@@ -179,7 +179,7 @@ python main.py 2>&1 | grep -i rapl
 
 Per la tesi, il backend RAPL può essere validato confrontando le misure con:
 
-1. **Windows (LHM)**: stesso hardware in dual boot, confrontare energia per query identiche
+1. **Windows (EMI/PawnIO)**: stesso hardware in dual boot, confrontare energia per query identiche
 2. **Wattmetro esterno**: misurare potenza totale sistema con wattmetro fisico, confrontare con RAPL + altri componenti
 3. **Intel Power Metric**: tool ufficiale Intel che legge gli stessi contatori MSR
 

@@ -128,6 +128,7 @@ class LocalEnergyResult:
     gpu_device_index: Optional[int] = None
     gpu_board_energy_j: float = 0.0
     gpu_energy_attributed_j: float = 0.0
+    gpu_energy_attributed_raw_j: float = 0.0
     gpu_utilization_share: float = 0.0
     # attribuzione per processo NVIDIA (N/A se NVML non la espone)
     gpu_process_energy_j: Optional[float] = None
@@ -504,7 +505,7 @@ class CasualWattLocalEnergyProfiler:
                 (s.package_energy_j for s in reversed(samples) if s.package_energy_j is not None),
                 None,
             )
-            if pkg_first is not None and pkg_last is not None and pkg_last >= pkg_first:
+            if pkg_first is not None and pkg_last is not None:
                 res.package_window_source = "samples-fallback"
                 res.emi_edge_source = "samples-fallback"
                 notes.append(
@@ -517,7 +518,7 @@ class CasualWattLocalEnergyProfiler:
                 for cur in samples[1:]:
                     if cur.package_energy_j is not None \
                             and prev.package_energy_j is not None:
-                        e_package += max(cur.package_energy_j - prev.package_energy_j, 0.0)
+                        e_package += cur.package_energy_j - prev.package_energy_j
                     prev = cur
                 res.cpu_attribution_method = (
                     f"{method}; cpu-time-share attribution, ESTIMATE "
@@ -535,7 +536,11 @@ class CasualWattLocalEnergyProfiler:
                 )
                 res.cpu_attribution_method = "unavailable"
 
-        res.package_energy_j = round(max(e_package, 0.0), 6)
+        # Il protocollo conserva il segno degli incrementi. Un valore
+        # negativo non e' energia fisica negativa: segnala una finestra non
+        # interpretabile o una variazione del contatore e resta disponibile
+        # per il gate metodologico tramite il valore grezzo.
+        res.package_energy_j = round(float(e_package), 6)
         res.package_energy_raw_j = round(float(e_package), 6)
         # ---- A1: baseline SEMPRE sulla stessa finestra dell'integrale -----
         # La vecchia logica "coda inattiva" scalava la baseline su
@@ -549,11 +554,11 @@ class CasualWattLocalEnergyProfiler:
         # sullo stesso intervallo fisico.
         res.baseline_energy_j = round(
             res.idle_power_w * float(res.dt_W_s or dt), 6)
-        # La sottrazione si conserva con il segno: active_energy_j resta
-        # troncato a zero per compatibilita' con i CSV gia' scritti, ma la
-        # riga dichiara ora il valore grezzo e la validita' della grandezza.
+        # La sottrazione conserva il segno previsto dal protocollo. I valori
+        # negativi restano nel dataset e active_valid li esclude dalle
+        # attribuzioni utilizzabili.
         active_raw = float(e_package) - res.baseline_energy_j
-        active = max(active_raw, 0.0)
+        active = active_raw
         res.active_energy_raw_j = round(active_raw, 6)
         res.active_energy_j = round(active, 6)
         idle_missing = (
@@ -569,7 +574,7 @@ class CasualWattLocalEnergyProfiler:
             notes.append(
                 f"E_attiva grezza {active_raw:+.3f} J < 0 (package "
                 f"{float(e_package):.3f} J < baseline {res.baseline_energy_j:.3f} J): "
-                "active_energy_j troncato a 0, active_valid=False"
+                "active_valid=False; il valore firmato resta nel record"
             )
 
         # ---- B2: cpu busy sugli intervalli NON esclusi (coerenza) ---------
@@ -699,7 +704,7 @@ class CasualWattLocalEnergyProfiler:
             # alimenta l'attribuzione.
             res.ollama_active_energy_j = (
                 round(active * share, 6)
-                if res.cpu_time_share_valid else 0.0
+                if res.cpu_time_share_valid and res.active_valid else 0.0
             )
             for anomaly in anomalies:
                 notes.append(
@@ -860,12 +865,15 @@ class CasualWattLocalEnergyProfiler:
             res.gpu_idle_provenance = "calibrated" if idle_gpu_w > 0.0 else "missing"
             # A2: NESSUNA moltiplicazione per lo share di utilizzo: la potenza
             # board riflette gia' il carico. Attribuzione whole-device:
-            #     E_gpu_attr = max(board_j - P_idle_gpu * dt_gpu, 0)
+            #     E_gpu_attr = board_j - P_idle_gpu * dt_gpu
+            # Il segno resta osservabile; un valore negativo non viene
+            # trasformato in uno zero plausibile.
             # con dt_gpu = intervallo reale coperto dall'integrale (coerenza).
-            active_gpu_j = max(board_j - idle_gpu_w * gpu_dt, 0.0)
+            active_gpu_j = board_j - idle_gpu_w * gpu_dt
             util_share = (util_sum / util_n / 100.0) if util_n else 1.0
             res.gpu_board_energy_j = round(board_j, 6)
             res.gpu_utilization_share = round(util_share, 6)  # SOLO diagnostico
+            res.gpu_energy_attributed_raw_j = round(active_gpu_j, 6)
             res.gpu_energy_attributed_j = round(active_gpu_j, 6)
             idle_txt = ("calibrated idle" if res.gpu_idle_provenance == "calibrated"
                         else "NO idle baseline (gpu_idle_provenance=missing)")
@@ -878,6 +886,11 @@ class CasualWattLocalEnergyProfiler:
                 f"GPU '{gpu_mon.name}': board {board_j:.2f} J, attribuiti "
                 f"{res.gpu_energy_attributed_j:.2f} J (whole-device, no double count)"
             )
+            if active_gpu_j < 0.0:
+                notes.append(
+                    f"energia GPU attribuita grezza {active_gpu_j:+.3f} J < 0: "
+                    "il valore firmato resta nel record"
+                )
             if res.gpu_idle_provenance == "missing":
                 notes.append(
                     "idle GPU non calibrato: energia GPU = potenza totale della "

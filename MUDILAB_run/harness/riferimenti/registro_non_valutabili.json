@@ -1,0 +1,502 @@
+{
+ "fonte_manifest": "C:\\Users\\Massimo\\Documents\\CasualWatt\\CWProject\\MUDILAB_run\\benchmark\\manifest.json",
+ "generato": "2026-11-01T14:50:10",
+ "seed": 7,
+ "righe_benchmark": {
+  "coherence": 40,
+  "cond_prob": 41,
+  "counterfactual": 40,
+  "inter": 40
+ },
+ "1_esclusi_alla_generazione_degeneri": {
+  "per_ramo": {
+   "coherence": 1,
+   "cond_prob": 3,
+   "counterfactual": 3,
+   "inter": 2
+  },
+  "dettaglio": {
+   "coherence": {
+    "probabilita' al bordo (0.0000)": 1
+   },
+   "cond_prob": {
+    "probabilita' al bordo (1.0000)": 3
+   },
+   "counterfactual": {
+    "intervallo nullo [0.0, 0.0]": 2,
+    "intervallo nullo [0.8314, 0.8314]": 1
+   },
+   "inter": {
+    "probabilita' al bordo (0.0000)": 2
+   }
+  },
+  "totale": 9,
+  "impatto_denominatore": "non entrano nei 161: il denominatore non cresce. Sono esclusi perche' il valore atteso si stampa 0.0000/1.0000, o sta a ridosso della soglia 0.60, o l'intervallo controfattuale e' nullo: una variante che risponde un numero a caso prende lo stesso punto, quindi la riga non discrimina."
+ },
+ "2_esclusi_alla_generazione_non_supportati_dal_codice": {
+  "per_ramo": {
+   "counterfactual": 94,
+   "inter": 3
+  },
+  "dettaglio": {
+   "counterfactual": {
+    "Airbag|MedCost: eccezione UndefinedElement": {
+     "Airbag|MedCost": 14
+    },
+    "AntiTheft|PropCost: eccezione UndefinedElement": {
+     "AntiTheft|PropCost": 8
+    },
+    "Antilock|ILiCost: eccezione UndefinedElement": {
+     "Antilock|ILiCost": 4
+    },
+    "Antilock|MedCost: eccezione UndefinedElement": {
+     "Antilock|MedCost": 4
+    },
+    "Antilock|OtherCarCost: eccezione UndefinedElement": {
+     "Antilock|OtherCarCost": 3
+    },
+    "Antilock|PropCost: eccezione UndefinedElement": {
+     "Antilock|PropCost": 2
+    },
+    "Antilock|ThisCarCost: eccezione UndefinedElement": {
+     "Antilock|ThisCarCost": 6
+    },
+    "Antilock|ThisCarDam: eccezione UndefinedElement": {
+     "Antilock|ThisCarDam": 3
+    },
+    "SeniorTrain|Accident: eccezione UndefinedElement": {
+     "SeniorTrain|Accident": 2
+    },
+    "SeniorTrain|DrivHist: eccezione UndefinedElement": {
+     "SeniorTrain|DrivHist": 3
+    },
+    "SeniorTrain|DrivQuality: eccezione UndefinedElement": {
+     "SeniorTrain|DrivQuality": 5
+    },
+    "SeniorTrain|ILiCost: eccezione UndefinedElement": {
+     "SeniorTrain|ILiCost": 3
+    },
+    "SeniorTrain|MedCost: eccezione UndefinedElement": {
+     "SeniorTrain|MedCost": 1
+    },
+    "SeniorTrain|PropCost: eccezione UndefinedElement": {
+     "SeniorTrain|PropCost": 4
+    },
+    "SeniorTrain|ThisCarCost: eccezione UndefinedElement": {
+     "SeniorTrain|ThisCarCost": 2
+    },
+    "SeniorTrain|ThisCarDam: eccezione UndefinedElement": {
+     "SeniorTrain|ThisCarDam": 1
+    },
+    "Theft|PropCost: eccezione IncompatibleEvidence": {
+     "Theft|PropCost": 6
+    },
+    "Theft|PropCost: eccezione UndefinedElement": {
+     "Theft|PropCost": 6
+    },
+    "Theft|ThisCarCost: eccezione IncompatibleEvidence": {
+     "Theft|ThisCarCost": 8
+    },
+    "VehicleYear|ILiCost: eccezione UndefinedElement": {
+     "VehicleYear|ILiCost": 3
+    },
+    "VehicleYear|MedCost: eccezione UndefinedElement": {
+     "VehicleYear|MedCost": 3
+    },
+    "VehicleYear|OtherCarCost: eccezione UndefinedElement": {
+     "VehicleYear|OtherCarCost": 1
+    },
+    "VehicleYear|PropCost: eccezione UndefinedElement": {
+     "VehicleYear|PropCost": 2
+    }
+   },
+   "inter": {
+    "Theft|PropCost: eccezione IncompatibleEvidence": {
+     "Theft|PropCost": 1
+    },
+    "Theft|ThisCarCost: eccezione IncompatibleEvidence": {
+     "Theft|ThisCarCost": 2
+    }
+   }
+  },
+  "totale": 97,
+  "impatto_denominatore": "non entrano nei 161: il denominatore non cresce. E' il codice della consegna che non sa rispondere (cobound non calcola il giunto su ogni coppia, causalImpact si ferma sugli effetti deterministici), non il modello: una riga del genere renderebbe uguale il fallimento di tutte le varianti."
+ },
+ "3_righe_presenti_ma_non_arrivano_al_tool": {
+  "denominatore": 81,
+  "esito_per_categoria": {
+   "corretta": 32,
+   "numero": 29,
+   "rifiutata": 20
+  },
+  "rifiutate_dal_validatore": 20,
+  "per_famiglia_di_motivo": {
+   "evidenze richieste non presenti nella traduzione": 16,
+   "'output' deve avere esattamente una chia": 1,
+   "output: 'ten thousand dollars' non e' un": 1,
+   "output: 'ten thousand' non e' uno stato ": 1,
+   "output: 'one thousand dollars' non e' un": 1
+  },
+  "righe": [
+   {
+    "task_id": "CF18",
+    "ramo": "counterfactual",
+    "motivo": "counterfactual: servono almeno 1 evidenza/e, restano []; sca"
+   },
+   {
+    "task_id": "CND02",
+    "ramo": "cond_prob",
+    "motivo": "backward_reasoning: servono almeno 1 evidenza/e, restano [];"
+   },
+   {
+    "task_id": "CND10",
+    "ramo": "cond_prob",
+    "motivo": "counterfactual: servono almeno 1 evidenza/e, restano []; sca"
+   },
+   {
+    "task_id": "CND14",
+    "ramo": "cond_prob",
+    "motivo": "backward_reasoning: servono almeno 1 evidenza/e, restano [];"
+   },
+   {
+    "task_id": "CND21",
+    "ramo": "cond_prob",
+    "motivo": "backward_reasoning: servono almeno 1 evidenza/e, restano [];"
+   },
+   {
+    "task_id": "CND26",
+    "ramo": "cond_prob",
+    "motivo": "backward_reasoning: servono almeno 1 evidenza/e, restano [];"
+   },
+   {
+    "task_id": "CND33",
+    "ramo": "cond_prob",
+    "motivo": "backward_reasoning: servono almeno 1 evidenza/e, restano [];"
+   },
+   {
+    "task_id": "CND37",
+    "ramo": "cond_prob",
+    "motivo": "backward_reasoning: servono almeno 1 evidenza/e, restano [];"
+   },
+   {
+    "task_id": "CND38",
+    "ramo": "cond_prob",
+    "motivo": "backward_reasoning: servono almeno 1 evidenza/e, restano [];"
+   },
+   {
+    "task_id": "COH06",
+    "ramo": "coherence",
+    "motivo": "'output' deve avere esattamente una chiave: {'AntiTheft': 'F"
+   },
+   {
+    "task_id": "COH09",
+    "ramo": "coherence",
+    "motivo": "coherence: servono almeno 1 evidenza/e, restano []; scartate"
+   },
+   {
+    "task_id": "COH33",
+    "ramo": "coherence",
+    "motivo": "coherence: servono almeno 1 evidenza/e, restano []; scartate"
+   },
+   {
+    "task_id": "INT02",
+    "ramo": "inter",
+    "motivo": "output: 'ten thousand dollars' non e' uno stato di PropCost;"
+   },
+   {
+    "task_id": "INT09",
+    "ramo": "inter",
+    "motivo": "output: 'ten thousand' non e' uno stato di OtherCarCost; sta"
+   },
+   {
+    "task_id": "INT17",
+    "ramo": "inter",
+    "motivo": "intervention: servono almeno 1 evidenza/e, restano []; scart"
+   },
+   {
+    "task_id": "INT21",
+    "ramo": "inter",
+    "motivo": "intervention: servono almeno 1 evidenza/e, restano []; scart"
+   },
+   {
+    "task_id": "INT26",
+    "ramo": "inter",
+    "motivo": "intervention: servono almeno 1 evidenza/e, restano []; scart"
+   },
+   {
+    "task_id": "INT29",
+    "ramo": "inter",
+    "motivo": "output: 'one thousand dollars' non e' uno stato di PropCost;"
+   },
+   {
+    "task_id": "INT33",
+    "ramo": "inter",
+    "motivo": "intervention: servono almeno 1 evidenza/e, restano []; scart"
+   },
+   {
+    "task_id": "INT37",
+    "ramo": "inter",
+    "motivo": "intervention: servono almeno 1 evidenza/e, restano []; scart"
+   }
+  ],
+  "coherence_mappatura": {
+   "altro errore di mappatura": 13,
+   "target invertito": 2,
+   "non arrivato al tool": 3,
+   "mappatura esatta": 2
+  },
+  "coherence_mappatura_come_si_legge": "le righe contate come 'mappatura esatta' sono quelle che il metro puo' promuovere; le altre escono dal tool con un numero giusto o sbagliato che non corrisponde comunque alla domanda dell'oracolo. Il collo di bottiglia del ramo non e' l'inferenza, e non e' l'etichetta: e' la scelta di quali chiavi vanno in `input` e quale in `output`.",
+  "impatto_denominatore": "restano NEL denominatore: 20 su 81 contano come non corrette. E' una scelta di protocollo, non un incidente: se uscissero dal conteggio il punteggio salirebbe a 32/61 senza che il modello abbia fatto nulla in piu'."
+ },
+ "4_casi_che_il_tool_non_deve_numerare": {
+  "nota": "Forme che il ramo `coherence` riceveva e numerava: target dentro le evidenze, e evidenza con stato fuori dominio quando la guardia _valida_stati non c'e'. Misurate a tre bracci in `fix_coherence_controfattuale.json`.",
+  "presenti_nel_dev_81": 0,
+  "prova_a_tre_bracci": [
+   {
+    "caso": "sintetico: target anche evidenza",
+    "traduzione": {
+     "input": {
+      "MedCost": "Thousand"
+     },
+     "output": {
+      "MedCost": "Thousand"
+     }
+    },
+    "A_fissato": {
+     "tipo": "eccezione",
+     "testo": "ValueError: coherence: il target MedCost compare anche fra le evidenze ('Thousand'); la domanda e' contraddittoria, non si risponde"
+    },
+    "B_senza_FIX_20": {
+     "tipo": "numero",
+     "testo": "Evidences are compatible with a single MedCost of Thousand with a probability of 1.0"
+    },
+    "C_prima_dei_fix": {
+     "tipo": "numero",
+     "testo": "Evidences are compatible with a single MedCost of Thousand with a probability of 1.0"
+    }
+   },
+   {
+    "caso": "sintetico: target HundredThou, output Million (COH09)",
+    "traduzione": {
+     "input": {
+      "ThisCarCost": "HundredThou"
+     },
+     "output": {
+      "ThisCarCost": "Million"
+     }
+    },
+    "A_fissato": {
+     "tipo": "eccezione",
+     "testo": "ValueError: coherence: il target ThisCarCost compare anche fra le evidenze ('HundredThou'); la domanda e' contraddittoria, non si risponde"
+    },
+    "B_senza_FIX_20": {
+     "tipo": "numero",
+     "testo": "Evidences are NOT strongly compatible with a single ThisCarCost of Million with a probability of 0.0"
+    },
+    "C_prima_dei_fix": {
+     "tipo": "numero",
+     "testo": "Evidences are NOT strongly compatible with a single ThisCarCost of Million with a probability of 0.0"
+    }
+   },
+   {
+    "caso": "sintetico: variabile inesistente nell'evidenza",
+    "traduzione": {
+     "input": {
+      "NonCes variable": "True"
+     },
+     "output": {
+      "MedCost": "Thousand"
+     }
+    },
+    "A_fissato": {
+     "tipo": "eccezione",
+     "testo": "KeyError: \"variabile 'NonCes variable' assente dal grafo\""
+    },
+    "B_senza_FIX_20": {
+     "tipo": "eccezione",
+     "testo": "KeyError: \"variabile 'NonCes variable' assente dal grafo\""
+    },
+    "C_prima_dei_fix": {
+     "tipo": "eccezione",
+     "testo": "KeyError: \"variabile 'NonCes variable' assente dal grafo\""
+    }
+   },
+   {
+    "caso": "sintetico: stato inesistente nell'evidenza",
+    "traduzione": {
+     "input": {
+      "Antilock": "Falso"
+     },
+     "output": {
+      "MedCost": "Thousand"
+     }
+    },
+    "A_fissato": {
+     "tipo": "eccezione",
+     "testo": "ValueError: Antilock='Falso' non e' uno stato ammesso da Antilock; stati: ['True', 'False']"
+    },
+    "B_senza_FIX_20": {
+     "tipo": "eccezione",
+     "testo": "ValueError: Antilock='Falso' non e' uno stato ammesso da Antilock; stati: ['True', 'False']"
+    },
+    "C_prima_dei_fix": {
+     "tipo": "eccezione",
+     "testo": "ValueError: Antilock='Falso' non e' uno stato ammesso da Antilock; stati: ['True', 'False']"
+    }
+   },
+   {
+    "caso": "sintetico: variabile inesistente nell'evidenza [guardia `_valida_stati` neutralizzata]",
+    "traduzione": {
+     "input": {
+      "NonCes variable": "True"
+     },
+     "output": {
+      "MedCost": "Thousand"
+     }
+    },
+    "A_fissato": {
+     "tipo": "eccezione",
+     "testo": "KeyError: \"variabile 'NonCes variable' assente dal grafo\""
+    },
+    "B_senza_FIX_20": {
+     "tipo": "eccezione",
+     "testo": "KeyError: \"variabile 'NonCes variable' assente dal grafo\""
+    },
+    "C_prima_dei_fix": {
+     "tipo": "eccezione",
+     "testo": "KeyError: \"variabile 'NonCes variable' assente dal grafo\""
+    }
+   },
+   {
+    "caso": "sintetico: stato inesistente nell'evidenza [guardia `_valida_stati` neutralizzata]",
+    "traduzione": {
+     "input": {
+      "Antilock": "Falso"
+     },
+     "output": {
+      "MedCost": "Thousand"
+     }
+    },
+    "A_fissato": {
+     "tipo": "eccezione",
+     "testo": "RuntimeError: coherence: inferenza non possibile (OutOfBounds): [pyAgrum] Out of bound error: label 'Falso' is unknown in Antilock:Labelized({True|False})"
+    },
+    "B_senza_FIX_20": {
+     "tipo": "eccezione",
+     "testo": "RuntimeError: coherence: inferenza non possibile (OutOfBounds): [pyAgrum] Out of bound error: label 'Falso' is unknown in Antilock:Labelized({True|False})"
+    },
+    "C_prima_dei_fix": {
+     "tipo": "eccezione",
+     "testo": "OutOfBounds: [pyAgrum] Out of bound error: label 'Falso' is unknown in Antilock:Labelized({True|False})"
+    }
+   }
+  ],
+  "impatto_denominatore": "zero righe spostate sul dev con la regola primaria: il validatore le ferma prima. Il fix esiste per non far dipendere il verdetto dal validatore, che e' un altro modulo e un altro protocollo."
+ },
+ "5_le_quattro_quantita_per_regime": {
+  "solo_validatore_nessun_tool": {
+   "primaria congelata (gate sulla frase)": {
+    "accettate": 61,
+    "rifiutate": 20,
+    "copertura": 0.753,
+    "accettate_target_con_citazione_verbatim": 35,
+    "accettate_target_con_citazione_non_supportata": 16,
+    "accettate_target_senza_citazione": 10,
+    "accettate_con_un_evidenza_non_supportata": 0,
+    "quarto_numero_e_una_misura": true,
+    "righe_target_non_supportato": [
+     "CF05",
+     "CF09",
+     "CF25",
+     "CF37",
+     "CND01",
+     "CND06",
+     "CND09",
+     "CND13",
+     "CND18",
+     "CND22",
+     "CND25",
+     "COH02",
+     "COH05",
+     "COH10",
+     "COH14",
+     "COH17",
+     "COH18",
+     "COH21",
+     "COH22",
+     "COH25",
+     "COH26",
+     "COH30",
+     "COH37",
+     "INT01",
+     "INT10",
+     "INT25"
+    ],
+    "coerenza_con_avviso_output_del_validatore": true,
+    "avviso_output_del_validatore": 26
+   },
+   "primaria, citazione del target obbligatoria": {
+    "accettate": 35,
+    "rifiutate": 46,
+    "copertura": 0.432,
+    "accettate_target_con_citazione_verbatim": 35,
+    "accettate_target_con_citazione_non_supportata": 0,
+    "accettate_target_senza_citazione": 0,
+    "accettate_con_un_evidenza_non_supportata": 0,
+    "quarto_numero_e_una_misura": false,
+    "righe_target_non_supportato": [],
+    "coerenza_con_avviso_output_del_validatore": true,
+    "avviso_output_del_validatore": 0
+   },
+   "esplorativa senza gate (NON protocollo)": {
+    "accettate": 71,
+    "rifiutate": 10,
+    "copertura": 0.877,
+    "accettate_target_con_citazione_verbatim": 37,
+    "accettate_target_con_citazione_non_supportata": 20,
+    "accettate_target_senza_citazione": 14,
+    "accettate_con_un_evidenza_non_supportata": 18,
+    "quarto_numero_e_una_misura": true,
+    "righe_target_non_supportato": [
+     "CF05",
+     "CF09",
+     "CF25",
+     "CF37",
+     "CND01",
+     "CND02",
+     "CND06",
+     "CND09",
+     "CND13",
+     "CND14",
+     "CND18",
+     "CND21",
+     "CND22",
+     "CND25",
+     "CND38",
+     "COH02",
+     "COH05",
+     "COH10",
+     "COH14",
+     "COH17",
+     "COH18",
+     "COH21",
+     "COH22",
+     "COH25",
+     "COH26",
+     "COH30",
+     "COH37",
+     "INT01",
+     "INT10",
+     "INT17",
+     "INT21",
+     "INT25",
+     "INT26",
+     "INT33"
+    ],
+    "coerenza_con_avviso_output_del_validatore": false,
+    "avviso_output_del_validatore": 23
+   }
+  },
+  "impatto_denominatore": "i tre regimi hanno lo stesso denominatore (81) e numeri diversi: non e' lo stesso metro tre volte. Sull'unico regime primario congelato (gate sulla frase, citazione del target libera) il quarto numero e' una misura, perche' il gate protegge le evidenze ma non il target; il regime con la citazione del target obbligatoria riporta zero per costruzione e va letto come proprieta' del filtro, non come assenza di citazioni inventate. La coppia 32/40 e il prezzo della riga INT26, che solo il regime esplorativo manda al tool dove muore di `bad allocation`, stanno rieseguiti e registrati in `replay_regimi_b_composta_20261101.md`."
+ }
+}

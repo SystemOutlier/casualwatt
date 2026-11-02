@@ -137,14 +137,14 @@ def test_a_quota_sul_tempo_busy_non_sulla_capacita(monkeypatch):
 
 # ------------------------------------------------------------------ b
 def test_b_energia_attiva_negativa_conservata_e_non_valida():
-    """5 J di package contro 10 J di baseline: il grezzo e' -5 J, il troncato 0, validita' falsa."""
+    """5 J di package contro 10 J di baseline: il valore firmato e' -5 J e non valido."""
     res = _profile(_FakeSession(package_j=5.0, idle_w=10.0),
                    direct_cpu_delta=1.0, direct_busy_delta=2.0)
 
     assert res.package_energy_raw_j == pytest.approx(5.0)
     assert res.baseline_energy_j == pytest.approx(10.0)
     assert res.active_energy_raw_j == pytest.approx(-5.0)
-    assert res.active_energy_j == 0.0, "il campo storico resta troncato"
+    assert res.active_energy_j == pytest.approx(-5.0)
     assert res.active_valid is False
     assert res.ollama_active_energy_j == 0.0
     assert any("E_attiva grezza -5.000 J < 0" in n for n in res.notes)

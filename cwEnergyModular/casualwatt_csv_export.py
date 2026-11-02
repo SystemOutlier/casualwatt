@@ -113,9 +113,8 @@ CSV_COLUMNS: List[str] = [
     # capacita': d_busy_s <= core x finestra e' verificabile a posteriori.
     "cpu_share_window_s", "cpu_busy_capacity_cores",
     # P2: la riga dichiara la grandezza GREZZA, con segno, e se la sottrazione
-    # della baseline ha senso. package_energy_j e active_energy_j restano
-    # troncati a zero per compatibilita': senza queste tre colonne un troncamento
-    # e' indistinguibile da uno zero misurato.
+    # della baseline ha senso. I valori principali conservano il segno; senza
+    # queste tre colonne un incremento negativo non sarebbe revisionabile.
     "package_energy_raw_j", "active_energy_raw_j", "active_valid",
     # P3: lo share grezzo (senza clamp) e il token dell'anomalia. Con
     # cpu_time_share=1 e questi due campi vuoti la quota e' 1 per misura; con
@@ -197,6 +196,11 @@ CSV_COLUMNS: List[str] = [
     # filtro non deve dipendere dal testo di ``energy_calculation_method``.
     # Accodata in coda: migrazione per nome via ensure_header.
     "external_counter",
+    # Provenienza del denominatore token: native | estimated | missing.
+    # Accodata per mantenere immutato l'ordine storico dello schema.
+    "token_provenance",
+    # Energia GPU dopo la sottrazione idle, con segno conservato.
+    "gpu_energy_attributed_raw_j",
 ]
 
 

@@ -1,0 +1,130 @@
+{
+  "variante": "b_solo_numero",
+  "descrizione": "via B con due passi di modello: il numero del tool senza spiegazione",
+  "cambia_rispetto_a_b_base": "spiegazione=False: salta il terzo passo (causal_A)",
+  "task_id": "COH39",
+  "ripetizione": 1,
+  "rete": "C:\\Users\\Massimo\\Documents\\CasualWatt\\CWProject\\MUDILAB_run\\consegna\\insurance_grafo.bif",
+  "rete_hash": "39f9e706e9208e720a55a98b6811188b33a7292335a53373a9343a0c7065dab4",
+  "provenienza": {
+    "varianti\\b_solo_numero.py": "996df7c5cb989cdef4d389aa5f7303bd6e8fa5db0a997c91f737816cc2ab2964",
+    "run_orchestrato.py": "3707d6db818444fcc92f878e7586c42ad4aab1b06f65c7e50df322941df053ff",
+    "run_query.py": "656b7c752aa14decaf6906354458618e99dbc1ffc0c8e51b88df5af3a1789df5",
+    "consegna\\agents_corretto.py": "f6b8e2fe9960b77665b7eafb08686c92068108df101350a0cb1c37ecb89de1ba",
+    "consegna\\tools_corretto.py": "949cac8de8f5f00438e13e0287b4e6418023d8ba11ddf7a692f8dc11fab2bb5a",
+    "consegna\\funtions_corretto.py": "685516c8042e8a8a094d48cf1cdedf3c844504ac23d19d4c31d15c9b0f2e119d",
+    "consegna\\insurance_grafo.bif": "39f9e706e9208e720a55a98b6811188b33a7292335a53373a9343a0c7065dab4"
+  },
+  "errore_variante": "",
+  "risultato": {
+    "modalita": "orchestrata",
+    "model": "llama3.2:3b-instruct-q4_K_M",
+    "modello_spiegazione": "llama3.2:3b-instruct-q4_K_M",
+    "source": {
+      "agents": "agents_corretto.py",
+      "tools": "tools_corretto.py",
+      "funtions": "funtions_corretto.py"
+    },
+    "opzioni": {
+      "temperature": 0.0
+    },
+    "opzioni_passi": null,
+    "spiegazione": false,
+    "rete": "C:\\Users\\Massimo\\Documents\\CasualWatt\\CWProject\\MUDILAB_run\\consegna\\insurance_grafo.bif",
+    "task": "Is it coherent that the repair cost for the other car is ten thousand dollars given that the mileage is fifty thousand miles and that the customer has not completed the senior driver training?",
+    "etichetta": "coherence",
+    "etichette_nel_testo": [
+      "coherence"
+    ],
+    "traduzione": {
+      "input": {
+        "OtherCarCost": "TenThou",
+        "Mileage": "FiftyThou",
+        "SeniorTrain": "False"
+      },
+      "output": {
+        "Theft": "False"
+      }
+    },
+    "numero": "Evidences are compatible with a single Theft of False with a probability of 0.9988",
+    "seconds_total": 8.689,
+    "misura": {
+      "attiva": true,
+      "disponibile": true,
+      "errore": "",
+      "note": [
+        "canale emi-counter",
+        "bordo di riscaldamento scartato: 5.524 s",
+        "baseline calibrata: 11.789 W",
+        "riscaldamento routing (llama3.2:3b-instruct-q4_K_M) scartato: 5.224 s",
+        "riscaldamento spiegazione (llama3.2:3b-instruct-q4_K_M) scartato: 0.107 s",
+        "primo run scartato (caricamento e cache dei prompt)"
+      ]
+    },
+    "totale": {
+      "energia_pkg_j": 252.213101,
+      "energia_pkg_raw_j": 252.213101,
+      "energia_attiva_j": 149.122481,
+      "attiva_valida": true,
+      "canale": "emi-counter",
+      "finestra": "exact-counter",
+      "idle": "calibrated"
+    },
+    "fuori_dai_passi_j": 5.153463,
+    "steps": [
+      {
+        "step": "translator",
+        "seconds": 7.416,
+        "tokens": {
+          "input_token_count": 1369,
+          "output_token_count": 42,
+          "total_token_count": 1411
+        },
+        "misura": {
+          "energia_pkg_j": 213.915532,
+          "energia_pkg_raw_j": 213.915532,
+          "energia_attiva_j": 125.902583,
+          "attiva_valida": true,
+          "canale": "emi-counter",
+          "finestra": "exact-counter",
+          "idle": "calibrated"
+        },
+        "text": "{\"input\": {\"OtherCarCost\": \"TenThou\", \"Mileage\": \"FiftyThou\", \"SeniorTrain\": \"False\"}, \"output\": {\"Theft\": \"False\"}}"
+      },
+      {
+        "step": "classificator",
+        "seconds": 0.924,
+        "tokens": {
+          "input_token_count": 278,
+          "output_token_count": 3,
+          "total_token_count": 281
+        },
+        "misura": {
+          "energia_pkg_j": 29.845592,
+          "energia_pkg_raw_j": 29.845592,
+          "energia_attiva_j": 18.353003,
+          "attiva_valida": true,
+          "canale": "emi-counter",
+          "finestra": "exact-counter",
+          "idle": "calibrated"
+        },
+        "text": "coherence"
+      },
+      {
+        "step": "cau_inference",
+        "seconds": 0.076,
+        "tokens": {},
+        "misura": {
+          "energia_pkg_j": 3.298514,
+          "energia_pkg_raw_j": 3.298514,
+          "energia_attiva_j": 1.865172,
+          "attiva_valida": true,
+          "canale": "emi-counter",
+          "finestra": "exact-counter",
+          "idle": "calibrated"
+        },
+        "text": "Evidences are compatible with a single Theft of False with a probability of 0.9988"
+      }
+    ]
+  }
+}

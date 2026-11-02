@@ -1,0 +1,101 @@
+{
+  "variante": "b_solo_numero",
+  "descrizione": "via B con due passi di modello: il numero del tool senza spiegazione",
+  "cambia_rispetto_a_b_base": "spiegazione=False: salta il terzo passo (causal_A)",
+  "task_id": "CND25",
+  "ripetizione": 1,
+  "rete": "C:\\Users\\Massimo\\Documents\\CasualWatt\\CWProject\\MUDILAB_run\\consegna\\insurance_grafo.bif",
+  "rete_hash": "39f9e706e9208e720a55a98b6811188b33a7292335a53373a9343a0c7065dab4",
+  "provenienza": {
+    "varianti\\b_solo_numero.py": "996df7c5cb989cdef4d389aa5f7303bd6e8fa5db0a997c91f737816cc2ab2964",
+    "run_orchestrato.py": "3707d6db818444fcc92f878e7586c42ad4aab1b06f65c7e50df322941df053ff",
+    "run_query.py": "656b7c752aa14decaf6906354458618e99dbc1ffc0c8e51b88df5af3a1789df5",
+    "consegna\\agents_corretto.py": "f6b8e2fe9960b77665b7eafb08686c92068108df101350a0cb1c37ecb89de1ba",
+    "consegna\\tools_corretto.py": "949cac8de8f5f00438e13e0287b4e6418023d8ba11ddf7a692f8dc11fab2bb5a",
+    "consegna\\funtions_corretto.py": "685516c8042e8a8a094d48cf1cdedf3c844504ac23d19d4c31d15c9b0f2e119d",
+    "consegna\\insurance_grafo.bif": "39f9e706e9208e720a55a98b6811188b33a7292335a53373a9343a0c7065dab4"
+  },
+  "errore_variante": "",
+  "risultato": {
+    "modalita": "orchestrata",
+    "model": "llama3.2:3b-instruct-q4_K_M",
+    "modello_spiegazione": "llama3.2:3b-instruct-q4_K_M",
+    "source": {
+      "agents": "agents_corretto.py",
+      "tools": "tools_corretto.py",
+      "funtions": "funtions_corretto.py"
+    },
+    "opzioni": {
+      "temperature": 0.0
+    },
+    "opzioni_passi": null,
+    "spiegazione": false,
+    "rete": "C:\\Users\\Massimo\\Documents\\CasualWatt\\CWProject\\MUDILAB_run\\consegna\\insurance_grafo.bif",
+    "task": "Given that the car has an airbag, how likely is it that the car is a luxury model?",
+    "etichetta": "coherence",
+    "etichette_nel_testo": [
+      "coherence"
+    ],
+    "traduzione": {
+      "input": {
+        "Airbag": "True"
+      },
+      "output": {
+        "MakeModel": "Luxury"
+      }
+    },
+    "numero": "Evidences are NOT strongly compatible with a single MakeModel of Luxury with a probability of 0.2099",
+    "seconds_total": 3.549,
+    "misura": {
+      "attiva": false,
+      "disponibile": false,
+      "errore": "",
+      "note": [
+        "misura disattivata (--senza-misura)",
+        "riscaldamento routing (llama3.2:3b-instruct-q4_K_M) scartato: 0.281 s",
+        "riscaldamento spiegazione (llama3.2:3b-instruct-q4_K_M) scartato: 0.117 s"
+      ]
+    },
+    "totale": {
+      "misura": "non disponibile"
+    },
+    "fuori_dai_passi_j": null,
+    "steps": [
+      {
+        "step": "translator",
+        "seconds": 2.832,
+        "tokens": {
+          "input_token_count": 1356,
+          "output_token_count": 22,
+          "total_token_count": 1378
+        },
+        "misura": {
+          "misura": "non disponibile"
+        },
+        "text": "{\"input\": {\"Airbag\": \"True\"}, \"output\": {\"MakeModel\": \"Luxury\"}}"
+      },
+      {
+        "step": "classificator",
+        "seconds": 0.634,
+        "tokens": {
+          "input_token_count": 265,
+          "output_token_count": 3,
+          "total_token_count": 268
+        },
+        "misura": {
+          "misura": "non disponibile"
+        },
+        "text": "coherence"
+      },
+      {
+        "step": "cau_inference",
+        "seconds": 0.083,
+        "tokens": {},
+        "misura": {
+          "misura": "non disponibile"
+        },
+        "text": "Evidences are NOT strongly compatible with a single MakeModel of Luxury with a probability of 0.2099"
+      }
+    ]
+  }
+}

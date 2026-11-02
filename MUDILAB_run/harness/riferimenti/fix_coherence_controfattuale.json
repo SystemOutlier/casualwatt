@@ -1,0 +1,557 @@
+[
+ {
+  "caso": "COH01 registrata",
+  "traduzione": {
+   "input": {
+    "ThisCarCost": "Thousand"
+   },
+   "output": {
+    "MedCost": "Thousand"
+   }
+  },
+  "A fissato": {
+   "tipo": "numero",
+   "testo": "Evidences are compatible with a single MedCost of Thousand with a probability of 0.991"
+  },
+  "B senza_FIX_20": {
+   "tipo": "numero",
+   "testo": "Evidences are compatible with a single MedCost of Thousand with a probability of 0.991"
+  },
+  "C prima_dei_fix": {
+   "tipo": "numero",
+   "testo": "Evidences are compatible with a single MedCost of Thousand with a probability of 0.991"
+  },
+  "A_uguale_all_epoca": true
+ },
+ {
+  "caso": "COH02 registrata",
+  "traduzione": {
+   "input": {
+    "GoodStudent": "False"
+   },
+   "output": {
+    "Age": "Senior"
+   }
+  },
+  "A fissato": {
+   "tipo": "numero",
+   "testo": "Evidences are NOT strongly compatible with a single Age of Senior with a probability of 0.3946"
+  },
+  "B senza_FIX_20": {
+   "tipo": "numero",
+   "testo": "Evidences are NOT strongly compatible with a single Age of Senior with a probability of 0.3946"
+  },
+  "C prima_dei_fix": {
+   "tipo": "numero",
+   "testo": "Evidences are NOT strongly compatible with a single Age of Senior with a probability of 0.3946"
+  },
+  "A_uguale_all_epoca": true
+ },
+ {
+  "caso": "COH05 registrata",
+  "traduzione": {
+   "input": {
+    "ThisCarCost": "Million"
+   },
+   "output": {
+    "ThisCarDam": "Severe"
+   }
+  },
+  "A fissato": {
+   "tipo": "numero",
+   "testo": "Evidences are NOT strongly compatible with a single ThisCarDam of Severe with a probability of 0.5958"
+  },
+  "B senza_FIX_20": {
+   "tipo": "numero",
+   "testo": "Evidences are NOT strongly compatible with a single ThisCarDam of Severe with a probability of 0.5958"
+  },
+  "C prima_dei_fix": {
+   "tipo": "numero",
+   "testo": "Evidences are NOT strongly compatible with a single ThisCarDam of Severe with a probability of 0.5958"
+  },
+  "A_uguale_all_epoca": true
+ },
+ {
+  "caso": "COH10 registrata",
+  "traduzione": {
+   "input": {
+    "GoodStudent": "True",
+    "CarValue": "TwentyThou"
+   },
+   "output": {
+    "SeniorTrain": "False"
+   }
+  },
+  "A fissato": {
+   "tipo": "numero",
+   "testo": "Evidences are NOT strongly compatible with a single SeniorTrain of False with a probability of 0.3653"
+  },
+  "B senza_FIX_20": {
+   "tipo": "numero",
+   "testo": "Evidences are NOT strongly compatible with a single SeniorTrain of False with a probability of 0.3653"
+  },
+  "C prima_dei_fix": {
+   "tipo": "numero",
+   "testo": "Evidences are NOT strongly compatible with a single SeniorTrain of False with a probability of 0.3653"
+  },
+  "A_uguale_all_epoca": true
+ },
+ {
+  "caso": "COH13 registrata",
+  "traduzione": {
+   "input": {
+    "Mileage": "FiftyThou"
+   },
+   "output": {
+    "SocioEcon": "Wealthy"
+   }
+  },
+  "A fissato": {
+   "tipo": "numero",
+   "testo": "Evidences are NOT strongly compatible with a single SocioEcon of Wealthy with a probability of 0.01"
+  },
+  "B senza_FIX_20": {
+   "tipo": "numero",
+   "testo": "Evidences are NOT strongly compatible with a single SocioEcon of Wealthy with a probability of 0.01"
+  },
+  "C prima_dei_fix": {
+   "tipo": "numero",
+   "testo": "Evidences are NOT strongly compatible with a single SocioEcon of Wealthy with a probability of 0.01"
+  },
+  "A_uguale_all_epoca": true
+ },
+ {
+  "caso": "COH14 registrata",
+  "traduzione": {
+   "input": {
+    "MakeModel": "Luxury",
+    "AntiTheft": "False"
+   },
+   "output": {
+    "ILiCost": "Million"
+   }
+  },
+  "A fissato": {
+   "tipo": "numero",
+   "testo": "Evidences are NOT strongly compatible with a single ILiCost of Million with a probability of 0.3006"
+  },
+  "B senza_FIX_20": {
+   "tipo": "numero",
+   "testo": "Evidences are NOT strongly compatible with a single ILiCost of Million with a probability of 0.3006"
+  },
+  "C prima_dei_fix": {
+   "tipo": "numero",
+   "testo": "Evidences are NOT strongly compatible with a single ILiCost of Million with a probability of 0.3006"
+  },
+  "A_uguale_all_epoca": true
+ },
+ {
+  "caso": "COH17 registrata",
+  "traduzione": {
+   "input": {
+    "Airbag": "True",
+    "DrivingSkill": "SubStandard"
+   },
+   "output": {
+    "OtherCarCost": "Thousand"
+   }
+  },
+  "A fissato": {
+   "tipo": "numero",
+   "testo": "Evidences are compatible with a single OtherCarCost of Thousand with a probability of 0.6719"
+  },
+  "B senza_FIX_20": {
+   "tipo": "numero",
+   "testo": "Evidences are compatible with a single OtherCarCost of Thousand with a probability of 0.6719"
+  },
+  "C prima_dei_fix": {
+   "tipo": "numero",
+   "testo": "Evidences are compatible with a single OtherCarCost of Thousand with a probability of 0.6719"
+  },
+  "A_uguale_all_epoca": true
+ },
+ {
+  "caso": "COH18 registrata",
+  "traduzione": {
+   "input": {
+    "SeniorTrain": "True",
+    "Age": "Senior"
+   },
+   "output": {
+    "OtherCar": "False"
+   }
+  },
+  "A fissato": {
+   "tipo": "numero",
+   "testo": "Evidences are NOT strongly compatible with a single OtherCar of False with a probability of 0.2762"
+  },
+  "B senza_FIX_20": {
+   "tipo": "numero",
+   "testo": "Evidences are NOT strongly compatible with a single OtherCar of False with a probability of 0.2762"
+  },
+  "C prima_dei_fix": {
+   "tipo": "numero",
+   "testo": "Evidences are NOT strongly compatible with a single OtherCar of False with a probability of 0.2762"
+  },
+  "A_uguale_all_epoca": true
+ },
+ {
+  "caso": "COH21 registrata",
+  "traduzione": {
+   "input": {
+    "ThisCarCost": "TenThou"
+   },
+   "output": {
+    "SocioEcon": "Middle"
+   }
+  },
+  "A fissato": {
+   "tipo": "numero",
+   "testo": "Evidences are NOT strongly compatible with a single SocioEcon of Middle with a probability of 0.3517"
+  },
+  "B senza_FIX_20": {
+   "tipo": "numero",
+   "testo": "Evidences are NOT strongly compatible with a single SocioEcon of Middle with a probability of 0.3517"
+  },
+  "C prima_dei_fix": {
+   "tipo": "numero",
+   "testo": "Evidences are NOT strongly compatible with a single SocioEcon of Middle with a probability of 0.3517"
+  },
+  "A_uguale_all_epoca": true
+ },
+ {
+  "caso": "COH22 registrata",
+  "traduzione": {
+   "input": {
+    "Antilock": "False"
+   },
+   "output": {
+    "HomeBase": "Suburb"
+   }
+  },
+  "A fissato": {
+   "tipo": "numero",
+   "testo": "Evidences are NOT strongly compatible with a single HomeBase of Suburb with a probability of 0.3237"
+  },
+  "B senza_FIX_20": {
+   "tipo": "numero",
+   "testo": "Evidences are NOT strongly compatible with a single HomeBase of Suburb with a probability of 0.3237"
+  },
+  "C prima_dei_fix": {
+   "tipo": "numero",
+   "testo": "Evidences are NOT strongly compatible with a single HomeBase of Suburb with a probability of 0.3237"
+  },
+  "A_uguale_all_epoca": true
+ },
+ {
+  "caso": "COH25 registrata",
+  "traduzione": {
+   "input": {
+    "Antilock": "True",
+    "DrivQuality": "Poor"
+   },
+   "output": {
+    "Airbag": "False"
+   }
+  },
+  "A fissato": {
+   "tipo": "numero",
+   "testo": "Evidences are NOT strongly compatible with a single Airbag of False with a probability of 0.0489"
+  },
+  "B senza_FIX_20": {
+   "tipo": "numero",
+   "testo": "Evidences are NOT strongly compatible with a single Airbag of False with a probability of 0.0489"
+  },
+  "C prima_dei_fix": {
+   "tipo": "numero",
+   "testo": "Evidences are NOT strongly compatible with a single Airbag of False with a probability of 0.0489"
+  },
+  "A_uguale_all_epoca": true
+ },
+ {
+  "caso": "COH26 registrata",
+  "traduzione": {
+   "input": {
+    "RiskAversion": "Psychopath",
+    "CarValue": "TwentyThou"
+   },
+   "output": {
+    "SeniorTrain": "False"
+   }
+  },
+  "A fissato": {
+   "tipo": "numero",
+   "testo": "Evidences are NOT strongly compatible with a single SeniorTrain of False with a probability of 0.283"
+  },
+  "B senza_FIX_20": {
+   "tipo": "numero",
+   "testo": "Evidences are NOT strongly compatible with a single SeniorTrain of False with a probability of 0.283"
+  },
+  "C prima_dei_fix": {
+   "tipo": "numero",
+   "testo": "Evidences are NOT strongly compatible with a single SeniorTrain of False with a probability of 0.283"
+  },
+  "A_uguale_all_epoca": true
+ },
+ {
+  "caso": "COH29 registrata",
+  "traduzione": {
+   "input": {
+    "Antilock": "False"
+   },
+   "output": {
+    "GoodStudent": "False"
+   }
+  },
+  "A fissato": {
+   "tipo": "numero",
+   "testo": "Evidences are compatible with a single GoodStudent of False with a probability of 0.9639"
+  },
+  "B senza_FIX_20": {
+   "tipo": "numero",
+   "testo": "Evidences are compatible with a single GoodStudent of False with a probability of 0.9639"
+  },
+  "C prima_dei_fix": {
+   "tipo": "numero",
+   "testo": "Evidences are compatible with a single GoodStudent of False with a probability of 0.9639"
+  },
+  "A_uguale_all_epoca": true
+ },
+ {
+  "caso": "COH30 registrata",
+  "traduzione": {
+   "input": {
+    "MakeModel": "Economy",
+    "Mileage": "FiftyThou"
+   },
+   "output": {
+    "OtherCar": "True"
+   }
+  },
+  "A fissato": {
+   "tipo": "numero",
+   "testo": "Evidences are compatible with a single OtherCar of True with a probability of 0.7241"
+  },
+  "B senza_FIX_20": {
+   "tipo": "numero",
+   "testo": "Evidences are compatible with a single OtherCar of True with a probability of 0.7241"
+  },
+  "C prima_dei_fix": {
+   "tipo": "numero",
+   "testo": "Evidences are compatible with a single OtherCar of True with a probability of 0.7241"
+  },
+  "A_uguale_all_epoca": true
+ },
+ {
+  "caso": "COH34 registrata",
+  "traduzione": {
+   "input": {
+    "HomeBase": "Rural",
+    "Antilock": "False"
+   },
+   "output": {
+    "GoodStudent": "False"
+   }
+  },
+  "A fissato": {
+   "tipo": "numero",
+   "testo": "Evidences are NOT strongly compatible with a single GoodStudent of False with a probability of 0.3174"
+  },
+  "B senza_FIX_20": {
+   "tipo": "numero",
+   "testo": "Evidences are NOT strongly compatible with a single GoodStudent of False with a probability of 0.3174"
+  },
+  "C prima_dei_fix": {
+   "tipo": "numero",
+   "testo": "Evidences are NOT strongly compatible with a single GoodStudent of False with a probability of 0.3174"
+  },
+  "A_uguale_all_epoca": true
+ },
+ {
+  "caso": "COH37 registrata",
+  "traduzione": {
+   "input": {
+    "Antilock": "True",
+    "Airbag": "True"
+   },
+   "output": {
+    "Theft": "False"
+   }
+  },
+  "A fissato": {
+   "tipo": "numero",
+   "testo": "Evidences are compatible with a single Theft of False with a probability of 0.9987"
+  },
+  "B senza_FIX_20": {
+   "tipo": "numero",
+   "testo": "Evidences are compatible with a single Theft of False with a probability of 0.9987"
+  },
+  "C prima_dei_fix": {
+   "tipo": "numero",
+   "testo": "Evidences are compatible with a single Theft of False with a probability of 0.9987"
+  },
+  "A_uguale_all_epoca": true
+ },
+ {
+  "caso": "COH38 registrata",
+  "traduzione": {
+   "input": {
+    "AntiTheft": "False"
+   },
+   "output": {
+    "ThisCarDam": "Severe"
+   }
+  },
+  "A fissato": {
+   "tipo": "numero",
+   "testo": "Evidences are NOT strongly compatible with a single ThisCarDam of Severe with a probability of 0.202"
+  },
+  "B senza_FIX_20": {
+   "tipo": "numero",
+   "testo": "Evidences are NOT strongly compatible with a single ThisCarDam of Severe with a probability of 0.202"
+  },
+  "C prima_dei_fix": {
+   "tipo": "numero",
+   "testo": "Evidences are NOT strongly compatible with a single ThisCarDam of Severe with a probability of 0.202"
+  },
+  "A_uguale_all_epoca": true
+ },
+ {
+  "caso": "sintetico: target anche evidenza",
+  "traduzione": {
+   "input": {
+    "MedCost": "Thousand"
+   },
+   "output": {
+    "MedCost": "Thousand"
+   }
+  },
+  "A fissato": {
+   "tipo": "eccezione",
+   "testo": "ValueError: coherence: il target MedCost compare anche fra le evidenze ('Thousand'); la domanda e' contraddittoria, non si risponde"
+  },
+  "B senza_FIX_20": {
+   "tipo": "numero",
+   "testo": "Evidences are compatible with a single MedCost of Thousand with a probability of 1.0"
+  },
+  "C prima_dei_fix": {
+   "tipo": "numero",
+   "testo": "Evidences are compatible with a single MedCost of Thousand with a probability of 1.0"
+  }
+ },
+ {
+  "caso": "sintetico: target HundredThou, output Million (COH09)",
+  "traduzione": {
+   "input": {
+    "ThisCarCost": "HundredThou"
+   },
+   "output": {
+    "ThisCarCost": "Million"
+   }
+  },
+  "A fissato": {
+   "tipo": "eccezione",
+   "testo": "ValueError: coherence: il target ThisCarCost compare anche fra le evidenze ('HundredThou'); la domanda e' contraddittoria, non si risponde"
+  },
+  "B senza_FIX_20": {
+   "tipo": "numero",
+   "testo": "Evidences are NOT strongly compatible with a single ThisCarCost of Million with a probability of 0.0"
+  },
+  "C prima_dei_fix": {
+   "tipo": "numero",
+   "testo": "Evidences are NOT strongly compatible with a single ThisCarCost of Million with a probability of 0.0"
+  }
+ },
+ {
+  "caso": "sintetico: variabile inesistente nell'evidenza",
+  "traduzione": {
+   "input": {
+    "NonCes variable": "True"
+   },
+   "output": {
+    "MedCost": "Thousand"
+   }
+  },
+  "A fissato": {
+   "tipo": "eccezione",
+   "testo": "KeyError: \"variabile 'NonCes variable' assente dal grafo\""
+  },
+  "B senza_FIX_20": {
+   "tipo": "eccezione",
+   "testo": "KeyError: \"variabile 'NonCes variable' assente dal grafo\""
+  },
+  "C prima_dei_fix": {
+   "tipo": "eccezione",
+   "testo": "KeyError: \"variabile 'NonCes variable' assente dal grafo\""
+  }
+ },
+ {
+  "caso": "sintetico: stato inesistente nell'evidenza",
+  "traduzione": {
+   "input": {
+    "Antilock": "Falso"
+   },
+   "output": {
+    "MedCost": "Thousand"
+   }
+  },
+  "A fissato": {
+   "tipo": "eccezione",
+   "testo": "ValueError: Antilock='Falso' non e' uno stato ammesso da Antilock; stati: ['True', 'False']"
+  },
+  "B senza_FIX_20": {
+   "tipo": "eccezione",
+   "testo": "ValueError: Antilock='Falso' non e' uno stato ammesso da Antilock; stati: ['True', 'False']"
+  },
+  "C prima_dei_fix": {
+   "tipo": "eccezione",
+   "testo": "ValueError: Antilock='Falso' non e' uno stato ammesso da Antilock; stati: ['True', 'False']"
+  }
+ },
+ {
+  "caso": "sintetico: variabile inesistente nell'evidenza [guardia `_valida_stati` neutralizzata]",
+  "traduzione": {
+   "input": {
+    "NonCes variable": "True"
+   },
+   "output": {
+    "MedCost": "Thousand"
+   }
+  },
+  "A fissato": {
+   "tipo": "eccezione",
+   "testo": "KeyError: \"variabile 'NonCes variable' assente dal grafo\""
+  },
+  "B senza_FIX_20": {
+   "tipo": "eccezione",
+   "testo": "KeyError: \"variabile 'NonCes variable' assente dal grafo\""
+  },
+  "C prima_dei_fix": {
+   "tipo": "eccezione",
+   "testo": "KeyError: \"variabile 'NonCes variable' assente dal grafo\""
+  }
+ },
+ {
+  "caso": "sintetico: stato inesistente nell'evidenza [guardia `_valida_stati` neutralizzata]",
+  "traduzione": {
+   "input": {
+    "Antilock": "Falso"
+   },
+   "output": {
+    "MedCost": "Thousand"
+   }
+  },
+  "A fissato": {
+   "tipo": "eccezione",
+   "testo": "RuntimeError: coherence: inferenza non possibile (OutOfBounds): [pyAgrum] Out of bound error: label 'Falso' is unknown in Antilock:Labelized({True|False})"
+  },
+  "B senza_FIX_20": {
+   "tipo": "eccezione",
+   "testo": "RuntimeError: coherence: inferenza non possibile (OutOfBounds): [pyAgrum] Out of bound error: label 'Falso' is unknown in Antilock:Labelized({True|False})"
+  },
+  "C prima_dei_fix": {
+   "tipo": "eccezione",
+   "testo": "OutOfBounds: [pyAgrum] Out of bound error: label 'Falso' is unknown in Antilock:Labelized({True|False})"
+  }
+ }
+]

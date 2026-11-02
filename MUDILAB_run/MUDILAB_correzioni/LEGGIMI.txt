@@ -1,0 +1,330 @@
+Gentile Professoressa,
+
+ho preso i suoi file e ho provato a far girare la pipeline senza modificare
+agents.py, tools.py e funtions.py, usando tinyllama:latest come mi ha indicato.
+Le scrivo cosa ho trovato, cosa ho corretto in copie separate e cosa resta da
+decidere. I numeri di riga si riferiscono ai suoi file originali, non alle copie.
+
+=====================================================================
+1. Con i file cosi' come sono la pipeline non parte
+=====================================================================
+
+Con tinyllama Ollama risponde con un errore 400: "tinyllama:latest does not
+support tools". Il modello ha solo la capability completion, quindi il
+traduttore non puo' essere istanziato per come e' scritto: agents.py riga 44 gli
+dichiara tools=[read_graph]. Non e' un problema di qualita' delle risposte, e'
+l'API che rifiuta la richiesta.
+
+Il classificatore, che non ha tool, risponde (circa sette secondi). Pero'
+restituisce un paragrafo di spiegazione invece della sola etichetta come chiede
+il prompt a riga 30, e cau_inference confronta l'etichetta per uguaglianza
+esatta (righe 51, 63, 68, 92, 122): un paragrafo non entra in nessun ramo.
+
+Il pacchetto inoltre non e' autosufficiente: agents.py riga 8 importa
+HuggingFaceChatClient da un client.py che non c'e', e la sezione #CLIENTS e'
+vuota, quindi gpt5 e small (righe 37 e 67) non sono definiti. Per far girare il
+codice ho dovuto aggirare entrambe le cose dall'esterno, senza toccare i suoi
+file.
+
+=====================================================================
+2. Difetti che ho trovato leggendo, ognuno verificabile a riga
+=====================================================================
+
+tools.py
+
+- riga 45: eval(features) esegue come codice Python il testo prodotto dal
+  modello. Funziona finche' il modello scrive solo il dizionario, ma espone
+  all'esecuzione di codice arbitrario e si rompe appena aggiunge un blocco
+  markdown.
+- riga 41: se path e' None il percorso del grafo e'
+  "C:/Users/Samsung/Documents/DOTTORATO/...", cioe' una cartella del suo
+  computer. Da qualsiasi altra macchina gum.loadBN solleva IOError.
+- riga 63: il ramo e' 'conterfactual', ma il classificatore puo' emettere solo
+  backward_reasoning, intervention, coherence e influence (agents.py riga 24).
+  Quel ramo non viene mai raggiunto, e le tre query controfattuali del notebook
+  non trovano nessuna risposta.
+- righe 94 e 96: list(input_.keys()) == 2 confronta una lista con un intero,
+  quindi e' sempre falso. Nel ramo coherence viene aggiunta solo la prima
+  evidenza, e il caso di tre variabili in input non e' gestito.
+- righe 74-80: se input contiene piu' di due variabili nessuno dei due rami
+  assegna formula, e il controllo "if formula is None" solleva
+  UnboundLocalError.
+- riga 36, web_search: chiama il metodo sulla classe invece che su un'istanza,
+  non legge nessuna chiave API e passa URL dove Tavily si aspetta hostname.
+  Cosi' com'e' non puo' funzionare.
+
+funtions.py
+
+- righe 127-136: il ramo dim == 2 usa m, che viene definito solo nel ramo
+  dim == 3. Righe 138-147: il ramo dim == 1 usa col_nox, n e m, che li' non
+  esistono. Entrambi sollevano NameError. Oggi il problema e' nascosto dal fatto
+  che i controfattuali non partono, come al punto precedente.
+- riga 6: pd.read_csv('DATI.csv') all'import con un percorso relativo alla
+  cartella da cui si lancia lo script. Se lo script parte da un'altra cartella
+  l'import fallisce.
+- riga 175: print(f'imp: {imp[1]}') e' un residuo di debug che scrive sullo
+  stdout a ogni controfattuale.
+
+agents.py
+
+- righe 72-79: prompt_descr e' una tupla di stringhe, non una stringa
+  concatenata.
+
+=====================================================================
+3. Cosa ho corretto
+=====================================================================
+
+Ho fatto tre copie di lavoro, da non confondere con i suoi originali:
+agents_corretto.py, tools_corretto.py, funtions_corretto.py. In ogni copia il
+codice originale resta commentato e sotto c'e' la correzione con una riga che
+dice perche'. In sintesi:
+
+- il testo del traduttore non viene piu' eseguito: si tolgono le recinzioni
+  markdown, si prova json.loads e poi ast.literal_eval, e 'input' e 'output'
+  devono essere due dizionari con 'output' di una sola chiave;
+- ogni nome di variabile viene verificato contro il grafo, e il valore
+  "Not necessary" viene scartato dall'evidenza invece di essere passato a
+  pyagrum come se fosse un dato osservato;
+- anche il valore di ogni evidenza e' verificato contro gli stati che il grafo
+  ammette per quella variabile: con una cella vuota in DATI.csv (che arriva
+  come 'nan') o con uno stato che quella variabile non ha, l'errore dice quale
+  voce della query non va bene. Senza questo controllo l'inferenza si ferma
+  comunque, ma con un messaggio di pyagrum sull'etichetta sconosciuta;
+- l'etichetta viene normalizzata, il refuso conterfactual e' accettato come
+  alias di counterfactual, e un'etichetta sconosciuta produce un errore
+  leggibile invece di lasciare answer non assegnata;
+- il ramo coherence passa tutte le evidenze, il ramo intervention regge da una
+  a piu' variabili e anche il caso senza valore di output, il ramo
+  controfattuale riceve il nome della variabile e non il dizionario;
+- in funtions la binarizzazione e' generica su un numero qualsiasi di genitori,
+  complex_prob non divide piu' per zero, non ci sono print di debug e le soglie
+  restano alle sue formule;
+- i percorsi di DATI.csv e del .bif sono risolti rispetto al file, non alla
+  cartella di avvio;
+- i due client sono definiti nel file e leggono modello, indirizzo e chiave
+  dalle variabili d'ambiente.
+
+Per verificare ho scritto verifica_copie.py, che non chiama nessun modello: carica
+le due copie e prova ogni ramo di cau_inference piu' i casi che devono fallire.
+L'output e' allegato. La prima riga utile e' quella che conta:
+
+    backward_reasoning: The probability of Age is Senior given the provided
+    conditions is 0.212
+
+Il riferimento calcolato indipendentemente con pyagrum sul suo
+insurance_grafo.bif e' 0.2117, quindi 0.2117 arrotondato a tre decimali fa
+0.212. La sua formula e' corretta: quello che non funzionava erano i
+collegamenti.
+
+Una cosa che le segnalo invece di darla per buona: il ramo controfattuale ora
+gira, e sul caso di prova restituisce "between 0.0031 and 0.0031", cioe' un
+intervallo ridotto a un punto. Ho controllato da dove viene: il limite inferiore
+e' il termine PYx meno Py, e Py = P(ThisCarCost=Million) stimata su DATI.csv vale
+zero, perche' nessuna delle sei righe ha quel valore. Con la marginale del grafo
+(0.000478) lo stesso calcolo da 0.0028 - 0.0031. L'intervallo puntiforme quindi
+non e' un errore della formula ne' un effetto della binarizzazione: e' Py = 0, ed
+e' il motivo della domanda al punto 5.
+
+=====================================================================
+4. Il problema che resta non e' nel codice
+=====================================================================
+
+Corretti i difetti, il punto che blocca la misura e' un altro: e' il modello a
+dover chiamare cau_inference, e non lo fa.
+
+Ho provato quattro modelli locali fra 1,5 e 8 miliardi di parametri. Quelli con
+supporto ai tool portano la pipeline fino in fondo, ma in nessun caso in cui il
+modello non ha chiamato il tool il numero scritto nella risposta veniva dal
+calcolo. Ho contato le invocazioni: zero. I valori riportati in quei run sono
+stati 0.5, 0.8 e 0.866, contro un riferimento di 0.212.
+
+E' un guasto silenzioso: il modello scrive la chiamata al tool come testo, il
+framework non la esegue, e la risposta finale contiene comunque un numero
+plausibile. Senza contare le invocazioni non e' distinguibile da un numero
+calcolato, ed e' per questo che nella mia strumentazione ho aggiunto un
+controllo che scarta il run quando cau_inference non e' stato eseguito.
+
+Da qui le strade sono tre, e nessuna la decido io:
+
+(a) usare un modello che segua davvero il protocollo dei tool. E' una scelta
+    sua anche perche' cambia il comportamento della pipeline e il costo del run:
+    un modello piu' grande cambia tempo e energia per richiesta, quindi cambia
+    anche il numero che misuro;
+(b) togliere il modello dal percorso di invocazione: leggere il dizionario del
+    traduttore e l'etichetta del classificatore e chiamare cau_inference dal
+    codice, come fa lo script di verifica. Il numero diventa riproducibile per
+    costruzione, ma questo sostituisce il suo esperto causale con una chiamata
+    diretta, quindi e' una modifica al suo disegno e non la faccio senza il suo
+    assenso;
+(c) una soluzione sua, che tenga conto di come intendeva il ruolo dell'esperto.
+
+=====================================================================
+5. Riferimenti e mappature da confermare
+=====================================================================
+
+A parte il codice: ho calcolato i riferimenti esatti con pyagrum sul suo
+insurance_grafo.bif per le nove query non controfattuali. Su sei di queste la
+corrispondenza fra la formulazione della query e le variabili del grafo e'
+interpretativa e vorrei una sua conferma. In particolare "damage to a car" l'ho
+letto come ThisCarDam e non come Accident, e "driving skill excellent" come
+DrivQuality, perche' nel grafo DrivingSkill ha lo stato Expert e non Excellent.
+
+Le mappature sono in ground_truth.csv, allegato: una riga per query, con
+`expected_probability` calcolata sul suo grafo e una colonna `mapping_status`.
+Le tre marcate `probable` sono mappature dirette; le sei marcate `review` sono
+quelle su cui vorrei il suo parere:
+
+    CP2  damage to a car -> ThisCarDam invece di Accident
+    IN1  severe car damage -> ThisCarDam invece di Accident
+    IN2  driving skill excellent -> DrivQuality perche' DrivingSkill ha Expert
+    CO1  mild accident -> Accident=Mild invece di ThisCarDam=Mild
+    CO2  proposed cost HundredThousand -> PropCost, direzione target/evidenza
+    CO3  Fair cushioning -> P(Cushioning=Fair | SocioEcon=Wealthy), direzione
+
+Sulle tre query controfattuali il riferimento si puo' calcolare, ma non e' unico,
+e le spiego perche'.
+
+Il ramo controfattuale di cobound (funtions.py riga 156) usa i limiti di Tian e
+Pearl. Tutti i termini vengono dal grafo tranne uno, Py = P(Y=y), che la funzione
+prende da DATI.csv (riga 179: ny/data.shape[0]). DATI.csv ha 6 righe e 20
+colonne, e questo ha due conseguenze che ho misurato.
+
+La prima: su due query delle tre la colonna del bersaglio non esiste. DrivQuality
+e Theft non sono fra le venti colonne, quindi cobound non parte. In quelle righe
+ho lasciato la ragione nella colonna error e la variante "file" vuota.
+
+La seconda: quando parte, Py e' una frazione su sei righe, e su una query questo
+cambia il risultato. Per Age -> Accident il limite inferiore e' 0.0404 con Py da
+DATI.csv (una riga su sei, 0.1667) e 0.0000 con la marginale del grafo (0.11526);
+il limite superiore e' 0.074 in entrambi i casi, perche' lo fissa PYx.
+
+Per questo le tre righe hanno due intervalli, in quattro colonne in coda al file:
+
+    expected_lower_file / expected_upper_file    Py stimata da DATI.csv
+    expected_lower_graph / expected_upper_graph  Py = marginale del grafo
+
+Per calcolare la seconda variante ho aggiunto a cobound un parametro opzionale py:
+con py specificata, data non viene letto affatto. Il default resta il suo
+comportamento, quindi tools.py non cambia e cau_inference continua a usare
+DATI.csv.
+
+I risultati:
+
+    CF1  RiskAversion=Cautious -> DrivQuality=Excellent
+         file:  non calcolabile (colonna DrivQuality assente)
+         grafo: 0.0827 - 0.2396
+    CF2  Age=Senior -> Accident=Severe
+         file:  0.0404 - 0.074
+         grafo: 0.0000 - 0.074
+    CF3  SocioEcon=Wealthy -> Theft=True
+         file:  non calcolabile (colonna Theft assente)
+         grafo: 0.0000 - 0.0000
+
+Sulla CF1: con Py dal grafo l'estremo inferiore e' retto dal termine
+PYx - PYnox = 0.0827, che non contiene Py, quindi quel valore non dipende da come
+si stima Py. La variante file non si calcola, quindi il confronto diretto fra le
+due fonti su questa query non ce l'ho.
+
+Sulla CF3 devo aggiungere una cosa, perche' 0.0000 - 0.0000 si legge come
+"nessun effetto" e non lo e'. P(Theft=True | do(SocioEcon=Wealthy)) vale
+4.87e-05: il limite superiore e' corretto ed e' semplicemente piu' piccolo
+dell'ultimo decimale che cobound stampa (round a 4 decimali). Per quella query
+quattro decimali non bastano. Le chiedo se preferisce piu' decimali, o un
+formato che dichiari la risoluzione, piuttosto che un intervallo che sembra
+vuoto.
+
+Le chiedo una cosa: ha il dataset completo da cui e' stata stimata la rete da
+mandarmi, oppure intendeva che P(Y=y) venisse dalla marginale del grafo? Nel
+secondo caso i tre riferimenti si calcolano tutti senza DATI.csv, e da dove si
+prende Py va fissato prima di usare il file come riferimento.
+
+expected_probability resta vuota su queste tre righe: un intervallo non e' una
+probabilita' puntuale, e un confronto a tolleranza su quella colonna non avrebbe
+senso. Se le serve un confronto automatico, va deciso anche come si confrontano
+due intervalli.
+
+=====================================================================
+Allegati
+=====================================================================
+
+I suoi file, invariati, che servono a tutte le verifiche:
+
+insurance_grafo.bif     il suo grafo
+DATI.csv                i suoi dati
+
+Copie corrette: il codice originale resta commentato dentro, sotto c'e' la
+correzione.
+
+agents_corretto.py      copia corretta di agents.py
+tools_corretto.py       copia corretta di tools.py
+funtions_corretto.py    copia corretta di funtions.py
+
+Verifiche deterministiche, senza modello:
+
+verifica_copie.py       prova ogni ramo di cau_inference
+output_verifica.txt     l'output reale di verifica_copie.py
+tabella_confronto.py    i 13 casi del punto 3, eseguiti sui due lati
+tabella_confronto.md    il suo output, su questa macchina
+verifica_righe_dati.py  le sei righe di DATI.csv usate come query, sui due lati
+verifica_righe_dati.md  il suo output, su questa macchina
+aggiungi_controfattuali.py  ricalcola le tre righe controfattuali di
+                        ground_truth.csv; rilanciato sullo stesso file lascia
+                        le nove righe e riscrive solo CF1-CF3
+ground_truth.csv        riferimenti: 9 query, piu' 3 controfattuali con due
+                        intervalli ciascuna (due fonti di Py)
+
+Per far girare la pipeline con un modello (questa parte e' mia, non sua):
+
+run_query.py            esegue i tre passi e stampa un JSON con i tempi, le
+                        invocazioni dei tool e un flag tool_ok
+run.cmd                 lo stesso da cmd.exe, per comodita'
+client.py               stub: agents.py importa HuggingFaceChatClient da un
+                        client.py che non e' stato fornito. Esiste solo per far
+                        passare quell'import nell'originale, e solleva se
+                        qualcuno lo usa davvero
+
+Come si lanciano
+---------------------------------------------------------------------
+
+Dalla cartella in cui ha scompattato, con il python del suo ambiente:
+
+    python verifica_copie.py
+    python tabella_confronto.py --orig "C:\percorso\della\sua\cartella"
+    python verifica_righe_dati.py --orig "C:\percorso\della\sua\cartella"
+
+Le ultime due hanno bisogno anche dei suoi file originali, perche' eseguono la
+stessa chiamata sui due lati: --orig indica la cartella che contiene agents.py,
+tools.py e funtions.py. Scrivono un .md accanto a se'.
+
+Un avviso per la lettura di tabella_confronto.md: il caso
+"cau_inference(..., path=None)" sull'originale usa il percorso assoluto scritto
+a riga 41 di tools.py, e quel percorso e' il suo. Sulla sua macchina quel caso
+potra' quindi riuscire invece di fermarsi: e' il difetto stesso, il codice
+funziona solo dove quel percorso esiste. Il caso della cartella di avvio
+diversa invece dipende dal solo read_csv relativo e si riproduce ovunque.
+
+ground_truth.csv si rigenera con
+
+    python aggiungi_controfattuali.py
+
+che riscrive lo stesso file.
+
+La pipeline con un modello richiede Ollama e le librerie di agent_framework:
+
+    set MUDILAB_ORIG=C:\percorso\della\sua\cartella
+    python run_query.py "la domanda"
+
+per usare le copie corrette invece degli originali basta mettere
+set MUDILAB_COPIE=1 prima, e in quel caso i suoi originali non servono. run.cmd
+fa lo stesso da cmd.exe; il modello si sceglie con MUDILAB_MODEL o come secondo
+argomento:
+
+    run.cmd "la domanda" llama3.2:3b
+
+Su una macchina senza Graphviz pyagrum stampa all'import "Graphviz is not
+installed": riguarda solo il disegno della rete, l'inferenza non lo usa, e
+nell'output allegato non compare perche' l'avviso va sullo stderr.
+
+Resto in attesa, poi procedo con la misura.
+
+Massimo

@@ -1,0 +1,20 @@
+{
+  "variante": "b_vincolata",
+  "descrizione": "via B con schema JSON su etichetta e dizionario, prompt invariati",
+  "cambia_rispetto_a_b_base": "options.response_format sui passi translator e classificator",
+  "task_id": "INT05",
+  "ripetizione": 1,
+  "rete": "C:\\Users\\Massimo\\Documents\\CasualWatt\\CWProject\\MUDILAB_run\\consegna\\insurance_grafo.bif",
+  "rete_hash": "39f9e706e9208e720a55a98b6811188b33a7292335a53373a9343a0c7065dab4",
+  "provenienza": {
+    "varianti\\b_vincolata.py": "f5f6daedbcb9d84b20a646b3b61041cd6bc2ceebe2935e4e3206d83570eff323",
+    "run_orchestrato.py": "3707d6db818444fcc92f878e7586c42ad4aab1b06f65c7e50df322941df053ff",
+    "run_query.py": "656b7c752aa14decaf6906354458618e99dbc1ffc0c8e51b88df5af3a1789df5",
+    "consegna\\agents_corretto.py": "f6b8e2fe9960b77665b7eafb08686c92068108df101350a0cb1c37ecb89de1ba",
+    "consegna\\tools_corretto.py": "949cac8de8f5f00438e13e0287b4e6418023d8ba11ddf7a692f8dc11fab2bb5a",
+    "consegna\\funtions_corretto.py": "685516c8042e8a8a094d48cf1cdedf3c844504ac23d19d4c31d15c9b0f2e119d",
+    "consegna\\insurance_grafo.bif": "39f9e706e9208e720a55a98b6811188b33a7292335a53373a9343a0c7065dab4"
+  },
+  "errore_variante": "AttributeError: module 'agents' has no attribute 'causal_A_senza_tool'",
+  "risultato": {}
+}

@@ -1,0 +1,194 @@
+{
+  "query": "Given that the driving quality is normal, how likely is it that the age of the driver is senior?",
+  "modello": "llama3.1:8b",
+  "source": {
+    "agents": "agents_corretto.py",
+    "tools": "tools_corretto.py",
+    "funtions": "funtions_corretto.py"
+  },
+  "riferimento": 0.212,
+  "ripetizioni": 3,
+  "calibrazione": true,
+  "temperatura": {
+    "a": "predefinita di Ollama",
+    "b": 0.0
+  },
+  "misura_note": {
+    "attiva": true,
+    "disponibile": true,
+    "errore": "",
+    "note": [
+      "canale emi-counter",
+      "bordo di riscaldamento scartato: 6.179 s",
+      "baseline calibrata: 18.036 W"
+    ]
+  },
+  "run": [
+    {
+      "variante": "a",
+      "secondi": 73.501,
+      "energia_pkg_j": 2306.635151,
+      "energia_pkg_raw_j": 2306.635151,
+      "energia_attiva_j": 980.465836,
+      "attiva_valida": true,
+      "canale": "emi-counter",
+      "finestra": "exact-counter",
+      "idle": "calibrated",
+      "tool_ok": false,
+      "tool_calls": {
+        "read_graph": {
+          "invocazioni": 1,
+          "eccezioni": 1
+        },
+        "cau_inference": {
+          "invocazioni": 1,
+          "eccezioni": 1
+        }
+      },
+      "errore_tool": {
+        "read_graph": "FileNotFoundError: read_graph: grafo non trovato in data.csv",
+        "cau_inference": "ValueError: features non e' un dizionario leggibile: '{'"
+      },
+      "numeri_nel_testo": [],
+      "atteso_trovato": false,
+      "errore": null,
+      "ripetizione": 1
+    },
+    {
+      "variante": "b",
+      "secondi": 27.703,
+      "energia_pkg_j": 863.354289,
+      "energia_pkg_raw_j": 863.354289,
+      "energia_attiva_j": 363.088458,
+      "attiva_valida": true,
+      "canale": "emi-counter",
+      "finestra": "exact-counter",
+      "idle": "calibrated",
+      "etichetta": "backward_reasoning",
+      "traduzione": {
+        "input": {
+          "DrivQuality": "Normal"
+        },
+        "output": {
+          "Age": "Senior"
+        }
+      },
+      "numero": "The probability of Age is Senior given the provided conditions is 0.212",
+      "numero_numerico": null,
+      "atteso_trovato": true,
+      "errore": null,
+      "ripetizione": 1
+    },
+    {
+      "variante": "a",
+      "secondi": 74.69,
+      "energia_pkg_j": 2586.776431,
+      "energia_pkg_raw_j": 2586.776431,
+      "energia_attiva_j": 1239.158669,
+      "attiva_valida": true,
+      "canale": "emi-counter",
+      "finestra": "exact-counter",
+      "idle": "calibrated",
+      "tool_ok": false,
+      "tool_calls": {
+        "read_graph": {
+          "invocazioni": 1,
+          "eccezioni": 0
+        },
+        "cau_inference": {
+          "invocazioni": 0,
+          "eccezioni": 0
+        }
+      },
+      "errore_tool": {},
+      "numeri_nel_testo": [],
+      "atteso_trovato": false,
+      "errore": null,
+      "ripetizione": 2
+    },
+    {
+      "variante": "b",
+      "secondi": 20.512,
+      "energia_pkg_j": 588.89827,
+      "energia_pkg_raw_j": 588.89827,
+      "energia_attiva_j": 218.28345,
+      "attiva_valida": true,
+      "canale": "emi-counter",
+      "finestra": "exact-counter",
+      "idle": "calibrated",
+      "etichetta": "backward_reasoning",
+      "traduzione": {
+        "input": {
+          "DrivQuality": "Normal"
+        },
+        "output": {
+          "Age": "Senior"
+        }
+      },
+      "numero": "The probability of Age is Senior given the provided conditions is 0.212",
+      "numero_numerico": null,
+      "atteso_trovato": true,
+      "errore": null,
+      "ripetizione": 2
+    },
+    {
+      "variante": "a",
+      "secondi": 68.724,
+      "energia_pkg_j": 2159.417385,
+      "energia_pkg_raw_j": 2159.417385,
+      "energia_attiva_j": 919.066461,
+      "attiva_valida": true,
+      "canale": "emi-counter",
+      "finestra": "exact-counter",
+      "idle": "calibrated",
+      "tool_ok": false,
+      "tool_calls": {
+        "read_graph": {
+          "invocazioni": 1,
+          "eccezioni": 1
+        },
+        "cau_inference": {
+          "invocazioni": 3,
+          "eccezioni": 3
+        }
+      },
+      "errore_tool": {
+        "read_graph": "FileNotFoundError: read_graph: grafo non trovato in driveQuality = Normal , age = Senior",
+        "cau_inference": "ValueError: features non e' un dizionario leggibile: '{\"input\": {\"DrivQuality\": \"Normal\"}, \"output\": {\"Age\": \"Senior\"}'"
+      },
+      "numeri_nel_testo": [],
+      "atteso_trovato": false,
+      "errore": null,
+      "ripetizione": 3
+    },
+    {
+      "variante": "b",
+      "secondi": 19.616,
+      "energia_pkg_j": 567.068444,
+      "energia_pkg_raw_j": 567.068444,
+      "energia_attiva_j": 212.699948,
+      "attiva_valida": true,
+      "canale": "emi-counter",
+      "finestra": "exact-counter",
+      "idle": "calibrated",
+      "etichetta": "backward_reasoning",
+      "traduzione": {
+        "input": {
+          "DrivQuality": "Normal"
+        },
+        "output": {
+          "Age": "Senior"
+        }
+      },
+      "numero": "The probability of Age is Senior given the provided conditions is 0.212",
+      "numero_numerico": null,
+      "atteso_trovato": true,
+      "errore": null,
+      "ripetizione": 3
+    }
+  ],
+  "rivalutazione": {
+    "quando": "2026-10-31 17:22",
+    "regola": "(a) tool_ok e 0.212 nel testo; (b) etichetta backward_reasoning e 0.212 nel numero; tolleranza 5e-4"
+  }
+}

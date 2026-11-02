@@ -1,0 +1,132 @@
+{
+  "variante": "b_verificata",
+  "descrizione": "via B con il traduttore ancorato al grafo: vocabolario letto dal BIF, citazioni obbligatorie, scarto dichiarato prima del tool",
+  "cambia_rispetto_a_b_base": "solo il passo translator: prompt + vocabolario del grafo + chiave 'citazioni', e validazione nel codice; classificatore invariato",
+  "task_id": "COH25",
+  "ripetizione": 1,
+  "rete": "C:\\Users\\Massimo\\Documents\\CasualWatt\\CWProject\\MUDILAB_run\\consegna\\insurance_grafo.bif",
+  "rete_hash": "39f9e706e9208e720a55a98b6811188b33a7292335a53373a9343a0c7065dab4",
+  "provenienza": {
+    "varianti\\b_verificata.py": "c65334904cd2b668cd4f6d83d40502e5d0a6a2e300cb7580db46ee9bad9f4449",
+    "run_orchestrato.py": "7bef833b7121f12fd570fad0286bc80075676be1480bf0f42dd246df758228ba",
+    "run_query.py": "656b7c752aa14decaf6906354458618e99dbc1ffc0c8e51b88df5af3a1789df5",
+    "traduzione_controllata.py": "d63ae0d9d1fbc2087307de0be2c4807d51065f6c2c632bc5ff41d5a36b750f2d",
+    "consegna\\agents_corretto.py": "f6b8e2fe9960b77665b7eafb08686c92068108df101350a0cb1c37ecb89de1ba",
+    "consegna\\tools_corretto.py": "949cac8de8f5f00438e13e0287b4e6418023d8ba11ddf7a692f8dc11fab2bb5a",
+    "consegna\\funtions_corretto.py": "685516c8042e8a8a094d48cf1cdedf3c844504ac23d19d4c31d15c9b0f2e119d",
+    "consegna\\insurance_grafo.bif": "39f9e706e9208e720a55a98b6811188b33a7292335a53373a9343a0c7065dab4"
+  },
+  "errore_variante": "ValueError: controllo_traduzione: output Airbag: citazione assente o vuota",
+  "risultato": {
+    "modalita": "orchestrata",
+    "model": "llama3.2:3b-instruct-q4_K_M",
+    "modello_spiegazione": "llama3.2:3b-instruct-q4_K_M",
+    "source": {
+      "agents": "agents_corretto.py",
+      "tools": "tools_corretto.py",
+      "funtions": "funtions_corretto.py"
+    },
+    "opzioni": {
+      "temperature": 0.0
+    },
+    "opzioni_passi": {
+      "translator": {
+        "response_format": {
+          "type": "json_schema",
+          "json_schema": {
+            "name": "traduzione_verificabile",
+            "strict": true,
+            "schema": {
+              "type": "object",
+              "properties": {
+                "input": {
+                  "type": "object",
+                  "additionalProperties": {
+                    "type": "string"
+                  }
+                },
+                "output": {
+                  "type": "object",
+                  "minProperties": 1,
+                  "maxProperties": 1,
+                  "additionalProperties": {
+                    "type": "string"
+                  }
+                },
+                "citazioni": {
+                  "type": "object",
+                  "minProperties": 1,
+                  "additionalProperties": {
+                    "type": "string"
+                  }
+                }
+              },
+              "required": [
+                "input",
+                "output",
+                "citazioni"
+              ],
+              "additionalProperties": false
+            }
+          }
+        }
+      }
+    },
+    "spiegazione": true,
+    "rete": "C:\\Users\\Massimo\\Documents\\CasualWatt\\CWProject\\MUDILAB_run\\consegna\\insurance_grafo.bif",
+    "task": "Is it coherent that the car has an airbag given that the car has an antilock braking system and that the driving quality is poor?",
+    "errore": "ValueError: controllo_traduzione: output Airbag: citazione assente o vuota",
+    "controllo_traduzione": {
+      "regole": [
+        "vocabolario",
+        "nessuna-evidenza",
+        "citazione",
+        "disgiunzione"
+      ],
+      "scartate": [],
+      "motivo": "output Airbag: citazione assente o vuota",
+      "etichetta": "coherence",
+      "evidenze": null,
+      "target": null
+    },
+    "seconds_total": 7.023,
+    "misura": {
+      "attiva": false,
+      "disponibile": false,
+      "errore": "",
+      "note": [
+        "misura disattivata (--senza-misura)",
+        "riscaldamento routing (llama3.2:3b-instruct-q4_K_M) scartato: 2.277 s",
+        "riscaldamento spiegazione (llama3.2:3b-instruct-q4_K_M) scartato: 0.093 s"
+      ]
+    },
+    "steps": [
+      {
+        "step": "translator",
+        "seconds": 6.414,
+        "tokens": {
+          "input_token_count": 1948,
+          "output_token_count": 62,
+          "total_token_count": 2010
+        },
+        "misura": {
+          "misura": "non disponibile"
+        },
+        "text": "{\"input\": {\"Antilock\": \"True\", \"DrivQuality\": \"Poor\"}, \"output\": {\"Airbag\": \"False\"}, \"citazioni\": {\"Antilock\": \"the car has an antilock braking system\", \"DrivQuality\": \"the driving quality is poor\"}}"
+      },
+      {
+        "step": "classificator",
+        "seconds": 0.608,
+        "tokens": {
+          "input_token_count": 272,
+          "output_token_count": 3,
+          "total_token_count": 275
+        },
+        "misura": {
+          "misura": "non disponibile"
+        },
+        "text": "coherence"
+      }
+    ]
+  }
+}

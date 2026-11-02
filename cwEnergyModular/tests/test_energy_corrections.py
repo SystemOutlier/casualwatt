@@ -236,7 +236,10 @@ def test_P2_colonna_csv_accodata_senza_cambiare_ordine():
             "energy_per_total_token_j", "tokens_per_joule",
             "kwh_per_million_tokens",
             # D14: contatore esterno, in coda.
-            "external_counter"]
+            "external_counter",
+            # Provenienza del denominatore token, accodata senza riordinare lo schema.
+            "token_provenance",
+            "gpu_energy_attributed_raw_j"]
     assert CSV_COLUMNS[-len(CODA):] == CODA
     assert CSV_COLUMNS[:6] == [
         "run_id", "session_id", "timestamp_start", "timestamp_end",
