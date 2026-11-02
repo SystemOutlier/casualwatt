@@ -1,8 +1,21 @@
 # CasualWatt Energy Benchmark
 
-Framework di benchmark energetico per LLM locali (Ollama) e cloud, con interfaccia grafica Tkinter. Misura l'energia del package CPU dal contatore cumulativo EMI del processore Intel (metodo principale su Windows, `emi-counter`: ioctl via ctypes, nessuna integrazione, nessuna elevazione), senza secondo percorso su Windows — LibreHardwareMonitor è uscito dall'implementazione il 27/10/2026 (D18) — e con RAPL su Linux; misura la GPU NVIDIA via NVML, stima l'energia incrementale attribuibile al processo Ollama (baseline idle calibrata + ripartizione del tempo CPU busy), l'energia di rete dal traffico NIC e l'energia dell'inferenza cloud tramite EcoLogits. Le componenti sono riportate separatamente (local / network / cloud), con metodo e confine di misura espliciti in ogni riga CSV.
+CasualWatt è un framework di benchmark energetico per LLM locali (Ollama) e cloud, con interfaccia grafica Tkinter. Misura l'energia del package CPU tramite contatori hardware e riporta separatamente le componenti `local`, `network` e `cloud`, con metodo e confine di misura espliciti in ogni riga CSV.
 
-Target principale: **Windows 11**, Python 3.14 x64. L'app gira **senza privilegi amministrativi**: il contatore EMI si apre a privilegi standard e non esiste più un percorso che richieda l'elevazione (UAC).
+Su **Windows 11** la catena del package CPU è:
+
+```text
+CW_ENERGY_FILE (override esplicito)
+    -> emi-counter
+    -> pawnio-counter
+    -> unavailable
+```
+
+`emi-counter` legge il contatore cumulativo EMI del processore Intel tramite `ctypes` e funziona a privilegi standard. `pawnio-counter` è il fallback dichiarato che legge lo stesso registro MSR del package tramite PawnIO: richiede un processo elevato e non viene sommato a EMI. Se nessuna sorgente risponde, l'energia è `unavailable`, non zero. Su Linux il backend attivo è RAPL (`/sys/class/powercap`). LibreHardwareMonitor è fuori dal percorso di produzione dal 27/10/2026; resta soltanto per harness e risultati storici.
+
+La GPU viene selezionata per vendor, senza eseguire due catene in parallelo: NVIDIA usa NVML (`nvml-energy` oppure `nvml-power-integral`), AMD usa AMD SMI (`amdsmi-energy` oppure `amdsmi-power-integral`). L'energia attribuita a Ollama è una stima ottenuta dalla misura della scheda, dalla baseline idle e dalla quota temporale del processo; non è una lettura diretta dell'energia del singolo processo.
+
+Target principale: **Windows 11**, Python **3.11+** (testato su Python 3.14 x64). L'applicazione funziona normalmente senza elevazione quando EMI è disponibile; il solo fallback PawnIO richiede elevazione.
 
 **Qual è il documento che serve.** Il metodo vigente, con le decisioni congelate P1-P4 e il formulario F.0-F.17, è in `experiment_results/protocollo_v4_20261024.md`; le regole vincolanti per chi lavora nel repository sono in `AGENTS.md`. `RELAZIONE.md` **non** è la relazione di questo framework: è la verifica del 15/10/2026 del tool monofile legacy `consumi_ollama.py`, che stima la potenza dal TDP e sta fuori dal percorso di misura (`AGENTS.md:135-136`, `AGENTS.md:318-320`).
 
@@ -11,19 +24,28 @@ Target principale: **Windows 11**, Python 3.14 x64. L'app gira **senza privilegi
 - GUI a 3 pannelli: selezione modelli (locali/cloud), esecuzione benchmark, risultati + grafici; sezioni Log e Risultati ridimensionabili (PanedWindow).
 - Lettura dinamica dei modelli Ollama (`GET /api/tags`) e cloud (Groq, OpenRouter, Google Gemini, OpenAI, Anthropic) con badge `[Gratuito]`.
 - Configurazione chiavi API dalla GUI (combobox provider, campi oscurati, persistenza in `.casualwatt_keys.json`).
-- Calibrazione idle empirica (mediana di 3 finestre >=30 s sul sensore `CPU Package`).
+- Calibrazione idle empirica (mediana di 3 finestre di almeno 30 s).
 - Sorgente test universale: dataset CSV esterno (con ground truth opzionale) o prompt manuali a blocchi dinamici.
 - Valutazione: similarità semantica (sentence-transformers multilingue) vs ground truth, estrazione triple causali con F1, LLM-as-a-Judge via Ollama; regime senza GT etichettato esplicitamente.
-- Export CSV dettagliato (~100 colonne): energia, token, latenza, emissioni CO2, metodo e boundary di misura per riga.
+- Export CSV dettagliato: energia, token, latenza, emissioni CO2, metodo, provenienza dei token e boundary di misura per riga.
+- Energia package, attiva e GPU attribuita con segno conservato: gli incrementi negativi non vengono troncati a zero.
+- Le metriche per token non vengono calcolate quando i token sono stimati; il CSV registra `token_provenance` (`native`, `estimated`, `missing`).
 
 ## Installazione (Windows 11)
 
 ```powershell
-py -m pip install -r cwEnergyModular/requirements.txt        # nucleo: gira anche senza elevazione
-py -m pip install -r cwEnergyModular/requirements-lhm.txt    # solo per gli harness storici LHM (non per l'app)
+py -m pip install -r cwEnergyModular/requirements.txt        # nucleo dell'applicazione
 ```
 
-La prima riga basta per misurare: il metodo principale `emi-counter` usa `ctypes` dalla libreria standard. La seconda aggiunge `pythonnet`, che dal 27/10/2026 **non serve all'applicazione**: nessun modulo di `cwEnergyModular` fa più `import clr` (verificato con un grep su tutti i `.py`), e `energy/energy_session.py` e `diagnostics.py` — che prima lo importavano — sono stati riscritti su EMI e RAPL. `requirements-lhm.txt` resta solo per gli harness tracciati alla radice (`experiment_validate_lhm.py`, `four_way_test.py`, ...) che rigenerano gli artefatti LHM citati in `experiment_results/` e nella tesi. `wmi` e `pywin32`, che una versione di questa istruzione elencava, non sono importati da nessun file di `cwEnergyModular` (grep su `import wmi` e `win32api|win32com|win32file`: nessun risultato); l'unico consumatore nel repository è lo script legacy `consumi_ollama.py`, che dichiara la propria riga di installazione. Lo stesso vale per `codecarbon`: non è usato dall'applicazione, l'unico import è nell'harness una tantum `four_way_test.py:259`, dove è dentro un `try/except` che registra una nota e degrada a "sorgente non disponibile" se il pacchetto manca; le righe in `experiment_results/codecarbon_four_way/` vengono da lì, non dalla misura di CasualWatt.
+Per gli harness storici che rigenerano artefatti basati su LibreHardwareMonitor:
+
+```powershell
+py -m pip install -r cwEnergyModular/requirements-lhm.txt    # non serve all'app
+```
+
+`requirements.txt` include le dipendenze opzionali per NVML e la stima energetica cloud. Il backend AMD SMI usa il modulo `amdsmi` quando è disponibile sulla macchina; il percorso EMI usa `ctypes` dalla libreria standard. PawnIO richiede il modulo e il driver verificati dal backend, oltre a un processo elevato. `requirements-lhm.txt` non è necessario per l'applicazione e non riattiva LibreHardwareMonitor nel percorso di produzione.
+
+`wmi`, `pywin32` e `codecarbon` non fanno parte del percorso di misura di `cwEnergyModular`; gli eventuali harness o script legacy che li usano sono separati e non producono misure CasualWatt correnti.
 
 Le DLL di LibreHardwareMonitor (`LibreHardwareMonitorLib.dll`, `HidSharp.dll`, `Microsoft.Win32.TaskScheduler.dll`) restano archiviate in `cwEnergyModular/LibreHardwareMonitorLib/LibreHardwareMonitor/` per quegli harness storici: non fanno parte del percorso di misura. `LibreHardwareMonitorLib.dll` è distribuita senza modifiche sotto **MPL-2.0**: il testo integrale della licenza è allegato in `cwEnergyModular/LibreHardwareMonitorLib/LibreHardwareMonitor/MPL-2.0.txt` ( preso da mozilla.org, verificato il 23/10 sul `LICENSE` upstream), con gli avvisi third-party in `THIRD-PARTY-NOTICES.md` nella stessa cartella; per `HidSharp.dll` e `Microsoft.Win32.TaskScheduler.dll` la licenza va ri-verificata presso i rispettivi upstream prima di qualsiasi ridistribuzione.
 
@@ -34,7 +56,7 @@ Con doppio clic su `cwEnergyModular/avvia_casualwatt.bat` (nessuna elevazione: i
 ```powershell
 cd cwEnergyModular
 py main.py            # GUI (senza amministratore)
-py diagnostics.py     # report del canale EMI/RAPL e sonda PMI/WMI
+py diagnostics.py     # report del canale EMI/PawnIO/RAPL e sonda PMI/WMI
 py test_calibrazione.py  # verifica rapida calibrazione idle
 py main.py --selftest    # test logici senza hardware
 ```
@@ -59,22 +81,28 @@ cwEnergyModular/
 ├── benchmark_unified.py    # orchestrazione benchmark
 ├── evaluator.py            # valutazione (GT semantica, triple causali, judge)
 ├── cloud_estimator.py      # fetch modelli + stima EcoLogits
-├── casualwatt_csv_export.py# export CSV
+├── casualwatt_csv_export.py # export CSV
 ├── gui/                    # pannelli Tkinter
-└── energy/                 # sessioni energetiche (EMI/RAPL/NVML/rete/carbonio)
+└── energy/                 # sessioni energetiche CPU/GPU/rete/carbonio
 ```
 
 ## Metodologia energetica
 
 ```
-E_attiva = max(0, E_package − P_idle·Δt)          [Δ contatore cumulativo EMI, bordi dal buffer @0,05s; senza il device il canale e' unavailable, mai un secondo percorso]
-E_Ollama = E_attiva · Δt_cpu_Ollama / Δt_cpu_busy [cpu-time-share attribution]
-end_to_end = local + network + cloud              [baseline idle ESCLUSA]
+E_attiva = E_package − P_idle·Δt                  [segno conservato; la baseline non viene attribuita]
+E_Ollama = E_attiva · Δt_cpu_Ollama / Δt_cpu_busy [attribuzione per quota temporale CPU]
+E_GPU,Ollama = E_board − P_GPU,idle·Δt           [segno conservato; quota processo dichiarata]
+end_to_end = local + network + cloud              [componenti separate nel CSV]
 ```
 
-La `baseline_energy_j` è salvata separatamente e non viene mai attribuita al modello. L'energia della chiamata LLM Judge è contabilmente separata (`judge_energy_j`).
+`baseline_energy_j` è salvata separatamente e non viene attribuita al modello. Un'energia attiva negativa resta nel dataset ma non viene usata per l'attribuzione CPU. L'energia della chiamata LLM Judge è contabilmente separata (`judge_energy_j`).
+
+I token sono classificati come `native`, `estimated` o `missing`. Il runner v4 non inventa token mancanti; il runner storico può usare una stima, ma in quel caso non pubblica metriche `J/token`, `token/J` o equivalenti.
 
 ## Note
 
-- Su Linux la misurazione locale usa il contatore RAPL (`/sys/class/powercap`, backend implementato; validazione di scala ancora aperta); su macOS è disabilitata con messaggio esplicito (future work). GUI, Ollama, cloud, valutazioni e CSV restano utilizzabili ovunque.
-- Progetto di ricerca (tesi): metriche e confini di misura sono dichiarati riga per riga nel CSV.
+- Su Linux la misurazione locale usa il contatore RAPL (`/sys/class/powercap`); su macOS è disabilitata con messaggio esplicito (future work). GUI, Ollama, cloud, valutazioni e CSV restano utilizzabili ovunque.
+- I backend GPU NVIDIA/AMD e il backend RAPL hanno test sintetici; la verifica su hardware GPU reale e la validazione della scala assoluta con un wattmetro esterno sono ancora da eseguire.
+- L'attribuzione CPU/GPU è una procedura per quota temporale, non una misura diretta dell'energia del processo. La parola `validated` è riservata alle righe che superano l'intera catena di validazione prevista dal protocollo v4.
+- Il metodo vigente e le decisioni congelate P1-P4 sono in `experiment_results/protocollo_v4_20261024.md`. I risultati archiviati in `experiment_results/` possono contenere canali storici non più prodotti dal percorso corrente.
+- Progetto di ricerca (tesi): metriche, provenienza e confini di misura sono dichiarati riga per riga nel CSV.

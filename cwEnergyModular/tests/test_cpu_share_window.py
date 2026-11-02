@@ -146,7 +146,8 @@ def test_colonne_e_export(tmp_path):
         "energy_per_total_token_j", "tokens_per_joule",
         "kwh_per_million_tokens",
         # D14: contatore esterno, in coda.
-        "external_counter"]
+        "external_counter", "token_provenance",
+        "gpu_energy_attributed_raw_j"]
 
     p = tmp_path / "out.csv"
     export_results_csv([{"run_id": "r1", "cpu_share_window_s": 1.5,

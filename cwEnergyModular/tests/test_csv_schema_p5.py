@@ -64,9 +64,12 @@ TAIL = [
     "cloud_latency_used_s", "cloud_latency_threshold_s", "cloud_latency_binding",
     # Metriche per token (emendazione a P5, 28-10-2026): in coda, dopo il
     # blocco cloud, cosi' nessuna colonna storica cambia posizione.
-    "energy_per_total_token_j", "tokens_per_joule", "kwh_per_million_tokens",
+    "energy_per_total_token_j", "tokens_per_joule",     "kwh_per_million_tokens",
     # D14 (28-10-2026): contatore esterno, in coda.
     "external_counter",
+    # Provenienza del denominatore token, accodata senza riordinare lo schema.
+    "token_provenance",
+    "gpu_energy_attributed_raw_j",
 ]
 
 
