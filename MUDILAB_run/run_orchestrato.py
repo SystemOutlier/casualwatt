@@ -104,11 +104,15 @@ rq = _carica_runner()
 agenti = rq.mudilab_agents
 tools = sys.modules["tools"]
 
-# Le cinque etichette che `cau_inference` sa instradare (tools.py:51-118 nella
-# copia). L'ordine non conta: il testo del classificatore viene cercato per
-# sottostringa perche' un modello piccolo risponde con una frase invece che con
-# una parola sola (visto con tinyllama:latest).
-ETICHETTE = ("backward_reasoning", "intervention", "coherence", "influence", "counterfactual")
+# Le etichette si leggono con `etichette.py`, modulo puro senza modello ne' copie:
+# `benchmark/valuta.py` e `replay_traduzione.py` devono poter usare lo stesso
+# parser su artefatti gia' scritti, e importarlo da qui sarebbe impossibile perche'
+# questo modulo all'import monta la pipeline (`_carica_runner`, e `run_query` fa
+# chdir nella consegna). `HERE` in `sys.path` perche' l'import non dipenda da
+# dove viene lanciato il processo ne' dalla cartella di lavoro corrente.
+if str(HERE) not in sys.path:
+    sys.path.insert(0, str(HERE))
+from etichette import ETICHETTE, etichette_nel_testo, etichetta_dal_testo  # noqa: E402
 
 # Temperatura 0 sui tre passi. Motivo misurato: a quella predefinita di Ollama
 # (0,8) il traduttore ha risposto in tre run con due dizionari diversi, e il
@@ -189,26 +193,9 @@ async def riscalda_modelli(misura) -> None:
                 f"{time.perf_counter() - t0:.3f} s")
 
 
-def etichette_nel_testo(testo: str) -> list:
-    """Etichette ammesse citate nella risposta, in ordine di comparsa.
-
-    Si cerca per sottostringa perche' un modello piccolo risponde con una frase
-    invece che con una parola sola (tinyllama:latest: "You have classified the
-    query ... as: - Influence: ..."). Vale la PRIMA citata, che e' quella che il
-    modello dichiara; le altre restano nel JSON, cosi' un testo ambiguo si vede
-    invece di essere interpretato in silenzio.
-    """
-    basso = (testo or "").lower()
-    posizioni = sorted((basso.find(e), e) for e in ETICHETTE if e in basso)
-    return [e for _, e in posizioni]
-
-
-def etichetta_dal_testo(testo: str) -> str:
-    """La prima etichetta ammessa citata nella risposta del classificatore."""
-    trovate = etichette_nel_testo(testo)
-    if not trovate:
-        raise ValueError(f"nessuna delle {len(ETICHETTE)} etichette nel testo: {testo[:200]!r}")
-    return trovate[0]
+# `etichette_nel_testo` e `etichetta_dal_testo` non sono piu' definite qui: stanno
+# in `etichette.py` e sono importate sopra, perche' lo stesso parser lo deve
+# applicare anche chi legge gli artefatti senza montare la pipeline.
 
 
 def dizionario_dal_testo(testo: str) -> dict:
@@ -446,6 +433,13 @@ async def run(task: str, misura: Misura, opzioni_passi: dict | None = None,
     grezzo_etichetta = risposta.text
 
     esito_traduzione = None
+    # L'etichetta si scrive anche quando la riga muore nel tentativo qui sotto.
+    # Motivo misurato il 02-11: la chiave `etichetta` compariva solo nei rami di
+    # successo e di `cau_inference`, quindi `etichetta_ok` di `valuta.py` leggeva
+    # 138 giuste su 240 -- cioe' contava i superstiti del gate, non il
+    # classificatore -- mentre il testo del passo cita l'etichetta attesa in
+    # 240/240 run. Con la chiave sempre presente le due cose si separano.
+    etichetta = None
     try:
         etichetta = etichetta_dal_testo(grezzo_etichetta)
         if traduttore:
@@ -459,6 +453,8 @@ async def run(task: str, misura: Misura, opzioni_passi: dict | None = None,
         # i due passi costano gia' un modello: il JSON esce lo stesso, con il
         # testo grezzo, cosi' si vede che cosa ha risposto e non solo che e' fallito
         risultato.update({
+            "etichetta": etichetta,
+            "etichette_nel_testo": etichette_nel_testo(grezzo_etichetta),
             "errore": f"{type(e).__name__}: {e}",
             "controllo_traduzione": esito_traduzione,
             "seconds_total": round(time.perf_counter() - t_tot0, 3),
