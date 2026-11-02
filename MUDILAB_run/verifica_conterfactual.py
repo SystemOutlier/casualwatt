@@ -207,9 +207,13 @@ def gruppo_corretto() -> None:
     print("== 5b. la variante a file resta calcolabile (py=None, data) ==")
     # e' il confronto che giustifica FIX 11: la Py su sei righe cambia CF2 e non
     # lascia partire CF1 e CF3, il cui nodo di output non e' una colonna
-    attesi_file = {"CF1": (False, "non e' in DATI.csv"),
+    # Il testo cercato e' quello di FIX 12: la tavola non si chiama piu' DATI.csv
+    # nella eccezione, perche' MUDILAB_DATI puo' indicare un'altra tabella
+    # (funtions_corretto.py:268). Scritto il 02-11 alle 12:09, prima di quel commit:
+    # alle 21:41 la verifica usciva con 2 divergenti su 14 solo per questa stringa.
+    attesi_file = {"CF1": (False, "non e' nella tavola"),
                    "CF2": (True, "between 0.0404 and 0.074"),
-                   "CF3": (False, "non e' in DATI.csv")}
+                   "CF3": (False, "non e' nella tavola")}
     for cid, y, yv, x, xval in CF:
         ok, testo = _chiama(fu.cobound, y, yv, x, xval, fu.dati, grafo)
         _registra(f"cobound({cid}, Py file)", ok, testo, *attesi_file[cid])
