@@ -33,7 +33,16 @@ from pathlib import Path  # aggiunto per fare percorso generico
 #      ('DATI.csv') il comportamento dipende dalla CWD da cui parte lo script.
 BASE_DIR = Path(__file__).resolve().parent
 GRAPH_PATH = BASE_DIR / "insurance_grafo.bif"
-DATA_PATH = BASE_DIR / "DATI.csv"
+# FIX 12 (02-11-2026): la tavola degli esempi e' ora selezionabile senza
+#        toccare il codice. MUDILAB_DATI da' il percorso; quando la variabile
+#        non c'e' il default resta `DATI.csv` della consegna, perche' i numeri
+#        gia' pubblicati sono ancorati a quel file e un default non si sposta
+#        in silenzio. Non e' un canale di misura: la Py del ramo controfattuale
+#        viene dal giunto (FIX 11) e `cobound` riceve `data=None` anche qui,
+#        quindi questa variabile d'ambiente cambia l'input della branca
+#        empirica e dei confronti, non il numero primario della consegna.
+DATA_PATH = (Path(os.environ["MUDILAB_DATI"]).expanduser().resolve()
+             if os.environ.get("MUDILAB_DATI") else BASE_DIR / "DATI.csv")
 
 
 # --- originale: nessun default e nessun controllo di esistenza ---
@@ -120,15 +129,32 @@ def web_search(query: str) -> str:
 
 
 def _load_data():
-    """Legge DATI.csv solo quando serve (prima si leggeva a ogni chiamata).
+    """Legge la tavola degli esempi solo quando serve (prima si leggeva a ogni chiamata).
 
-    Non e' piu' chiamata da nessun ramo: dopo FIX 11 la Py degli estremi viene
-    dal grafo. Resta per confronto con la variante a file, che
-    verifica_conterfactual.py usa per mostrare la differenza.
+    Non e' piu' chiamata da nessun ramo della consegna: dopo FIX 11 la Py degli
+    estremi viene dal grafo. Resta per confronto con la variante a file, che
+    verifica_conterfactual.py usa per mostrare la differenza, e per la tavola
+    reale da duemila righe selezionata con MUDILAB_DATI (FIX 12).
+
+    Il lettore e' severo per due ragioni misurate il 02-11-2026, entrambe con
+    lo stesso effetto: la frequenza si calcola su un sottoinsieme silenzioso.
+
+    1. `keep_default_na=False`. La lista NA di default di pandas contiene la
+       stringa "None", che e' uno stato legittimo di `ThisCarDam` e `Accident`.
+       Sulla tavola da duemila righe il default fa sparire 2894 celle.
+    2. `dtype=str`. Sette variabili hanno dominio `{True, False}`; il default
+       le converte in colonne booleane, e `data[y] == 'True'` su una colonna di
+       booleani non matcha mai. Misurato su `DATI.csv`: `Py(Airbag=True)` era
+       0/6 = 0,0000 con il lettore vecchio e 4/6 = 0,6667 con questo, `Py
+       (GoodStudent=True)` 0,0000 contro 0,1667. Il ramo empirico della consegna
+       restituiva zero su ogni variabile booleana, e questo e' un secondo
+       motivo, indipendente dalla poverta' delle sei righe, per cui FIX 11 ha
+       portato la Py nel giunto.
     """
     if not DATA_PATH.exists():
-        raise FileNotFoundError(f"cau_inference: DATI.csv non trovato in {DATA_PATH}")
-    return pd.read_csv(DATA_PATH)
+        raise FileNotFoundError(f"cau_inference: tavola non trovata in {DATA_PATH}")
+    return pd.read_csv(DATA_PATH, encoding="utf-8-sig", keep_default_na=False,
+                       na_values=[], dtype=str)
 
 
 # --- originale: eval() sul testo del modello e nessuna validazione ---

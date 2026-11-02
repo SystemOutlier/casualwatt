@@ -1,4 +1,5 @@
 import re
+import os
 import itertools
 import pandas as pd
 import pyagrum as gum
@@ -14,11 +15,31 @@ from pathlib import Path
 # surnames = dati['Surnames'].to_list()
 # FIX: il file sta accanto a questo modulo, non nella CWD da cui parte lo script.
 #      Con il percorso relativo l'import fallisce se la CWD non e' MUDILAB.
+# FIX 12 (02-11-2026): MUDILAB_DATI seleziona la tavola degli esempi; senza la
+#      variabile il default resta `DATI.csv` della consegna, perche' i numeri
+#      pubblicati sono ancorati a quel file. `os.environ` va letto qui e non
+#      solo in tools_corretto: questo modulo importa la propria copia di
+#      `DATA_PATH` e la legge all'import, quindi una delle due letture
+#      silenziosa porterebbe un ramo sulla tavola da sei righe e l'altro su
+#      quella da duemila senza che nessuno lo dichiari.
 BASE_DIR = Path(__file__).resolve().parent
-DATA_PATH = BASE_DIR / 'DATI.csv'
-dati = pd.read_csv(DATA_PATH)
-names = dati['Name'].to_list()
-surnames = dati['Surnames'].to_list()
+DATA_PATH = (Path(os.environ["MUDILAB_DATI"]).expanduser().resolve()
+             if os.environ.get("MUDILAB_DATI") else BASE_DIR / 'DATI.csv')
+# Lettura severa: il motivo, misurato, e' nel docstring di `_load_data` in
+# tools_corretto.py (lo stato `None` nella lista NA di default e i dominio
+# {True, False} convertiti in booleani).
+dati = pd.read_csv(DATA_PATH, encoding="utf-8-sig", keep_default_na=False,
+                   na_values=[], dtype=str)
+# `names` e `surnames` sono globali morti: nel file non compaiono altre
+# occorrenze oltre queste due righe, e non servono a `cobound`. Erano pero' un
+# vincolo di forma sulla tavola -- `Name` e `Surnames` esistono solo in
+# `DATI.csv`, che e' un `to_csv` di pandas con indice (`Unnamed: 0`). Con la
+# tavola reale della relatrice, che ha le ventisette variabili del grafo e non
+# i nomi dei clienti, l'import si fermava con KeyError su una colonna che il
+# calcolo non usa. Condizionata, non cancellata: chi legge l'originale deve
+# continuare a vedere cosa conteneva.
+names = dati["Name"].to_list() if "Name" in dati.columns else []
+surnames = dati["Surnames"].to_list() if "Surnames" in dati.columns else []
 
 
 def pulisci_output(l: str):
@@ -244,7 +265,7 @@ def cobound(y, yval, x, xval, data, graph, py=None):
         if data is None:
             raise ValueError("cobound: serve `data` oppure `py`")
         if y not in data.columns:
-            raise KeyError(f"cobound: la colonna {y!r} non e' in DATI.csv ({list(data.columns)})")
+            raise KeyError(f"cobound: la colonna {y!r} non e' nella tavola ({len(data.columns)} colonne)")
 
     nox = [v for v in x_vals if v != xval]
     noy = [v for v in y_vals if v != yval]
