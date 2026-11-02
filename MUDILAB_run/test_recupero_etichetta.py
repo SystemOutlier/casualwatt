@@ -34,6 +34,7 @@ deve contenerlo, vedi `test_coherence_e_oracolo.py`):
 """
 import csv
 import json
+import subprocess
 import sys
 from pathlib import Path
 
@@ -94,10 +95,25 @@ def test_il_modulo_puro_non_tira_giu_la_pipeline():
     l'import di `run_orchestrato` risulterebbe fra i moduli caricati e il
     valutatore monterebbe le copie della relatrice (con `chdir` nella consegna)
     per leggere un JSON.
+
+    Il controllo gira in un interprete **figlio**, non in questo processo. La garanzia
+    riguarda un interprete che importa solo il valutatore, e dal 02-11 nella stessa
+    sessione di pytest c'e' `test_norma_stato_e_ancoraggio.py`, che importa
+    `run_query` perche' deve provare il gate sulla rete reale: verificata
+    `in-process`, questa asserzione passerebbe o fallirebbe in base all'ordine dei
+    file sulla linea di comando, non in base a cio' che dichiara.
     """
-    ET.etichetta_dal_testo("coherence")
-    assert "run_orchestrato" not in sys.modules
-    assert "run_query" not in sys.modules
+    figlio = ("import sys; sys.dont_write_bytecode = True; "
+              f"sys.path.insert(0, r'{HERE}'); "
+              "import benchmark.valuta; import etichette; "
+              "etichette.etichetta_dal_testo('coherence'); "
+              "assert 'run_orchestrato' not in sys.modules, 'run_orchestrato'; "
+              "assert 'run_query' not in sys.modules, 'run_query'; "
+              "print('puro')")
+    esito = subprocess.run([sys.executable, "-c", figlio],
+                           capture_output=True, text=True, cwd=str(HERE))
+    assert esito.returncode == 0, esito.stderr.strip()[-400:]
+    assert "puro" in esito.stdout, esito.stdout
 
 
 # -- 2. la fonte dell'etichetta, sui casi che esistono davvero ----------------------------
