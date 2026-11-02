@@ -1,0 +1,12 @@
+RAM libera: 24694 MB (richiesti 6144 MB)
+canale: emi-counter
+bordo di riscaldamento: counter_error=''
+finestra di prova: 2.001 s
+energia package: 15.394204 J (grezza 15.394204)
+energia attiva: 15.394204 J (valida: False)
+metodo: emi-counter
+provenienza finestra: exact-counter
+baseline: uncalibrated
+
+NON e' una misura: la finestra e' corta e il carico di fondo puo' essere quello di altre attivita'.
+canale disponibile

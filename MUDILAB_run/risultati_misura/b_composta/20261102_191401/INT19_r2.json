@@ -1,0 +1,149 @@
+{
+  "variante": "b_composta",
+  "descrizione": "via B con i due passi di routing corretti insieme: traduttore ancorato al grafo con scarto dichiarato, e classificatore sulla forma della domanda",
+  "cambia_rispetto_a_b_base": "passo translator come b_verificata (citazione richiesta sull'input, non sull'output) e passo classificator come b_esempi; spiegazione invariata",
+  "task_id": "INT19",
+  "ripetizione": 2,
+  "rete": "C:\\Users\\Massimo\\Documents\\CasualWatt\\CWProject\\MUDILAB_run\\consegna\\insurance_grafo.bif",
+  "rete_hash": "94c01027ef297aed2f36870416729e0335dfc0c84a420b1bc0a24dd6f1f782dd",
+  "provenienza": {
+    "varianti\\b_composta.py": "7da1891fa867950577154ee659796ddc87af274de911b184a05084c0dc7090b4",
+    "run_orchestrato.py": "da1a58e2ac265293239aa1ba5c8a14ff393edfa0985c20a6365440d54da51abe",
+    "run_query.py": "39ba30e59a7f8dbae66774821a10b6ae17b255224c0d8c4eae4e91c9ab478793",
+    "traduzione_controllata.py": "9f477698b96d0614db2a3f1a5437bc41d3154e21ac3670673c95a42de371df1a",
+    "classificazione_controllata.py": "686ff6bc82c85087b08984393f5fc5d256a57f16ac47b8862720c19e439cbba4",
+    "consegna\\agents_corretto.py": "f6b8e2fe9960b77665b7eafb08686c92068108df101350a0cb1c37ecb89de1ba",
+    "consegna\\tools_corretto.py": "adbd7d0f3bf2ee40859bb518e840d35ce6cfa38ae7b568c23f211509185c6559",
+    "consegna\\funtions_corretto.py": "60f8032884a0c62662edb1bf6e81c32ee47c5d6ba2595523461f3556f0b86db2",
+    "consegna\\insurance_grafo.bif": "94c01027ef297aed2f36870416729e0335dfc0c84a420b1bc0a24dd6f1f782dd"
+  },
+  "errore_variante": "ValueError: controllo_traduzione: output: 'hundred thousand' non e' uno stato di PropCost; stati: ['Thousand', 'TenThou', 'HundredThou', 'Million']",
+  "risultato": {
+    "modalita": "orchestrata",
+    "model": "llama3.2:3b-instruct-q4_K_M",
+    "modello_spiegazione": "llama3.2:3b-instruct-q4_K_M",
+    "source": {
+      "agents": "agents_corretto.py",
+      "tools": "tools_corretto.py",
+      "funtions": "funtions_corretto.py"
+    },
+    "opzioni": {
+      "temperature": 0.0
+    },
+    "opzioni_passi": {
+      "translator": {
+        "response_format": {
+          "type": "json_schema",
+          "json_schema": {
+            "name": "traduzione_verificabile",
+            "strict": true,
+            "schema": {
+              "type": "object",
+              "properties": {
+                "input": {
+                  "type": "object",
+                  "additionalProperties": {
+                    "type": "string"
+                  }
+                },
+                "output": {
+                  "type": "object",
+                  "minProperties": 1,
+                  "maxProperties": 1,
+                  "additionalProperties": {
+                    "type": "string"
+                  }
+                },
+                "citazioni": {
+                  "type": "object",
+                  "minProperties": 1,
+                  "additionalProperties": {
+                    "type": "string"
+                  }
+                }
+              },
+              "required": [
+                "input",
+                "output",
+                "citazioni"
+              ],
+              "additionalProperties": false
+            }
+          }
+        }
+      }
+    },
+    "spiegazione": true,
+    "rete": "C:\\Users\\Massimo\\Documents\\CasualWatt\\CWProject\\MUDILAB_run\\consegna\\insurance_grafo.bif",
+    "task": "What is the probability that the repair cost for this car is a hundred thousand dollars if we intervene to make it so that the neighbourhood is in the city?",
+    "errore": "ValueError: controllo_traduzione: output: 'hundred thousand' non e' uno stato di PropCost; stati: ['Thousand', 'TenThou', 'HundredThou', 'Million']",
+    "controllo_traduzione": {
+      "regole": [
+        "vocabolario",
+        "nessuna-evidenza",
+        "citazione",
+        "disgiunzione"
+      ],
+      "scartate": [],
+      "motivo": "output: 'hundred thousand' non e' uno stato di PropCost; stati: ['Thousand', 'TenThou', 'HundredThou', 'Million']",
+      "etichetta": "intervention",
+      "evidenze": null,
+      "target": null,
+      "citazione_output": "non richiesta"
+    },
+    "seconds_total": 6.464,
+    "misura": {
+      "attiva": true,
+      "disponibile": true,
+      "errore": "",
+      "note": [
+        "canale emi-counter",
+        "bordo di riscaldamento scartato: 1.378 s",
+        "baseline calibrata: 6.480 W",
+        "riscaldamento routing (llama3.2:3b-instruct-q4_K_M) scartato: 2.320 s",
+        "riscaldamento spiegazione (llama3.2:3b-instruct-q4_K_M) scartato: 0.178 s",
+        "primo run scartato (caricamento e cache dei prompt)"
+      ]
+    },
+    "steps": [
+      {
+        "step": "translator",
+        "seconds": 5.866,
+        "tokens": {
+          "input_token_count": 1951,
+          "output_token_count": 65,
+          "total_token_count": 2016
+        },
+        "misura": {
+          "energia_pkg_j": 169.315565,
+          "energia_pkg_raw_j": 169.315565,
+          "energia_attiva_j": 131.232786,
+          "attiva_valida": true,
+          "canale": "emi-counter",
+          "finestra": "exact-counter",
+          "idle": "calibrated"
+        },
+        "text": "{\"input\": {\"PropCost\": \"hundred thousand\", \"HomeBase\": \"city\"}, \"output\": {\"PropCost\": \"hundred thousand\"}, \"citazioni\": {\"PropCost\": \"the repair cost for this car is a hundred thousand dollars\", \"HomeBase\": \"the neighbourhood is in the city\"}}"
+      },
+      {
+        "step": "classificator",
+        "seconds": 0.549,
+        "tokens": {
+          "input_token_count": 594,
+          "output_token_count": 3,
+          "total_token_count": 597
+        },
+        "misura": {
+          "energia_pkg_j": 18.260228,
+          "energia_pkg_raw_j": 18.260228,
+          "energia_attiva_j": 14.637785,
+          "attiva_valida": true,
+          "canale": "emi-counter",
+          "finestra": "exact-counter",
+          "idle": "calibrated"
+        },
+        "text": "intervention"
+      }
+    ]
+  }
+}
