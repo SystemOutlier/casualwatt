@@ -183,6 +183,7 @@ def query_ollama(model: str, prompt: str, temperature: float, timeout_s: float,
         "prompt_tokens": p_tok,
         "completion_tokens": c_tok,
         "duration_s": round(t1 - t0, 6),
+        "token_provenance": "native",
     }
     # prefill/decoding se Ollama li espone (campi nativi dell'API, in ns)
     resp_data["prefill_duration_s"] = float(data.get("prompt_eval_duration") or 0) / 1e9
@@ -191,6 +192,7 @@ def query_ollama(model: str, prompt: str, temperature: float, timeout_s: float,
     resp_data["tool_calls"] = 0
     resp_data["keep_alive_sent"] = _keep_alive_sent(payload)
     if tokens_estimated:
+        resp_data["token_provenance"] = "estimated"
         resp_data["_tokens_note"] = "input/output token stimati (tiktoken/euristica len//4)"
 
     local = profiler.profile_window(t0, t1)
@@ -223,6 +225,7 @@ def _ollama_infer_only(model: str, prompt: str, temperature: float,
         "prompt_tokens": p_tok,
         "completion_tokens": c_tok,
         "duration_s": round(t1 - t0, 6),
+        "token_provenance": "native" if p_tok > 0 and c_tok > 0 else "missing",
     }
     if p_tok == 0 or c_tok == 0:
         est_p, est_c = _estimate_tokens(prompt, text)
@@ -231,6 +234,7 @@ def _ollama_infer_only(model: str, prompt: str, temperature: float,
         if c_tok == 0:
             resp_data["completion_tokens"] = est_c
         resp_data["_tokens_note"] = "input/output token stimati (tiktoken/euristica len//4)"
+        resp_data["token_provenance"] = "estimated"
     resp_data["prefill_duration_s"] = float(data.get("prompt_eval_duration") or 0) / 1e9
     resp_data["decoding_duration_s"] = float(data.get("eval_duration") or 0) / 1e9
     resp_data["raw_created_at"] = data.get("created_at", "")
@@ -325,6 +329,9 @@ def query_cloud(provider_cfg: Dict, model: str, prompt: str, temperature: float,
             "prompt_tokens": ptok,
             "completion_tokens": ctok,
             "duration_s": round(t1 - t0, 6),
+            "token_provenance": (
+                "native" if ptok > 0 and ctok > 0 else "missing"
+            ),
             "_t0": t0,
             "_t1": t1,
             "_req_bytes": len(json_body),
@@ -592,6 +599,20 @@ def _finalize_energy_fields(rec: Dict, local_j: Optional[float], network_j: Opti
     # e2e numerico disponibile? "N/A" e' una stringa e non entra nei derivati
     e2e = rec["end_to_end_energy_j"]
     e2e_j = e2e if isinstance(e2e, (int, float)) else None
+    token_provenance = str(rec.get("token_provenance") or "")
+    estimated_tokens = token_provenance == "estimated"
+    if estimated_tokens:
+        rec["energy_per_output_token_j"] = ""
+        rec["energy_per_total_token_j"] = ""
+        rec["tokens_per_joule"] = ""
+        rec["kwh_per_million_tokens"] = ""
+        note = (
+            "metriche per token non calcolate: token_provenance=estimated; "
+            "il conteggio stimato resta solo diagnostico"
+        )
+        existing = rec.get("notes", "")
+        rec["notes"] = f"{existing}; {note}" if existing else note
+        return
     try:
         out_tok = int(rec.get("output_tokens") or 0)
     except (TypeError, ValueError):
@@ -955,6 +976,7 @@ def run_unified_benchmark(
                     input_tokens=resp_data["prompt_tokens"],
                     output_tokens=resp_data["completion_tokens"],
                     total_tokens=resp_data["prompt_tokens"] + resp_data["completion_tokens"],
+                    token_provenance=resp_data.get("token_provenance", ""),
                     tokens_per_second=(
                         round(resp_data["completion_tokens"] / resp_data["duration_s"], 3)
                         if resp_data["duration_s"] > 0 else ""
@@ -985,6 +1007,8 @@ def run_unified_benchmark(
                     gpu_device_index=("" if local.gpu_device_index is None else local.gpu_device_index),
                     gpu_board_energy_j=local.gpu_board_energy_j,
                     gpu_energy_attributed_j=local.gpu_energy_attributed_j,
+                    gpu_energy_attributed_raw_j=getattr(
+                        local, "gpu_energy_attributed_raw_j", 0.0),
                     gpu_utilization_share=local.gpu_utilization_share,
                     cpu_attribution_method=local.cpu_attribution_method,
                     gpu_attribution_method=local.gpu_attribution_method,
@@ -1121,6 +1145,7 @@ def run_unified_benchmark(
                         input_tokens=resp_data["prompt_tokens"],
                         output_tokens=resp_data["completion_tokens"],
                         total_tokens=resp_data["prompt_tokens"] + resp_data["completion_tokens"],
+                        token_provenance=resp_data.get("token_provenance", ""),
                         tokens_per_second=(
                             round(resp_data["completion_tokens"] / resp_data["duration_s"], 3)
                             if resp_data["duration_s"] > 0 else ""
@@ -1159,6 +1184,8 @@ def run_unified_benchmark(
                         gpu_available=client_local.gpu_available,
                         gpu_board_energy_j=client_local.gpu_board_energy_j,
                         gpu_energy_attributed_j=client_local.gpu_energy_attributed_j,
+                        gpu_energy_attributed_raw_j=getattr(
+                            client_local, "gpu_energy_attributed_raw_j", 0.0),
                         gpu_utilization_share=client_local.gpu_utilization_share,
                         # Punto 2: provenienza idle GPU (calibrated|missing)
                         gpu_idle_provenance=(

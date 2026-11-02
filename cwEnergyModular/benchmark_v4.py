@@ -519,6 +519,7 @@ def infer_v4(model: str, prompt: str, temperature: float, timeout_s: float,
         "prompt_tokens": p_tok if p_tok > 0 else "",
         "completion_tokens": c_tok if c_tok > 0 else "",
         "tokens_valid": tokens_valid,
+        "token_provenance": "native" if tokens_valid else "missing",
         "duration_s": round(t1 - t0, 6),
         "prefill_duration_s": float(data.get("prompt_eval_duration") or 0) / 1e9,
         "decoding_duration_s": float(data.get("eval_duration") or 0) / 1e9,
@@ -1266,6 +1267,7 @@ ENERGY_ROW_FIELDS: Tuple[str, ...] = (
     "cpu_time_share_raw", "share_anomaly",
     "gpu_available", "gpu_device_index", "gpu_board_energy_j",
     "gpu_energy_attributed_j", "gpu_utilization_share",
+    "gpu_energy_attributed_raw_j",
     "cpu_attribution_method", "gpu_attribution_method",
     "energy_calculation_method", "external_counter",
     "raw_start", "raw_end", "raw_unit",
@@ -1525,6 +1527,9 @@ def run_block(model: str, prompt: Dict, *, run_id: str, session_id: str,
             point_id=point_id,
             block_id=block_id,
             tokens_level=TOKENS_LEVEL,
+            token_provenance=(
+                "native" if resp_data["tokens_valid"] else "missing"
+            ),
             n_inferenze=1,
         )
         judge_reasons: List[str] = []

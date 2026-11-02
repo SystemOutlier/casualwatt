@@ -67,3 +67,13 @@ def test_energia_zero_non_divide_per_zero():
     assert rec["energy_per_total_token_j"] == pytest.approx(0.0)
     assert rec["kwh_per_million_tokens"] == pytest.approx(0.0)
     assert rec["tokens_per_joule"] == ""
+
+
+def test_token_stimati_non_entrano_nelle_metriche_scientifiche():
+    """Un denominatore stimato resta diagnostico e non produce J/token."""
+    rec = _rec(token_provenance="estimated")
+    _finalize_energy_fields(rec, 60.0, 0.0, 0.0, _ev())
+    for col in ("energy_per_output_token_j", "energy_per_total_token_j",
+                "tokens_per_joule", "kwh_per_million_tokens"):
+        assert rec[col] == ""
+    assert "token_provenance=estimated" in rec["notes"]

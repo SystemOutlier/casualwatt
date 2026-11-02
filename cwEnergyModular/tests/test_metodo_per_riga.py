@@ -132,7 +132,10 @@ def test_colonna_esiste_una_sola_volta_ed_e_in_coda():
             "energy_per_total_token_j", "tokens_per_joule",
             "kwh_per_million_tokens",
             # D14 (28-10-2026): esclusione dei contatori esterni, in coda.
-            "external_counter"]
+            "external_counter",
+            # Provenienza del denominatore token, accodata senza riordinare lo schema.
+            "token_provenance",
+            "gpu_energy_attributed_raw_j"]
     assert CSV_COLUMNS[-len(CODA):] == CODA
     # il blocco storico non si e' mosso: keep_alive_sent era la coda del 23/10
     assert CSV_COLUMNS[-len(CODA) - 1] == "keep_alive_sent"
