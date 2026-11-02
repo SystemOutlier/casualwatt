@@ -1,0 +1,113 @@
+==========================================================================
+1. due filtri, non uno
+ramo            run  al tool  corrette    su 60  fra chi arriva
+cond_prob        60       34        27    45.0%           79.4%
+inter            60       17        17    28.3%          100.0%
+coherence        60       45        18    30.0%           40.0%
+counterfactual   60       42        15    25.0%           35.7%
+
+==========================================================================
+2. dove si ferma una riga (contate per run; le 3 ripetizioni non sono
+   indipendenti: a temperatura 0 coincidevano su 235 run su 240)
+  cond_prob: 26 run fermati -- 3 sul target, 23 sulla cardinalita', 0 altri
+         17 voci -- citazione: citazione non presente nella query
+          8 voci -- disgiunzione: la variabile e' gia' il target della domanda
+          3 voci -- vocabolario: 'socio-economic status. Values: Prole, Middle, UpperMidd
+          3 voci -- citazione: la citazione non nomina ne' la variabile ne' lo stato
+  inter: 43 run fermati -- 26 sul target, 17 sulla cardinalita', 0 altri
+         46 voci -- citazione: citazione assente o vuota
+          9 voci -- citazione: citazione non presente nella query
+          9 voci -- disgiunzione: la variabile e' gia' il target della domanda
+          3 voci -- vocabolario: 'Poor|Fair|Good|Excellent' non e' uno stato di Cushionin
+          3 voci -- vocabolario: 'SubStandard|Normal|Expert' non e' uno stato di DrivingS
+          3 voci -- vocabolario: 'Adolescent|Adult|Senior' non e' uno stato di Age; stati
+  coherence: 15 run fermati -- 6 sul target, 9 sulla cardinalita', 0 altri
+         30 voci -- citazione: citazione non presente nella query
+  counterfactual: 18 run fermati -- 3 sul target, 15 sulla cardinalita', 0 altri
+         15 voci -- disgiunzione: la variabile e' gia' il target della domanda
+         15 voci -- citazione: la citazione non nomina ne' la variabile ne' lo stato
+
+==========================================================================
+3. inter
+   target con stato-dinaro (['FiftyThou', 'HundredThou', 'Million', 'TenThou', 'Thousand', 'TwentyThou']): cond_prob 1/20
+   target con stato-dinaro (['FiftyThou', 'HundredThou', 'Million', 'TenThou', 'Thousand', 'TwentyThou']): inter 11/20
+   target con stato-dinaro (['FiftyThou', 'HundredThou', 'Million', 'TenThou', 'Thousand', 'TwentyThou']): coherence 4/20
+   target con stato-dinaro (['FiftyThou', 'HundredThou', 'Million', 'TenThou', 'Thousand', 'TwentyThou']): counterfactual 6/20
+   stati del target scritti in prosa (run): {("'hundred thousand dollars'", 'PropCost'): 3, ("'ten thousand dollars'", 'PropCost'): 9, ("'hundred thousand'", 'PropCost'): 6, ("'ten thousand dollars'", 'OtherCarCost'): 3, ("'hundred thousand'", 'ILiCost'): 2, ("'no antilock braking system'", 'AntiTheft'): 3}
+   voci d'input con citazione parafrasata (run): {'RiskAversion': 4, 'MakeModel': 1, 'PropCost': 1, 'RuggedAuto': 3}
+   voci senza citazione, riga per riga (il bucket da 46 della sezione 2 e' una riga sola x 2 run): {('CND04', 1): 2, ('INT28', 23): 2}
+
+   esito riga per riga (T = fermata sul target, C = fermata sulla
+   cardinalita', . = arrivata al tool; fra parentesi il numero di
+   ripetizioni non concordi con la prima):
+      INT03 CCC
+      INT04 TTT
+      INT07 TTT
+      INT08 CCC
+      INT11 C..  (2 disc.)
+      INT12 ...
+      INT15 ...
+      INT16 TTT
+      INT19 TTT
+      INT20 ...
+      INT23 ...
+      INT24 TTT
+      INT27 TTT
+      INT28 CCC
+      INT31 CCC
+      INT32 TTT
+      INT35 CTT  (2 disc.)
+      INT36 CCC
+      INT39 TTT
+      INT40 ...
+      CF03  CCC
+      CF04  TTT
+      CF07  ...
+      CF08  CCC
+      CF11  ...
+      CF12  ...
+      CF15  CCC
+      CF16  CCC
+      CF19  ...
+      CF20  ...
+      CF23  ...
+      CF24  ...
+      CF27  ...
+      CF28  ...
+      CF31  ...
+      CF32  ...
+      CF35  ...
+      CF36  ...
+      CF39  ...
+      CF40  CCC
+
+==========================================================================
+4. counterfactual: cosa calcola chi supera il gate
+    18 run: target = la variabile manipolata (VehicleYear)
+    15 run: target = la domanda
+     3 run: target = un altra variabile (Accident)
+     3 run: target = la variabile manipolata (SeniorTrain)
+     3 run: target = un altra variabile (PropCost)
+   fra i superstiti, `corretta` e 'target = la domanda della riga' coincidono: True (diversi: [])
+   Joule per categoria di run (il numero che esce da `valutazione.json`):
+      counterfactual domanda giusta:   397.3 J/run x15  domanda sbagliata:   411.7 J/run x27  fermata al gate:   234.1 J/run x18
+      inter          domanda giusta:   324.2 J/run x17  fermata al gate:   226.9 J/run x43
+      cond_prob      domanda giusta:   317.7 J/run x30  domanda sbagliata:   299.6 J/run x 4  fermata al gate:   175.6 J/run x26
+      coherence      domanda giusta:   400.5 J/run x18  domanda sbagliata:   414.2 J/run x27  fermata al gate:   270.4 J/run x15
+
+==========================================================================
+5. forma della query e cosa chiede il gate
+   cond_prob (CND03): Given that the customer has a cautious risk aversion, how likely is it that the socio-economic status is working-class...
+        evidence={"RiskAversion": "Cautious"} intervention={} target=SocioEcon=Prole
+   inter (INT03): What is the probability that the car is a current-year model if we intervene to make it so that the customer has an ad...
+        evidence={} intervention={"RiskAversion": "Adventurous"} target=VehicleYear=Current
+   coherence (COH03): Is it coherent that the household owns another car given that the neighbourhood is in the suburbs and that the custome...
+        evidence={"HomeBase": "Suburb", "SeniorTrain": "True"} intervention={} target=OtherCar=True
+   counterfactual (CF03): We observed that the car has no anti-theft device and that the car has been stolen. What would the probability that th...
+        evidence={} intervention={"AntiTheft": "False"} target=Theft=True
+
+==========================================================================
+6. etichetta_ok
+   passi `classificator` con l'etichetta attesa nel testo: 240/240
+   JSON senza la chiave `etichetta` (percorso d'errore di run_orchestrato.py): 102
+   `etichetta_ok` aggregata per ramo: {'cond_prob': 34, 'inter': 17, 'coherence': 45, 'counterfactual': 42}
