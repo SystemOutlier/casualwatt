@@ -1,4 +1,50 @@
-# CasualWatt Energy Benchmark
+<h1 align="center">CasualWatt Energy Benchmark: Green AI Energy Tracker</h1>
+
+<p align="center">
+  <strong>Un framework ibrido multilivello per il tracciamento energetico e la tracciabilità metrologica di LLM locali e cloud.</strong>
+</p>
+
+<p align="center">
+  Sviluppato  per isolare l'impatto termodinamico dell'IA con granularità hardware e stime LCA.
+</p>
+
+<!-- SEZIONE BADGES -->
+<p align="center">
+  <img src="https://shields.io" alt="Python version">
+  <img src="https://shields.io" alt="casualwatt">
+  <img src="https://shields.io" alt="OS Support">
+  <img src="https://shields.io" alt="Cloud Estimation Architecture">
+  <img src="https://shields.io" alt="License">
+</p>
+
+<!-- LINK DI NAVIGAZIONE RAPIDA -->
+<p align="center">
+  <a href="#installazione">Installazione rapida</a> • 
+  <a href="#funzionalita">Funzionalità</a> • 
+  <a href="#metodologia">Metodologia</a> • 
+  <a href="#documentazione">Documentazione</a>
+</p>
+
+## 🚀 Installazione
+
+```bash
+# Clona il repository nella cartella del tuo progetto
+git clone https://github.com
+cd CasualWatt/CWProject
+
+# Installa le dipendenze richieste per l'ambiente Windows/Linux
+pip install pypiwin32 psutil pandas codecarbon
+```
+
+## ✨ Funzionalità
+
+* **Tracciamento Hardware Locale:** Misurazione hardware in-process a 20 Hz su Windows 11 e Linux (MSR/RAPL) superando i vincoli di sicurezza Ring-0.
+* **Architettura Cloud Multi-Tier:** Stima dell'impatto remoto basata su **EcoLogits (LCA)** con modulo analitico di fallback (ispirato a **SweetSpot**) calibrato su dati *ML.ENERGY*.
+* **Isolamento della Rete:** Calcolo separato dell'overhead energetico di trasmissione ($E_{\text{rete}}$) per prevenire il double-counting metrologico.
+
+## 📊 Metodologia e Tracciabilità
+
+Il core di CasualWatt implementa l'algoritmo di **Attribuzione Proporzionale** discreta e la gestione rigorosa delle anomalie di telemetria tramite l'assegnazione del valore nullo `None` (invece di `0.0 J`) per proteggere l'integrità degli indici ECE ed EPCL durante i test.
 
 CasualWatt è un framework di benchmark energetico per LLM locali (Ollama) e cloud, con interfaccia grafica Tkinter. Misura l'energia del package CPU tramite contatori hardware e riporta separatamente le componenti `local`, `network` e `cloud`, con metodo e confine di misura espliciti in ogni riga CSV.
 
