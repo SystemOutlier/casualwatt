@@ -570,6 +570,55 @@ Su una macchina senza Graphviz pyagrum stampa all'import "Graphviz is not
 installed": riguarda solo il disegno della rete, l'inferenza non lo usa, e
 nell'output allegato non compare perche' l'avviso va sullo stderr.
 
+Il file di dati che mi ha mandato il 02-11
+
+E' arrivato dataset.xls. Non e' un Excel: i primi byte sono l'intestazione
+"ILiCost,OtherCar,..." e i fine linea sono CRLF, quindi e' un CSV con
+un'estensione che non lo descrive, e pandas.read_excel su quel file fallisce.
+Non ho toccato il suo file (l'impronta sha-256 e' pinata in un test); ne' ho
+fatto una copia con il nome giusto, dataset_car_2000.csv, verificata riga per
+riga contro l'originale.
+
+La tabella e' la prima evidenza osservata che entra nel laboratorio: 2000 righe,
+tutte e 27 le variabili del grafo, nessuna cella vuota. Letta contro i domini
+del .bif, le sue marginali stanno sotto lo scarto di 0,05 su tutte e 27 le
+variabili (il massimo e' 0,0190 su Mileage, alla scala dell'errore di
+campionamento su 2000 righe). Non lo chiamo una validazione del grafo: non so se
+il grafo sia stato imparato da queste stesse righe, e in tal caso l'accordo e'
+atteso per costruzione.
+
+Due cose di questa tabella riguardano anche i sei clienti di DATI.csv, e sono
+difetti del modo di leggere, non dei dati.
+
+1. ThisCarDam e Accident hanno fra gli stati ammessi la parola None, che e' anche
+   il valore che pandas tratta come mancante per default. Letta cosi' com'e',
+   questa tabella perde 2894 celle: 1459 righe su 2000 restano senza un valore.
+   Nella sua tabella lo stato None e' il piu' frequente (Accident = None su 1435
+   righe su 2000, 71,75%), quindi non e' una sfumatura.
+   Questo spiega le quattro celle "NaN" della colonna Accident di DATI.csv: NaN
+   non e' uno stato di quel dominio, e None lo e'. L'ipotesi che quelle celle
+   siano lo stato None scritto da un passaggio in pandas ha ora due evidenze, ma
+   resta un'ipotesi: non ho una versione precedente del file da confrontare.
+2. Le sette variabili con dominio {True, False} vengono lette come booleane, e
+   il confronto con le etichette del grafo non matcha piu' niente. Dentro la
+   consegna questo rendeva P(Y = y) uguale a zero su qualunque variabile
+   booleana: su DATI.csv, Py(Airbag = True) usciva 0/6 invece di 4/6. E' un
+   secondo motivo, indipendente dalle sole sei righe, per cui la probabilita'
+   marginale del controfattuale va presa dal giunto e non dal file.
+
+Il default della consegna non e' cambiato: senza la variabile d'ambiente
+MUDILAB_DATI i moduli leggono ancora DATI.csv, perche' i numeri gia' scritti
+sono ancorati a quel file. Con
+
+    set MUDILAB_DATI=C:\percorso\dataset_car_2000.csv
+
+i moduli usano la tavola da 2000 righe; l'import non si ferma piu' sulle colonne
+Name e Surnames, che in questa tabella non ci sono e che nel codice non servono.
+Il lettore non guarda l'estensione, perche' il contenuto e' CSV: funziona anche
+con il suo dataset.xls puntato direttamente.
+La verifica della consegna (verifica_copie.py) rigenera un output identico byte
+per byte a quello allegato: il percorso primario non si e' mosso.
+
 Resto in attesa, poi procedo con la misura.
 
 Massimo
