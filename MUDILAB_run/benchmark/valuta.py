@@ -32,6 +32,13 @@ inferiore e va scritto come tale.
 Integrita'. Ogni riga dichiara `rete` e `rete_hash`; se l'hash non e' quello del
 manifest, la riga ha girato su una rete diversa da quella dell'oracolo e non e'
 confrontabile. Si conta in `rete_non_coerente`, non si corregge.
+Il confronto ha due livelli, etichettati in `rete_confronto`: `esatto` quando il
+digest del run e' proprio quello del manifest, `a-capo` quando lo diventa
+normalizzando i fine riga del file attuale **e la normalizzazione restituisce
+esattamente il digest del manifest** (vedi `_digest_accettati`: e' il caso di
+`core.autocrlf`, che riscrive il .bif all'checkout senza cambiare un byte di
+contenuto). Un contenuto diverso non passa a `a-capo`: la normalizzazione non puo'
+far tornare un hash che non torna.
 
 Uso:
     python benchmark/valuta.py [cartella ...] [--out percorso.json]
@@ -40,6 +47,7 @@ Senza cartelle valuta `harness/risultati` (il default dell'harness).
 
 import argparse
 import csv
+import hashlib
 import json
 import statistics
 import sys
@@ -77,9 +85,62 @@ def _chiave_rete(percorso) -> str | None:
     return str(Path(percorso).resolve()).lower()
 
 
+def _digest_accettati(percorso: Path, sha_manifest: str) -> dict:
+    """{digest: modo} che una riga puo' portare per questa rete.
+
+    `esatto` e' il digest registrato al momento della generazione del benchmark,
+    preso dal manifest e quindi indipendente da cosa c'e' sul disco adesso.
+
+    `a-capo` si aggiunge **solo** se normalizzare CR+LF in LF i byte del file
+    attuale restituisce esattamente il digest del manifest. E' il filtro di
+    checkout: su questo host `core.autocrlf` = true (misurato 02-11) e
+    `consegna/insurance_grafo.bif` vale 22719 B con 548 LF nell'index git,
+    23267 B con 548 coppie CR+LF e zero LF nudi sul disco lavoro; normalizzato
+    da 39f9e706..dab4, che e' il digest del manifest. Le due reti sono lo stesso
+    grafo: fra il digest del run e quello del manifest c'e' solo il fine riga,
+    non una CPT.
+
+    Un contenuto diverso non arriva a `a-capo` -- la normalizzazione non puo' far
+    tornare un hash che non torna -- quindi la regola non indebolisce il controllo,
+    toglie solo il falso allarme che con `--ripetizioni 3` si porterebbe dietro
+    meta' delle righe dell'held-out.
+    """
+    accettati = {sha_manifest: "esatto"}
+    try:
+        byte = Path(percorso).read_bytes()
+    except OSError:
+        return accettati
+    digest_disk = hashlib.sha256(byte).hexdigest()
+    normale = hashlib.sha256(byte.replace(b"\r\n", b"\n")).hexdigest()
+    if normale == sha_manifest and digest_disk not in accettati:
+        accettati[digest_disk] = "a-capo"
+    return accettati
+
+
 def _hash_reti() -> dict:
+    """Chiave di percorso -> {digest accettati: etichetta del confronto}."""
     m = json.loads(MANIFEST.read_text(encoding="utf-8"))
-    return {_chiave_rete(ROOT / v["percorso"]): v["sha256"] for v in m["reti"].values()}
+    return {_chiave_rete(ROOT / v["percorso"]):
+            _digest_accettati(ROOT / v["percorso"], v["sha256"])
+            for v in m["reti"].values()}
+
+
+def _confronto_rete(riga: dict, hash_reti: dict) -> tuple:
+    """(coerente, modo) per una riga: None se la riga non dichiara la rete.
+
+    `modo` vale `esatto`, `a-capo` o `incoerente`, e dice *quale* dei due
+    controlli e' passato. Serve perche' il totale `rete_non_coerente` da solo
+    non distingue una rete cambiata da un checkout, e la prima cosa e' da
+    scartare, la seconda no.
+    """
+    percorso = riga.get("rete")
+    if not percorso:
+        return None, "non dichiarata"
+    accettati = hash_reti.get(_chiave_rete(percorso))
+    if accettati is None:
+        return False, "rete non nel manifest"
+    modo = accettati.get(riga.get("rete_hash"))
+    return (True, modo) if modo else (False, "incoerente")
 
 
 def _norm(d):
@@ -143,8 +204,7 @@ def _valuta_run(riga: dict, gt: dict, hash_reti: dict) -> dict:
         motivo = f"etichetta {etichetta!r} invece di {gt['etichetta_attesa']!r}"
 
     energia, fonte = _energia(risultato)
-    rete_ok = (None if not riga.get("rete")
-               else riga.get("rete_hash") == hash_reti.get(_chiave_rete(riga["rete"])))
+    rete_ok, rete_modo = _confronto_rete(riga, hash_reti)
     return {
         "variante": riga.get("variante"),
         "task_id": riga.get("task_id"),
@@ -160,6 +220,7 @@ def _valuta_run(riga: dict, gt: dict, hash_reti: dict) -> dict:
         "energia_j": energia,
         "energia_fonte": fonte,
         "rete_coerente": rete_ok,
+        "rete_confronto": rete_modo,
         "seconds_total": risultato.get("seconds_total"),
     }
 
@@ -205,6 +266,7 @@ def _aggregato(righe: list) -> dict:
         # resta nel numeratore, altrimenti un metodo che sbaglia sembra cheap
         "j_per_corretta": round(energia / corrette, 3) if corrette and con_energia else None,
         "rete_non_coerente": sum(1 for r in righe if r["rete_coerente"] is False),
+        "rete_solo_a_capi": sum(1 for r in righe if r.get("rete_confronto") == "a-capo"),
     }
 
 
@@ -286,6 +348,10 @@ def main() -> int:
               f"{(t['copertura_energia'] or 0) * 100:.1f}%")
         if t["rete_non_coerente"]:
             print(f"  ATTENZIONE: {t['rete_non_coerente']} run su una rete diversa da quella dell'oracolo")
+        if t["rete_solo_a_capi"]:
+            print("  note: " + str(t["rete_solo_a_capi"]) +
+                  " run con la rete coerente solo normalizzando i fine riga"
+                  " (filtro di checkout, contenuto = digest del manifest)")
         if t["copertura_energia"] != 1:
             print("  joule per corretta = limite inferiore (mancano finestre energetiche)")
         rip = d["per_ripetizione"]
