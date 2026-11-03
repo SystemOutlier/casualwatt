@@ -1,0 +1,45 @@
+confronto valutatori, 321 run registrati, criterio pubblicato vs ramo hardened
+
+pubblicato         corrette 109/321 (34.0%)  915.749 J/corretta
+ramo_nessuno       corrette 0/321 (0.0%)  None J/corretta
+     212  accordo
+      90  tool: stato missing
+      19  decision marker: la frase attesa non e' nel vocabolario del dataset
+ramo_passi         corrette 90/321 (28.0%)  1109.074 J/corretta
+     302  accordo
+      19  decision marker: la frase attesa non e' nel vocabolario del dataset
+ramo_dizionario    corrette 0/321 (0.0%)  None J/corretta
+     212  accordo
+      90  tool: stato missing
+      19  decision marker: la frase attesa non e' nel vocabolario del dataset
+
+concordenza per fase (modo `passi`):
+  label        etichetta_ok=True / correct                   321
+  translation  mappatura_ok=False / incorrect                 88
+  translation  mappatura_ok=False / indeterminate            124
+  translation  mappatura_ok=True / correct                   109
+  output       numero_ok=False / incorrect                   212
+  output       numero_ok=True / correct                      109
+righe coherence per `expected_decision` (modo `passi`):
+  compatible         pubblicato_correct=False / incorrect       39
+  compatible         pubblicato_correct=True / correct           1
+  non_compatibile    pubblicato_correct=False / incorrect       21
+  non_compatibile    pubblicato_correct=True / incorrect        19
+righe gate-fermate (modo `passi`):
+  gate_fermato=False / correct                           90
+  gate_fermato=False / incorrect                        107
+  gate_fermato=True / incorrect                         124
+esempi:
+  compatible|pubblicato_correct=False / incorrect :: COH03 r1 output='Evidences are NOT strongly compatible with a single AntiTheft of False with a probability of 0.3104' note=[]
+  compatible|pubblicato_correct=True / correct :: COH17 r1 output='Evidences are compatible with a single OtherCarCost of Thousand with a probability of 0.6719' note=[]
+  non_compatibile|pubblicato_correct=False / incorrect :: COH07 r1 output='Evidences are NOT strongly compatible with a single SocioEcon of Wealthy with a probability of 0.0407' note=['coherence qualitative decision mismatch (literal marker check; semantic equivalence not assessed)']
+  non_compatibile|pubblicato_correct=True / incorrect :: COH08 r1 output='Evidences are NOT strongly compatible with a single CarValue of FiveThou with a probability of 0.2568' note=['coherence qualitative decision mismatch (literal marker check; semantic equivalence not assessed)']
+
+per split e ramo (colonna = corrette/n, e copertura del ramo):
+  *         *              n= 321  pubblicato  109/321  915.749 J/c  nessuno:   0/321 None J/c(cov 0.7196)  passi:  90/321 1109.074 J/c(cov 1.0)  dizionario:   0/321 None J/c(cov 0.7196)
+  dev       *              n=  81  pubblicato   32/81   797.412 J/c  nessuno:   0/81  None J/c(cov 0.6173)  passi:  31/81  823.135 J/c(cov 1.0)  dizionario:   0/81  None J/c(cov 0.6173)
+  held-out  *              n= 240  pubblicato   77/240  964.929 J/c  nessuno:   0/240 None J/c(cov 0.7542)  passi:  59/240 1259.314 J/c(cov 1.0)  dizionario:   0/240 None J/c(cov 0.7542)
+  *         coherence      n=  80  pubblicato   20/80   1476.745 J/c  nessuno:   0/80  None J/c(cov 0.9875)  passi:   1/80  29534.901 J/c(cov 1.0)  dizionario:   0/80  None J/c(cov 0.9875)
+  *         cond_prob      n=  81  pubblicato   39/81   522.828 J/c  nessuno:   0/81  None J/c(cov 0.5185)  passi:  39/81  522.828 J/c(cov 1.0)  dizionario:   0/81  None J/c(cov 0.5185)
+  *         counterfactual n=  80  pubblicato   26/80   1119.58 J/c  nessuno:   0/80  None J/c(cov 0.675)  passi:  26/80  1119.58 J/c(cov 1.0)  dizionario:   0/80  None J/c(cov 0.675)
+  *         inter          n=  80  pubblicato   24/80   865.933 J/c  nessuno:   0/80  None J/c(cov 0.7)  passi:  24/80  865.933 J/c(cov 1.0)  dizionario:   0/80  None J/c(cov 0.7)
