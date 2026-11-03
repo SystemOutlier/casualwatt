@@ -801,6 +801,14 @@ class CasualWattLocalEnergyProfiler:
         if gpu_mon.available and len(gpu_samples) >= 2:
             res.gpu_available = True
             res.gpu_device_index = gpu_mon.index
+            # Quale scheda, e perche': se il backend vede piu' di un device e la
+            # selezione non e' dichiarata, il numero che segue e' l'energia della
+            # scheda in posizione 0, non "la GPU". Sta nella nota perche' lo
+            # schema di P5 e' congelato e non serve una colonna nuova: e' un
+            # contesto della riga, come gli altri qui.
+            nota_selezione = getattr(gpu_mon, "device_note", "")
+            if nota_selezione:
+                notes.append(nota_selezione)
             util_sum = 0.0
             util_n = 0
             for cur in gpu_samples[1:]:
