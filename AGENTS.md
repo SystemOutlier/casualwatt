@@ -157,16 +157,28 @@ stanno solo le regole che un agente puo' violare senza accorgersene.
   causale: la richiesta e' l'intervento, quindi il post e' una grandezza
   post-trattamento e condizionarvi l'estimatore renderebbe la correzione
   dipendente dall'esito che deve correggere (P1.14, motivazione causale).
-- **Nessun troncamento.** Gli incrementi negativi si conservano con il flag
-  `negative_increment`. La produzione attuale applica un clamp a zero in
-  tre punti (`energy/local_energy.py:512`, `:530`, `:548`); la v4
-  non lo fa e la differenza va dichiarata. La regola non nasce con la v4: era
-  gia' DP-A nella specifica `METODI_E_FORMULE.md` del 21-10
+- **Nessun troncamento.** Gli incrementi negativi si conservano: sul ramo CPU il
+  flag di riga e' `active_valid` con i valori grezzi `package_energy_raw_j` e
+  `active_energy_raw_j` (`energy/local_energy.py:561-562`, `:578-581`; colonne
+  nel schema a `casualwatt_csv_export.py:118`), e a livello di blocco resta il
+  flag `negative_increment` (`benchmark_v4.py:1694`, colonna di riepilogo). **Il
+  debito di metodo dichiarato il 24-10 e' chiuso al 02-11-2026 da `cd881e6b`**:
+  i tre clamp a zero che la produzione applicava (`:512`, `:530`, `:548`
+  nell'antesistema) non esistono piu' — l'integrale di fallback somma `cur -
+  prev` senza `max` (`local_energy.py:539`), `package_energy_j` e' il valore
+  firmato (`:561`) e `active = active_raw` (`:579`), con la nota che nomina il
+  negativo quando c'e' (`:592-597`). Resta clampato cio' che **non e' energia**:
+  i delta di tempo CPU (`:620`, `:637`) perche' un contatore di secondi che
+  torna indietro e' un reset, e la quota dove viene usata (`:684`) perche' il
+  rapporto grezzo `share_raw` e' conservato a `:672` con le anomalie dichiarate
+  (`:663-666`, `:683`). La regola non nasce con la v4: era gia' DP-A nella
+  specifica `METODI_E_FORMULE.md` del 21-10
   (`Ê_att = E_pkg^raw − E_base`, "firmata, mai clampata"), documento che sta in
   `Tesi-latex/` e quindi **fuori da git**: la
-  citazione e' di provenienza, non e' un riferimento consultabile nel repo. Il
-  codice di produzione e' dunque in ritardo di una generazione di metodo rispetto
-  alla specifica. Uno zero legittimo e' dichiarato, non inventato: baseline non
+  citazione e' di provenienza, non e' un riferimento consultabile nel repo. Su
+  questo punto il codice non e' piu' in ritardo di una generazione rispetto alla
+  specifica; la frase che lo affermava era stantia ed e' stata sostituita da
+  questa dichiarazione. Uno zero legittimo e' dichiarato, non inventato: baseline non
   calibrata -> `baseline_energy_j = 0` con `idle_provenance = "uncalibrated"`
   (`energy/local_energy.py:380-390`).
 - **Linguaggio dell'incertezza.** "Semi-range conservativi", mai "deviazione
