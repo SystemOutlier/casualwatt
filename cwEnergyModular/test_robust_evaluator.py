@@ -96,3 +96,26 @@ def test_scalar_reference_and_explicit_answer_type_are_supported():
     assert evaluate("21", {"accepted_answers": 21}).verdict == "correct"
     assert evaluate("Athens", {"accepted_answers": ["Athens"]},
                     answer_type="short_text").verdict == "correct"
+
+
+def test_absent_answer_is_indeterminate_for_number_and_interval():
+    """Una risposta vuota non e' un numero sbagliato: e' un run che non ha prodotto
+    nulla da valutare.
+
+    `incorrect` a confidenza 0.99 funde il fallimento di acquisizione con l'errore
+    del modello e sposta il denominatore delle metriche per corretto; un run
+    fermato prima del passo causale non puo' essere contato fra gli sbagliati.
+    """
+    numero = evaluate("", {"answer_type": "number", "accepted_answers": ["0.2"]})
+    intervallo = evaluate("", {"answer_type": "interval", "lower": 0.1, "upper": 0.3})
+    assert numero.verdict == "indeterminate"
+    assert numero.method == "number_answer_absent"
+    assert intervallo.verdict == "indeterminate"
+    assert intervallo.method == "interval_answer_absent"
+
+
+def test_non_empty_answer_without_a_number_stays_incorrect():
+    """Il floor resta `incorrect` per una risposta che c'e' ma non risponde: la
+    regola nuova copre l'assenza, non l'incoerenza."""
+    assert evaluate("non so", {"answer_type": "number",
+                               "accepted_answers": ["0.2"]}).verdict == "incorrect"

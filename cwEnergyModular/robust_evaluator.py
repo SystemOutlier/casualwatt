@@ -222,6 +222,14 @@ def _evaluate_number(answer: str, contract: Mapping[str, Any]) -> EvaluationResu
     marked = _ANSWER_MARKER_RE.findall(answer or "")
     candidates = marked or _numbers(answer)
     if not candidates:
+        if not _text(answer):
+            # An empty answer is not a wrong number: it is a run that produced
+            # no answer to score (the MUDILAB gate stops the run before the
+            # causal step).  Scoring it ``incorrect`` at 0.99 would merge
+            # acquisition failures into model errors and shrink the denominator
+            # of the energy-per-correct metric for the wrong reason.
+            return _result("indeterminate", None, 0.0, "number_answer_absent",
+                           "number", diagnostics={"reason": "empty answer, nothing to score"})
         return _result("incorrect", 0.0, 0.99, "number_no_answer",
                        "number", diagnostics={"reason": "no numeric answer"})
     parsed = [_to_float(item) for item in candidates]
@@ -328,6 +336,11 @@ def _evaluate_interval(answer: str, contract: Mapping[str, Any]) -> EvaluationRe
                        "interval", diagnostics={"reason": "invalid bounds"})
     match = _INTERVAL_RE.search(answer or "")
     if not match:
+        # Same rule as ``number_answer_absent``: an empty answer carries no
+        # interval to miss, so it is an unmeasured run rather than a wrong one.
+        if not _text(answer):
+            return _result("indeterminate", None, 0.0, "interval_answer_absent",
+                           "interval", diagnostics={"reason": "empty answer, nothing to score"})
         return _result("incorrect", 0.0, 0.98, "interval_not_found",
                        "interval", diagnostics={"reason": "interval not found"})
     actual_lower, actual_upper = (_to_float(match.group(1)),

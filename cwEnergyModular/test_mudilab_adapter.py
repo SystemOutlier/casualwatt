@@ -166,6 +166,19 @@ def test_unknown_decision_value_is_indeterminate_not_a_fabricated_marker():
     assert any("vocabulary not recognised" in note for note in result.notes)
 
 
+def test_coherence_row_without_output_skips_the_decision_check():
+    """Nessuna risposta = niente marcatore da cercare: la riga resta `indeterminate`
+    per il gate, non viene punita due volte dal controllo qualitativo."""
+    result = evaluate_case(
+        _case("coherence", expected_decision="compatible"),
+        label="coherence", translation=_TRADUZIONE, output="",
+        tool_calls=_CONTATORE_OK,
+    )
+    assert result.output.verdict == "indeterminate"
+    assert result.end_to_end == "indeterminate"
+    assert not any("decision mismatch" in note for note in result.notes)
+
+
 def test_counter_dict_tool_calls_is_read_as_execution_proof():
     """`run_query.py:188-193` scrive un dict con chiavi italiane, non una lista.
 
@@ -234,3 +247,31 @@ def test_arguments_of_the_call_are_declared_not_recorded():
     assert any("arguments: not recorded" in note for note in result.notes)
 
 
+def test_empty_output_is_indeterminate_not_incorrect():
+    """Il gate ferma il run prima del passo causale: una risposta vuota non e'
+    un numero sbagliato.
+
+    `number_no_answer` a 0.99 fundeva i fallimenti di acquisizione con gli errori
+    del modello e spostava il denominatore del J/corretta per la ragione sbagliata
+    (sui run registrati: 105 righe).
+    """
+    result = evaluate_case(
+        _case(), label="backward_reasoning", translation=_TRADUZIONE,
+        output="", tool_calls=_CONTATORE_OK,
+    )
+    assert result.output.verdict == "indeterminate"
+    assert result.output.method == "number_answer_absent"
+    assert result.end_to_end == "indeterminate"
+
+
+def test_empty_counterfactual_output_is_indeterminate():
+    """Stessa regola sul ramo controfattuale, dove il contratto e' un intervallo
+    (`interval_not_found` contava le 19 righe gate come `incorrect`)."""
+    result = evaluate_case(
+        _case("counterfactual"), label="counterfactual",
+        translation={"input": {"RiskAversion": "Cautious"}, "output": {"Age": "Senior"}},
+        output="", tool_calls=_CONTATORE_OK,
+    )
+    assert result.output.verdict == "indeterminate"
+    assert result.output.method == "interval_answer_absent"
+    assert result.end_to_end == "indeterminate"
