@@ -220,7 +220,7 @@ stanno solo le regole che un agente puo' violare senza accorgersene.
 ## Comandi di verifica
 
 ```
-pytest cwEnergyModular          # 528 raccolti: 525 passati, 3 saltati (12 s)
+pytest cwEnergyModular          # 528 raccolti: 525 passati, 3 saltati (6 s al 03-11)
 ```
 
 **Mai `pytest` nudo dalla radice**: la raccolta viene interrotta da 6 errori in
@@ -298,7 +298,17 @@ indefiniti.
   (`test_cpu_attribution.py::test_c_reset_contatore_ai_bordi_non_degrada_al_fallback`
   e `test_metriche_per_token.py::test_token_stimati_non_entrano_nelle_metriche_scientifiche`)
   piu' una docstring riscritta: nessun fallimento, nessuna riga sparita.
-  Il documento compila: **181 pagine, 0 riferimenti indefiniti, 5 `Overfull \hbox`**
+  **Il 03-11 anche il testo della tesi e' stato allineato a quel conteggio**: i
+  paragrafi che dichiaravano $294$ node id, $291$ verdi, $237$ funzioni,
+  ``ventisei file``, la decomposizione per file e l'ancoraggio di
+  `test_energy_corrections.py` a 19 test (oggi 14, con gli otto rami LHM tolti da
+  D18) sono stati riscritti con i numeri verificati il 03-11 -- $528$ node id,
+  $434$ funzioni per `(percorso, classe, nome)`, $410$ monoriga + $118$ da $24$
+  famiglie parametrizzate in $12$ file, $45$ file tutti tracciati, delta
+  $294 \to 528 = +239 - 8 + 3$. Le riesecuzioni citate sono quelle del 03-11:
+  `pytest cwEnergyModular` dalla radice $525$ passati e $3$ saltati in $6{,}01$ s
+  senza avvisi, e il generatore dalla cartella del modulo $525$ e $3$ in $6{,}35$ s.
+  Il documento compila: **182 pagine, 0 riferimenti indefiniti, 5 `Overfull \hbox`**
   (4 in `capitoli/cap04_architettura_implementazione.tex` righe 125-141, token
   `\texttt{librehardwaremonitor-energy}`, `nvml-power-integral`,
   `amdsmi-power-integral`, `igpu-included-in-package` dentro le celle di una
