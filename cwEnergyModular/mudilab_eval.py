@@ -18,8 +18,29 @@ from mudilab_adapter import evaluate_case, load_case
 
 def _read_ground_truth(path: Path) -> dict[str, object]:
     import csv
+    cases = {}
+    allowed_types = {"cond_prob", "inter", "coherence", "counterfactual", "influence"}
     with path.open(encoding="utf-8-sig", newline="") as handle:
-        return {row["task_id"]: load_case(row) for row in csv.DictReader(handle)}
+        for line_number, row in enumerate(csv.DictReader(handle), 2):
+            case = load_case(row)
+            if not case.task_id.strip():
+                raise ValueError(f"ground truth line {line_number}: empty task_id")
+            if case.task_id in cases:
+                raise ValueError(f"ground truth line {line_number}: duplicate task_id {case.task_id!r}")
+            if case.task_type not in allowed_types:
+                raise ValueError(f"ground truth line {line_number}: unsupported task_type {case.task_type!r}")
+            if not case.expected_label.strip():
+                raise ValueError(f"ground truth line {line_number}: missing expected label")
+            if case.task_type == "counterfactual":
+                if (case.expected_lower is None or case.expected_upper is None
+                        or case.expected_lower > case.expected_upper):
+                    raise ValueError(f"ground truth line {line_number}: invalid counterfactual bounds")
+            elif case.expected_probability is None:
+                raise ValueError(f"ground truth line {line_number}: missing expected_probability")
+            cases[case.task_id] = case
+    if not cases:
+        raise ValueError("ground truth contains no cases")
+    return cases
 
 
 def main() -> int:
