@@ -259,6 +259,11 @@ Le condizioni 1, 2 e 3 del paragrafo 8 sono chiuse, ciascuna dal suo commit: la 
 `non_compatibile` con la frase inglese negativa, una `compatible` che risponde negativa,
 e un `tool_calls` a dizionario. Resta la 4, e non e' un problema di codice.
 
+La suite del ramo, che il paragrafo 9 dichiarava non eseguita, **ora e' eseguita**:
+560 raccolti = 556 passati + 3 saltati + 1 fallimento preesistente. I test nuovi sono 15:
+13 in `test_mudilab_adapter.py` (da 5 a 18, sui tre casi reali e sulle loro prove di
+esecuzione) e 2 in `test_robust_evaluator.py` (da 11 a 13, sulla risposta assente).
+
 Cosa **non** e' chiuso, dichiarato invece di spacciato:
 - la condizione 4 del paragrafo 8 (dire quale dei due criteri e' l'arbitro) e' una
   decisione di tesi, non un fix: il ramo ora riproduce il pubblicato, ma la scelta di
@@ -270,16 +275,12 @@ Cosa **non** e' chiuso, dichiarato invece di spacciato:
   e' che i record pubblicati non portano il campo `tool_calls`. Un produttore che lo
   scriva e' lavoro separato;
 - `test_robust_evaluator.py::test_scalar_reference_and_explicit_answer_type_are_supported`
-  fallisce **prima** e **dopo** i fix. Il "prima" e' rieseguito a `f8903ba6` in un
-  worktree staccato fuori dal repo: 545 raccolti = 541 passati + 1 fallito + 3 saltati;
-  il "dopo", sullo stato attuale del branch: 560 raccolti = 556 passati + 1 fallito +
-  3 saltati. La causa e' che `validate_contract` nel caso `auto` normalizza
-  `accepted_answers` solo se e' una lista, quindi uno scalare viene inferito come
-  `free_text`; non e' uno dei quattro punti e non l'ho toccato.
-- la suite del ramo, che il paragrafo 9 dichiarava non eseguita, **ora e' eseguita**:
-  560 raccolti = 556 passati + 3 saltati + 1 fallimento preesistente. I test nuovi sono
-  15: 13 in `test_mudilab_adapter.py` (da 5 a 18) e 2 in `test_robust_evaluator.py`
-  (da 11 a 13).
+  fallisce **prima** e **dopo** i fix, ed e' l'unico. Il "prima" e' rieseguito a
+  `f8903ba6` in un worktree staccato fuori dal repo: 545 raccolti = 541 passati + 1
+  fallito + 3 saltati; il "dopo", sullo stato attuale del branch: 560 = 556 + 1 + 3.
+  La causa e' che `validate_contract` nel caso `auto` normalizza `accepted_answers` solo
+  se e' una lista, quindi uno scalare viene inferito come `free_text`; non e' uno dei
+  quattro punti e non l'ho toccato.
 
 Il ramo `fix/valutatore-mudilab` non e' adottato: `benchmark/valuta.py` resta il
 produttore delle misure pubblicate, e su questi dati fa lo stesso numero.
