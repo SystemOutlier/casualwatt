@@ -46,8 +46,24 @@ def summarize_records(records: Iterable[Mapping[str, Any]]) -> dict[str, Any]:
                         and row.get("end_to_end", row.get("verdict")) == "correct"]
     durations = [value for row in rows
                  if (value := finite_measurement(row, "duration_s")) is not None]
+    n_determinate = len(determinate)
+    accuracy = correct / n_determinate if n_determinate else None
+    if n_determinate:
+        z = 1.959963984540054
+        denominator = 1 + z * z / n_determinate
+        centre = (accuracy + z * z / (2 * n_determinate)) / denominator
+        margin = math.sqrt(
+            accuracy * (1 - accuracy) / n_determinate
+            + z * z / (4 * n_determinate * n_determinate)
+        ) * z / denominator
+        wilson = [round(max(0.0, centre - margin), 6),
+                  round(min(1.0, centre + margin), 6)]
+    else:
+        wilson = None
     return {
         "n_total": len(rows),
+        "n_determinate": n_determinate,
+        "accuracy_wilson_95": wilson,
         "n_correct": correct,
         "n_incorrect": sum(row.get("end_to_end", row.get("verdict")) == "incorrect"
                            for row in rows),
