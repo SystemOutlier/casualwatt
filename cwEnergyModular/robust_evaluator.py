@@ -101,9 +101,18 @@ def validate_contract(reference: Any) -> list[str]:
     contract = _parse_contract(reference)
     if contract is None:
         return ["reference must be a JSON object or mapping"]
-    kind = _text(contract.get("answer_type", "")).lower()
+    kind = _text(contract.get("answer_type", "auto")).lower()
+    if kind == "auto":
+        values = contract.get("accepted_answers", contract.get("answers"))
+        if values is None:
+            values = [contract.get("answer", contract.get("value"))]
+        if isinstance(values, str):
+            values = [values]
+        kind = ("number" if isinstance(values, (list, tuple)) and values
+                and all(_to_float(v) is not None for v in values)
+                else "free_text")
     if kind not in _SUPPORTED_TYPES:
-        return [f"unsupported or missing answer_type: {kind or '<empty>'}"]
+        return [f"unsupported answer_type: {kind or '<empty>'}"]
     errors: list[str] = []
     if kind in ("number", "short_text"):
         values = contract.get("accepted_answers", contract.get("answers"))
