@@ -293,11 +293,24 @@ indefiniti.
   L'Appendice D della tesi e' stata rigenerata il 2026-10-28 con
   `cwEnergyModular/tools/dump_tests_latex.py`: 526 node id, 523 passati, 3
   saltati, docstring 513/526 (le nove funzioni senza docstring elencate sopra).
-  Il documento compila: 176 pagine, 0 overfull. I conteggi non si aggiornano a
+  **Rigenerata di nuovo il 2026-11-03, dopo `cd881e6b` e `9fa9a44c`: 528 node id,
+  525 passati, 3 saltati, docstring 515/528.** Il diff e' di due sole righe nuove
+  (`test_cpu_attribution.py::test_c_reset_contatore_ai_bordi_non_degrada_al_fallback`
+  e `test_metriche_per_token.py::test_token_stimati_non_entrano_nelle_metriche_scientifiche`)
+  piu' una docstring riscritta: nessun fallimento, nessuna riga sparita.
+  Il documento compila: **181 pagine, 0 riferimenti indefiniti, 5 `Overfull \hbox`**
+  (4 in `capitoli/cap04_architettura_implementazione.tex` righe 125-141, token
+  `\texttt{librehardwaremonitor-energy}`, `nvml-power-integral`,
+  `amdsmi-power-integral`, `igpu-included-in-package` dentro le celle di una
+  tabella; 1 in `capitoli/cap06_conclusioni_sviluppi.tex` riga 122). **Non sono
+  dell'appendice**: l'ancoraggio "0 overfull" della riga sopra era lo stato al
+  28-10, e i cinque boxes stanno nei capitoli scritti a mano fra il 28-10 e il
+  02-11. Segnalati, non corretti: sistemare l'impaginazione di un capitolo e' un
+  punto separato e tocca il testo della tesi. I conteggi non si aggiornano a
   mano: si rigenera dopo ogni test aggiunto, rimosso o rinominato. La verifica
-  del conteggio e' in `experiment_results/appD_conteggio_20261028.md`. Il file
-  generato (`Tesi-latex/qoder-bozza/generated/test_suite_appD.tex`) sta fuori
-  da git.
+  del conteggio al 28-10 e' in `experiment_results/appD_conteggio_20261028.md`.
+  Il file generato (`Tesi-latex/qoder-bozza/generated/test_suite_appD.tex`) sta
+  fuori da git.
   I 17 test di `tests/test_protocollo_p4_geometry.py` (2026-10-26, quinto turno
   di revisione esterna) congelano la geometria di copertura di P4.7 e la scala
   di `budget_pred`
