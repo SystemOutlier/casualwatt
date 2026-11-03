@@ -1,0 +1,34 @@
+cartella: 20261102_191401
+comando: MUDILAB_COPIE=1 C:\Users\Massimo\Documents\CasualWatt\CWProject\MUDILabV\mudilab_env\Scripts\python.exe replay_traduzione.py risultati_misura/b_composta/20261102_191401 --regole stati-alias --riferimento output=libero
+righe con un testo di traduttore: 240, senza: 0
+
+--- stati-alias: 240 righe riprodotte
+  corretta    91   es. CF12: 
+  numero      73   es. CF07: stampato [0.0464, 0.2934] atteso [0.0, 0.0761]
+  rifiutata   76   es. CF03: counterfactual: servono almeno 1 evidenza/e, restano []; sca
+  per ramo (corrette / riprodotte): cond_prob 30/60, inter 28/60, coherence 18/60, counterfactual 15/60
+  corrette/prodotte = 91/240
+  normalizzazioni di stato: 74, valori in prosa non risolti: 26, etichette in collisione: 0
+    Accident:moderate -> Moderate x3
+    CarValue:fifty thousand dollars -> FiftyThou x3
+    DrivingSkill:sub-standard -> SubStandard x3
+    HomeBase:city -> City x3
+    HomeBase:rural -> Rural x3
+    ILiCost:hundred thousand -> HundredThou x2
+    OtherCarCost:ten thousand dollars -> TenThou x12
+    PropCost:hundred thousand -> HundredThou x12
+    PropCost:hundred thousand dollars -> HundredThou x6
+    PropCost:ten thousand dollars -> TenThou x15
+    ThisCarCost:hundred thousand dollars -> HundredThou x3
+    ThisCarCost:ten thousand dollars -> TenThou x6
+    ThisCarDam:mild -> Mild x3
+    ! Age:Adolescent|Adult|Senior [Adolescent,Adult,Senior] x3
+    ! AntiTheft:True|False [True,False] x1
+    ! AntiTheft:no antilock braking system [True,False] x3
+    ! Cushioning:Poor|Fair|Good|Excellent [Poor,Fair,Good,Excellent] x3
+    ! DrivingSkill:SubStandard|Normal|Expert [SubStandard,Normal,Expert] x3
+    ! HomeBase:Secure|City|Suburb|Rural [Secure,City,Suburb,Rural] x1
+    ! Mileage:fifty thousand miles [FiveThou,TwentyThou,FiftyThou,Domino] x3
+    ! SeniorTrain:not completed [True,False] x3
+    ! SocioEcon:socio-economic status. Values: Prole, Middle, UpperMiddle, Wealthy [Prole,Middle,UpperMiddle,Wealthy] x3
+    ! VehicleYear:Current|Older [Current,Older] x3
