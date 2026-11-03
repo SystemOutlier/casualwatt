@@ -17,6 +17,21 @@ from robust_evaluator import EvaluationResult, evaluate
 
 _NUMBER_RE = re.compile(r"-?\d+(?:[.,]\d+)?(?:[eE][-+]?\d+)?")
 
+# Marcatori letterali della decisione di coerenza, presi dalla frase che il tool
+# della relatrice stampa, non derivati dall'ortografia del ground truth:
+# `consegna/tools_corretto.py:448` "Evidences are compatible with a single ..." e
+# `:453` "Evidences are NOT strongly compatible with a single ...".  Il marcatore
+# positivo e' la forma completa `are compatible with` perche' `compatible` compare
+# anche dentro la frase negativa.
+_POSITIVO_DECISIONE = "are compatible with"
+_NEGATIVO_DECISIONE = "not strongly compatible"
+_DECISIONI_POSITIVE = ("compatible", "strongly_compatible")
+_DECISIONI_NEGATIVE = ("non_compatibile", "not_strongly_compatible")
+
+
+def _text(value: Any) -> str:
+    return "" if value is None else str(value).strip()
+
 
 @dataclass(frozen=True)
 class MudilabCase:
@@ -304,24 +319,36 @@ def evaluate_case(case: MudilabCase, *, label: str, translation: Any,
                      f"{'; '.join(tool_notes) if tool_notes else 'outcome not stated'}")
     if arg_state != "verified":
         notes.append(f"cau_inference arguments: {arg_state} ({arg_note})")
-    if case.task_type == "coherence" and case.expected_decision:
+    if case.task_type == "coherence" and case.expected_decision and _text(output):
+        # Vocabolario reale del ground truth: benchmark/benchmark.csv contiene
+        # `compatible` e `non_compatibile` (20 + 20 task id), non i due nomi enum
+        # che questo blocco conosceva. Derivare il marcatore con replace("_", " ")
+        # produceva l'italiano "non compatibile", che non puo' comparire
+        # nell'inglese stampato dal tool: le 40 righe non_compatibile diventavano
+        # tutte incorrect, 19 delle quali pubblicate come giuste.
         expected_decision = case.expected_decision.strip().lower()
-        if expected_decision == "not_strongly_compatible":
-            decision_markers = ("not strongly compatible",)
-        elif expected_decision == "strongly_compatible":
-            decision_markers = ("strongly compatible",)
+        negativo = _NEGATIVO_DECISIONE in _text(output).lower()
+        if expected_decision in _DECISIONI_NEGATIVE:
+            decision_ok = negativo
+        elif expected_decision in _DECISIONI_POSITIVE:
+            # "compatible" e' anche dentro "not strongly compatible": il positivo
+            # regge solo se il negativo non c'e', altrimenti la classe positiva
+            # passa per buona quando la risposta dice l'opposto.
+            decision_ok = (_POSITIVO_DECISIONE in _text(output).lower()) and not negativo
         else:
-            decision_markers = (expected_decision.replace("_", " "),)
-        observed = [marker in output.lower() for marker in decision_markers]
-        contains_negative = "not strongly compatible" in output.lower()
-        decision_ok = any(observed) and (
-            (expected_decision == "not_strongly_compatible" and contains_negative)
-            or (expected_decision == "strongly_compatible" and not contains_negative)
-            or expected_decision not in ("not_strongly_compatible", "strongly_compatible")
-        )
-        if not decision_ok:
+            decision_ok = None
+            notes.append(
+                f"coherence decision vocabulary not recognised: {expected_decision!r} "
+                "(not in the ground truth mapping; marker not derived from spelling)"
+            )
+        if decision_ok is False:
             end_to_end = "incorrect"
-            notes.append("coherence qualitative decision mismatch (literal marker check; semantic equivalence not assessed)")
+            notes.append(
+                "coherence qualitative decision mismatch (literal marker check; "
+                "semantic equivalence not assessed)"
+            )
+        elif decision_ok is None and end_to_end == "correct":
+            end_to_end = "indeterminate"
     return MudilabEvaluation(
         task_id=case.task_id, task_type=case.task_type,
         label=label_result, translation=translation_result,
