@@ -27,9 +27,10 @@ run reale, perche' la classificazione e' un passo di modello. Una variante che
 cambia il classificatore (`b_esempi`) va schermata davvero, non riproducibile qui.
 
 Uso:  MUDILAB_COPIE=1 python replay_traduzione.py harness/risultati/b_verificata/20261101_174518
-      --regole output=obbligatorio|output=se-citata|output=libero|libero+parola-stato|senza-verbatim|cf-target-domanda|cf-target-stretto|stati-alias|coh-target|coh-clausole|coh-entrambe|alias+coh-entrambe
-      (default: tutti e dodici, a confronto; --riferimento output=libero conta i delta
-      contro il protocollo con cui sono presi i joule del 02-11)
+      --regole output=obbligatorio|output=se-citata|output=libero|libero+parola-stato|senza-verbatim|cf-target-domanda|cf-target-stretto|stati-alias|coh-target|coh-clausole|coh-entrambe|alias+coh-entrambe|alias+unita
+      (default: tutti e tredici, a confronto; --riferimento output=libero conta i delta
+      contro il protocollo con cui sono presi i joule del 02-11, e contro un qualsiasi
+      altro regime se ne serve un altro -- `alias+unita` si legge contro `stati-alias`)
 
 Gli ultimi tre regimi sono le due regole chieste il 02-11 dopo l'analisi dei rami
 deboli (`harness/risultati/analisi_rami_deboli_20261102.txt`): `cf-target-domanda`
@@ -43,6 +44,27 @@ corrette come il riferimento, 21 run fermati prima del tool e nessuna riga buona
 persa; `cf-target-stretto` 74, tre buone uccise su CF19; `stati-alias` 91, +14 e zero
 perse, con 74 normalizzazioni e 12 righe che dal rifiuto passano a `numero` perche'
 l'alias smette di fermare un errore di variabile.
+
+Il tredicesimo regime, `alias+unita`, e' il candidato uscito il 03-11 dall'elenco dei
+26 valori che `stati-alias` non risolve (`replay_prosa_non_risolta_20261103.txt`, dove
+ogni valore e' stampato con gli stati disponibili accanto). Le 26 prose sono tre
+famiglie, e una sola e' normalizzabile: 14 hanno l'elenco degli stati copiato dal prompt
+nel campo del valore (`Age: "Adolescent|Adult|Senior"`), 6 sono booleani scritti come
+frase (`AntiTheft: "no antilock braking system"`, `SeniorTrain: "not completed"`), 3
+sono `Mileage: "fifty thousand miles"` -- la forma-canone di `FiftyThou` e' `fifty
+thousand`, di mezzo c'e' una parola di unita', la stessa distanza che `dollars` ha per
+i costi e che la pulizia gia' scioglie. Le altre 3 sono `SocioEcon` scritto come la
+descrizione di `consegna/funtions_corretto.py:54`, copiata dal prompt. Il candidato
+copre la terza famiglia e niente altro. Misurato contro `stati-alias`, non contro
+`output=libero`, perche' l'asse in piu' e' uno solo
+(`harness/risultati/replay_regola_unita_20261103.txt`): **92 corrette contro 91, zero
+perse**, 77 normalizzazioni contro 74. Il +1 e' INT24 nella sola ripetizione r1: la
+riga scrive `Mileage` in prosa e rimappa `OtherCarCost` dall'`input` all'`output`,
+quindi la `disgiunzione` toglie l'evidenza doppia e quel che resta e' `Mileage` -- se
+non si risolve, il ramo muore a zero evidenze. Le ripetizioni r2 e r3 parafrasano la
+citazione di `Mileage` ("the mileage of the other car is fifty thousand miles", non
+nella query) e cadono alla regola `citazione`, che la normalizzazione non tocca: per
+questo 3 normalizzazioni in piu' fanno 1 riga in piu', non 3.
 
 I regimi `coh-*` sono la richiesta n. 16, quella di una "regola di forma per il
 coherence", e stanno qui perche' la prima cosa da sapere era se quella regola avesse
@@ -83,7 +105,8 @@ sys.dont_write_bytecode = True
 REGIMI = ("output=obbligatorio", "output=se-citata", "output=libero",
           "libero+parola-stato", "senza-verbatim",
           "cf-target-domanda", "cf-target-stretto", "stati-alias",
-          "coh-target", "coh-clausole", "coh-entrambe", "alias+coh-entrambe")
+          "coh-target", "coh-clausole", "coh-entrambe", "alias+coh-entrambe",
+          "alias+unita")
 
 # Nell'ordine delle colonne di `benchmark.csv`: serve per stampare il "per ramo",
 # che e' l'unico modo di vedere che una regola su un ramo ne sposta un altro.
@@ -208,6 +231,15 @@ def _regola_senza_verbatim(TC):
 PAROLE_VALUTA = ("dollars", "dollar", "usd")
 ESPANSIONI = {"thou": "thousand"}
 
+# La lista chiusa per la variante con le unita' (`alias+unita`, candidato del 03-11).
+# Non e' "togli l'ultima parola", e non e' un vocabolario di unita' generico: sono le
+# **due** parole che compaiono davvero nei 26 valori non risolti, e sono le unita' che
+# il grafo puo' scrivere -- `Mileage` in miglia, i costi in dollari. Il resto dei 26 non
+# lo tocca: 14 sono l'elenco degli stati copiato dal prompt (`adolescent adult senior`),
+# 6 sono booleani scritti come frase, 3 sono la descrizione di `cau_reference`
+# copiata nell'output (vedi `harness/risultati/replay_prosa_non_risolta_20261103.txt`).
+PAROLE_UNITA = PAROLE_VALUTA + ("miles", "mile")
+
 
 def _forma_prosa(etichetta: str) -> str:
     """La prosa che un'etichetta del grafo scrive di se' stessa, in forma-canone."""
@@ -218,6 +250,20 @@ def _forma_prosa(etichetta: str) -> str:
 def _pulisci_prosa(TC, valore: str) -> str:
     """Il valore scritto senza la moneta e senza la punteggiatura."""
     return " ".join(w for w in TC._norm(valore).split() if w not in PAROLE_VALUTA)
+
+
+def _pulisci_prosa_con_unita(TC, valore: str) -> str:
+    """La stessa pulizia, con le unita' del grafo al posto della sola moneta.
+
+    E' il candidato misurato il 03-11, non una regola in vigore: `Mileage` scrive
+    `fifty thousand miles` e la forma-canone di `FiftyThou` e' `fifty thousand`, quindi
+    la distanza fra le due e' una parola di unita' -- la stessa distanza che `dollars`
+    ha per i costi, gia' risolta. Perche' stia in una variante e non in
+    `_pulisci_prosa`: il regime `stati-alias` ha un numero pubblicato (91), e montare
+    una seconda normalizzazione dentro la prima cambierebbe quel numero senza che
+    nessuno l'abbia contato.
+    """
+    return " ".join(w for w in TC._norm(valore).split() if w not in PAROLE_UNITA)
 
 
 def alias_di(stati: list) -> tuple:
@@ -241,15 +287,27 @@ def alias_di(stati: list) -> tuple:
     return tabella, collisioni
 
 
-def _stato_alias(TC, conto: Counter):
+def _stato_alias(TC, conto: Counter, pulisci=None):
     """Sostituzione di `TC.stato_del_grafo`: uguaglianza esatta, poi la tabella.
 
     La tabella si costruisce dall'elenco di stati che `valida` ha gia' in mano, non
     da un vocabolario globale: le righe perturbate girano su reti diverse e una
     tabella unica sarebbe una tabella della rete sbagliata. Per lo stesso motivo la
     cache e' chiave (variabile, tuple(stati)), non la sola variabile.
+
+    `pulisci` e' l'unico asse che il candidato `alias+unita` muove rispetto a
+    `stati-alias`, e il default e' la pulizia pubblicata il 02-11: una firma che
+    cambiava il comportamento di default avrebbe spostato il numero di un regime gia'
+    misurato, che e' esattamente cio' che le varianti esistono per evitare.
+
+    Il `mancato` si stampa con la coppia **e** gli stati disponibili (03-11), perche'
+    il conteggio da solo non risponde alla domanda che lo ha fatto nascere: dei 26
+    valori in prosa non risolti dal regime, quali sono a non avere una forma-canone
+    derivabile e quali no. Senza gli stati accanto, la riga `AntiTheft:no antilock
+    braking system` e' un numero e non un verdetto.
     """
     cache = {}
+    pulisci = pulisci or _pulisci_prosa
 
     def versione(valore: str, variabile: str, stati: list):
         if valore in stati:
@@ -261,9 +319,10 @@ def _stato_alias(TC, conto: Counter):
             cache[chiave] = tabella
             for prosa, etichette in collisioni:
                 conto[f"collisione:{variabile}:{prosa}"] += len(etichette)
-        etichetta = tabella.get(_pulisci_prosa(TC, valore))
+        etichetta = tabella.get(pulisci(TC, valore))
         if etichetta is None:
             conto["mancato"] += 1
+            conto[f"mancato:{variabile}:{valore} [{','.join(stati)}]"] += 1
             return None
         conto["normalizzato"] += 1
         conto[f"coppia:{variabile}:{valore} -> {etichetta}"] += 1
@@ -326,6 +385,13 @@ def _pacchetto(TC, regime, conto: Counter):
                 {"target_nella_domanda": True})
     if regime == "stati-alias":
         return {"stato_del_grafo": _stato_alias(TC, conto)}, False, {}
+    if regime == "alias+unita":
+        # Il candidato del 03-11 sui 26 valori non risolti: la stessa tabella di
+        # `stati-alias`, con la pulizia che conosce anche `miles`. Un asse solo, per
+        # poter leggere il delta come **quello** della parola di unita' -- e il
+        # riferimento giusto e' `stati-alias`, non `output=libero`.
+        return ({"stato_del_grafo": _stato_alias(
+            TC, conto, pulisci=_pulisci_prosa_con_unita)}, False, {})
     # I tre regimi di coerenza accendono le due regole che il modulo espone spente,
     # separate perche' colpiscono due guasti diversi -- `diagnosi_coherence.py`: 24 run
     # su 27 con il target scambiato, 3 con un'evidenza in meno, e le due regole si
@@ -551,6 +617,9 @@ def main():
             for chiave in sorted(conto):
                 if chiave.startswith("coppia:"):
                     print(f"    {chiave[len('coppia:'):]} x{conto[chiave]}")
+            for chiave in sorted(conto):
+                if chiave.startswith("mancato:"):
+                    print(f"    ! {chiave[len('mancato:'):]} x{conto[chiave]}")
         # Il delta contro il riferimento e' il numero che decide, non il totale:
         # una regola che aggiunge tre corrette togliendone due non e' un miglioramento.
         # E il conteggio delle sole corrette non basta nemmeno lui: una riga che
