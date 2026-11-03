@@ -281,7 +281,7 @@ indefiniti.
   dice *perche'* esiste e quale relazione matematica o fisica verifica, non solo
   cosa fa. Al 28-10-2026 la norma non era rispettata da nove funzioni (13 node
   id, tutte scritte il 27-28/10): otto in `tests/test_pawnio_backend.py`, una in
-  `tests/test_diagnostics_pmi.py`. **Debito chiuso il 03-11-2026 con `9f099277`**:
+  `tests/test_diagnostics_pmi.py`. **Debito chiuso il 03-11-2026 con `9d4ce024`**:
   le nove docstring sono scritte alla fonte, nessuna parafrasi del generatore, e
   l'AST ora conta zero funzioni `test_` senza docstring su tutto il tree. Il
   generatore continua a stampare "nessuna docstring" invece di mascherare, e su
@@ -326,7 +326,7 @@ indefiniti.
   piu' una docstring riscritta: nessun fallimento, nessuna riga sparita.
   **Rigenerata una terza volta il 03-11-2026 (sera)**: 541 node id, 538 passati,
   3 saltati, docstring 541/541 -- le nove funzioni elencate sopra le hanno tutte
-  (`9f099277`). Il diff dalle 528 del mattino e' di 13 righe, tutte e 13 dentro i
+  (`9d4ce024`). Il diff dalle 528 del mattino e' di 13 righe, tutte e 13 dentro i
   due file GPU della selezione del device: nessun fallimento, nessuna riga sparita.
   **Il 03-11 anche il testo della tesi e' stato allineato a quel conteggio**: i
   paragrafi che dichiaravano $294$ node id, $291$ verdi, $237$ funzioni,
