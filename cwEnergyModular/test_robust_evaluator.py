@@ -32,6 +32,7 @@ def test_free_text_requires_declared_facts():
         "required_facts": ["Roma", "Lazio"],
         "forbidden_facts": ["Firenze"],
         "minimum_required_facts": 2,
+        "fact_match_mode": "literal",
     }
     assert evaluate("Roma si trova nel Lazio.", reference).verdict == "correct"
     assert evaluate("Roma è in Toscana.", reference).verdict == "incorrect"
@@ -58,3 +59,35 @@ def test_summary_reports_indeterminate_cases_and_wilson_interval():
     assert summary["n_indeterminate"] == 1
     assert summary["accuracy"] == 0.5
     assert summary["accuracy_wilson_95"][0] >= 0
+
+
+def test_free_text_negation_is_indeterminate_not_correct():
+    reference = {
+        "answer_type": "free_text",
+        "required_facts": ["Roma", "Lazio"],
+        "minimum_required_facts": 2,
+        "fact_match_mode": "literal",
+    }
+    result = evaluate("Roma non si trova nel Lazio.", reference)
+    assert result.verdict == "indeterminate"
+    assert result.diagnostics["semantic_entailment_verified"] is False
+
+
+def test_non_finite_numeric_reference_is_indeterminate():
+    result = evaluate("answer: 1", {
+        "answer_type": "number", "accepted_answers": ["NaN"]
+    })
+    assert result.verdict == "indeterminate"
+    assert result.method == "invalid_reference_contract"
+
+
+def test_invalid_free_text_contract_requires_explicit_literal_mode():
+    result = evaluate("Roma è nel Lazio", {
+        "answer_type": "free_text", "required_facts": ["Roma", "Lazio"]
+    })
+    assert result.verdict == "indeterminate"
+    assert "fact_match_mode='literal'" in result.diagnostics["validation_errors"][0]
+
+
+def test_auto_contract_inference_remains_supported():
+    assert evaluate("42", {"accepted_answers": ["42"]}).verdict == "correct"
