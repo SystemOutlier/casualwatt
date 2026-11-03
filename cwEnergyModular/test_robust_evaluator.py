@@ -91,3 +91,8 @@ def test_invalid_free_text_contract_requires_explicit_literal_mode():
 
 def test_auto_contract_inference_remains_supported():
     assert evaluate("42", {"accepted_answers": ["42"]}).verdict == "correct"
+
+def test_scalar_reference_and_explicit_answer_type_are_supported():
+    assert evaluate("21", {"accepted_answers": 21}).verdict == "correct"
+    assert evaluate("Athens", {"accepted_answers": ["Athens"]},
+                    answer_type="short_text").verdict == "correct"
