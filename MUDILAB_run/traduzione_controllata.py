@@ -423,6 +423,12 @@ FORME_DOMANDA = {
 #               gia' rifiutate da una regola in vigore, cambia solo la ragione)
 #   `clausole`  18 run nuovi fermati
 #   entrambe    27 -- non e' la somma dei due (21+18=39): l'intersezione e' 12 run.
+# L'ottavo task della classe che `target` non ferma e' COH27: la clausola dice `the
+# car is a current-year model` e il modello ha scelto `MakeModel`, quindi il secondo
+# ramo accetta per la parola del nome che coincide -- la stessa sovrapposizione gia'
+# dichiarata per CF28 (`ThisCarCost` / `PropCost`). Lo prende `clausole`, perche'
+# quell'evidenza l'ha spostata lui nell'output e sotto `given that` ne resta una su
+# due (`COH27_r{1,2,3}.json`: input `DrivQuality`, output `MakeModel`).
 # Replay: `harness/risultati/replay_regole_coherence_20261103.txt`.
 REGOLE_COERENZA = ("target", "clausole")
 GIUNZIONE_EVIDENZE = " and that "
