@@ -40,6 +40,7 @@ class MudilabEvaluation:
     translation: EvaluationResult
     output: EvaluationResult
     tool_call_valid: bool
+    tool_call_status: str
     end_to_end: str
     energy_j: Optional[float] = None
     duration_s: Optional[float] = None
@@ -53,6 +54,7 @@ class MudilabEvaluation:
             "translation": self.translation.to_dict(),
             "output": self.output.to_dict(),
             "tool_call_valid": self.tool_call_valid,
+            "tool_call_status": self.tool_call_status,
             "end_to_end": self.end_to_end,
             "energy_j": self.energy_j,
             "duration_s": self.duration_s,
@@ -146,25 +148,55 @@ def evaluate_case(case: MudilabCase, *, label: str, translation: Any,
     translation_result = evaluate_translation(case, translation)
     output_result = evaluate(output, _case_contract(case))
     calls = tool_calls or []
-    valid_call = any(str(call.get("name", call.get("tool", ""))).strip()
-                     == "cau_inference" for call in calls)
+    matching_calls = [call for call in calls
+                      if isinstance(call, Mapping)
+                      and str(call.get("name", call.get("tool", ""))).strip()
+                      == "cau_inference"]
+    if not matching_calls:
+        tool_status = "missing"
+    elif any(call.get("success") is False or
+             str(call.get("status", "")).lower() in ("error", "failed", "failure")
+             for call in matching_calls):
+        tool_status = "failed"
+    elif any(call.get("success") is True or
+             str(call.get("status", "")).lower() in ("success", "succeeded", "completed")
+             for call in matching_calls):
+        tool_status = "success"
+    else:
+        tool_status = "unverified"
+    valid_call = tool_status == "success"
     stages = (label_result.verdict, translation_result.verdict, output_result.verdict)
-    end_to_end = "correct" if all(item == "correct" for item in stages) and valid_call \
-        else ("indeterminate" if "indeterminate" in stages else "incorrect")
+    if any(item == "incorrect" for item in stages) or tool_status == "failed":
+        end_to_end = "incorrect"
+    elif any(item == "indeterminate" for item in stages) or tool_status in ("missing", "unverified"):
+        end_to_end = "indeterminate"
+    else:
+        end_to_end = "correct"
     notes = []
-    if not valid_call:
-        notes.append("cau_inference call not independently observed")
+    if tool_status != "success":
+        notes.append(f"cau_inference execution status: {tool_status}; successful execution is not verified")
     if case.task_type == "coherence" and case.expected_decision:
-        decision_ok = ("not strongly compatible" in output.lower()) == (
-            case.expected_decision == "not_strongly_compatible"
+        expected_decision = case.expected_decision.strip().lower()
+        if expected_decision == "not_strongly_compatible":
+            decision_markers = ("not strongly compatible",)
+        elif expected_decision == "strongly_compatible":
+            decision_markers = ("strongly compatible",)
+        else:
+            decision_markers = (expected_decision.replace("_", " "),)
+        observed = [marker in output.lower() for marker in decision_markers]
+        decision_ok = any(observed) and not (
+            expected_decision == "not_strongly_compatible"
+            and "strongly compatible" in output.lower()
+            and "not strongly compatible" not in output.lower()
         )
         if not decision_ok:
             end_to_end = "incorrect"
-            notes.append("coherence qualitative decision mismatch")
+            notes.append("coherence qualitative decision mismatch (literal marker check; semantic equivalence not assessed)")
     return MudilabEvaluation(
         task_id=case.task_id, task_type=case.task_type,
         label=label_result, translation=translation_result,
         output=output_result, tool_call_valid=valid_call,
+        tool_call_status=tool_status,
         end_to_end=end_to_end, energy_j=energy_j, duration_s=duration_s,
         notes=tuple(notes),
     )
