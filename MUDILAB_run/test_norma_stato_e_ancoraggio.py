@@ -104,7 +104,7 @@ def test_pulisci_prosa_toglie_la_parola_di_moneta():
     Inter le prose del target sono cinque di valuta ("ten thousand dollars",
     "hundred thousand", "hundred thousand dollars" su PropCost, OtherCarCost,
     ILiCost) e una no, la frase booleana di AntiTheft che nessuna forma-canone
-    derivabile dall'etichetta recupera. Le écritures di valuta, "X dollars" e "X"
+    derivabile dall'etichetta recupera. Le scritture di valuta, "X dollars" e "X"
     liscio, devono convergere sulla stessa voce di tabella.
     """
     assert RT._pulisci_prosa(TC, "ten thousand dollars") == "ten thousand"
@@ -402,3 +402,147 @@ def test_senza_alias_la_stessa_riga_si_ferma_con_il_motivo():
     assert traduzione is None
     assert "non e' uno stato di PropCost" in esito["motivo"], esito["motivo"]
     assert esito["stati_normalizzati"] == {}
+
+
+# -- 7. il candidato del 03-11: la parola di unita' (MIGLIA) ----------------------
+#
+# Nasce dai 26 valori in prosa che `stati-alias` non risolve, elencati con gli stati
+# disponibili in `harness/risultati/replay_prosa_non_risolta_20261103.txt`. Sono tre
+# famiglie, e una sola e' normalizzabile:
+#   - 14 run hanno l'**elenco degli stati copiato dal prompt** nel campo del valore
+#     (`Age: "Adolescent|Adult|Senior"`, `VehicleYear: "Current|Older"`, e altre sei
+#     variabili): tre stati in un campo che ne vuole uno. Non e' un problema di forma,
+#     e nessuna normalizzazione deve risolverlo -- scegliere quale dei tre tenere
+#     significa inventarsi lo stato;
+#   - 6 sono i booleani scritti come frase (`AntiTheft: "no antilock braking system"`,
+#     `SeniorTrain: "not completed"`): la prosa non e' derivabile da `True|False`;
+#   - **3** sono `Mileage: "fifty thousand miles"`, dove la forma-canone di `FiftyThou`
+#     e' `fifty thousand` e di mezzo c'e' una parola di unita' -- la stessa distanza che
+#     `dollars` ha per i costi, gia' risolta da `_pulisci_prosa`.
+# Il candidato copre solo la terza, e la misura (`--riferimento stati-alias`,
+# `harness/risultati/replay_regola_unita_20261103.txt`) dice **+1 corretta (INT24 r1),
+# 0 perse, 77 normalizzazioni contro 74**. Non e' adottato.
+
+Q_INT24 = ("What is the probability that the repair cost for the other car is ten "
+           "thousand dollars if we intervene to make it so that the mileage is fifty "
+           "thousand miles?")
+
+
+def test_pulisci_prosa_con_unita_scoglie_l_unita_e_il_default_no():
+    """L'unica differenza fra le due pulizie e' la lista chiusa delle parole.
+
+    Fissa che il regime pubblicato il 02-11 non si muove: `miles` resta nel valore per
+    `_pulisci_prosa`, e il numero di `stati-alias` (91) resta quello contato.
+    """
+    assert RT._pulisci_prosa(TC, "fifty thousand miles") == "fifty thousand miles"
+    assert RT._pulisci_prosa_con_unita(TC, "fifty thousand miles") == "fifty thousand"
+    # le monete gia' risolte lo restano, e una parola che non e' un'unita' non si tocca
+    assert RT._pulisci_prosa_con_unita(TC, "ten thousand dollars") == "ten thousand"
+    assert RT._pulisci_prosa_con_unita(TC, "not completed") == "not completed"
+
+
+def test_il_candidato_recupera_mileage_e_si_dichiara():
+    """La coppia che esiste per il regime: normalizzare e' un dato, non una riga buona."""
+    conto = Counter()
+    alias = RT._stato_alias(TC, conto, pulisci=RT._pulisci_prosa_con_unita)
+    assert alias("fifty thousand miles", "Mileage", VOC["Mileage"]) == "FiftyThou"
+    assert conto["normalizzato"] == 1, conto
+    assert conto["mancato"] == 0, conto
+
+
+def test_il_candidato_non_inventa_lo_stato_davanti_all_elenco_copiato():
+    """Il confine, misurato prima di scrivere la regola: 14 dei 26 restano tali.
+
+    Sono le famiglie che la normalizzazione **non** deve toccare. `Adolescent|Adult|
+    Senior` lessicalizzato e' `adolescent adult senior`, e nessuna delle tre etichette
+    emerge dalla pulizia: se emergesse, la regola avrebbe scelto un stato al posto del
+    modello. `no antilock braking system` e' il caso di INT39 gia' dichiarato nel
+    test in cima al file, e resta il limite della regola, non un buco.
+    """
+    conto = Counter()
+    alias = RT._stato_alias(TC, conto, pulisci=RT._pulisci_prosa_con_unita)
+    assert alias("Adolescent|Adult|Senior", "Age", VOC["Age"]) is None
+    assert alias("Current|Older", "VehicleYear", VOC["VehicleYear"]) is None
+    assert alias("no antilock braking system", "AntiTheft", VOC["AntiTheft"]) is None
+    assert alias("socio-economic status. Values: Prole, Middle, UpperMiddle, Wealthy",
+                 "SocioEcon", VOC["SocioEcon"]) is None
+    assert conto["mancato"] == 4, conto
+    assert conto["normalizzato"] == 0, conto
+
+
+def test_le_unita_non_creano_collisioni_sulle_27_variabili():
+    """La pulizia nuova non puo' far convergere due etichette della stessa variabile.
+
+    E' l'iniettivita' del test in cima, ma sulla composizione forma-canone x pulizia:
+    `TenThou` e `Ten Thousand` collidono gia' da sole e vengono scartate; qui si verifica
+    che togliere `miles`/`mile` non aggiunga **nuove** collisioni. Se una ne emergesse,
+    la tabella la scarta e il valore resta non risolto -- la perdita si vede, non si
+    risolve a scelta.
+    """
+    nuove = {}
+    for nome, stati in VOC.items():
+        forme = [RT._pulisci_prosa_con_unita(TC, RT._forma_prosa(s)) for s in stati]
+        ripetute = {f for f in forme if forme.count(f) > 1}
+        if ripetute:
+            nuove[nome] = sorted(ripetute)
+    assert nuove == {}, nuove
+    tabella, collisioni = RT.alias_di(VOC["Mileage"])
+    assert collisioni == [], collisioni
+    assert tabella["fifty thousand"] == "FiftyThou", tabella
+
+
+def test_valida_con_il_candidato_porta_al_tool_l_etichetta_di_mileage():
+    """La riga INT24, testo reale: con le unita' il dizionario e' leggibile dal tool.
+
+    Il grezzo e' `risultati_misura/b_composta/20261102_191401/INT24_r1.json` e la query
+    e' la riga INT24 di `benchmark.csv`. L'`output` riporta la variabile chiesta anche
+    in `input`, e la regola `disgiunzione` la scarta li': l'unica evidenza che resta e'
+    `Mileage`, e se quello stato non si risolve il ramo si ferma a zero evidenze. Per
+    questo la stessa riga, senza la pulizia con le unita', e' un rifiuto.
+    """
+    grezzo = ('{"input": {"OtherCarCost": "ten thousand dollars", "Mileage": "fifty '
+              'thousand miles"}, "output": {"OtherCarCost": "ten thousand dollars"}, '
+              '"citazioni": {"OtherCarCost": "ten thousand dollars", "Mileage": "fifty '
+              'thousand miles"}}')
+    conto = Counter()
+    originale = TC.stato_del_grafo
+    TC.stato_del_grafo = RT._stato_alias(TC, conto, pulisci=RT._pulisci_prosa_con_unita)
+    try:
+        traduzione, esito = TC.valida(grezzo, "intervention", Q_INT24, RETE,
+                                      citazione_output=False)
+    finally:
+        TC.stato_del_grafo = originale
+    assert traduzione is not None, esito["motivo"]
+    assert traduzione["input"] == {"Mileage": "FiftyThou"}, traduzione
+    assert traduzione["output"] == {"OtherCarCost": "TenThou"}, traduzione
+    assert esito["stati_normalizzati"]["Mileage"] == {
+        "scritto": "fifty thousand miles", "etichetta": "FiftyThou"}
+    assert conto["normalizzato"] == 3, conto
+    # tre, non due: `OtherCarCost` e' scritta due volte (in `input` e in `output`) e
+    # ogni passaggio la normalizza; `Mileage` una volta sola. E' la ragione per cui il
+    # conteggio delle normalizzazioni del replay (74, 77) non e' il numero di righe.
+
+    TC.stato_del_grafo = RT._stato_alias(TC, Counter())
+    try:
+        senza, esito_senza = TC.valida(grezzo, "intervention", Q_INT24, RETE,
+                                       citazione_output=False)
+    finally:
+        TC.stato_del_grafo = originale
+    assert senza is None
+    assert "servono almeno 1 evidenza" in esito_senza["motivo"], esito_senza["motivo"]
+
+
+def test_alias_unita_accende_un_asse_solo_contro_stati_alias():
+    """Il nuovo regime differisce da `stati-alias` per la sola funzione di pulizia.
+
+    Se montasse anche un kwarg o cambiasse `citazione_output`, il +1 del replay non
+    sarebbe attribuibile alla parola di unita'.
+    """
+    assert "alias+unita" in RT.REGIMI, RT.REGIMI
+    conto = Counter()
+    base = RT._pacchetto(TC, "stati-alias", conto)
+    candidato = RT._pacchetto(TC, "alias+unita", conto)
+    assert set(base[0]) == set(candidato[0]) == {"stato_del_grafo"}
+    assert base[1] == candidato[1] is False
+    assert base[2] == candidato[2] == {}
+    assert base[0] is not candidato[0], "le due chiusure non sono la stessa funzione"
