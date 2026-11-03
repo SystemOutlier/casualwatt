@@ -23,7 +23,8 @@ Reference contracts may be dictionaries or JSON strings, for example::
       "answer_type": "free_text",
       "required_facts": ["Roma", "Lazio"],
       "forbidden_facts": ["Firenze"],
-      "minimum_required_facts": 2
+      "minimum_required_facts": 2,
+      "fact_match_mode": "literal"
     }
 """
 from __future__ import annotations
