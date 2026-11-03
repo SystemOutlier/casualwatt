@@ -399,7 +399,9 @@ def evaluate(answer: str, reference: Any, *, answer_type: str = "auto") -> Evalu
         return _result("indeterminate", None, 0.0, "reference_not_structured",
                        answer_type if answer_type != "auto" else "unknown",
                        diagnostics={"reason": "reference must be a JSON/object contract"})
-    validation_errors = validate_contract(contract)
+    validation_contract = dict(contract)
+    validation_contract.setdefault("answer_type", answer_type)
+    validation_errors = validate_contract(validation_contract)
     detected = _text(contract.get("answer_type", answer_type)).lower()
     if validation_errors:
         return _result("indeterminate", None, 0.0, "invalid_reference_contract",
