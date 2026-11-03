@@ -240,7 +240,7 @@ stanno solo le regole che un agente puo' violare senza accorgersene.
 ## Comandi di verifica
 
 ```
-pytest cwEnergyModular          # 541 raccolti: 538 passati, 3 saltati (11 s al 03-11)
+pytest cwEnergyModular          # 541 raccolti: 538 passati, 3 saltati (7,39 s al 03-11)
 ```
 
 **Mai `pytest` nudo dalla radice**: la raccolta viene interrotta da 6 errori in
@@ -279,10 +279,14 @@ indefiniti.
   `test_synthetic_window.py`, 2; `test_validazione_valutazione.py`, 22);
   482 + 59 = 541. Ogni test ha una docstring che
   dice *perche'* esiste e quale relazione matematica o fisica verifica, non solo
-  cosa fa. Al 28-10-2026 la norma non e' rispettata da nove funzioni (13 node
+  cosa fa. Al 28-10-2026 la norma non era rispettata da nove funzioni (13 node
   id, tutte scritte il 27-28/10): otto in `tests/test_pawnio_backend.py`, una in
-  `tests/test_diagnostics_pmi.py`. E' debito registrato, e l'Appendice D lo
-  stampa come "nessuna docstring" invece di mascherarlo. Dal 27-10-2026 la cartella contiene anche `tests/test_rapl_zone.py`
+  `tests/test_diagnostics_pmi.py`. **Debito chiuso il 03-11-2026 con `9f099277`**:
+  le nove docstring sono scritte alla fonte, nessuna parafrasi del generatore, e
+  l'AST ora conta zero funzioni `test_` senza docstring su tutto il tree. Il
+  generatore continua a stampare "nessuna docstring" invece di mascherare, e su
+  questa suite oggi non stampa quella riga per nessuna delle 541 righe.
+  Dal 27-10-2026 la cartella contiene anche `tests/test_rapl_zone.py`
   (8, logica RAPL su un finto sysfs), `tests/test_diagnostics_pmi.py` (7,
   sonda PMI/WMI) e `tests/test_emi_selezione.py` (16, metadati EMI sintetici:
   metadato V2, scelta del device CPU, canale PKG per nome, V1 scartato): girano
@@ -320,36 +324,42 @@ indefiniti.
   (`test_cpu_attribution.py::test_c_reset_contatore_ai_bordi_non_degrada_al_fallback`
   e `test_metriche_per_token.py::test_token_stimati_non_entrano_nelle_metriche_scientifiche`)
   piu' una docstring riscritta: nessun fallimento, nessuna riga sparita.
-  **Dal 03-11-2026 (pomeriggio) quell'appendice e' di nuovo stantia**: la
-  selezione del device GPU aggiunge 13 test e la raccolta reale e' $541$ node id,
-  $538$ passati, $3$ saltati (misurati il 03-11: due riesecuzioni complete da
-  $10.87$ s e $10.99$ s, piu' le due di $6$ s della mattina prima dei 13 nuovi).
-  Il file generato e il testo della tesi che cita $528$ vanno rigenerati/allineati
-  in un punto separato, perche' l'appendice sta fuori da git e l'allineamento del
-  testo tocca i capitoli.
+  **Rigenerata una terza volta il 03-11-2026 (sera)**: 541 node id, 538 passati,
+  3 saltati, docstring 541/541 -- le nove funzioni elencate sopra le hanno tutte
+  (`9f099277`). Il diff dalle 528 del mattino e' di 13 righe, tutte e 13 dentro i
+  due file GPU della selezione del device: nessun fallimento, nessuna riga sparita.
   **Il 03-11 anche il testo della tesi e' stato allineato a quel conteggio**: i
   paragrafi che dichiaravano $294$ node id, $291$ verdi, $237$ funzioni,
   ``ventisei file``, la decomposizione per file e l'ancoraggio di
   `test_energy_corrections.py` a 19 test (oggi 14, con gli otto rami LHM tolti da
-  D18) sono stati riscritti con i numeri verificati il 03-11 -- $528$ node id,
-  $434$ funzioni per `(percorso, classe, nome)`, $410$ monoriga + $118$ da $24$
-  famiglie parametrizzate in $12$ file, $45$ file tutti tracciati, delta
-  $294 \to 528 = +239 - 8 + 3$. Le riesecuzioni citate sono quelle del 03-11:
-  `pytest cwEnergyModular` dalla radice $525$ passati e $3$ saltati in $6{,}01$ s
-  senza avvisi, e il generatore dalla cartella del modulo $525$ e $3$ in $6{,}35$ s.
-  Il documento compila: **182 pagine, 0 riferimenti indefiniti, 5 `Overfull \hbox`**
-  (4 in `capitoli/cap04_architettura_implementazione.tex` righe 125-141, token
-  `\texttt{librehardwaremonitor-energy}`, `nvml-power-integral`,
-  `amdsmi-power-integral`, `igpu-included-in-package` dentro le celle di una
-  tabella; 1 in `capitoli/cap06_conclusioni_sviluppi.tex` riga 122). **Non sono
-  dell'appendice**: l'ancoraggio "0 overfull" della riga sopra era lo stato al
-  28-10, e i cinque boxes stanno nei capitoli scritti a mano fra il 28-10 e il
-  02-11. Segnalati, non corretti: sistemare l'impaginazione di un capitolo e' un
-  punto separato e tocca il testo della tesi. I conteggi non si aggiornano a
-  mano: si rigenera dopo ogni test aggiunto, rimosso o rinominato. La verifica
-  del conteggio al 28-10 e' in `experiment_results/appD_conteggio_20261028.md`.
+  D18) sono riscritti con i numeri verificati il 03-11 col parser dello stesso
+  generatore, non a memoria -- $541$ node id, $447$ funzioni per
+  `(percorso, classe, nome)`, $423$ monoriga + $118$ da $24$ famiglie parametrizzate
+  in $12$ file, $45$ file tutti tracciati, delta $294 \to 541 = +252 - 8 + 3$.
+  Le riesecuzioni del 03-11 sulla raccolta da 541: dalla radice $538$ passati e
+  $3$ saltati senza avvisi in $7{,}06$ s, $7{,}53$ s e $7{,}39$ s; il generatore
+  dalla cartella del modulo gli stessi $538$ e $3$ in $6{,}94$ s. Due invocazioni
+  della stessa giornata avevano la stessa raccolta e lo stesso esito in $10{,}9$ s:
+  la durata non e' un ancoraggio citabile, il conteggio si'.
+  Il documento compila: **183 pagine, 0 riferimenti indefiniti, 0 `Overfull \hbox`**.
+  I cinque boxes che stavano nel log del 03-11 (4 in
+  `capitoli/cap04_architettura_implementazione.tex` righe 125-141, i token
+  `librehardwaremonitor-energy`, `nvml-power-integral`, `amdsmi-power-integral`,
+  `igpu-included-in-package` dentro le celle di `tab:backend-fallback`; 1 in
+  `capitoli/cap06_conclusioni_sviluppi.tex` riga 122) sono corretti con lo stesso
+  meccanismo del generatore -- `-\allowbreak{}` nei token -- piu' l'allargamento
+  della terza colonna e il ribilanciamento delle altre a
+  `p{0.15} p{0.19} p{0.23} p{0.16} p{0.20}`: il solo punto di capo non bastava,
+  perche' `librehardwaremonitor-` e' un frammento di 21 caratteri e nessuna
+  sillabazione lo spezza. Quei cinque non erano dell'appendice: erano dei capitoli
+  scritti a mano fra il 28-10 e il 02-11. **Resta aperta e segnalata una lacuna di
+  sostanza**: la regola di selezione del device GPU non ha ancora una frase in prosa
+  nei capitoli; vive nel codice, nei 13 test nuovi e nell'appendice generata.
+  I conteggi non si aggiornano a mano: si rigenera dopo ogni test aggiunto, rimosso
+  o rinominato. La verifica del conteggio al 28-10 e' in
+  `experiment_results/appD_conteggio_20261028.md`.
   Il file generato (`Tesi-latex/qoder-bozza/generated/test_suite_appD.tex`) sta
-  fuori da git.
+  fuori da git, come tutto `Tesi-latex/`.
   I 17 test di `tests/test_protocollo_p4_geometry.py` (2026-10-26, quinto turno
   di revisione esterna) congelano la geometria di copertura di P4.7 e la scala
   di `budget_pred`
