@@ -55,6 +55,7 @@ class EvaluationResult:
     verdict: str
     score: Optional[float]
     confidence: float
+    confidence_calibrated: bool
     method: str
     answer_type: str
     extracted_answer: Optional[str] = None
@@ -91,15 +92,87 @@ def _parse_contract(reference: Any) -> Optional[dict[str, Any]]:
     return dict(parsed) if isinstance(parsed, Mapping) else None
 
 
+
+_SUPPORTED_TYPES = {"number", "short_text", "free_text", "interval", "label", "structured"}
+
+
+def validate_contract(reference: Any) -> list[str]:
+    """Return structural contract errors; never silently repair ground truth."""
+    contract = _parse_contract(reference)
+    if contract is None:
+        return ["reference must be a JSON object or mapping"]
+    kind = _text(contract.get("answer_type", "")).lower()
+    if kind not in _SUPPORTED_TYPES:
+        return [f"unsupported or missing answer_type: {kind or '<empty>'}"]
+    errors: list[str] = []
+    if kind in ("number", "short_text"):
+        values = contract.get("accepted_answers", contract.get("answers"))
+        if values is None:
+            values = [contract.get("answer", contract.get("value"))]
+        if isinstance(values, (str, int, float)):
+            values = [values]
+        if not isinstance(values, (list, tuple)) or not values:
+            errors.append("accepted_answers must be a non-empty list")
+        elif kind == "number" and any(_to_float(v) is None for v in values):
+            errors.append("all numeric accepted_answers must be finite numbers")
+        elif kind == "short_text" and any(not _text(v) for v in values):
+            errors.append("all short_text accepted_answers must be non-empty")
+    if kind == "number" or kind == "interval":
+        for key in ("absolute_tolerance", "relative_tolerance"):
+            if key in contract:
+                value = _to_float(contract[key])
+                if value is None or value < 0:
+                    errors.append(f"{key} must be a finite non-negative number")
+    if kind == "interval":
+        lo = _to_float(contract.get("lower", contract.get("expected_lower")))
+        hi = _to_float(contract.get("upper", contract.get("expected_upper")))
+        if lo is None or hi is None or lo > hi:
+            errors.append("interval requires finite lower <= upper")
+    if kind == "label" and not _text(contract.get("label", contract.get("expected_label"))):
+        errors.append("label requires a non-empty expected label")
+    if kind == "structured":
+        expected = contract.get("expected", contract.get("schema"))
+        if not isinstance(expected, Mapping) or not expected:
+            errors.append("structured contract requires a non-empty expected mapping")
+    if kind == "free_text":
+        required = contract.get("required_facts", [])
+        forbidden = contract.get("forbidden_facts", [])
+        if not isinstance(required, (list, tuple)) or not isinstance(forbidden, (list, tuple)):
+            errors.append("required_facts and forbidden_facts must be lists")
+        elif not any(_text(x) for x in required) and not any(_text(x) for x in forbidden):
+            errors.append("free_text requires at least one declared fact")
+        if contract.get("fact_match_mode") not in ("literal",):
+            errors.append("free_text requires fact_match_mode='literal'; semantic entailment is not implemented")
+        minimum = contract.get("minimum_required_facts", len(required) if isinstance(required, (list, tuple)) else 0)
+        if not isinstance(minimum, int) or minimum < 0 or (isinstance(required, (list, tuple)) and minimum > len(required)):
+            errors.append("minimum_required_facts must be an integer within the required_facts count")
+    return errors
+
+
+def _locally_negated(text: str, fact: str) -> bool:
+    words = normalize_text(text).split()
+    target = normalize_text(fact).split()
+    negations = {"not", "no", "never", "neither", "without", "non", "mai", "nessun", "nessuna", "nessuno"}
+    if not target:
+        return False
+    width = len(target)
+    for index in range(len(words) - width + 1):
+        if words[index:index + width] == target:
+            context = words[max(0, index - 4):min(len(words), index + width + 4)]
+            if any(word in negations for word in context):
+                return True
+    return False
+
 def _numbers(text: str) -> list[str]:
     return _NUMBER_RE.findall(text or "")
 
 
 def _to_float(value: Any) -> Optional[float]:
     try:
-        return float(str(value).strip().replace(",", "."))
-    except (TypeError, ValueError):
+        number = float(str(value).strip().replace(",", "."))
+    except (TypeError, ValueError, OverflowError):
         return None
+    return number if math.isfinite(number) else None
 
 
 def _numeric_match(actual: float, expected: float, absolute: float,
@@ -117,6 +190,7 @@ def _result(verdict: str, score: Optional[float], confidence: float,
         verdict=verdict,
         score=score,
         confidence=max(0.0, min(1.0, confidence)),
+        confidence_calibrated=False,
         method=method,
         answer_type=answer_type,
         **kwargs,
@@ -210,21 +284,27 @@ def _evaluate_free_text(answer: str, contract: Mapping[str, Any]) -> EvaluationR
                     if normalize_text(item) not in normalized)
     found_forbidden = tuple(item for item in forbidden
                             if normalize_text(item) in normalized)
+    negated = tuple(item for item in required
+                    if normalize_text(item) in normalized and _locally_negated(answer, item))
     minimum = int(contract.get("minimum_required_facts", len(required)))
     present = len(required) - len(missing)
     if found_forbidden:
         verdict = "incorrect"
+    elif negated:
+        verdict = "indeterminate"
     elif present < minimum:
         verdict = "incorrect"
     else:
         verdict = "correct"
     score = present / len(required) if required else (0.0 if found_forbidden else 1.0)
     return _result(
-        verdict, round(score, 6), 0.9 if required else 0.75,
-        "free_text_declared_facts", "free_text",
+        verdict, round(score, 6) if verdict != "indeterminate" else None,
+        0.0 if verdict == "indeterminate" else (0.9 if required else 0.75),
+        "free_text_literal_fact_match", "free_text",
         missing_facts=missing, forbidden_facts=found_forbidden,
         diagnostics={"required_count": len(required), "present_count": present,
-                     "minimum_required_facts": minimum},
+                     "minimum_required_facts": minimum, "locally_negated_facts": negated,
+                     "semantic_entailment_verified": False},
     )
 
 
@@ -308,7 +388,12 @@ def evaluate(answer: str, reference: Any, *, answer_type: str = "auto") -> Evalu
         return _result("indeterminate", None, 0.0, "reference_not_structured",
                        answer_type if answer_type != "auto" else "unknown",
                        diagnostics={"reason": "reference must be a JSON/object contract"})
+    validation_errors = validate_contract(contract)
     detected = _text(contract.get("answer_type", answer_type)).lower()
+    if validation_errors:
+        return _result("indeterminate", None, 0.0, "invalid_reference_contract",
+                       detected or "unknown",
+                       diagnostics={"validation_errors": validation_errors})
     if detected == "auto":
         detected = "number" if _accepted_texts(contract) and all(
             _to_float(item) is not None for item in _accepted_texts(contract)
@@ -350,6 +435,7 @@ def summarize(results: Iterable[EvaluationResult]) -> dict[str, Any]:
                     round(min(1.0, centre + margin), 6)]
     else:
         interval = None
+    calibrated = [row.confidence for row in rows if row.confidence_calibrated]
     return {
         "n_total": len(rows),
         "n_determinate": n,
@@ -359,6 +445,8 @@ def summarize(results: Iterable[EvaluationResult]) -> dict[str, Any]:
         "accuracy_wilson_95": interval,
         "indeterminate_rate": round(
             (len(rows) - n) / len(rows), 6) if rows else None,
-        "mean_confidence": round(
-            sum(row.confidence for row in rows) / len(rows), 6) if rows else None,
+        "n_confidence_calibrated": len(calibrated),
+        "mean_confidence_calibrated": round(sum(calibrated) / len(calibrated), 6)
+            if calibrated else None,
+        "confidence_note": "heuristic confidence values are not probabilities; only empirically calibrated values are aggregated",
     }
