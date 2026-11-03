@@ -107,7 +107,13 @@ def validate_contract(reference: Any) -> list[str]:
         values = contract.get("accepted_answers", contract.get("answers"))
         if values is None:
             values = [contract.get("answer", contract.get("value"))]
-        if isinstance(values, str):
+        # Un riferimento scalare e' una risposta accettata, non un contratto
+        # malformato: la stessa normalizzazione gia' vale per il ramo dichiarato
+        # (`number`/`short_text`, sotto) e per `_accepted_texts`, che pero' non
+        # viene consultato qui. Solo la stringa veniva normalizzata, quindi un
+        # `{"accepted_answers": 21}` scendeva a `free_text` e chiedeva
+        # `required_facts` a una verita' al numero.
+        if isinstance(values, (str, int, float)):
             values = [values]
         kind = ("number" if isinstance(values, (list, tuple)) and values
                 and all(_to_float(v) is not None for v in values)

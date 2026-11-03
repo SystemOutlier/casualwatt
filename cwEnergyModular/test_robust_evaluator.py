@@ -98,6 +98,48 @@ def test_scalar_reference_and_explicit_answer_type_are_supported():
                     answer_type="short_text").verdict == "correct"
 
 
+def test_zero_scalare_e_un_riferimento_pieno_non_un_contratto_manco():
+    """Lo zero di un contatore e' un valore atteso, non un'assenza.
+
+    `values is None` e `if not values` non sono la stessa condizione, e qui fa la
+    differenza: `{"accepted_answers": 0}` deve restare un contratto `number`
+    valido e produrre `incorrect` su una risposta diversa, non degradare a
+    `number_contract_missing`/`indeterminate` perche' il falso di `0` cancellerebbe
+    la misura di un run che una verita' ce l'ha.
+    """
+    risultato = evaluate("21", {"accepted_answers": 0})
+    assert risultato.verdict == "incorrect"
+    assert risultato.answer_type == "number"
+    assert risultato.method == "number_tolerance_match"
+
+
+def test_stringa_scalsa_non_diventa_short_text_per_comodita():
+    """Un `accepted_answers` a stringa resta un contratto free_text da dichiarare.
+
+    La normalizzazione del caso `auto` accetta scalari numerici perche' il tipo si
+    deduce dal valore; una stringa no, perche' `short_text` e `free_text` chiedono
+    due cose diverse (una corrispondenza di token contro fatti dichiarati con
+    `fact_match_mode='literal'`) e la scelta non compete al valutatore: senza
+    fatti dichiarati l'esito e' `invalid_reference_contract`, dichiarato.
+    """
+    risultato = evaluate("Athens", {"accepted_answers": "Athens"})
+    assert risultato.verdict == "indeterminate"
+    assert risultato.method == "invalid_reference_contract"
+
+
+def test_booleano_scalare_non_e_un_numero():
+    """`True` e `False` sono `int` in Python, ma non sono un joule atteso.
+
+    Il ramo `auto` normalizza `isinstance(values, (str, int, float))`, e il bool
+    ci cade dentro: va bene solo perche' `_to_float("True")` non e' un numero,
+    quindi il contratto scende a `free_text` e viene fermato come non dichiarabile
+    invece di diventare un confronto numerico contro 1.
+    """
+    risultato = evaluate("1", {"accepted_answers": True})
+    assert risultato.verdict == "indeterminate"
+    assert risultato.method == "invalid_reference_contract"
+
+
 def test_absent_answer_is_indeterminate_for_number_and_interval():
     """Una risposta vuota non e' un numero sbagliato: e' un run che non ha prodotto
     nulla da valutare.

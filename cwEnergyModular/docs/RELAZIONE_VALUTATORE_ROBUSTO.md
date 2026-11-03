@@ -319,16 +319,23 @@ del motore) e `test_mudilab_adapter.py` (stadi dell’adattatore MUDILAB), con
 
 Risultato dell’esecuzione del **3 novembre 2026** su
 `fix/valutatore-mudilab`, worktree locale, comando `pytest cwEnergyModular`:
-**556 superati, 3 saltati, 1 fallimento**. I due file del valutatore valgono
-31 test raccolti, 30 superati. Il fallimento è
-`test_robust_evaluator.py::test_scalar_reference_and_explicit_answer_type_are_supported`
-ed è **preesistente a queste correzioni** (presente anche sulla versione del
-branch prima dei fix: 541 superati, 1 fallimento, 3 saltati): l’inferenza
-automatica del contratto normalizza `accepted_answers` solo quando è una lista,
-quindi un reference scalare come `{"accepted_answers": 21}` viene letto come
-testo libero con zero fatti dichiarati e produce `indeterminate`. Non è stato
-corretto qui perché fuori dai punti di questa revisione; va deciso se il
-supporto al reference scalare è un requisito o se va corretto il test.
+**560 superati, 3 saltati, nessun fallimento**. I due file del valutatore valgono
+34 test raccolti, tutti superati.
+
+Il fallimento che queste righe registravano il 3 novembre
+(`test_robust_evaluator.py::test_scalar_reference_and_explicit_answer_type_are_supported`,
+presente anche prima dei fix: 541 superati, 1 fallimento, 3 saltati) è chiuso nello
+stesso giorno con un commit a parte. L’inferenza automatica del contratto normalizzava
+`accepted_answers` solo quando è una lista, quindi un reference scalare come
+`{"accepted_answers": 21}` veniva letto come testo libero con zero fatti dichiarati e
+produceva `indeterminate`. La domanda se il reference scalare fosse un requisito è
+risolta dal test stesso, che è del ramo e lo dichiara requisito; il codice è stato
+allineato al test, non il test al codice. La normalizzazione ora è la stessa che vale
+già per il ramo dichiarato e per `_accepted_texts`, e resta solo numerica: una stringa
+sciolta continua a chiedere i fatti dichiarati, e un booleano non diventa un numero.
+Sui 321 run MUDILAB misurati il numero non cambia: 109/321 e 915,749 J/corretta con
+entrambi i criteri, perché quei contratti passano da `structured_contract_invalid`, non
+da un reference scalare.
 
 Questo dimostra la coerenza interna dell’implementazione, non ancora la validità
 esterna su un benchmark ampio.
