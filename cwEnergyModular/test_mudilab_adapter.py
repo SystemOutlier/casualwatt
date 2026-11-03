@@ -26,7 +26,7 @@ def test_conditional_probability_requires_all_stages():
         translation={"input": {"DrivQuality": "Normal"},
                      "output": {"Age": "Senior"}},
         output="The probability is 0.2117",
-        tool_calls=[{"name": "cau_inference"}],
+        tool_calls=[{"name": "cau_inference", "success": True, "result": {"ok": True}}],
     )
     assert result.end_to_end == "correct"
 
@@ -50,3 +50,27 @@ def test_counterfactual_compares_both_bounds():
         tool_calls=[{"name": "cau_inference"}],
     )
     assert result.output.verdict == "correct"
+
+
+def test_unverified_tool_call_is_indeterminate():
+    result = evaluate_case(
+        _case(), label="backward_reasoning",
+        translation={"input": {"DrivQuality": "Normal"},
+                     "output": {"Age": "Senior"}},
+        output="The probability is 0.2117",
+        tool_calls=[{"name": "cau_inference"}],
+    )
+    assert result.tool_call_status == "unverified"
+    assert result.end_to_end == "indeterminate"
+
+
+def test_failed_tool_call_is_incorrect():
+    result = evaluate_case(
+        _case(), label="backward_reasoning",
+        translation={"input": {"DrivQuality": "Normal"},
+                     "output": {"Age": "Senior"}},
+        output="The probability is 0.2117",
+        tool_calls=[{"name": "cau_inference", "success": False}],
+    )
+    assert result.tool_call_status == "failed"
+    assert result.end_to_end == "incorrect"
