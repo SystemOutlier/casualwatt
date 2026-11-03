@@ -27,8 +27,8 @@ run reale, perche' la classificazione e' un passo di modello. Una variante che
 cambia il classificatore (`b_esempi`) va schermata davvero, non riproducibile qui.
 
 Uso:  MUDILAB_COPIE=1 python replay_traduzione.py harness/risultati/b_verificata/20261101_174518
-      --regole output=obbligatorio|output=se-citata|output=libero|libero+parola-stato|senza-verbatim|cf-target-domanda|cf-target-stretto|stati-alias
-      (default: tutte e otto, a confronto; --riferimento output=libero conta i delta
+      --regole output=obbligatorio|output=se-citata|output=libero|libero+parola-stato|senza-verbatim|cf-target-domanda|cf-target-stretto|stati-alias|coh-target|coh-clausole|coh-entrambe|alias+coh-entrambe
+      (default: tutti e dodici, a confronto; --riferimento output=libero conta i delta
       contro il protocollo con cui sono presi i joule del 02-11)
 
 Gli ultimi tre regimi sono le due regole chieste il 02-11 dopo l'analisi dei rami
@@ -42,10 +42,30 @@ run di `risultati_misura/b_composta/20261102_191401`
 corrette come il riferimento, 21 run fermati prima del tool e nessuna riga buona
 persa; `cf-target-stretto` 74, tre buone uccise su CF19; `stati-alias` 91, +14 e zero
 perse, con 74 normalizzazioni e 12 righe che dal rifiuto passano a `numero` perche'
-l'alias smette di fermare un errore di variabile. Nessuna delle tre e' in vigore in
-produzione: i due regimi controfattuali non muovono il punteggio, e il regime degli
-stati lo muove ma con un effetto collaterale dichiarato. Il metodo in produzione resta
-quello misurato il 02-11, perche' 'confrontare non significa adottare'.
+l'alias smette di fermare un errore di variabile.
+
+I regimi `coh-*` sono la richiesta n. 16, quella di una "regola di forma per il
+coherence", e stanno qui perche' la prima cosa da sapere era se quella regola avesse
+un soggetto: `diagnosi_coherence.py` ha contato che 27 righe su 42 del ramo passano
+il gate e ricevono un numero che non e' quello dell'oracolo, quindi la regola non
+poteva essere sulla *forma del dizionario*. Le due che stanno in `valida` sono
+sulla forma della **domanda**: `coh-target` ancora il target alla clausola `is it
+coherent that ... given that ...`, `coh-clausole` pretende tante evidenze quante
+clausole la domanda enuncia, `coh-entrambe` le accende insieme e
+`alias+coh-entrambe` le misura sopra il regime che aggiunge corrette, per vedere se
+si tolgono a vicenda righe buone. Il conto, fatto il 03-11 sugli stessi 240 run
+(`harness/risultati/replay_regole_coherence_20261103.txt`): `coh-target` ferma 21 run
+e `coh-clausole` 18, `coh-entrambe` 27 -- cioe' tutti quelli che arrivavano al tool
+-- e in tutti e tre le corrette restano **77 come il riferimento, zero perse**; nel
+ramo, a regole accese, non resta nessun `numero` (18 corrette su 60, 42 rifiuti
+dichiarati). `alias+coh-entrambe` sta a 91 come `stati-alias`: le 14 recuperate sono
+in `cond_prob` e `inter`, e i 3 run di COH24 che l'alias portava da `rifiutata` a
+`numero` tornano `rifiutata` per la regola sulle clausole.
+
+Nessuna delle regole e' in vigore in produzione: i due regimi controfattuali e i tre
+di coerenza non muovono il punteggio, e il regime degli stati lo muove ma con un
+effetto collaterale dichiarato. Il metodo in produzione resta quello misurato il
+02-11, perche' 'confrontare non significa adottare'.
 """
 
 import argparse
@@ -62,7 +82,8 @@ sys.dont_write_bytecode = True
 
 REGIMI = ("output=obbligatorio", "output=se-citata", "output=libero",
           "libero+parola-stato", "senza-verbatim",
-          "cf-target-domanda", "cf-target-stretto", "stati-alias")
+          "cf-target-domanda", "cf-target-stretto", "stati-alias",
+          "coh-target", "coh-clausole", "coh-entrambe", "alias+coh-entrambe")
 
 # Nell'ordine delle colonne di `benchmark.csv`: serve per stampare il "per ramo",
 # che e' l'unico modo di vedere che una regola su un ramo ne sposta un altro.
@@ -264,8 +285,8 @@ def _ancoraggio_senza_citazione(TC):
     terzo ramo, regime `cf-target-domanda`: 77 corrette, identiche al riferimento, e
     21 run fermati prima del tool.
     """
-    def versione(variabile, valore, query_norm, cit=None):
-        span = TC.clausola_domanda(query_norm)
+    def versione(variabile, valore, query_norm, cit=None, etichetta="counterfactual"):
+        span = TC.clausola_domanda(query_norm, etichetta)
         if not span:
             return "forma della domanda non riconosciuta"
         if TC._norm(valore) and TC._norm(valore) in span:
@@ -279,14 +300,17 @@ def _ancoraggio_senza_citazione(TC):
 def _pacchetto(TC, regime, conto: Counter):
     """({attributo di TC: funzione}, `citazione_output`, kwarg di `valida`).
 
-    Un pacchetto per regime, su tre assi ortogonali. Le `sostituzioni` montano una
-    versione alternativa di una funzione che `valida` chiama per nome globale --
-    `_citazione_valida` (come si valuta una citazione scritta), `stato_del_grafo`
-    (come si confronta uno stato con le etichette del `.bif`), `ancoraggio_target`
-    (quanti rami ha l'ancoraggio del controfattuale). I regimi di `citazione_output`
-    non sostituiscono niente e cambiano solo il flag; i due regimi `cf-target-*`
-    accendono il flag che il modulo gia' espone spento. Cio' che un regime non
-    tocca resta il default di produzione, scritto nei JSON del 02-11.
+    Un pacchetto per regime, su quattro assi ortogonali: la citazione del target, il
+    confronto di stato, l'ancoraggio del target controfattuale, le due regole di
+    coerenza. Le `sostituzioni` montano una versione alternativa di una funzione che
+    `valida` chiama per nome globale -- `_citazione_valida` (come si valuta una
+    citazione scritta), `stato_del_grafo` (come si confronta uno stato con le
+    etichette del `.bif`), `ancoraggio_target` (quanti rami ha l'ancoraggio del
+    controfattuale). I regimi di `citazione_output` non sostituiscono niente e
+    cambiano solo il flag; i due regimi `cf-target-*` e i quattro `coh-*`/`alias+coh-*`
+    accendono kwarg che il modulo gia' espone spenti -- e `alias+coh-entrambe` e'
+    l'unico che monta un asse e accende l'altro, per misurare l'interazione. Cio' che
+    un regime non tocca resta il default di produzione, scritto nei JSON del 02-11.
 
     Il `conto` serve alle sostituzioni di stato: una normalizzazione e' un dato, non
     una riga buona, e va elencata coppia per coppia.
@@ -302,8 +326,50 @@ def _pacchetto(TC, regime, conto: Counter):
                 {"target_nella_domanda": True})
     if regime == "stati-alias":
         return {"stato_del_grafo": _stato_alias(TC, conto)}, False, {}
+    # I tre regimi di coerenza accendono le due regole che il modulo espone spente,
+    # separate perche' colpiscono due guasti diversi -- `diagnosi_coherence.py`: 24 run
+    # su 27 con il target scambiato, 3 con un'evidenza in meno, e le due regole si
+    # sovrappongono su 12 -- e `coh-entrambe` esiste per misurare se la combinazione
+    # apre interferenze che i due soli no. Contato il 03-11: 21, 18 e 27 run fermati,
+    # 77 corrette in tutti e tre i regimi
+    # (`harness/risultati/replay_regole_coherence_20261103.txt`).
+    # Come per i due regimi controfattuali, `citazione_output` sta a `False`: e' il
+    # regime dei joule del 02-11, e una regola nuova va contata contro quello.
+    if regime == "coh-target":
+        return {}, False, {"coerenza": "target"}
+    if regime == "coh-clausole":
+        return {}, False, {"coerenza": "clausole"}
+    if regime == "coh-entrambe":
+        return {}, False, {"coerenza": "target,clausole"}
+    if regime == "alias+coh-entrambe":
+        # L'interazione fra i due interventi che valgono di piu': `stati-alias`
+        # (+14 corrette) e' l'unico regime che ne aggiunge, e le due regole di
+        # coerenza sono le uniche che possono togliergliele -- perche' normalizzare
+        # la prosa rende l'insieme di evidenza piu' completo, e il controllo sulle
+        # clausole guarda proprio la completezza. Se qui le corrette scendono sotto
+        # le 91 di `stati-alias`, la scelta non e' ovvia e va riportata cosi'.
+        return ({"stato_del_grafo": _stato_alias(TC, conto)}, False,
+                {"coerenza": "target,clausole"})
     return ({}, {"output=obbligatorio": True, "output=se-citata": "se-citata",
                  "output=libero": False}[regime], {})
+
+
+def _chiave(diagnostico: str) -> str:
+    """La classe del motivo, non il motivo. Serve al `--motivi`.
+
+    I testi di `valida` portano il nome della variabile, lo stato scritto e la
+    lista degli stati: raggrupparli verbatim vorrebbe dire una riga per riga, che
+    non e' un conto. Qui si collassa tutto cio' che e' *istanza* -- gli intervalli
+    fra apici o fra parentesi quadre e i numeri -- cosi' il gruppo risponde alla
+    domanda giusta: quale regola ferma, non quale riga. E' una perdita dichiarata:
+    la riga individuale si legge sempre nel JSON del run, e questa chiave non la
+    sostituisce.
+    """
+    t = re.sub(r"\[[^\]]*\]", "[...]", diagnostico)
+    t = re.sub(r"'[^']*'", "'...'", t)
+    t = re.sub(r'"[^"]*"', '"..."', t)
+    t = re.sub(r"\d+[\.,]?\d*", "#", t.lower())
+    return t[:46]
 
 
 def _righe(cartella: Path):
@@ -349,15 +415,15 @@ def riproduci(d: dict, r: dict, passi: dict, pacchetto: tuple, gt: dict, TC, too
     traduzione, esito = TC.valida(passi["translator"]["text"], etichetta,
                                   riga_gt["query"], rete, citazione_output=regola, **kw)
     if traduzione is None:
-        return "rifiutata", esito["motivo"][:60]
+        return "rifiutata", esito["motivo"]
     if etichetta != riga_gt["etichetta_attesa"]:
         return "etichetta", f"{etichetta} invece di {riga_gt['etichetta_attesa']}"
     try:
         risposta = tools.cau_inference.func(etichetta, json.dumps(traduzione), rete)
     except Exception as e:
-        return "tool", f"{type(e).__name__}: {e}"[:60]
+        return "tool", f"{type(e).__name__}: {e}"
     motivo = _confronta(riga_gt["ramo"], str(risposta), _atteso(riga_gt))
-    return ("corretta" if motivo is None else "numero"), (motivo or "")[:60]
+    return ("corretta" if motivo is None else "numero"), (motivo or "")
 
 
 def _atteso(gt: dict):
@@ -374,6 +440,10 @@ def main():
     ap.add_argument("--regole", default=",".join(REGIMI))
     ap.add_argument("--riferimento", default="output=libero",
                     help="il regime contro cui contare il delta; `''` per non confrontare")
+    ap.add_argument("--motivi", nargs="?", const="*", default=None, metavar="RAMI",
+                    help="stampare il conto dei motivi per ramo (lista separata da "
+                         "virgole, o `*` per tutti): senza di questo il report dice "
+                         "quante righe si fermano, non su quale regola")
     a = ap.parse_args()
 
     argv = sys.argv
@@ -394,6 +464,17 @@ def main():
             raise SystemExit(f"regime sconosciuto: {x!r}; validi: {', '.join(REGIMI)}")
 
     memorizzate, escluse = _righe(cartella)
+    # La selezione dei motivi, validata subito: un ramo scritto male stamperebbe
+    # un vuoto che sembra "nessun motivo" invece di "hai chiesto un ramo che non
+    # esiste", e i quattro nomi sono gia' quelli di `RAMI`.
+    rami_motivi = None
+    if a.motivi is not None:
+        rami_motivi = (list(RAMI) if a.motivi == "*"
+                       else [x.strip() for x in a.motivi.split(",") if x.strip()])
+        sconosciuti = [x for x in rami_motivi if x not in RAMI]
+        if sconosciuti:
+            raise SystemExit(f"ramo sconosciuto per --motivi: {', '.join(sconosciuti)}; "
+                             f"validi: {', '.join(RAMI)}")
     # Il riferimento per primo, o i delta dei regimi che lo precedono non avrebbero
     # niente da confrontare e stamperebbero un vuoto come se fosse un risultato.
     if a.riferimento in regimi:
@@ -415,6 +496,7 @@ def main():
         esempio = {}
         rami_conti = {}
         esiti_regime = {}
+        diag = {}
         originale = {}
         conto = Counter()
         # Il pacchetto e' uno per regime, non una funzione per asse: un regime puo'
@@ -433,10 +515,14 @@ def main():
                 esito, dettaglio = riproduci(d, r, passi, pacchetto, gt, TC, tools,
                                              _confronta)
                 conti[esito] += 1
-                esempio.setdefault(esito, f"{d['task_id']}: {dettaglio}")
+                esempio.setdefault(esito, f"{d['task_id']}: {dettaglio[:60]}")
                 ramo = gt[d["task_id"]]["ramo"]
                 rami_conti.setdefault(ramo, Counter())[esito] += 1
                 esiti_regime[_p.name] = (ramo, esito)
+                if rami_motivi and ramo in rami_motivi and dettaglio:
+                    # il dettaglio vuoto e' la riga corretta: qui si contano i
+                    # motivi per cui le altre si fermano, non le altre
+                    diag.setdefault(ramo, Counter())[_chiave(dettaglio)] += 1
         finally:
             for nome, versione in originale.items():
                 setattr(TC, nome, versione)
@@ -448,6 +534,14 @@ def main():
         print("  per ramo (corrette / riprodotte): " + ", ".join(
             f"{ramo} {rami_conti[ramo]['corretta']}/{sum(rami_conti[ramo].values())}"
             for ramo in RAMI if ramo in rami_conti))
+        for ramo in (rami_motivi or ()):
+            if ramo in diag:
+                # ordinato per conta decrescente: la prima riga di questo blocco e'
+                # la regola che il ramo perde piu' spesso, che e' il candidato su
+                # cui lavorare, non la piu' esotica
+                print(f"  motivi di `{ramo}`:")
+                for chiave, q in diag[ramo].most_common():
+                    print(f"    {q:3d}  {chiave}")
         print(f"  corrette/prodotte = {conti['corretta']}/{n}")
         if conto:
             print(f"  normalizzazioni di stato: {conto['normalizzato']}, "
