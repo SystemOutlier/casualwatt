@@ -17,7 +17,10 @@ controllo di timestamp del contatore AMD, il fallback `pawnio-counter` e il flag
 e le coordinate dei campi di `local_energy.py` sono riverificati al
 **02-11-2026** dopo `cd881e6b` (provenienza dei token ed energia firmata) e
 `9fa9a44c` (finestre con contatore incoerente non valide): la suite e' a **528**
-e `CSV_COLUMNS` a **174** nomi.
+e `CSV_COLUMNS` a **174** nomi. Il conteggio della suite e le coordinate dei
+nuovi helper GPU di `energy_session.py` sono riverificati al **03-11-2026** dopo
+la selezione del dispositivo GPU (13 test nuovi, `482 + 59 = 541`): `CSV_COLUMNS`
+resta a **174** nomi perche' la selezione passa per `notes`, non per una colonna.
 Se un ancoraggio non torna, il file e' stantio: va corretto, non ignorato.
 
 Fonti primarie, in ordine di autorita':
@@ -123,6 +126,23 @@ stanno solo le regole che un agente puo' violare senza accorgersene.
   `platform=gpu_bm_linux` quando vale. Il monitor GPU si seleziona **per
   vendor**: NVML per NVIDIA, AMD SMI per AMD; non esiste una catena
   NVML -> AMD SMI per la stessa scheda, e i due non girano mai in parallelo.
+  **La scheda dentro un backend si seleziona per indice, e l'indice 0 non e'
+  una scelta implicita** (dal 03-11-2026): `_gpu_indice_richiesto`
+  (`energy/energy_session.py:1465`) legge argomento esplicito, poi
+  `CW_GPU_INDEX`, poi "non dichiarato"; `_selezione_device` (`:1490`) apre
+  l'indice richiesto e, se e' fuori intervallo, **non apre la scheda 0** —
+  misurare una scheda e scrivere la riga come se fosse quella richiesta e' un
+  numero attribuito male, non un degrado. Con un solo device l'indice 0 non e'
+  un'assunzione e non produce nota; con piu' device e nessuna selezione la riga
+  lo dice per via sua (`device_note`, appendice in `notes`,
+  `energy/local_energy.py:809-811`, lo schema P5 resta 174 nomi). Un
+  `CW_GPU_INDEX` non numerico e' un errore dichiarato, non un "non dichiarato".
+  L'indice e' una **posizione nell'elenco del backend che ha risposto**
+  (`nvmlDeviceGetHandleByIndex`, `amdsmi_get_processor_handles`), non un ID del
+  produttore: lo stesso numero su vendor diversi non e' lo stesso silicon. Il
+  runner non ha un flag per l'indice — la via di produzione oggi e'
+  `CW_GPU_INDEX`, perche' la sessione chiama `_open_gpu_monitor()` senza
+  argomento (`energy_session.py:765`).
   Le due catene sono **[I]** (implementate, provate con `pynvml` e `amdsmi` finti,
   28-10-2026) con **[V] da fare**: su questa macchina non c'e' ne' una NVIDIA
   ne' una AMD, quindi l'esecuzione su GPU reale e' ancora da registrare. Qui
@@ -220,7 +240,7 @@ stanno solo le regole che un agente puo' violare senza accorgersene.
 ## Comandi di verifica
 
 ```
-pytest cwEnergyModular          # 528 raccolti: 525 passati, 3 saltati (6 s al 03-11)
+pytest cwEnergyModular          # 541 raccolti: 538 passati, 3 saltati (11 s al 03-11)
 ```
 
 **Mai `pytest` nudo dalla radice**: la raccolta viene interrotta da 6 errori in
@@ -254,10 +274,10 @@ indefiniti.
   `casualwatt_csv_export.py` (`CSV_COLUMNS`, righe 17-204 — 174 nomi;
   `BLOCK_SUMMARY_COLUMNS`, 212-227; `POINT_SUMMARY_COLUMNS`, 229-237), e il
   runner v4 `benchmark_v4.py` (sequenza di blocco di P1.5).
-- **I test stanno in due posti**: `cwEnergyModular/tests/` (469 raccolti) e
-  direttamente in `cwEnergyModular/` (`test_answer_type_evaluation.py`, 35;
+- **I test stanno in due posti**: `cwEnergyModular/tests/` (482 raccolti al 03-11)
+  e direttamente in `cwEnergyModular/` (`test_answer_type_evaluation.py`, 35;
   `test_synthetic_window.py`, 2; `test_validazione_valutazione.py`, 22);
-  469 + 59 = 528. Ogni test ha una docstring che
+  482 + 59 = 541. Ogni test ha una docstring che
   dice *perche'* esiste e quale relazione matematica o fisica verifica, non solo
   cosa fa. Al 28-10-2026 la norma non e' rispettata da nove funzioni (13 node
   id, tutte scritte il 27-28/10): otto in `tests/test_pawnio_backend.py`, una in
@@ -267,8 +287,10 @@ indefiniti.
   sonda PMI/WMI) e `tests/test_emi_selezione.py` (16, metadati EMI sintetici:
   metadato V2, scelta del device CPU, canale PKG per nome, V1 scartato): girano
   su Windows, senza host Linux. Dal 28-10-2026 ci sono
-  `tests/test_gpu_nvml_energy.py` (8, catena `nvml-energy` ->
-  `nvml-power-integral` con `pynvml` finto), `tests/test_gpu_amdsmi.py` (19,
+  `tests/test_gpu_nvml_energy.py` (8 il 28-10, 16 dal 03-11 con la selezione del
+  device; catena `nvml-energy` ->
+  `nvml-power-integral` con `pynvml` finto), `tests/test_gpu_amdsmi.py` (19 il
+  28-10, 24 dal 03-11;
   catena `amdsmi-energy` -> `amdsmi-power-integral`, conversione da microjoule,
   timestamp come controllo di avanzamento, delta negativo, provenienza di
   potenza e piattaforma, precedenza di NVML, con `amdsmi` finto) e
@@ -298,6 +320,13 @@ indefiniti.
   (`test_cpu_attribution.py::test_c_reset_contatore_ai_bordi_non_degrada_al_fallback`
   e `test_metriche_per_token.py::test_token_stimati_non_entrano_nelle_metriche_scientifiche`)
   piu' una docstring riscritta: nessun fallimento, nessuna riga sparita.
+  **Dal 03-11-2026 (pomeriggio) quell'appendice e' di nuovo stantia**: la
+  selezione del device GPU aggiunge 13 test e la raccolta reale e' $541$ node id,
+  $538$ passati, $3$ saltati (misurati il 03-11: due riesecuzioni complete da
+  $10.87$ s e $10.99$ s, piu' le due di $6$ s della mattina prima dei 13 nuovi).
+  Il file generato e il testo della tesi che cita $528$ vanno rigenerati/allineati
+  in un punto separato, perche' l'appendice sta fuori da git e l'allineamento del
+  testo tocca i capitoli.
   **Il 03-11 anche il testo della tesi e' stato allineato a quel conteggio**: i
   paragrafi che dichiaravano $294$ node id, $291$ verdi, $237$ funzioni,
   ``ventisei file``, la decomposizione per file e l'ancoraggio di
