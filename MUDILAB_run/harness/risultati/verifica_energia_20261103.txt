@@ -1,0 +1,43 @@
+cartella: C:\Users\Massimo\Documents\CasualWatt\CWProject\MUDILAB_run\risultati_misura\b_composta\20261102_191401
+comando: MUDILAB_COPIE=1 python verifica_energia.py risultati_misura/b_composta/20261102_191401
+righe: 240, corrette: 77, rami pubblicati: ['somma_passi', 'totale_attiva']
+
+--- joule per corretta sotto ogni definizione
+  pubblicata              74299.5 J  240/240 righe    964.929 J/corretta
+                     finestra attiva, poi finestra package, poi passi in package
+  passi_attiva            69429.6 J  240/240 righe    901.683 J/corretta  delta -4869.9 J  (-6.6%)
+                     come sopra, ma il terzo ramo e' in attivo
+  tutto_attiva            69429.6 J  240/240 righe    901.683 J/corretta  delta -4869.9 J  (-6.6%)
+                     attiva sempre: finestra quando vale, poi i passi
+  tutto_pkg               88509.7 J  240/240 righe   1149.477 J/corretta  delta +14210.2 J  (+19.1%)
+                     package sempre: nessuna baseline sottratta
+  solo_passi_pkg          88189.4 J  240/240 righe   1145.317 J/corretta  delta +13889.9 J  (+18.7%)
+                     ignora la finestra, soma i passi in package
+  solo_passi_attiva       69185.6 J  240/240 righe    898.514 J/corretta  delta -5113.9 J  (-6.9%)
+                     ignora la finestra, soma i passi in attivo
+
+--- le righe che cadono sui passi: 102
+  con entrambe le grandezze per passo: 102
+  senza l'attiva per passo: 0
+  quota di riposo non sottratta: 4869.9 J  (min 28.1 / mediana 44.6 / max 149.7)
+
+--- finestra contro passi (138 righe con la finestra)
+  confrontabili: 138, non confrontabili: 0
+  package fuori dai passi: 320.3 J, cioe' il 0.5% del package dei passi delle stesse righe
+  attiva fuori dai passi: 244.1 J su 138 righe (la finestra e' presa a baseline sottratta, i passi pure: qui la differenza e' tempo, non scala)
+  chiavi `fuori_dai_passi_j` non vuote nei JSON: 138
+
+--- il conto citato il 02-11, alla prova
+  pubblicato:   74299.5 J / 77 = 964.929 J/corretta
+  passi_attiva: 69429.6 J / 77 = 901.683 J/corretta
+  differenza:   4869.9 J (+6.6%)
+  copertura: 240 righe contro 240 (se e' uguale, nessuna riga entra o esce dal conto)
+  coherence      18 corrette   1247.115 ->  1198.425 J/corretta   (22448.1 -> 21571.7 J)
+  cond_prob      27 corrette    566.416 ->   529.800 J/corretta   (15293.2 -> 14304.6 J)
+  counterfactual 15 corrette   1419.245 ->  1360.174 J/corretta   (21288.7 -> 20402.6 J)
+  inter          17 corrette    898.206 ->   773.575 J/corretta   (15269.5 -> 13150.8 J)
+
+--- l'ordine fra rami, che e' quello che si commenta nella tesi
+  dal piu' caro: pubblicata    counterfactual > coherence > inter > cond_prob
+  dal piu' caro: passi_attiva  counterfactual > coherence > inter > cond_prob
+  l'ordine NON cambia: la correzione sposta i valori, non la classifica
