@@ -177,6 +177,16 @@ def test_unita_implausibile_non_diventa_un_quantum(tmp_path, unit_raw):
 
 
 def test_lettura_energia_fallita_e_dichiarata(tmp_path):
+    """L'unita' si' che il contatore no: due ragioni diverse, non una.
+
+    Qui 0x606 risponde e il quantum viene derivato, poi la prima lettura di
+    0x611 solleva. La relazione che il test fissa e' che il backend non puo'
+    restare ``available`` con un ``quantum_j`` valido e nessun ``_last_raw``:
+    il delta successivo sarebbe sottratto a un valore mai letto, cioe' inventato.
+    ``energy_unreadable`` (:525) e' dunque una ragione distinta da
+    ``unit_unreadable`` (:506), e la libreria si chiude (:528) invece di
+    restare aperta su un canale che non produce numero.
+    """
     mod_dir, _, hashes = _module(tmp_path)
     spec = pb.VENDORS["intel"]
     lib = FakeLib(unit_msr=spec["unit_msr"], energy_msr=spec["energy_msr"],
@@ -239,6 +249,18 @@ def test_calo_senza_riporto_e_reset_e_non_produce_energia(tmp_path):
 )
 def test_hvci_decide_quale_firmatario_e_ammesso(tmp_path, hvci, sig_subject,
                                                 ok):
+    """La regola di ammissione e' una congiunzione, non una disgiunzione.
+
+    Il predicato testato, caso per caso su tutte le combinazioni, e'
+    ``ammesso = firma_valida AND (HVCI spento OR firmatario Microsoft)``
+    (`_signature_rejection` :540-554). Le due righe con ``hvci == "unknown"``
+    fissano il ``fail closed`` di AGENTS.md: un HVCI non determinabile tratta
+    il sistema come attivo, mai come spento. La riga
+    ``("disabled", terzi, True)`` fissa il lato opposto, perche' un test che
+    ammettesse solo Microsoft non distinguerebbe la regola dal suo caso
+    particolare. La ragione e la nota sono quelle dichiarate, non un generico
+    ``pawnio_unavailable``.
+    """
     mod_dir, _, hashes = _module(tmp_path)
     backend, _ = _build(mod_dir=mod_dir, hashes=hashes, hvci=hvci,
                         sig_subject=sig_subject)
@@ -260,6 +282,16 @@ def test_firma_non_valida_fallisce_chiuso(tmp_path, status):
 
 
 def test_servizio_fermo_non_si_arriva_alla_firma(tmp_path):
+    """La cascata dei criteri ha un ordine, e l'ordine e' parte del contratto.
+
+    Con il servizio PawnIO fermo il costruttore si ferma a
+    ``service_not_running`` (:433-437) prima di leggere percorso del driver e
+    firma. L'asserzione forte qui non e' la ragione, e' ``calls == []``: la
+    sonda di firma non deve essere invocata. Se lo fosse, su un host reale
+    si sparerebbe un PowerShell per ogni run con il servizio spento, e il
+    verdetto pubblicherebbe lo stato di un driver che non e' in grado di
+    rispondere, invece del motivo per cui non risponde.
+    """
     mod_dir, _, hashes = _module(tmp_path)
     calls = []
     backend, _ = _build(mod_dir=mod_dir, hashes=hashes, service="stopped",
@@ -271,6 +303,16 @@ def test_servizio_fermo_non_si_arriva_alla_firma(tmp_path):
 
 # -- moduli ------------------------------------------------------------------
 def test_modulo_assente(tmp_path):
+    """Nessun blob, nessun ``pawnio_open``: l'assenza si ferma prima.
+
+    La directory esiste ma dentro non c'e' ``IntelMSR.bin``: la ragione e'
+    ``module_missing`` (:459-463, il ramo del file assente, non quello della
+    directory mancante a :453). L'asserzione che conta e' ``not fake.opened``:
+    la libreria PawnIO non deve essere aperta per nulla. Aprire un handle di
+    kernel mode senza poi avere il modulo da passare a ``pawnio_load``
+    significherebbe tenere aperto un canale per una catena che non producera'
+    numero, e la riga dovrebbe dichiarare un tentativo mai finito.
+    """
     d = tmp_path / "vuota"
     d.mkdir()
     backend, fake = _build(mod_dir=d, hashes={})
@@ -292,6 +334,12 @@ def test_hash_del_modulo_diverso_non_si_carica(tmp_path):
 
 
 def test_produttore_sconosciuto(tmp_path):
+    """Produttore non in tabella: nessun registro per analogia, e gli indirizzi
+    restano ``None`` (:422-428). L'alternativa a questo comportamento sarebbe
+    ereditare 0x606/0x611 dal default Intel, cioe' leggere un MSR che per quel
+    silicio non e' il contatore del package: darebbe un numero verosimile e
+    sbagliato, il peggio che un canale di misura possa fare.
+    """
     mod_dir, _, hashes = _module(tmp_path)
     backend, _ = _build(vendor="zzz", mod_dir=mod_dir, hashes=hashes)
     assert not backend.available
@@ -301,6 +349,21 @@ def test_produttore_sconosciuto(tmp_path):
 
 # -- sonda e utilita' --------------------------------------------------------
 def test_probe_riporta_i_criteri_applicati(tmp_path):
+    """La sonda deve mostrare il perche' del verdetto, non solo il verdetto.
+
+    ``probe()`` (:611-635) e' cio' che finisce nel verbale:
+    ``tools/pawnio_probe.py:102`` e ``:250`` incollano ``msr.probe()``
+    nell'output. Se riportasse solo ``pass``, un lettore non
+    potrebbe distinguere "HVCI attivo e firma Microsoft" da "HVCI spento e
+    firma di terzi", che sono due stati di sicurezza diversi con lo stesso
+    numero. Il test fissa la forma dell'oggetto: ``unit_msr``/``energy_msr``
+    come stringhe esadecimali leggibili (:627-630) e non come interi crudi,
+    ``quantum_j`` come float derivato (1/2^14) e
+    non come costante copiata, ``module_sha256`` che deve coincidere con
+    l'hash del blob realmente presente, e il ``module_version`` della release
+    pinnata. Un campo che cambia nome qui rompe il consumatore, quindi la
+    chiave e' parte del contratto.
+    """
     mod_dir, path, hashes = _module(tmp_path)
     backend, _ = _build(mod_dir=mod_dir, hashes=hashes)
     info = backend.probe()
@@ -317,6 +380,18 @@ def test_probe_riporta_i_criteri_applicati(tmp_path):
 
 
 def test_chiusura_rende_il_backend_non_disponibile(tmp_path):
+    """Dopo ``close()`` (:637-639) il canale deve mancare, non zero.
+
+    L'invariante e' che un canale chiuso dia lettura nulla, non un numero:
+    ``read_raw`` :565-567 rifiuta quando ``available`` e' falso o la libreria
+    non c'e', e ``read_cumulative_energy_j`` :581-582 restituisce ``None`` per
+    quella strada. Se la chiusura restituisse il totale acumulatorio invece di
+    ``None``, una finestra che si chiude a meta' pubblicherebbe un'energia
+    parziale come se fosse la misura completa; se restituisse 0, la cascata
+    EMI -> PawnIO vedrebbe un numero e non un canale assente.
+    ``fake.closed`` fissa anche il lato opposto: l'handle di kernel mode viene
+    rilasciato davvero.
+    """
     mod_dir, _, hashes = _module(tmp_path)
     backend, fake = _build(mod_dir=mod_dir, hashes=hashes)
     backend.close()
@@ -355,6 +430,18 @@ def test_altro_errore_di_apertura_resta_pawnio_unavailable(tmp_path):
 
 
 def test_find_modules_dir_rispetta_la_variabile(tmp_path, monkeypatch):
+    """La directory dei moduli si dichiara, non si indovina (:272-285).
+
+    ``CW_PAWNIO_MODULES`` e' il primo candidato e qui vince su
+    ``ProgramFiles\\PawnIO\\modules`` e sulla cache di
+    ``fetch_pawnio_modules.py``; la seconda asserzione fissa il caso opposto:
+    con una variabile che punta a una directory inesistente, e nessun `.bin`
+    negli altri candidati, l'esito e' ``None``. Non esiste una terza strada in
+    cui il codice si inventa un percorso o apre un modulo che non era stato
+    dichiarato. Il test copre la precedenza della variabile e l'assenza
+    dichiarata, non il caso in cui install e cache contengono entrambe un
+    blob: li distinguerebbe un fixture con due directory piene, e non c'e'.
+    """
     # La cache reale va esclusa: su un host dove i moduli sono installati
     # `find_modules_dir` li trova anche quando la variabile e' sbagliata, e il
     # test misurerebbe la macchina invece della precedenza.
