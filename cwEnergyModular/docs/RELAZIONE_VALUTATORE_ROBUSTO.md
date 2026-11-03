@@ -44,11 +44,18 @@ un riferimento ambiguo o incompleto in un risultato apparentemente preciso.
 
 Ogni item dichiara:
 
-- `answer_type`: `number`, `short_text` o `free_text`;
+- `answer_type`: uno fra `number`, `short_text`, `free_text`, `interval`,
+  `label`, `structured` (`_SUPPORTED_TYPES` in `robust_evaluator.py`).
+  L'adattatore MUDILAB ne usa quattro: `label` per l'etichetta, `structured`
+  per la traduzione, `interval` per il controfattuale, `number` per gli altri
+  rami;
 - una o più risposte accettate;
 - tolleranza assoluta e relativa per i numeri;
 - fatti necessari e fatti proibiti per il testo libero;
-- numero minimo di fatti richiesti.
+- numero minimo di fatti richiesti;
+- `fact_match_mode: "literal"`, obbligatorio per il testo libero: il
+  confrontatore verifica la presenza letterale dei fatti dichiarati e non
+  dichiara di fare entailment.
 
 Esempio numerico:
 
@@ -68,9 +75,13 @@ Esempio di testo libero:
   "answer_type": "free_text",
   "required_facts": ["Roma", "Lazio", "Tevere"],
   "forbidden_facts": ["Firenze"],
-  "minimum_required_facts": 3
+  "minimum_required_facts": 3,
+  "fact_match_mode": "literal"
 }
 ```
+
+Senza `fact_match_mode` il contratto è incompleto: `validate_contract` risponde
+con gli errori di validazione e il verdetto è `indeterminate`, non `0`.
 
 ### 3.2 Valutazione numerica
 
@@ -89,6 +100,15 @@ Il sistema:
 Se una risposta contiene più numeri ma non dichiara quale sia il risultato
 finale, il verdetto è `indeterminate`. Questa scelta è intenzionale: non si
 assume che l’ultimo numero nel testo sia necessariamente la risposta.
+
+Una risposta **assente** (stringa vuota o bianca) è anch'essa `indeterminate`,
+con metodo `number_answer_absent`, e lo stesso vale per `interval` con
+`interval_answer_absent`. Non è un numero sbagliato: è un run che non ha
+prodotto nulla da valutare, tipicamente perché si è fermato prima del passo
+causale. Contarla fra gli `incorrect` fonderebbe il fallimento di acquisizione
+con l'errore del modello e sposterebbe il denominatore delle metriche per
+corretto. Una risposta che c'è ma non contiene il numero richiesto resta
+`incorrect`.
 
 ### 3.3 Valutazione di risposte brevi
 
@@ -276,23 +296,39 @@ Il codice riporta anche:
 | Similarità semantica | può diventare la metrica principale | solo diagnostica futura |
 | LLM Judge | componente della score composita | non decide da solo |
 | Ambiguità numerica | ultimo numero estratto | `indeterminate` senza risposta marcata |
+| Risposta assente | può diventare `0` | `indeterminate`, non è un errore del modello |
 | Aggregazione | percentuale facilmente interpretabile male | accuracy + Wilson + indeterminate rate |
 | Tracciabilità | campi numerosi ma metriche miste | metodo e diagnostica per ogni risultato |
 
 ## 6. Cosa è già dimostrato
 
-Nel branch parallelo sono presenti sei test automatici:
+I test del percorso stanno in due file: `test_robust_evaluator.py` (contratti
+del motore) e `test_mudilab_adapter.py` (stadi dell’adattatore MUDILAB), con
+`test_evaluation_runner.py` per l’aggregato. Coprono, fra gli altri casi:
 
-- risposta numerica marcata corretta;
-- risposta numerica marcata errata;
-- risposta numerica ambigua;
+- risposta numerica marcata corretta ed errata;
+- risposta numerica ambigua senza marcatore;
+- risposta assente (`number` e `interval`) che diventa `indeterminate`;
 - tolleranza numerica assoluta;
-- alias e confini delle parole;
-- fatti richiesti/proibiti;
+- alias e confini delle parole nel testo breve;
+- fatti richiesti/proibiti e negazione locale nel testo libero;
 - reference non strutturata;
-- aggregazione con casi indeterminati e intervallo Wilson.
+- aggregazione con casi indeterminati e intervallo Wilson;
+- le tre forme reali di `tool_calls` e i due valori `compatible` /
+  `non_compatibile` del ground truth MUDILAB.
 
-Risultato dell’esecuzione: **6 test superati su 6**.
+Risultato dell’esecuzione del **3 novembre 2026** su
+`fix/valutatore-mudilab`, worktree locale, comando `pytest cwEnergyModular`:
+**556 superati, 3 saltati, 1 fallimento**. I due file del valutatore valgono
+31 test raccolti, 30 superati. Il fallimento è
+`test_robust_evaluator.py::test_scalar_reference_and_explicit_answer_type_are_supported`
+ed è **preesistente a queste correzioni** (presente anche sulla versione del
+branch prima dei fix: 541 superati, 1 fallimento, 3 saltati): l’inferenza
+automatica del contratto normalizza `accepted_answers` solo quando è una lista,
+quindi un reference scalare come `{"accepted_answers": 21}` viene letto come
+testo libero con zero fatti dichiarati e produce `indeterminate`. Non è stato
+corretto qui perché fuori dai punti di questa revisione; va deciso se il
+supporto al reference scalare è un requisito o se va corretto il test.
 
 Questo dimostra la coerenza interna dell’implementazione, non ancora la validità
 esterna su un benchmark ampio.
@@ -302,8 +338,9 @@ esterna su un benchmark ampio.
 Il nuovo sistema è più solido, ma non è una soluzione completa per ogni tipo di
 risposta.
 
-1. La presenza letterale di un fatto non verifica automaticamente negazione,
-   contesto o implicazione logica.
+1. La presenza letterale di un fatto non verifica il contesto né l'implicazione
+   logica; la negazione è controllata solo in forma locale (un negatore entro
+   quattro parole dal fatto), e in quel caso il verdetto è `indeterminate`.
 2. Il contratto deve essere scritto correttamente da esperti.
 3. Le parafrasi complesse possono essere classificate come indeterminate.
 4. Non esiste ancora un set di annotazioni umane indipendenti.
@@ -313,6 +350,16 @@ risposta.
    una probabilità calibrata di correttezza.
 7. Non è ancora integrato un controllo sistematico di contaminazione del
    benchmark.
+8. Il controllo qualitativo di coerenza dell'adattatore MUDILAB è una ricerca di
+   sottostringa sulle due frasi che stampa il tool
+   (`consegna/tools_corretto.py:448` e `:453`): riconosce le due classi del
+   ground truth (`compatible`, `non_compatibile`) solo in quella formulazione
+   inglese, e per un valore fuori vocabolario sospende il giudizio invece di
+   inventare un marcatore. Non è una verifica di equivalenza semantica.
+9. La prova di esecuzione del tool non copre gli argomenti della chiamata: i run
+   registrano il testo della risposta, non gli input. L'adattatore lo dichiara
+   nei `notes` con lo stato `not recorded`; perché sia verificato serve aggiungere
+   al trace il contratto degli argomenti attesi.
 
 ## 8. Piano di validazione scientifica
 

@@ -45,6 +45,11 @@ Una risposta numerica con più numeri deve contenere un marcatore esplicito
 `indeterminate`. Questo evita di premiare accidentalmente un numero
 intermedio o un'estrazione dell'ultimo token.
 
+Una risposta **vuota** è `indeterminate` anche lei (`number_answer_absent`,
+`interval_answer_absent`): un run che non ha prodotto testo non ha risposto
+male, non ha risposto. `incorrect` resta il verdetto di una risposta che c'è ma
+non contiene il numero atteso.
+
 ## Interpretazione
 
 `correct` e `incorrect` entrano nel calcolo dell'accuracy. `indeterminate` viene
@@ -120,15 +125,52 @@ producono `indeterminate` con diagnostica, non un punteggio di accuratezza.
 
 ## Verifica dell'esecuzione MUDILAB
 
-La sola presenza di una voce `cau_inference` prova al massimo che la chiamata
-è stata registrata. Per considerarla riuscita, il record deve contenere
-`success: true` oppure uno `status` esplicito tra `success`, `succeeded`,
-`completed`. Una chiamata senza esito verificabile è `unverified` e rende
-l'end-to-end `indeterminate`; un fallimento esplicito rende il caso
-`incorrect`. Il controllo del nome dello strumento non prova da solo che
-argomenti e risultato siano corretti: per quello occorre aggiungere al trace
-il contratto degli argomenti attesi e l'output effettivo del tool.
+L'adapter legge le tre forme che la pipeline produce davvero, non una sola:
+
+- `[{"name": "cau_inference", "success": true}]` — lo schema dichiarato;
+  `success: false` o uno `status` fra `error`, `failed`, `failure`, `exception`
+  rende il caso `failed`; una voce senza esito verificabile è `unverified`;
+- il dict di contatori scritto da `MUDILAB_correzioni/run_query.py:188-193`
+  (`{"cau_inference": {"invocazioni": n, "eccezioni": m}}`): `success` quando
+  `invocazioni >= 1` ed `eccezioni == 0`, cioè la condizione di `tool_ok` a
+  `:178`; `failed` se le eccezioni sono più di zero; `missing` a zero
+  invocazioni;
+- il passo registrato in `steps` (`run_orchestrato.py:482-488`): il passo viene
+  aggiunto solo dopo che la chiamata è tornata, perché il percorso d'eccezione
+  esce a `:470-480` senza aggiungerlo. Un passo `cau_inference` con un testo non
+  vuoto è quindi una prova di esecuzione.
+
+Se nessuna voce è leggibile lo stato è `missing` e l'end-to-end è
+`indeterminate`, mai un punteggio inventato.
 
 Il caricamento del ground truth MUDILAB interrompe l'esecuzione in presenza di
 ID vuoti o duplicati, tipi non supportati, etichette mancanti o riferimenti
 numerici/intervalli obbligatori assenti.
+
+## Controllo qualitativo di coerenza
+
+Per le righe `coherence` l'adapter cerca le due frasi che stampa il tool della
+relatrice (`MUDILAB_run/consegna/tools_corretto.py:448` e `:453`) e le confronta
+con il valore di `expected_decision` del ground truth, che nel dataset è
+`compatible` o `non_compatibile`:
+
+- `non_compatibile` richiede `not strongly compatible`;
+- `compatible` richiede la forma completa `are compatible with` **e** l'assenza
+  del negativo, perché la parola `compatible` sta anche dentro la frase
+  negativa;
+- un valore fuori da queste due classi non produce un marcatore derivato
+  dall'ortografia: la nota lo dichiara e il verdetto è `indeterminate`.
+
+Il controllo è lessicale e non valuta l'equivalenza semantica. Non si esegue su
+una risposta vuota: una riga fermata dal gate resta `indeterminate` per il gate,
+senza una seconda colpa.
+
+## Argomenti della chiamata
+
+La prova di esecuzione non copre gli argomenti: i run registrano il testo della
+risposta, non gli input passati a `cau_inference`. L'adapter mette nei `notes`
+lo stato degli argomenti — `verified` se il record li contiene e coincidono con
+la traduzione valutata, `mismatch` se divergono, `unreadable` se non sono un
+mapping, `not recorded` quando il trace non li riporta — e per i run pubblicati
+oggi lo stato è `not recorded`.
+

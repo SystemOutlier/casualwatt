@@ -4,7 +4,12 @@ Input JSONL records contain at least:
   task_id, label, translation, output
 
 Optional:
-  tool_calls (list), energy_j, duration_s
+  tool_calls, energy_j, duration_s
+
+``tool_calls`` is passed through unchanged and may be any of the shapes the
+pipeline really writes: a list of call mappings, a list of recorded steps, or
+the counter dict ``{"cau_inference": {"invocazioni": n, "eccezioni": m}}``; see
+``mudilab_adapter._prova_esecuzione``.
 """
 from __future__ import annotations
 

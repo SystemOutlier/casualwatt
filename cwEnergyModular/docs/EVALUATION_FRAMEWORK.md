@@ -76,11 +76,17 @@ componente è chiaramente errato, il caso è `incorrect`.
     "output": {"Age": "Senior"}
   },
   "output": "The probability is 0.2117",
-  "tool_calls": [{"name": "cau_inference"}],
+  "tool_calls": [{"name": "cau_inference", "success": true}],
   "energy_j": 236.2,
   "duration_s": 8.7
 }
 ```
+
+Una voce `{"name": "cau_inference"}` senza esito non prova l'esecuzione: lo
+stato è `unverified` e il caso `indeterminate`. Sono accettate anche il dict di
+contatori `{"cau_inference": {"invocazioni": 1, "eccezioni": 0}}` e il passo
+registrato `{"step": "cau_inference", "text": ...}`; vedi
+`ROBUST_EVALUATOR.md`.
 
 ## Comando MUDILAB
 
