@@ -284,6 +284,21 @@ Cosa **non** e' chiuso, dichiarato invece di spacciato:
 
 Il ramo `fix/valutatore-mudilab` non e' adottato: `benchmark/valuta.py` resta il
 produttore delle misure pubblicate, e su questi dati fa lo stesso numero.
+Chiuso la stessa sera, in un commit separato: `73c05e71` su
+`fix/valutatore-mudilab` allinea `validate_contract` al test che era del ramo (il
+requisito lo scrive `test_scalar_reference_and_explicit_answer_type_are_supported`,
+quindi si corregge il codice e non il test). La suite del ramo passa a **563 raccolti
+= 560 passati + 3 saltati, nessun fallimento**, e i tre casi che quel commit fissa sono
+i confini della normalizzazione: lo zero scalare resta un contratto `number` pieno, una
+stringa sciolta continua a chiedere i fatti dichiarati, un booleano non diventa un
+confronto contro 1. Le 321 righe di questa nota non si muovono: riesecuzione dello
+stesso harness dopo quel commit, 109/321 a 915,749 J/corretta con entrambi i criteri,
+0 divergenze su 321, perche' i contratti dei run MUDILAB passano da
+`structured_contract_invalid` e non da un reference scalare. Prova piu' forte del
+riconteggio: rieseguendo il rigeneratore dopo `73c05e71`, i due artefatti tracciati
+qui sotto restano **invariati** (`git status` non segna nessuna modifica), quindi quel
+commit non tocca nessuno dei numeri di questa nota.
+
 L'artefatto di questa riesecuzione e' **tracciato**, con un nome proprio e senza
 toccare i due file del pre-fix: `harness/risultati/confronto_valutatori_post_fix_20261103.txt`
 (4.878 B) e `harness/risultati/confronto_valutatori_post_fix_20261103.json` (2.007.740 B),
