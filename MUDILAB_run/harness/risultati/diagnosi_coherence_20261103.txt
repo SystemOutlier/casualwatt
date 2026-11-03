@@ -1,0 +1,23 @@
+cartella: 20261102_191401
+comando: MUDILAB_COPIE=1 C:\Users\Massimo\Documents\CasualWatt\CWProject\MUDILabV\mudilab_env\Scripts\python.exe diagnosi_coherence.py risultati_misura/b_composta/20261102_191401
+righe `coherence`: 60, senza testo di traduttore: 0
+rete: base 30, perturbata 30
+esiti: numero 27, corretta 18, rifiutata 15
+
+--- per classe (insieme di evidenza x cosa non torna):
+   24  target sbagliato       valore
+         COH03 [base] ['AntiTheft'] invece di OtherCar=True | stampato [0.3104] atteso 0.7335933572  x3
+         COH07 [base] ['SocioEcon'] invece di MedCost=TenThou | stampato [0.0407] atteso 0.0116585949  x3
+         COH11 [base] ['Theft'] invece di OtherCar=True | stampato [0.9999] atteso 0.6966134958  x3
+         COH12 [perturbata] ['Theft'] invece di Antilock=True | stampato [0.5546] atteso 0.7600193769  x3
+         COH15 [base] ['SocioEcon'] invece di RiskAversion=Psychopath | stampato [0.0016] atteso 0.0155555557  x3
+         COH27 [base] ['MakeModel'] invece di VehicleYear=Current | stampato [0.0019] atteso 0.8999999983  x3
+         COH28 [perturbata] ['SocioEcon'] invece di OtherCar=True | stampato [0.0908] atteso 0.7469289374  x3
+         COH36 [perturbata] ['AntiTheft'] invece di OtherCar=True | stampato [0.345] atteso 0.6933470259  x3
+    3  manca                  valore
+         COH35 [base] RuggedAuto | stampato [0.0052] atteso 0.6544264406  x3
+
+--- le rifiutate, per regola:
+    9  coherence: servono almeno # evidenza/e, restan
+    3  output: '...' non e'...'thousa
+    3  output: '...' non e'...'true'...'false'
