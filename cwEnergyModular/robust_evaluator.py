@@ -210,6 +210,8 @@ def _evaluate_number(answer: str, contract: Mapping[str, Any]) -> EvaluationResu
     accepted = contract.get("accepted_answers", contract.get("answers"))
     if accepted is None:
         accepted = [contract.get("answer", contract.get("value"))]
+    if isinstance(accepted, (str, int, float)):
+        accepted = [accepted]
     expected = [_to_float(item) for item in accepted]
     expected = [item for item in expected if item is not None]
     if not expected:
@@ -257,7 +259,7 @@ def _accepted_texts(contract: Mapping[str, Any]) -> list[str]:
     values = contract.get("accepted_answers", contract.get("answers"))
     if values is None:
         values = [contract.get("answer", contract.get("value"))]
-    if isinstance(values, str):
+    if isinstance(values, (str, int, float)):
         values = [values]
     return [_text(item) for item in values if _text(item)]
 
