@@ -201,3 +201,94 @@ ramo); `MUDILAB_correzioni/run_query.py:185, 188-193` (forma registrata di `tool
 Rami: `parallel-robust-evaluator` = `b4e6dbd4`,
 `patch/scientific-evaluator-hardening` = `f8903ba6`, 18 commit sopra `parallel`, `main`
 invariato, nessuna PR, nessun workflow CI nel repo.
+
+## 11. Appendice del 03-11 (dopo i quattro fix) -- le divergenze si chiudono, i numeri pubblicati restano
+
+Questa appendice **aggiunge e non riscrive**: i paragrafi 4-7 restano la fotografia del
+ramo com'era a `f8903ba6`, perche' quelli sono i numeri contro cui si e' deciso, e una
+nota che si autocorregge non e' una nota.
+
+I quattro difetti statici della revisione sono stati sistemati nel worktree isolato
+`C:/Users/Massimo/Documents/CasualWatt/ramo-valutatore`, branch locale
+`fix/valutatore-mudilab` partendo da `f8903ba6`, **un commit per punto**:
+`052dd52c` (forma reale dei `tool_calls`), `c09fbb64` (vocabolario `coherence`),
+`26b888e9` (risposta assente = `indeterminate`, non `incorrect`), `2a89d4bb` (doc).
+Niente push: i quattro commit stanno locali, `main` e i due rami GitHub sono ancora
+`f8903ba6`/`b4e6dbd4`, e il working tree di `emenda-8` non e' mai uscito dal suo branch.
+
+Riesecuzione dello stesso harness, stessi 321 record del 02-11, nessun run nuovo e
+nessun modello invocato, moduli letti dal worktree:
+
+| lettura del ramo | corrette | J/corretta | divergenze riga per riga |
+|---|---|---|---|
+| `passi` (prova = passo `cau_inference`) | 109/321 (34,0%) | 915,749 | **0 su 321** |
+| `dizionario` (prova = `invocazioni`/`eccezioni`) | 109/321 (34,0%) | 915,749 | **0 su 321** |
+| `nessuno` (campo `tool_calls` assente, com'e' nei record) | 0/321 | non calcolabile | 109 (tutte le corrette) |
+
+Per split e per tipo di domanda i due criteri danno lo stesso numero in tutte e sette le
+righe: dev 32/81 a 797,412; held-out 77/240 a 964,929; coerenza 20/80 a 1.476,745;
+cond_prob 39/81 a 522,828; controfattuali 26/80 a 1.119,58; inter 24/80 a 865,933. Il
+77/240 e il 32/81 pubblicati il 02-11 sono **riprodotti dal ramo**, e questo chiude il
+punto 3 della critica: le metriche sono confrontabili perche' ora sono lo stesso numero,
+non perche' qualcuno lo ha dichiarato.
+
+Le due inversioni del paragrafo 5 sono corrette nella direzione giusta, e questo si vede
+dalla tabella `expected_decision` della riesecuzione: le 40 righe `non_compatibile` non
+escono piu' tutte `incorrect` (19 restano `correct` come pubblicato, 14 `incorrect`,
+7 `indeterminate` perche' senza output), e sulle 40 `compatible` il marcatore negativo
+viene ora notato: 12 `indeterminate` e 27 `incorrect`, con la sola COH17 `correct`.
+Prima del fix la riga `compatible` con la frase negativa non produceva nessuna nota
+(perche' `"compatible"` e' sottostringa di `"not strongly compatible"`); ora il
+positivo richiede la forma completa `"are compatible with"` **e** l'assenza del negativo
+(`mudilab_adapter.py:26-29` nel worktree).
+
+Il gate e' il punto dove la correzione cambia la semantica senza cambiare il punteggio:
+**124 righe su 124 diventano `indeterminate`** con `score = None` (52 inter +
+34 cond_prob + 19 coherence + 19 controfattuali), invece di 124 `incorrect` con
+confidenza 0,99. Sono i run fermati dal gate di trascrizione prima del passo causale, e
+il ramo lo dice con `structured_contract_invalid` sulla traduzione (124 righe misurate
+nel JSON della riesecuzione): non hanno risposto male, non hanno risposto. Il
+J/corretta non se ne accorge perche' il numeratore e il denominatore utile restano
+quelli delle 109; la differenza la farebbe una statistica che aggregasse la
+`confidence`, e li' il 0,99 inventato sarebbe entrato nel numero.
+
+Le condizioni 1, 2 e 3 del paragrafo 8 sono chiuse, ciascuna dal suo commit: la 1 da
+`c09fbb64` (chiavi del dataset e marcatore positivo alla forma completa), la 2 da
+`052dd52c` (tre forme lette, e gli argomenti dichiarati per quello che sono), la 3 dai
+15 test nuovi, che usano i dati dei tre casi colpiti invece dei fixture inventati: una
+`non_compatibile` con la frase inglese negativa, una `compatible` che risponde negativa,
+e un `tool_calls` a dizionario. Resta la 4, e non e' un problema di codice.
+
+Cosa **non** e' chiuso, dichiarato invece di spacciato:
+- la condizione 4 del paragrafo 8 (dire quale dei due criteri e' l'arbitro) e' una
+  decisione di tesi, non un fix: il ramo ora riproduce il pubblicato, ma la scelta di
+  quale dei due firmi le righe future resta aperta;
+- gli argomenti delle chiamate restano `not recorded` su tutti e 321 i run
+  (`mudilab_adapter.py:179`): la prova di esecuzione c'e', la verifica degli argomenti
+  no, perche' i record non contengono gli input;
+- la lettura `nessuno` resta 0/321, copertura 0,2741: non e' un bug risolto a meta',
+  e' che i record pubblicati non portano il campo `tool_calls`. Un produttore che lo
+  scriva e' lavoro separato;
+- `test_robust_evaluator.py::test_scalar_reference_and_explicit_answer_type_are_supported`
+  fallisce **prima** e **dopo** i fix. Il "prima" e' rieseguito a `f8903ba6` in un
+  worktree staccato fuori dal repo: 545 raccolti = 541 passati + 1 fallito + 3 saltati;
+  il "dopo", sullo stato attuale del branch: 560 raccolti = 556 passati + 1 fallito +
+  3 saltati. La causa e' che `validate_contract` nel caso `auto` normalizza
+  `accepted_answers` solo se e' una lista, quindi uno scalare viene inferito come
+  `free_text`; non e' uno dei quattro punti e non l'ho toccato.
+- la suite del ramo, che il paragrafo 9 dichiarava non eseguita, **ora e' eseguita**:
+  560 raccolti = 556 passati + 3 saltati + 1 fallimento preesistente. I test nuovi sono
+  15: 13 in `test_mudilab_adapter.py` (da 5 a 18) e 2 in `test_robust_evaluator.py`
+  (da 11 a 13).
+
+Il ramo `fix/valutatore-mudilab` non e' adottato: `benchmark/valuta.py` resta il
+produttore delle misure pubblicate, e su questi dati fa lo stesso numero.
+L'artefatto di questa riesecuzione e' **tracciato**, con un nome proprio e senza
+toccare i due file del pre-fix: `harness/risultati/confronto_valutatori_post_fix_20261103.txt`
+(4.878 B) e `harness/risultati/confronto_valutatori_post_fix_20261103.json` (2.007.740 B),
+entrambi pari alla riesecuzione fatta prima in cartella temporanea -- verificato con
+Python, non a occhio: i due JSON confrontati come oggetti sono uguali e i due `.txt` sono
+uguali riga per riga. Si rigenera con `MUDILAB_run/verifica_post_fix_20261103.py`, che
+chiede `MUDILAB_RAMPO` e non la indovina, reindirizza l'output sul nome `post_fix` e porta
+il resto dalla copia committata del 2026-11-03: nessun modello invocato, nessun record
+nuovo, 321 verdetti ricalcolati.
