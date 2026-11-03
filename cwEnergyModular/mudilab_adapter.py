@@ -7,6 +7,7 @@ translation, or tool invocation is invalid.
 from __future__ import annotations
 
 import json
+import math
 import re
 from dataclasses import dataclass, field
 from typing import Any, Mapping, Optional
@@ -107,8 +108,10 @@ def load_case(row: Mapping[str, Any]) -> MudilabCase:
             value = row.get(name, "")
             if value not in (None, ""):
                 try:
-                    return float(value)
-                except (TypeError, ValueError):
+                    parsed = float(value)
+                    if math.isfinite(parsed):
+                        return parsed
+                except (TypeError, ValueError, OverflowError):
                     pass
         return None
 
@@ -121,7 +124,7 @@ def load_case(row: Mapping[str, Any]) -> MudilabCase:
         expected_probability=opt_float("expected_probability"),
         expected_lower=opt_float("expected_lower_graph", "expected_lower"),
         expected_upper=opt_float("expected_upper_graph", "expected_upper"),
-        expected_decision=str(row.get("expected_label", row.get("expected_decision", "")) or ""),
+        expected_decision=str(row.get("expected_decision", "") or ""),
         target_variable=str(row.get("target_variable", "")),
         target_state=str(row.get("target_state", "")),
         evidence=obj("evidence_json"),
@@ -184,10 +187,11 @@ def evaluate_case(case: MudilabCase, *, label: str, translation: Any,
         else:
             decision_markers = (expected_decision.replace("_", " "),)
         observed = [marker in output.lower() for marker in decision_markers]
-        decision_ok = any(observed) and not (
-            expected_decision == "not_strongly_compatible"
-            and "strongly compatible" in output.lower()
-            and "not strongly compatible" not in output.lower()
+        contains_negative = "not strongly compatible" in output.lower()
+        decision_ok = any(observed) and (
+            (expected_decision == "not_strongly_compatible" and contains_negative)
+            or (expected_decision == "strongly_compatible" and not contains_negative)
+            or expected_decision not in ("not_strongly_compatible", "strongly_compatible")
         )
         if not decision_ok:
             end_to_end = "incorrect"
