@@ -1,0 +1,121 @@
+cartella: 20261102_191401
+comando: MUDILAB_COPIE=1 C:\Users\Massimo\Documents\CasualWatt\CWProject\MUDILabV\mudilab_env\Scripts\python.exe analisi_prosa.py risultati_misura/b_composta/20261102_191401
+righe con un testo di traduttore: 240, senza: 0
+
+==============================================================================
+1. il censimento, e la verifica contro l'artefatto pubblicato
+   normalizzazioni 74, cadute 26 -- l'artefatto del 02-11 dice 74 e 26: TORNA
+   cadute registrate riga per riga: 26 (lo stesso numero, perche' la caduta
+   e' una chiamata di `stato_del_grafo`, non una riga)
+   lato nel dizionario: input 20, output 6
+   task coinvolti: 7 (CND15, CND35, COH39, INT08, INT24, INT31, INT39)
+   run coinvolti: 19 su 240
+
+==============================================================================
+2. le famiglie, riconosciute dal rilevatore e non a occhio
+   eco       17 cadute su 4 task (CND15, CND35, INT08, INT31)
+      CND15 input  VehicleYear  'Current|Older'  x3
+      CND35 input  SocioEcon    'socio-economic status. Values: Prole, Middle'  x3
+      INT08 input  AntiTheft    'True|False'  x1
+      INT08 input  HomeBase     'Secure|City|Suburb|Rural'  x1
+      INT31 input  Age          'Adolescent|Adult|Senior'  x3
+      INT31 input  Cushioning   'Poor|Fair|Good|Excellent'  x3
+      INT31 input  DrivingSkill 'SubStandard|Normal|Expert'  x3
+   booleano   6 cadute su 2 task (COH39, INT39)
+      COH39 output SeniorTrain  'not completed'  x3
+      INT39 output AntiTheft    'no antilock braking system'  x3
+   unita      3 cadute su 1 task (INT24)
+      INT24 input  Mileage      'fifty thousand miles'  x3
+   il censimento del 03-11 contava 14 + 6 + 3 + 3 tenendo `SocioEcon` fuori
+   dall'eco: il rilevatore lo mette dentro, perche' le sue quattro etichette
+   ci sono tutte, e la differenza e' solo il testo della relatrice incollato
+   davanti (virgole) invece delle pipe. Con questo rilevatore: eco 17,
+   booleano 6, unita 3, altro 0 -- totale 26.
+
+==============================================================================
+3. l'eco copiato: quale riga del prompt
+   14/17 echo sono **esattamente** l'elenco con le pipe, cioe' il formato di
+   `elenco_vocabolario` -- il vocabolario che aggiunge il **nostro** prompt
+   (`traduzione_controllata._VOCABOLARIO_PROMPT`), non il testo della
+   relatrice. Verifica che l'elenco di una di quelle variabili sta davvero nel prompt:
+     'VehicleYear: Current|Older' in elenco_vocabolario: True
+   3/17 sono le etichette in formato `a, b, c`, che e' la descrizione della
+   relatrice gia' nel prompt. Un esempio verificato su `agents.translator_prompt`: True
+   nessuna corrispondenza: 0
+   Nessun valore eco e' inventato: sono elenchi veri tolti di peso dal
+   contesto. L'alias non poteva niente, perche' non c'e' un sinonimo da
+   trovare -- ci sono tutti e quattro. Il difetto e' che l'elenco e' finito
+   nel campo del valore, e quello e' un problema di prompt, non di dizionari.
+
+==============================================================================
+4. la disambiguazione candidata: stato dal testo, e cosa ne pensa l'oracolo
+    9  risolto_ma_l_oracolo_non_lo_vuole_in_quel_campo (e' il target)
+    7  risolto_ma_l_oracolo_non_lo_vuole_in_quel_campo (non c'e')
+    4  risolto_e_uguale_all_oracolo
+    3  risolto_ma_l_oracolo_non_lo_vuole_in_quel_campo (e' un'evidenza)
+    3  non_trattabile
+   per famiglia:
+      eco       risolto_e_uguale_all_oracolo 4, risolto_ma_l_oracolo_non_lo_vuole_in_quel_campo 9, risolto_ma_l_oracolo_non_lo_vuole_in_quel_campo 4
+      booleano  risolto_ma_l_oracolo_non_lo_vuole_in_quel_campo 3, risolto_ma_l_oracolo_non_lo_vuole_in_quel_campo 3
+      unita     non_trattabile 3
+   e per via che ha risposto: eco 17, negazione 6, non_trattabile 3
+
+==============================================================================
+5. la candidata sul punteggio dei 240 run
+   stati-alias  : corretta 91, rifiutata 76, numero 73
+   alias+eco    : corretta 91, numero 76, rifiutata 73
+   corrette: stati-alias 91, alias+eco 91 -- in piu' 0, in meno 0
+   righe mosse: 3
+      COH39_r1.json    rifiutata -> numero    stampato [0.9648] atteso 0.0884864996
+      COH39_r2.json    rifiutata -> numero    stampato [0.9648] atteso 0.0884864996
+      COH39_r3.json    rifiutata -> numero    stampato [0.9648] atteso 0.0884864996
+   e' il numero che chiude l'asse: la candidata risolve valori, non righe.
+   Le righe che passano da `rifiutata` a `numero` con un numero che non e'
+   quello dell'oracolo sono un peggioramento di tipo, non un recupero: con
+   il rifiuto la riga dichiara di non aver capito, qui stampa una risposta
+   confidente e sbagliata. Le altre restano rifiutate, con il motivo
+   spostato dal vocabolario alla cardinalita' o alla citazione -- la
+   normalizzazione di uno stato non tocca la regola `citazione` (verbatim)
+   ne' la regola `disgiunzione`.
+
+==============================================================================
+6. il booleano scritto come frase nomina un altro nodo del grafo
+   COH39 output SeniorTrain = 'not completed'
+        polarita' negata nel valore: True | nomi di altri nodi nel valore:
+        nessuno
+        l'oracolo vuole SeniorTrain nel campo letto: no
+   COH39 output SeniorTrain = 'not completed'
+        polarita' negata nel valore: True | nomi di altri nodi nel valore:
+        nessuno
+        l'oracolo vuole SeniorTrain nel campo letto: no
+   COH39 output SeniorTrain = 'not completed'
+        polarita' negata nel valore: True | nomi di altri nodi nel valore:
+        nessuno
+        l'oracolo vuole SeniorTrain nel campo letto: no
+   INT39 output AntiTheft = 'no antilock braking system'
+        polarita' negata nel valore: True | nomi di altri nodi nel valore:
+        Antilock
+        l'oracolo vuole AntiTheft nel campo letto: no
+        ma il valore nomina Antilock, e l'oracolo la mette a False: e' la stessa polarita' scritta
+   INT39 output AntiTheft = 'no antilock braking system'
+        polarita' negata nel valore: True | nomi di altri nodi nel valore:
+        Antilock
+        l'oracolo vuole AntiTheft nel campo letto: no
+        ma il valore nomina Antilock, e l'oracolo la mette a False: e' la stessa polarita' scritta
+   INT39 output AntiTheft = 'no antilock braking system'
+        polarita' negata nel valore: True | nomi di altri nodi nel valore:
+        Antilock
+        l'oracolo vuole AntiTheft nel campo letto: no
+        ma il valore nomina Antilock, e l'oracolo la mette a False: e' la stessa polarita' scritta
+   rilevatore stretto sulle 26 cadute: 3 cadute accusano un altro nodo
+      INT39 AntiTheft='no antilock braking system' -> Antilock  x3
+   rilevatore largo sulle 26 cadute: 9 cadute accusano un altro nodo
+      INT31 Age='Adolescent|Adult|Senior' -> SeniorTrain  x3
+      INT31 Cushioning='Poor|Fair|Good|Excellent' -> GoodStudent  x3
+      INT39 AntiTheft='no antilock braking system' -> Antilock  x3
+   la forma larga accusa in piu' `CarValue` via la parola `value`, che pero'
+   sta nel boilerplate `Values:` della descrizione copiata nel campo, non
+   nomina il nodo: la forma che regge e' la stretta, e le accuse di questa
+   seconda forma sono tutte dello stesso tipo -- il valore nomina la
+   variabile che l'oracolo manipola, scritta nel campo di un'altra.
+exit=0
