@@ -3,6 +3,7 @@ from __future__ import annotations
 
 import csv
 import json
+import math
 from collections import Counter
 from pathlib import Path
 from typing import Any, Iterable, Mapping, Optional
@@ -28,11 +29,23 @@ def summarize_records(records: Iterable[Mapping[str, Any]]) -> dict[str, Any]:
                    in ("correct", "incorrect")]
     correct = sum(row.get("end_to_end", row.get("verdict")) == "correct"
                   for row in determinate)
-    energies = [float(row["energy_j"]) for row in rows
-                if row.get("energy_j") not in (None, "", "N/A")]
-    correct_energies = [float(row["energy_j"]) for row in rows
-                        if row.get("energy_j") not in (None, "", "N/A")
+    def finite_measurement(row: Mapping[str, Any], key: str) -> Optional[float]:
+        value = row.get(key)
+        if value in (None, "", "N/A"):
+            return None
+        try:
+            parsed = float(value)
+        except (TypeError, ValueError, OverflowError):
+            return None
+        return parsed if math.isfinite(parsed) else None
+
+    energy_values = [(row, finite_measurement(row, "energy_j")) for row in rows]
+    energies = [value for _, value in energy_values if value is not None]
+    correct_energies = [value for row, value in energy_values
+                        if value is not None
                         and row.get("end_to_end", row.get("verdict")) == "correct"]
+    durations = [value for row in rows
+                 if (value := finite_measurement(row, "duration_s")) is not None]
     return {
         "n_total": len(rows),
         "n_correct": correct,
@@ -45,7 +58,11 @@ def summarize_records(records: Iterable[Mapping[str, Any]]) -> dict[str, Any]:
         "verdict_counts": dict(verdicts),
         "median_energy_j": _median(energies),
         "median_energy_correct_j": _median(correct_energies),
+        "median_duration_s": _median(durations),
+        "n_invalid_or_missing_energy": len(rows) - len(energies),
         "missing_energy_rate": 1 - len(energies) / len(rows) if rows else None,
+        "n_invalid_or_missing_duration": len(rows) - len(durations),
+        "missing_duration_rate": 1 - len(durations) / len(rows) if rows else None,
     }
 
 
