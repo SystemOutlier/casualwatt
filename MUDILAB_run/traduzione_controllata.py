@@ -62,6 +62,51 @@ Le regole di scarto, in ordine:
                  cambia solo il calcolo speso, e quello si misura con un run, non
                  qui dentro.
 
+  `coerenza-target` **spento di default**, acceso da `valida(..., coerenza="target")`
+                 e valido solo per l'etichetta `coherence`: il target deve stare
+                 nella clausola fra `is it coherent that` e `given that`. E' la
+                 gemella del `target-ancorato` sull'altra forma di domanda, e
+                 chiude un foro che le quattro regole in vigore non vedono: il
+                 modello prende la variabile che l'oracolo chiede come *evidenza* e
+                 fa la domanda su un'altra, con citazioni copie fedeli della query --
+                 quindi vere, e non scartabili. Contato il 03-11 su replay
+                 (`harness/risultati/replay_regole_coherence_20261103.txt`, 240 run):
+                 ferma **21 run** -- COH03, COH07, COH11, COH12, COH15, COH28, COH36
+                 per le tre ripetizioni -- e le corrette restano 77, zero perse.
+
+  `coerenza-clausole` **spento di default**, `valida(..., coerenza="clausole")`:
+                 tante evidenze quante clausole la domanda enuncia, contate dal
+                 testo (`clausole_evidenza`), non da una costante. E' la regola che
+                 manca perche' `EVIDENZE_RICHIESTE` dice "almeno una" perche' e'
+                 cio' che il *tool* pretende, mentre la domanda di coerenza ne
+                 enuncia due: con una sola l'inferenza e' condizionata a meta' e il
+                 numero che ne esce passa per una risposta. Contato lo 03-11: ferma
+                 **18 run** (COH11, COH12, COH15, COH27, COH35, COH36), corrette 77
+                 come il riferimento.
+
+  Le due insieme (`coerenza="target,clausole"`) fermano **tutti e 27** i run del ramo
+  che arrivavano al tool con un numero non dell'oracolo, e le corrette di `coherence`
+  restano 18/60 in tutti e tre i regimi: il totale su 240 e' 77, identico al
+  riferimento, con zero righe buone perse. Non e' un peggioramento e non e' un
+  miglioramento: e' lo stesso punteggio con 27 numeri in meno che non andavano
+  prodotti. Il regime che le corrette le aggiunge, `stati-alias` (91), con le due
+  regole accese resta a 91 -- nessuna delle 14 righe recuperate sta nel ramo, e i 3
+  run di COH24 che l'alias riportava da `rifiutata` a `numero` tornano `rifiutata`
+  per la regola sulle clausole. Restano tutte e tre spente: chiudono il calcolo
+  speso su una domanda gia' sbagliata, non correggono la traduzione, e correggerla
+  vuol dire cambiare il prompt, che e' un run sul modello e non si conta da qui.
+
+  Da dove vengono le due regole. `diagnosi_coherence.py` classifica i 27 run che
+  passano il gate e stampano un numero non dell'oracolo confrontando il dizionario
+  con `evidence_json` di `benchmark.csv` **e** con il target della riga: 24 hanno il
+  `target sbagliato` (otto task per tre ripetizioni) e solo 3 un'evidenza `manca`
+  (COH35). Quindi il difetto del ramo non e' la traduzione monca, che era l'ipotesi
+  con cui la regola fini' in lista: e' lo scambio di target. Le due regole non sono
+  l'una un sottoinsieme dell'altra -- 12 run li fermano entrambe, e i 6 propri di
+  `clausole` sono COH27 e COH35, cioe' lo scambio che l'ancoraggio non vede e l'unica
+  riga con l'evidenza davvero mancante. Output:
+  `harness/risultati/diagnosi_coherence_20261103.txt`.
+
 Nessun fallback silenzioso, e nessuna scelta al posto del modello. Se restano due
 evidenze dove il ramo ne vuole una sola (`tools_corretto.py:327`) la riga viene
 rifiutata con il motivo, non risolta tenendone una a caso: una scelta inventata
@@ -202,6 +247,31 @@ def _nome_regola(citazione_output) -> str:
     return "non richiesta"
 
 
+def _regole_cerenza(valore) -> tuple:
+    """Le regole opzionali del ramo `coherence` da applicare, come insieme ordinato.
+
+    `valore` e' una stringa con i nomi separati da virgola (o un iterable di nomi),
+    perche' le due regole si misurano separate e poi insieme: un booleano non
+    direbbe quale delle due ha fermato una riga. Il default vuoto le spegne tutte,
+    che e' il protocollo con cui sono presi i joule del 02-11.
+
+    Un nome sconosciuto **solleva**, non viene ignorato: un regime scritto male nel
+    replay darebbe il numero della regola che si credeva di misurare, e un errore di
+    battitura non puo' diventare un protocollo.
+    """
+    if valore is None or valore is False or valore == "":
+        return ()
+    if valore is True:
+        return REGOLE_COERENZA
+    nomi = valore.split(",") if isinstance(valore, str) else list(valore)
+    out = tuple(str(n).strip().lower() for n in nomi if str(n).strip())
+    ignote = [n for n in out if n not in REGOLE_COERENZA]
+    if ignote:
+        raise ValueError(f"regola di coerenza sconosciuta: {ignote}; "
+                         f"valide: {list(REGOLE_COERENZA)}")
+    return out
+
+
 def _citazione_valida(cit: str, variabile: str, valore: str, query_norm: str) -> str:
     """'' se la citazione regge, altrimenti il motivo. Un motivo per volta, il primo.
 
@@ -317,23 +387,103 @@ def stato_del_grafo(valore: str, variabile: str, stati: list):
 APERTURA_DOMANDA = "what would the probability that"
 CLAUSOLA_ILOTETICO = "if the world had been"
 
+# Le due ancore per etichetta, entrambe lette dai template di `genera.py`
+# (`_q_cf:469`, `_q_coh:464`) e non inventate: la clausola della domanda e' il
+# testo fra l'apertura e la prima ancora che la chiude. `intervention`
+# ("What is the probability that ... if we intervene to make it so that ...") e
+# `backward_reasoning` ("Given that ..., how likely is it that ...") restano
+# fuori perche' la prima ha il target gia' all'inizio e la seconda lo ha dopo
+# l'unica clausola: li l'ancoraggio non separerebbe nulla, e una regola che non
+# discrimina e' un rischio di falsi positivi senza guadagno.
+FORME_DOMANDA = {
+    "counterfactual": (APERTURA_DOMANDA, CLAUSOLA_ILOTETICO),
+    "coherence": ("is it coherent that", "given that"),
+}
 
-def clausola_domanda(query_norm: str) -> str:
-    """Il testo della domanda fra l'apertura e la clausola ipotetica, o ''.
+# Le regole opzionali del ramo `coherence`, accese dalla stringa `coerenza` di
+# `valida`. Sono due e restano separabili perche' i due guasti sono diversi, e sono
+# due conti diversi -- la classe di `diagnosi_coherence.py` dice di cosa si tratta,
+# il replay dice quanta strada ferma ciascuna. Sui 27 run che il 02-11 passano il
+# gate e ricevono un numero che non e' quello dell'oracolo
+# (`harness/risultati/diagnosi_coherence_20261103.txt`, misura del 03-11):
+#   classe `target sbagliato`  24 -- il modello domanda un'altra variabile e mette
+#                              quella dell'oracolo fra le evidenze (otto task per tre
+#                              ripetizioni: COH03, COH07, COH11, COH12, COH15, COH27,
+#                              COH28, COH36);
+#   classe `manca`              3 -- l'insieme di evidenza e' piu' corto, perche' una
+#                              delle due clausole non e' tradotta (solo COH35,
+#                              `RuggedAuto`).
+# Le due classi sono esaustive e non si sovrappongono. Quanta strada ferma ciascuna
+# regola e' un altro numero, e i due conti non vanno letti come la stessa cosa: la
+# classe dice **cosa non torna** nel dizionario che arriva al tool, il regime dice
+# **cosa il gate ferma**, e la regola `target` confronta il dizionario con la clausola
+# della domanda -- non con l'oracolo -- quindi la sua copertura della classe non e'
+# per intero:
+#   `target`    21 run nuovi fermati (nel ramo le sue motivazioni sono 27: sei erano
+#               gia' rifiutate da una regola in vigore, cambia solo la ragione)
+#   `clausole`  18 run nuovi fermati
+#   entrambe    27 -- non e' la somma dei due (21+18=39): l'intersezione e' 12 run.
+# Replay: `harness/risultati/replay_regole_coherence_20261103.txt`.
+REGOLE_COERENZA = ("target", "clausole")
+GIUNZIONE_EVIDENZE = " and that "
 
-    La forma e' quella dei template del benchmark (`genera.py:471`). Un testo che
-    non la porta restituisce stringa vuota e **non** e' un rifiuto: la regola dice
-    "non riconosco la forma", non "il target e' sbagliato".
+
+def clausola_domanda(query_norm: str, etichetta: str = "counterfactual") -> str:
+    """Il testo della domanda fra le due ancore dell'etichetta, o ''.
+
+    La forma e' quella dei template del benchmark (`genera.py:471` il
+    controfattuale, `genera.py:465` la coerenza). Un testo che non la porta
+    restituisce stringa vuota e **non** e' un rifiuto: la regola dice "non
+    riconosco la forma", non "il target e' sbagliato".
+
+    Il default e' l'etichetta controfattuale per non cambiare la firma che i
+    chiamanti esterni usano (`replay_traduzione.py`,
+    `test_norma_stato_e_ancoraggio.py`).
     """
-    i = query_norm.find(APERTURA_DOMANDA)
+    apertura, chiusura = FORME_DOMANDA.get(str(etichetta).strip().lower(), ("", ""))
+    if not apertura:
+        return ""
+    i = query_norm.find(apertura)
     if i < 0:
         return ""
-    resto = query_norm[i + len(APERTURA_DOMANDA):]
-    j = resto.find(CLAUSOLA_ILOTETICO)
+    resto = query_norm[i + len(apertura):]
+    j = resto.find(chiusura)
     return (resto[:j] if j >= 0 else resto).strip()
 
 
-def ancoraggio_target(variabile: str, valore: str, query_norm: str, cit=None) -> str:
+def clausole_evidenza(query_norm: str, etichetta: str = "coherence") -> int | None:
+    """Quante evidenze la domanda enuncia, o None se non si riconosce la forma.
+
+    Per la coerenza il template e' fisso (`genera.py:465`):
+    `Is it coherent that <target> given that <e1> and that <e2>?`, quindi il
+    numero di clausole dopo `given that` e' 1 + quante ` and that ` compaiono.
+    Non si scrive "2" perche' il numero deve venire dal testo della riga: se un
+    template cambiera', la regola segue il testo, e una riga con una clausola in
+    meno -- o con una clausola duplicata -- lo si vede nel conto.
+
+    Il conteggio e' sul testo **dopo** l'ancora, perche' la frase del target sta
+    prima e non e' un'evidenza. Una `FRASI` che contenesse " and that " al suo
+    interno gonfierebbe il conto: misurato sulle righe di `benchmark.csv`, il
+    conteggio esce 2 su **tutte** le righe di coerenza, e questo e' il controllo
+    che scioglie quel rischio -- se una frase lo contenesse, il conto salirebbe e
+    la riga buona si fermerebbe.
+    """
+    apertura, chiusura = FORME_DOMANDA.get(str(etichetta).strip().lower(), ("", ""))
+    if not apertura:
+        return None
+    i = query_norm.find(apertura)
+    if i < 0:
+        return None
+    resto = query_norm[i + len(apertura):]
+    j = resto.find(chiusura)
+    if j < 0:
+        return None
+    coda = resto[j + len(chiusura):]
+    return 1 + coda.count(GIUNZIONE_EVIDENZE)
+
+
+def ancoraggio_target(variabile: str, valore: str, query_norm: str, cit=None,
+                      etichetta: str = "counterfactual") -> str:
     """'' se il target e' nella clausola della domanda, altrimenti il motivo.
 
     Tre rami, come in `_citazione_valida` se ne fanno due: la parola dello stato, o
@@ -352,8 +502,12 @@ def ancoraggio_target(variabile: str, valore: str, query_norm: str, cit=None) ->
     forma controfattuale il valore del target e' enunciato come fatto osservato nella
     prima frase e ripreso nella domanda con la stessa perifrasi:
     `VehicleYear=Current` si scrive "the car is a current-year model".
+
+    `etichetta` sceglie la forma della domanda da riconoscere: la funzione e' la
+    stessa perche' il controllo e' lo stesso -- il target deve stare nella clausola
+    che fa la domanda -- e cambia solo il testo che delimita quella clausola.
     """
-    span = clausola_domanda(query_norm)
+    span = clausola_domanda(query_norm, etichetta)
     if not span:
         return "forma della domanda non riconosciuta"
     if _norm(valore) and _norm(valore) in span:
@@ -369,7 +523,7 @@ def ancoraggio_target(variabile: str, valore: str, query_norm: str, cit=None) ->
 
 
 def valida(grezzo: str, etichetta: str, query: str, path_rete: str | None = None,
-           citazione_output=True, target_nella_domanda=False):
+           citazione_output=True, target_nella_domanda=False, coerenza=""):
     """(traduzione per il tool, esito) oppure (None, esito con `motivo`).
 
     `esito` esce sempre compilato, anche quando la riga viene rifiutata: la riga
@@ -390,12 +544,23 @@ def valida(grezzo: str, etichetta: str, query: str, path_rete: str | None = None
     (`harness/risultati/replay_regole_nuove_20261102.txt`), ma un conto offline non
     e' un metodo adottato. Quando accesa, l'esito lo dichiara: il JSON di ogni riga
     deve dire con quali regole e' stata verificata.
+
+    `coerenza` accende le regole opzionali del ramo `coherence` (vedi
+    `REGOLE_COERENZA` e `FORME_DOMANDA`): `"target"` ancora il target alla clausola
+    `is it coherent that ...`, `"clausole"` pretende tante evidenze quante clausole
+    la domanda enuncia, `"target,clausole"` le accende entrambe, `""` (default) le
+    spegne. Vuole una stringa e non un booleano perche' le due regole colpiscono due
+    guasti diversi e vanno contate separate prima di essere scelte insieme; il nome
+    sta scritto nell'esito come quello della citazione, perche' due run con regole
+    diverse non sono lo stesso protocollo.
     """
     import tools  # _parse_features delle copie: virgolette tipografiche e via dicendo
+    regole_cerenza = _regole_cerenza(coerenza)
     esito = {"regole": list(LE_REGOLE), "scartate": [], "motivo": "",
              "etichetta": etichetta, "evidenze": None, "target": None,
              "stati_normalizzati": {},
-             "citazione_output": _nome_regola(citazione_output)}
+             "citazione_output": _nome_regola(citazione_output),
+             "coerenza": list(regole_cerenza)}
 
     try:
         dati = tools._parse_features(grezzo)
@@ -462,6 +627,24 @@ def valida(grezzo: str, etichetta: str, query: str, path_rete: str | None = None
             esito["motivo"] = f"output {out}={out_v!r}: {motivo}"
             return None, esito
 
+    # --- coerenza: il target deve stare nella clausola della domanda -------------
+    # Stessa regola, forma diversa: qui la clausola e' fra `is it coherent that` e
+    # `given that`, e il foro che copre non e' l'antecedente -- nella coerenza non
+    # c'e' antecedente -- ma lo scambio di target: il modello prende la variabile
+    # che l'oracolo chiede come evidenza e fa la domanda su un'altra. Contato il
+    # 03-11 da `diagnosi_coherence.py` sulle 27 righe con un numero che non e'
+    # quello dell'oracolo: 24 su 27 sono quello scambio (otto task per tre
+    # ripetizioni), e la regola ne ferma 21 run -- l'ottavo, COH27, lo prende il
+    # controllo sulle clausole.
+    if "target" in regole_cerenza and str(etichetta).strip().lower() == "coherence":
+        esito["regole"] = esito["regole"] + ["coerenza-target"]
+        esito["clausola_domanda"] = clausola_domanda(query_norm, "coherence")
+        motivo = ancoraggio_target(out, out_v, query_norm, citazioni.get(out),
+                                   etichetta="coherence")
+        if motivo:
+            esito["motivo"] = f"output {out}={out_v!r}: {motivo}"
+            return None, esito
+
     # --- input: ogni voce passa le regole, e cio' che cade e' dichiarato
     if not isinstance(dati["input"], dict):
         esito["motivo"] = f"'input' non e' un dizionario: {dati['input']!r}"
@@ -515,6 +698,29 @@ def valida(grezzo: str, etichetta: str, query: str, path_rete: str | None = None
             return None, esito
 
     esito["evidenze"] = evidenza
+
+    # --- coerenza: tante evidenze quante clausole la domanda enuncia --------------
+    # Dopo il controllo di cardinalita', perche' quello e' in vigore nel protocollo
+    # misurato e una riga con zero evidenze deve continuare a dire la stessa cosa.
+    # Qui il numero non lo decide il codice ne' il ramo del tool: lo decide la frase
+    # della domanda, che il traduttore ha il compito di coprire tutta. `EVIDENZE_RICHIESTE`
+    # dice "almeno una" perche' e' cio' che il tool pretende; la domanda di coerenza
+    # ne enuncia due, e con una sola l'inferenza e' condizionata a meta' di quanto
+    # la riga chiede -- un numero che passa comunque da `_confronta` e viene contato
+    # come risposta.
+    if "clausole" in regole_cerenza and str(etichetta).strip().lower() == "coherence":
+        esito["regole"] = esito["regole"] + ["coerenza-clausole"]
+        n_domanda = clausole_evidenza(query_norm, "coherence")
+        esito["clausole_domanda"] = n_domanda
+        if n_domanda is not None and n_domanda != len(evidenza):
+            scarto = (f"; scartate: " + ", ".join(
+                f"{s['variabile']}={s['valore']!r} ({s['regola']}: {s['dettaglio']})"
+                for s in esito["scartate"])) if esito["scartate"] else ""
+            esito["motivo"] = (f"coherence: la domanda enuncia {n_domanda} clausole "
+                               f"di evidenza, la traduzione ne porta "
+                               f"{list(evidenza)}{scarto}")
+            return None, esito
+
     return {"input": evidenza, "output": {out: etichetta_out}}, esito
 
 
@@ -531,13 +737,19 @@ class Traduttore:
     di chiamata: sta sull'oggetto, cosi' ogni riga del JSON dichiara con quale regola
     e' stata verificata e due run con regole diverse non si spacciano per lo stesso.
     Lo stesso vale per `target_nella_domanda`, che accende l'ancoraggio del target
-    controfattuale ed e' spento di default.
+    controfattuale ed e' spento di default. `coerenza` e' la stringa dei nomi delle
+    regole opzionali del ramo `coherence` (vedi `valida`), e sta spenta (`""`) quanto
+    quella: nessuna delle tre fa parte del protocollo con cui sono presi i joule del
+    02-11, e accenderle perche' "non possono fare danni" vorrebbe dire chiamare lo
+    stesso run due metodi diversi.
     """
 
-    def __init__(self, cliente, citazione_output=True, target_nella_domanda=False):
+    def __init__(self, cliente, citazione_output=True, target_nella_domanda=False,
+                 coerenza=""):
         self._cliente = cliente
         self._citazione_output = citazione_output
         self._target_nella_domanda = target_nella_domanda
+        self._coerenza = coerenza
         self._agenti = {}
 
     def agente(self, path_rete: str | None):
@@ -555,7 +767,8 @@ class Traduttore:
     def valida(self, grezzo: str, etichetta: str, query: str, path_rete: str | None = None):
         return valida(grezzo, etichetta, query, path_rete,
                       citazione_output=self._citazione_output,
-                      target_nella_domanda=self._target_nella_domanda)
+                      target_nella_domanda=self._target_nella_domanda,
+                      coerenza=self._coerenza)
 
 
 # ---------------------------------------------------------------------------
@@ -589,6 +802,12 @@ def _casi():
              "anti-theft device. What would the probability that the car has been "
              "stolen be if the world had been such that the car has no anti-theft "
              "device?")
+    # La COH01 del benchmark reale, copiata da `benchmark/benchmark.csv`: due clausole
+    # di evidenza e un target che condivide la parola `cost` con una delle due, che e'
+    # il caso piu' difficile per l'ancoraggio e quindi il testo su cui provarlo.
+    q_coh = ("Is it coherent that the medical cost is one thousand dollars given "
+             "that the car is an older model and that the repair cost for this car "
+             "is one thousand dollars?")
     return [
         ("forma buona",
          '{"input": {"DrivQuality": "Normal"}, "output": {"Age": "Senior"},'
@@ -753,6 +972,94 @@ def _casi():
          "counterfactual", q_cf3,
          ("ok", {"input": {"AntiTheft": "False"}, "output": {"Theft": "True"}}),
          {"target_nella_domanda": True, "citazione_output": False}),
+
+        # -- le due regole del ramo coherence (spente di default) --------------------
+        #
+        # Coppie dello stesso testo, come per il controfattuale: il primo membro dice
+        # cosa fa il protocollo misurato il 02-11, il secondo cosa fa la regola accesa.
+        # Righe inventate non servirebbero -- la domanda di coerenza ha una forma, e
+        # la forma e' quella di `genera.py:465`.
+        ("coherence: target scambiato con un'evidenza, regola spenta: passa",
+         '{"input": {"MedCost": "Thousand", "ThisCarCost": "Thousand"},'
+         ' "output": {"VehicleYear": "Older"},'
+         ' "citazioni": {"MedCost": "the medical cost is one thousand dollars",'
+         ' "ThisCarCost": "the repair cost for this car is one thousand dollars",'
+         ' "VehicleYear": "the car is an older model"}}',
+         # Le tre citazioni sono copie fedeli della query e i sei nomi sono nodi e
+         # stati veri: nessuna delle quattro regole in vigore puo' fermare questa
+         # riga, e infatti il 02-11 arriva al tool e stampa un numero che non e'
+         # quello dell'oracolo. E' la classe dominante della diagnosi
+         # (`harness/risultati/diagnosi_coherence_20261103.txt`): 24 run su 27, otto
+         # task per tre ripetizioni. La regola ne ferma 21 -- sette task su otto --
+         # e l'ottavo, COH27, lo prende la regola sulle clausole.
+         "coherence", q_coh,
+         ("ok", {"input": {"MedCost": "Thousand", "ThisCarCost": "Thousand"},
+                "output": {"VehicleYear": "Older"}}),
+         {"citazione_output": False}),
+
+        ("coherence: target scambiato con un'evidenza, regola `target` accesa: si ferma",
+         '{"input": {"MedCost": "Thousand", "ThisCarCost": "Thousand"},'
+         ' "output": {"VehicleYear": "Older"},'
+         ' "citazioni": {"MedCost": "the medical cost is one thousand dollars",'
+         ' "ThisCarCost": "the repair cost for this car is one thousand dollars",'
+         ' "VehicleYear": "the car is an older model"}}',
+         "coherence", q_coh,
+         ("no", "il target non compare nella clausola della domanda"),
+         {"citazione_output": False, "coerenza": "target"}),
+
+        ("coherence: la riga buona passa con entrambe le regole accese",
+         '{"input": {"VehicleYear": "Older", "ThisCarCost": "Thousand"},'
+         ' "output": {"MedCost": "Thousand"},'
+         ' "citazioni": {"VehicleYear": "the car is an older model",'
+         ' "ThisCarCost": "the repair cost for this car is one thousand dollars",'
+         ' "MedCost": "the medical cost is one thousand dollars"}}',
+         # Il falso positivo da escludere: il target `MedCost=Thousand` passa per la
+         # parola dello stato (`thousand` sta nella clausola) e le clausole sono due
+         # come le evidenze. Una regola che fermasse anche questa non sarebbe una
+         # regola, sarebbe un modo di perdere righe.
+         "coherence", q_coh,
+         ("ok", {"input": {"VehicleYear": "Older", "ThisCarCost": "Thousand"},
+                "output": {"MedCost": "Thousand"}}),
+         {"citazione_output": False, "coerenza": "target,clausole"}),
+
+        ("coherence: una clausola non tradotta, regola `clausole` accesa: si ferma",
+         '{"input": {"VehicleYear": "Older"}, "output": {"MedCost": "Thousand"},'
+         ' "citazioni": {"VehicleYear": "the car is an older model",'
+         ' "MedCost": "the medical cost is one thousand dollars"}}',
+         # L'altro foro: la regola ferma **18 run su 27** che arrivano al tool con una
+         # sola delle due evidenze che la domanda enuncia
+         # (`replay_regole_coherence_20261103.txt`). La diagnosi ne chiama `manca`
+         # solo 3 (COH35), e non e' una contraddizione: la classe si decide dal
+         # target prima che dall'insieme, quindi gli altri 15 stanno gia' nella classe
+         # `target sbagliato`. `EVIDENZE_RICHIESTE` non li ferma -- il tool ne pretende
+         # una -- e la domanda ne enuncia due: il condizionamento e' a meta' e il numero
+         # che ne esce non e' quello chiesto, ma passa per una risposta.
+         "coherence", q_coh,
+         ("no", "la domanda enuncia 2 clausole"),
+         {"citazione_output": False, "coerenza": "clausole"}),
+
+        ("coherence: la stessa riga a meta', con le regole spente, passa",
+         '{"input": {"VehicleYear": "Older"}, "output": {"MedCost": "Thousand"},'
+         ' "citazioni": {"VehicleYear": "the car is an older model",'
+         ' "MedCost": "the medical cost is one thousand dollars"}}',
+         # Il gemello del caso sopra, senza kwarg: fissa cio' che il protocollo del
+         # 02-11 ha davvero lasciato passare, e rende il paio leggibile -- la
+         # differenza fra le due righe e' la regola, non il testo.
+         "coherence", q_coh,
+         ("ok", {"input": {"VehicleYear": "Older"}, "output": {"MedCost": "Thousand"}}),
+         {"citazione_output": False}),
+
+        ("coherence: nome di regola sconosciuto solleva, non si ignora",
+         '{"input": {"VehicleYear": "Older"}, "output": {"MedCost": "Thousand"},'
+         ' "citazioni": {"VehicleYear": "the car is an older model",'
+         ' "MedCost": "the medical cost is one thousand dollars"}}',
+         # Un regime scritto male nel replay darebbe il numero della regola che si
+         # credeva di misurare: `valida` deve schiantarsi, non comportarsi da default.
+         # Il caso e' atteso come `no` sul testo dell'eccezione, che `valida` lascia
+         # salire: `autoverifica` lo conta solo se l'eccezione arriva fin qui.
+         "coherence", q_coh,
+         ("eccezione", "regola di coerenza sconosciuta"),
+         {"coerenza": "target,clausole,aggiuntiva"}),
     ]
 
 
@@ -768,20 +1075,38 @@ def autoverifica(path_rete: str | None = None) -> int:
     deve poterla provare accesa e spenta sulla stessa riga. Se il ciclo la
     ignorasse, i tre casi in fondo a `_casi()` direbbero tutti la stessa cosa e
     l'autoverifica passerebbe senza verificare niente.
+
+    Un atteso puo' essere di tre tipi: `ok`, `no` ed `eccezione`. Il terzo e' per i
+    parametri che non possono essere ignorati -- un nome di regola scritto male deve
+    fermare chi lo usa, non girare con il default -- e `valida` deve sollevare.
     """
     caduti = 0
     scarti = 0
     for caso in _casi():
         nome, grezzo, etichetta, query, atteso = caso[:5]
         kwarg = caso[5] if len(caso) > 5 else {}
-        traduzione, esito = valida(grezzo, etichetta, query, path_rete, **kwarg)
-        scarti += len(esito["scartate"])
         tipo, dettaglio = atteso[0], atteso[1]
         scartate_attese = atteso[2] if len(atteso) > 2 else []
+        traduzione = esito = None
+        errore = ""
+        try:
+            traduzione, esito = valida(grezzo, etichetta, query, path_rete, **kwarg)
+        except Exception as e:
+            # il terzo tipo di esito atteso: una chiamata che deve **sollevare**, perche'
+            # un parametro scritto male non puo' degradare silenziosamente al default.
+            # senza questa branca il caso sull'eccezione risulterebbe un rifiuto con
+            # `motivo` vuoto e stamperebbe "accettata, ma era da rifiutare", che e'
+            # il contrario di quello che e' successo.
+            errore = f"{type(e).__name__}: {e}"
+        if esito:
+            scarti += len(esito["scartate"])
         if tipo == "ok":
             trovate = [(s["variabile"], s["regola"]) for s in esito["scartate"]]
             va = traduzione == dettaglio and trovate == scartate_attese
             perche = "" if va else (f"traduzione {traduzione}, scartate {trovate}")
+        elif tipo == "eccezione":
+            va = bool(errore) and dettaglio in errore
+            perche = errore or "nessuna eccezione, la riga e' passata a `valida`"
         else:
             va = traduzione is None and dettaglio in esito["motivo"]
             perche = esito["motivo"] or "accettata, ma era da rifiutare"
