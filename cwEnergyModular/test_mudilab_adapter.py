@@ -74,3 +74,78 @@ def test_failed_tool_call_is_incorrect():
     )
     assert result.tool_call_status == "failed"
     assert result.end_to_end == "incorrect"
+
+
+_TRADUZIONE = {"input": {"DrivQuality": "Normal"}, "output": {"Age": "Senior"}}
+_CONTATORE_OK = {"read_graph": {"invocazioni": 0, "eccezioni": 0},
+                 "cau_inference": {"invocazioni": 1, "eccezioni": 0}}
+
+
+def test_counter_dict_tool_calls_is_read_as_execution_proof():
+    """`run_query.py:188-193` scrive un dict con chiavi italiane, non una lista.
+
+    L'adapter iterava il dict e otteneva le chiavi (stringhe), quindi
+    `isinstance(call, Mapping)` era falso per ogni voce: `matching_calls` vuoto,
+    stato `missing`, e 321 run su 321 fuori misura perche' il record non era
+    leggibile -- non perche' il tool fosse fallito.
+    """
+    result = evaluate_case(
+        _case(), label="backward_reasoning", translation=_TRADUZIONE,
+        output="The probability is 0.2117", tool_calls=_CONTATORE_OK,
+    )
+    assert result.tool_call_status == "success"
+    assert result.tool_call_valid is True
+    assert result.end_to_end == "correct"
+
+
+def test_counter_dict_with_exceptions_is_failed():
+    """`eccezioni > 0` e' la condizione negata di `tool_ok` (`run_query.py:178`)."""
+    result = evaluate_case(
+        _case(), label="backward_reasoning", translation=_TRADUZIONE,
+        output="The probability is 0.2117",
+        tool_calls={"cau_inference": {"invocazioni": 2, "eccezioni": 1}},
+    )
+    assert result.tool_call_status == "failed"
+    assert result.end_to_end == "incorrect"
+
+
+def test_counter_dict_with_zero_invocations_is_missing():
+    """Zero invocazioni significa che il numero non viene dal tool: niente misura."""
+    result = evaluate_case(
+        _case(), label="backward_reasoning", translation=_TRADUZIONE,
+        output="The probability is 0.2117",
+        tool_calls={"cau_inference": {"invocazioni": 0, "eccezioni": 0}},
+    )
+    assert result.tool_call_status == "missing"
+    assert result.end_to_end == "indeterminate"
+
+
+def test_recorded_step_with_answer_text_proves_execution():
+    """`run_orchestrato.py:468-488` aggiunge il passo solo dopo il ritorno.
+
+    La eccezione finisce in `errore` senza passo, quindi un passo
+    `cau_inference` con il testo della risposta e' la prova che la chiamata e'
+    avvenuta; e' la forma che i run pubblicati contengono davvero.
+    """
+    result = evaluate_case(
+        _case(), label="backward_reasoning", translation=_TRADUZIONE,
+        output="The probability is 0.2117",
+        tool_calls=[{"step": "translator", "text": "..."},
+                    {"step": "cau_inference",
+                     "text": "Evidences are compatible with a single Age of Senior "
+                             "with a probability of 0.2117"}],
+    )
+    assert result.tool_call_status == "success"
+
+
+def test_arguments_of_the_call_are_declared_not_recorded():
+    """La prova di esecuzione non copre gli argomenti: lo stato va dichiarato.
+
+    Il record contiene il testo del tool, non i suoi input.  Dire `success` e
+    tacere avrebbe presentato come verificato un argomento mai letto.
+    """
+    result = evaluate_case(
+        _case(), label="backward_reasoning", translation=_TRADUZIONE,
+        output="The probability is 0.2117", tool_calls=_CONTATORE_OK,
+    )
+    assert any("arguments: not recorded" in note for note in result.notes)
