@@ -38,7 +38,7 @@ def test_missing_tool_call_invalidates_end_to_end():
                      "output": {"Age": "Senior"}},
         output="The probability is 0.2117",
     )
-    assert result.end_to_end == "incorrect"
+    assert result.end_to_end == "indeterminate"
 
 
 def test_counterfactual_compares_both_bounds():
