@@ -35,7 +35,8 @@ Per testo libero:
   "answer_type": "free_text",
   "required_facts": ["Roma", "Lazio", "Tevere"],
   "forbidden_facts": ["Firenze"],
-  "minimum_required_facts": 3
+  "minimum_required_facts": 3,
+  "fact_match_mode": "literal"
 }
 ```
 
