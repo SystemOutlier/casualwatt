@@ -203,6 +203,61 @@ def test_senza_nessuno_dei_due_il_motivo_nomina_entrambi(monkeypatch):
     assert "NVML" in m.error and "AMD SMI" in m.error
 
 
+# ------------------------------------------------- selezione del dispositivo
+# Il ramo AMD SMI apriva ``handles[0]`` per costruzione, come quello NVML apriva
+# l'indice 0. ``amdsmi_get_processor_handles`` restituisce un elenco e non un
+# indice di device stabile, quindi qui l'indice e' una POSIZIONE nell'elenco: la
+# richiesta fuori intervallo non deve ricadere sulla prima scheda, perche'
+# misurare una scheda diversa e scriverla come quella richiesta e' un numero
+# attribuito male, non un degrado accettabile.
+def test_indice_amd_apre_quella_posizione(monkeypatch):
+    """L'argomento ``index`` sceglie la posizione nell'elenco delle handle."""
+    _fake_amdsmi(monkeypatch, handles=("gpu-0", "gpu-1"))
+    m = _AMDGPUMonitor(index=1)
+    assert m.available is True
+    assert m.handle == "gpu-1"
+    assert m.index == 1
+    assert m.device_count == 2
+    assert m.device_note == ""
+
+
+def test_indice_amd_fuori_intervallo_non_apre_la_prima(monkeypatch):
+    """Richiesta non soddisfatta: nessun handle aperto, con il conteggio nel motivo."""
+    _fake_amdsmi(monkeypatch, handles=("gpu-0", "gpu-1"))
+    m = _AMDGPUMonitor(index=3)
+    assert m.available is False
+    assert m.handle is None
+    assert "fuori intervallo" in m.error and "2 device" in m.error
+
+
+def test_due_schede_amd_senza_selezione_avvisano_la_riga(monkeypatch):
+    """Posizione 0 implicita fra due device: la riga deve poterlo leggere."""
+    _fake_amdsmi(monkeypatch, handles=("gpu-0", "gpu-1"))
+    m = _AMDGPUMonitor()
+    assert m.available is True
+    assert m.index == 0
+    assert m.device_note.startswith("2 GPU amdsmi")
+
+
+def test_il_knob_d_ambiente_vale_anche_sul_ramo_amd(monkeypatch):
+    """``CW_GPU_INDEX`` e' la selezione del device, non una preferenza di backend."""
+    _fake_amdsmi(monkeypatch, handles=("gpu-0", "gpu-1"))
+    monkeypatch.setenv("CW_GPU_INDEX", "1")
+    m = _AMDGPUMonitor()
+    assert m.available is True
+    assert m.handle == "gpu-1"
+    assert m.device_selection == "CW_GPU_INDEX"
+
+
+def test_open_gpu_monitor_trasferisce_la_selezione_ad_amd(monkeypatch):
+    """La cascata NVML -> AMD SMI non perde la richiesta del device."""
+    _fake_nvml_absent(monkeypatch)
+    _fake_amdsmi(monkeypatch, handles=("gpu-0", "gpu-1"))
+    m = _open_gpu_monitor(index=1)
+    assert m.backend == "amdsmi"
+    assert m.handle == "gpu-1"
+
+
 # ------------------------------------------------------------- finestra
 class FakeGpu:
     backend = "amdsmi"

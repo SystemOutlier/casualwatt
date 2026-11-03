@@ -1460,35 +1460,101 @@ class EnergySession:
 
 
 # ---------------------------------------------------------------------------
-# GPU NVIDIA (NVML) — opzionale, degradazione silenziosa
+# GPU NVIDIA (NVML) — opzionale, assenza dichiarata
 # ---------------------------------------------------------------------------
+def _gpu_indice_richiesto(indice: Optional[int] = None
+                          ) -> tuple[Optional[int], str, str]:
+    """Indice GPU richiesto: (indice, provenienza, errore).
+
+    Argomento esplicito, poi ``CW_GPU_INDEX``, poi nessuno. "Nessuno" non
+    significa "scheda 0": significa che la selezione non e' stata dichiarata, e
+    il chiamante lo scrive nella riga. La provenienza torna insieme all'indice
+    perche' un numero di device senza dire come e' stato scelto non e'
+    tracciabile. Un ``CW_GPU_INDEX`` che non e' un intero e' un errore, non un
+    "non dichiarato": la richiesta c'era e non si e' capita.
+    """
+    if indice is not None:
+        return int(indice), "argomento", ""
+    import os
+
+    raw = (os.getenv("CW_GPU_INDEX", "") or "").strip().strip('"')
+    if not raw:
+        return None, "non dichiarato", ""
+    try:
+        return int(raw), "CW_GPU_INDEX", ""
+    except ValueError:
+        return None, f"CW_GPU_INDEX={raw!r}", (
+            f"CW_GPU_INDEX non numerico ({raw!r}): nessun device aperto")
+
+
+def _selezione_device(richiesta: Optional[int], count: int, backend: str
+                      ) -> tuple[Optional[int], str, str]:
+    """Quale dei device che il backend vede aprire: (indice, errore, nota).
+
+    Nessun fallback silenzioso: un indice richiesto e non presente e' un errore
+    dichiarato e NON apre la scheda 0, perche' misurare l'energia di un'altra
+    scheda e scrivere la riga come se fosse quella richiesta e' lo stesso errore
+    di un canale sbagliato presentato come valido. Con un solo device l'indice 0
+    non e' un'assunzione; con piu' di uno e nessuna selezione dichiarata lo e',
+    quindi la nota lo dice alla riga.
+    """
+    if richiesta is None:
+        nota = (f"{count} GPU {backend}: aperto l'indice 0 perche' la selezione "
+                "del device non e' dichiarata (CW_GPU_INDEX)"
+                if count > 1 else "")
+        return 0, "", nota
+    if richiesta < 0 or richiesta >= count:
+        return None, (f"indice GPU richiesto {richiesta} fuori intervallo: "
+                      f"{backend} vede {count} device"), ""
+    return richiesta, "", ""
+
+
 class _GPUMonitor:
     backend = "nvml"
 
-    def __init__(self) -> None:
+    def __init__(self, index: Optional[int] = None) -> None:
         self.available = False
         self.handle = None
-        self.index = 0
+        self.index: Optional[int] = None
         self.name: Optional[str] = None
         self.error: Optional[str] = None
+        # Selezione del device: ``device_count`` e' quello che NVML vede,
+        # ``device_selection`` dice come e' stato scelto l'indice,
+        # ``device_note`` avvisa la riga quando le schede sono piu' di una e la
+        # scelta non e' dichiarata.
+        self.device_count = 0
+        self.device_selection = "non dichiarato"
+        self.device_note = ""
         # Unita' del valore scritto in ``gpu_power_w``, non della sorgente:
         # qui mW/1000 -> W. "unknown" finche' non si e' letto un valore, cosi'
         # una riga senza potenza non dichiara un'unita' che non ha usato.
         self.power_unit = "unknown"
+        richiesta, self.device_selection, errore_selezione = \
+            _gpu_indice_richiesto(index)
+        self.error = errore_selezione or None
         try:
             import pynvml  # nvidia-ml-py
 
             pynvml.nvmlInit()
-            count = pynvml.nvmlDeviceGetCount()
-            if count > 0:
-                self.index = 0
-                self.handle = pynvml.nvmlDeviceGetHandleByIndex(self.index)
-                self.name = pynvml.nvmlDeviceGetName(self.handle)
-                if isinstance(self.name, bytes):
-                    self.name = self.name.decode("utf-8", "replace")
-                self.available = True
-            else:
+            self.device_count = int(pynvml.nvmlDeviceGetCount())
+            if errore_selezione:
+                # Richiesta letta male: nessun device aperto, nessuna cascata.
+                pass
+            elif self.device_count <= 0:
                 self.error = "nessuna GPU NVML"
+            else:
+                scelta, errore, nota = _selezione_device(
+                    richiesta, self.device_count, "nvml")
+                self.device_note = nota
+                if errore:
+                    self.error = errore
+                else:
+                    self.index = scelta
+                    self.handle = pynvml.nvmlDeviceGetHandleByIndex(scelta)
+                    self.name = pynvml.nvmlDeviceGetName(self.handle)
+                    if isinstance(self.name, bytes):
+                        self.name = self.name.decode("utf-8", "replace")
+                    self.available = True
         except Exception as exc:  # noqa: BLE001
             self.error = f"{type(exc).__name__}"
         self.energy_counter = False
@@ -1641,34 +1707,54 @@ class _AMDGPUMonitor:
 
     backend = "amdsmi"
 
-    def __init__(self) -> None:
+    def __init__(self, index: Optional[int] = None) -> None:
         self.available = False
         self.handle = None
-        self.index = 0
+        self.index: Optional[int] = None
         self.name: Optional[str] = None
         self.error: Optional[str] = None
+        # Come nel ramo NVML: ``device_count`` e' il numero di handle che AMD
+        # SMI restituisce, e l'indice e' una POSIZIONE in quell'elenco.
+        # ``amdsmi_get_processor_handles`` non espone un indice di device
+        # stabile come ``nvmlDeviceGetHandleByIndex``: la riga dichiara la
+        # posizione, non un ID del produttore.
+        self.device_count = 0
+        self.device_selection = "non dichiarato"
+        self.device_note = ""
         self.power_field = ""
         self.power_unit = "unknown"     # "W" solo dopo una lettura riuscita
         self.platform_context = "unknown"
         self.energy_counter = False
         self.energy_counter_reason = ""
         self._resolution_uj = 0.0
+        richiesta, self.device_selection, errore_selezione = \
+            _gpu_indice_richiesto(index)
+        self.error = errore_selezione or None
         try:
             import amdsmi
 
             amdsmi.amdsmi_init()
             handles = list(amdsmi.amdsmi_get_processor_handles() or [])
-            if not handles:
+            self.device_count = len(handles)
+            if errore_selezione:
+                pass        # richiesta letta male: nessun device aperto
+            elif not handles:
                 self.error = "nessuna GPU AMD SMI"
             else:
-                self.handle = handles[0]
-                self.index = 0
-                try:
-                    info = amdsmi.amdsmi_get_gpu_asic_info(self.handle) or {}
-                    self.name = info.get("market_name") or None
-                except Exception:  # noqa: BLE001
-                    self.name = None
-                self.available = True
+                scelta, errore, nota = _selezione_device(
+                    richiesta, len(handles), "amdsmi")
+                self.device_note = nota
+                if errore:
+                    self.error = errore
+                else:
+                    self.handle = handles[scelta]
+                    self.index = scelta
+                    try:
+                        info = amdsmi.amdsmi_get_gpu_asic_info(self.handle) or {}
+                        self.name = info.get("market_name") or None
+                    except Exception:  # noqa: BLE001
+                        self.name = None
+                    self.available = True
         except Exception as exc:  # noqa: BLE001
             self.error = f"{type(exc).__name__}"
         if self.available:
@@ -1757,17 +1843,22 @@ class _AMDGPUMonitor:
             pass
 
 
-def _open_gpu_monitor():
+def _open_gpu_monitor(index: Optional[int] = None):
     """NVML -> AMD SMI -> monitor non disponibile, con i motivi di entrambi.
 
     Un solo backend alla volta: se NVML risponde si usa NVML, anche su una
     macchina con entrambi i driver, perche' due lettori della stessa scheda
     nella stessa riga sarebbero un doppio conteggio da giustificare.
+
+    ``index`` e' la posizione del device; se non passata, la legge
+    ``CW_GPU_INDEX``. Su due vendor diversi lo stesso numero NON e' lo stesso
+    silicon: l'indice e' una posizione nell'elenco del backend che ha risposto,
+    e la riga lo dichiara con ``device_selection``.
     """
-    nv = _GPUMonitor()
+    nv = _GPUMonitor(index=index)
     if nv.available:
         return nv
-    amd = _AMDGPUMonitor()
+    amd = _AMDGPUMonitor(index=index)
     if amd.available:
         return amd
     nv.error = (f"NVML: {nv.error or 'non disponibile'}; "
