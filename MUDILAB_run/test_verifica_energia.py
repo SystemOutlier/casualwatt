@@ -4,10 +4,11 @@ Perche' esistono. `verifica_energia.py` calcola sei definizioni di "joule di un
 run" sopra gli stessi artefatti e ne stampa i totali: se una delle sue funzioni
 summa male, il numero che ne esce (901,683 contro il pubblicato 964,929) e' solo
 un numero piu' grande sbagliato in un altro modo. Qui non si misura nulla sulla
-marca: si fissa il **comportamento** delle quattro primitive (`_finestra`,
-`_somma`, `_delta_passi`, `_aggrega`) su righe costruite a mano, perche' le tre
-proprieta' che rendono leggibile il confronto sono tutte proprieta' generali, non
-osservazioni sui 240 run:
+marca: si fissa il **comportamento** delle primitive (`_finestra`, `_somma`,
+`_delta_passi`, `_aggrega`, e dalla chiusura del 03-11 `baseline_da_note`,
+`passi_appaiati`, `riposo`, `marginali`, `_variante`, `_valutazione_da_artefatto`)
+su righe costruite a mano, perche' le proprieta' che rendono leggibile il confronto
+sono tutte proprieta' generali, non osservazioni sui 240 run:
 
 1. la correzione tocca **solo** il terzo ramo della cascata: una righe che ha una
    finestra totale valida da `pubblicata` e da `passi_attiva` esce con lo stesso
@@ -22,19 +23,33 @@ osservazioni sui 240 run:
    conteggio delle corrette se e' corretta;
 4. se la baseline e' zero (attiva == package riga per riga) le due definizioni
    coincidono: e' la verifica aritmetica che il delta che si stampa e' esattamente
-   la quota di riposo, non un effetto di seconda mano.
+   la quota di riposo, non un effetto di seconda mano;
+5. (dalla chiusura) la quota di riposo si chiama **riposo** solo se i tre numeri
+   che la definiscono stanno nello stesso oggetto: baseline letta dalla nota della
+   riga, `(package - attiva)` per passo, e i `seconds` per passo. `riposo` deve
+   dare gli stessi joule dalla somma degli scarti e dal prodotto, e deve tornare
+   None se uno dei tre manca -- un'identita' costruita con la baseline di un'altra
+   riga o con un tempo dedotto sarebbe vera per costruzione;
+6. le mediane di branca (`marginali`) che stimano il costo del tratto tagliato dal
+   gate **non** devono essere prese sulle righe che quel tratto non ce l'hanno: se
+   una riga fermata entrasse nel campione, la stima di "quanto costa il tratto in
+   piu'" la si starebbe facendo su chi non lo ha percorso.
 
 Cosa **non** fissano: il valore dei numeri sulla marca, che e' lavoro dello script
 e il cui output va in `harness/risultati/verifica_energia_<data>.txt`.
 
 Uso:  MUDILAB_COPIE=1 python -m pytest MUDILAB_run/test_verifica_energia.py -v
 
-`python` e' l'interprete del venv di misura
-(`MUDILabV/mudilab_env/Scripts/python.exe`). Il modulo importa
-`benchmark/valuta.py`, che importa pyAgrum per `_confronta`: nessuna copia della
-relatrice e nessun modello vengono toccati, ma la variabile d'ambiente serve per
-tenere la stessa invocazione degli altri test di questa cartella.
+`python` qui e' l'interprete che ha pytest: su questo host e' il 3.14 di sistema
+(`pytest 9.1.1`, verificato il 03-11), **non** il venv di misura
+(`MUDILabV/mudilab_env/Scripts/python.exe`), che non installa pytest. Lo stesso
+modulo si importa in entrambi: pyAgrum serve a `benchmark/valuta._confronta`, e
+nessuna copia della relatrice ne' nessun modello viene toccato; la variabile
+d'ambiente serve per tenere la stessa invocazione degli altri test di questa
+cartella.
 """
+
+import json
 
 import pytest
 
@@ -191,3 +206,152 @@ def test_un_nome_di_definizione_sconosciuto_solleva():
     """
     with pytest.raises(ValueError):
         VE._valore(CON_FINESTRA, "passi_ativa")
+
+
+# ------------------------------------------------------- le primitive della chiusura
+
+NOTA = {"misura": {"note": ["canale emi-counter", "baseline calibrata: 6.480 W"]}}
+
+
+def _passo(nome, pkg, att, sec, valida=True):
+    return {"step": nome, "seconds": sec,
+            "misura": {"energia_pkg_j": pkg, "energia_attiva_j": att,
+                       "attiva_valida": valida}}
+
+
+def test_la_baseline_si_legge_dalla_nota_della_riga_e_non_si_deduce():
+    """I watt di baseline sono **quelli dichiarati dalla riga**, o None.
+
+    La chiusura del 03-11 dice che lo scarto delle 102 righe e' riposo perche'
+    eguaglia `baseline x secondi`. Se la baseline fosse presa dalla marca (o, peggio,
+    stimata da chi legge), l'identita' sarebbe vera per costruzione e direbbe zero.
+    Qui si fissa che `baseline_da_note` legge il numero scritto nelle note dello
+    stesso run e torna None quando la nota non c'e' -- e None, nelle funzioni sopra,
+    significa "questa riga esce dal confronto", non "baseline zero".
+    """
+    assert VE.baseline_da_note(NOTA) == pytest.approx(6.48)
+    assert VE.baseline_da_note({"misura": {"note": ["canale emi-counter"]}}) is None
+    assert VE.baseline_da_note({"misura": {}}) is None
+    assert VE.baseline_da_note({}) is None
+
+
+def test_passi_appaiati_esclude_il_passo_monco_e_mantiene_il_nome():
+    """Un passo entra nell'identita' solo con package, attiva e **secondi**, e il
+    nome viaggia con la tupla.
+
+    Sono due bisogni distinti della sezione 9. Il primo: un'identita'
+    `(package - attiva) = baseline x secondi` calzata su un sottoinsieme di passi e'
+    un'identita' falsa, quindi `classificator` senza `seconds` e il passo con
+    `attiva_valida` spento devono **sparire**, non entrare come zero. Il secondo: il
+    tratto che il gate taglia si distingue da quello che resta solo per nome dei passi
+    (`translator`+`classificator` contro `cau_inference`+`causal_A`), e la distinzione
+    per posizione o per conteggio si rompere' al primo ramo con un passo in piu'.
+    """
+    riga = {"steps": [_passo("translator", 78.0, 60.0, 3.0),
+                      {"step": "classificator",
+                       "misura": {"energia_pkg_j": 39.0, "energia_attiva_j": 30.0,
+                                  "attiva_valida": True}},
+                      _passo("cau_inference", 20.0, 10.0, 1.5, valida=False),
+                      _passo("causal_A", 40.0, 25.0, 3.0)]}
+    assert VE.passi_appaiati(riga) == [("translator", 78.0, 60.0, 3.0),
+                                       ("causal_A", 40.0, 25.0, 3.0)]
+    assert VE.passi_appaiati({}) == []
+
+
+def test_riposo_da_gli_stessi_joule_dalla_somma_e_dal_prodotto():
+    """Sul caso costruito a mano le due strade danno lo stesso numero, e la riga
+    senza nota non entra.
+
+    E' il cuore della chiusura: `riposo` restituisce **entrambi** i numeri -- la
+    somma degli scarti per passo e il prodotto baseline x secondi -- per poter
+    stampare il residuo, non l'uguaglianza. Qui la riga e' disegnata perche' il
+    residuo sia 0: due passi a 6,48 W di riposo ciascuno (6,1 s e 3,9 s) fanno
+    64.8 J da entrambe le parti. Il secondo assert fissa il caso opposto: senza
+    baseline dichiarata torna None, quindi la riga non entra nell'identita' e il
+    conteggio delle righe confrontabili scende -- che e' cio' che la sezione 6
+    stampa, invece di riempire il buco.
+    """
+    riga = dict(NOTA)
+    riga["steps"] = [_passo("translator", 60.0 + 6.48 * 6.1, 60.0, 6.1),
+                     _passo("classificator", 30.0 + 6.48 * 3.9, 30.0, 3.9)]
+    scarto, previsto = VE.riposo(riga)
+    assert scarto == pytest.approx(64.8)
+    assert previsto == pytest.approx(64.8)
+    assert VE.riposo({"steps": riga["steps"]}) is None
+    assert VE.riposo({"misura": NOTA["misura"], "steps": []}) is None
+
+
+def test_marginali_non_usano_le_righe_che_il_gate_ha_fermato():
+    """Le mediane del tratto extra si fanno sui run che **quel tratto l'hanno fatto**.
+
+    Serve alla sezione 9, che stima quanto costerebbe a una riga fermata arrivare al
+    tool. Se una riga con due soli passi entrasse nel campione, la media del tratto
+    `cau_inference`+`causal_A` verrebbe abbassata da chi non lo ha percorso, e la
+    stima sarebbe un artefatto del mix. Qui ci sono due righe da quattro passi e una
+    da due: `n` deve valere 2 e le mediane devono essere le mediane delle due
+    valide (extra 35 e 50 -> 42,5; riposo di testa 27 e 50 -> 38,5; rapporto
+    finestra/passi 1,0 e 2,0 -> 1,5).
+    """
+    def riga_completa(a1, a2, e1, e2, f, o1, o2):
+        return {"totale": {"energia_attiva_j": f * (a1 + a2 + e1 + e2),
+                           "energia_pkg_j": 0.0, "attiva_valida": True},
+                "steps": [_passo("translator", a1 + o1, a1, 3.0),
+                          _passo("classificator", a2 + o2, a2, 2.0),
+                          _passo("cau_inference", e1 + 3.0, e1, 1.0),
+                          _passo("causal_A", e2 + 5.0, e2, 3.0)]}
+    valida = [riga_completa(60.0, 30.0, 10.0, 25.0, 1.0, 18.0, 9.0),
+              riga_completa(70.0, 40.0, 15.0, 35.0, 2.0, 30.0, 20.0)]
+    fermata = {"totale": None,
+               "steps": [_passo("translator", 78.0, 60.0, 3.0),
+                         _passo("classificator", 39.0, 30.0, 2.0)]}
+    out = VE.marginali({"inter": valida + [fermata]})
+    assert out["inter"]["n"] == 2
+    assert out["inter"]["attiva_extra"] == pytest.approx(42.5)
+    assert out["inter"]["riposo_testa"] == pytest.approx(38.5)
+    assert out["inter"]["finestra_su_passi"] == pytest.approx(1.5)
+
+
+def test_la_variante_si_legge_dal_riepilogo_della_marca(tmp_path):
+    """Il nome della variante viene da `riepilogo.json`, non dal nome della cartella.
+
+    L'artefatto di valutazione indicizza per variante: se il cartello della marca
+    cambiasse (una copia, un suffisso), la ricerca per nome di cartella darebbe None
+    e la sezione 7 stamperebbe "riconciliazione non fatta" per un motivo che non e'
+    quello vero. Qui si fissa la precedenza: con il riepilogo presente si usa quello
+    che dichiara, senza si ricade sul cartello.
+    """
+    marca = tmp_path / "risultati_misura" / "b_composta" / "20260101_000000"
+    marca.mkdir(parents=True)
+    (marca / "riepilogo.json").write_text('{"variante": "b_composta"}', encoding="utf-8")
+    assert VE._variante(marca) == "b_composta"
+    orfana = tmp_path / "risultati_misura" / "z_pilot" / "20260101_000000"
+    orfana.mkdir(parents=True)
+    assert VE._variante(orfana) == "z_pilot"
+
+
+def test_l_artefatto_di_valutazione_si_trova_sopra_la_marca_e_manca_se_manca(tmp_path):
+    """`_valutazione_da_artefatto` prende le righe della variante **giusta**, e non
+    ne inventa.
+
+    La riconciliazione della sezione 7 ha senso solo se legge l'artefatto che la
+    marca ha prodotto: il percorso e' un livello sopra la marca (con il nome proprio
+    del pilota, che e' una valutazione separata). Il secondo caso e' quello che
+    protegge il conto: se la variante non e' nell'artefatto -- o l'artefatto non
+    esiste -- deve tornare (None, None) e la sezione deve dirlo, invece di
+    confrontare il ricalcolo con le righe di un'altra variante.
+    """
+    marca = tmp_path / "risultati_misura" / "b_composta" / "20260101_000000"
+    marca.mkdir(parents=True)
+    artef = marca.parent.parent / "valutazione.json"
+    artef.write_text(json.dumps({"varianti": {"b_composta": {"righe": [{"task_id": "A"}]}}}),
+                     encoding="utf-8")
+    p, righe = VE._valutazione_da_artefatto(marca, "b_composta")
+    assert p == artef and righe == [{"task_id": "A"}]
+    assert VE._valutazione_da_artefatto(marca, "b_solo_numero") == (None, None)
+    pilota = tmp_path / "risultati_misura_pilota" / "b_composta" / "20260101_000000"
+    pilota.mkdir(parents=True)
+    (pilota.parent.parent / "valutazione_pilota_dev.json").write_text(
+        json.dumps({"varianti": {"b_composta": {"righe": [{"task_id": "P"}]}}}),
+        encoding="utf-8")
+    p2, r2 = VE._valutazione_da_artefatto(pilota, "b_composta")
+    assert p2.name == "valutazione_pilota_dev.json" and r2 == [{"task_id": "P"}]
