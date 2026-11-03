@@ -43,6 +43,11 @@ _ANSWER_MARKER_RE = re.compile(
     r"([-+]?(?:\d+(?:[.,]\d+)?|\d+[.,]\d+e[-+]?\d+))",
     re.I,
 )
+_INTERVAL_RE = re.compile(
+    r"(?:between|from)\s+(-?(?:\d+(?:[.,]\d+)?))\s+"
+    r"(?:and|to)\s+(-?(?:\d+(?:[.,]\d+)?))",
+    re.I,
+)
 
 
 @dataclass(frozen=True)
@@ -223,6 +228,79 @@ def _evaluate_free_text(answer: str, contract: Mapping[str, Any]) -> EvaluationR
     )
 
 
+def _evaluate_interval(answer: str, contract: Mapping[str, Any]) -> EvaluationResult:
+    lower = _to_float(contract.get("lower", contract.get("expected_lower")))
+    upper = _to_float(contract.get("upper", contract.get("expected_upper")))
+    if lower is None or upper is None or lower > upper:
+        return _result("indeterminate", None, 0.0, "interval_contract_invalid",
+                       "interval", diagnostics={"reason": "invalid bounds"})
+    match = _INTERVAL_RE.search(answer or "")
+    if not match:
+        return _result("incorrect", 0.0, 0.98, "interval_not_found",
+                       "interval", diagnostics={"reason": "interval not found"})
+    actual_lower, actual_upper = (_to_float(match.group(1)),
+                                  _to_float(match.group(2)))
+    if actual_lower is None or actual_upper is None or actual_lower > actual_upper:
+        return _result("incorrect", 0.0, 0.98, "interval_invalid",
+                       "interval", diagnostics={"answer": match.group(0)})
+    absolute = float(contract.get("absolute_tolerance", 1e-9))
+    relative = float(contract.get("relative_tolerance", 0.0))
+    lower_ok = _numeric_match(actual_lower, lower, absolute, relative)
+    upper_ok = _numeric_match(actual_upper, upper, absolute, relative)
+    return _result(
+        "correct" if lower_ok and upper_ok else "incorrect",
+        1.0 if lower_ok and upper_ok else 0.0, 0.99,
+        "interval_bounds_match", "interval",
+        extracted_answer=f"{actual_lower} - {actual_upper}",
+        diagnostics={"expected_lower": lower, "expected_upper": upper,
+                     "actual_lower": actual_lower, "actual_upper": actual_upper,
+                     "lower_match": lower_ok, "upper_match": upper_ok,
+                     "absolute_tolerance": absolute},
+    )
+
+
+def _evaluate_label(answer: str, contract: Mapping[str, Any]) -> EvaluationResult:
+    expected = normalize_text(contract.get("label", contract.get("expected_label")))
+    actual = normalize_text(answer)
+    if not expected:
+        return _result("indeterminate", None, 0.0, "label_contract_missing",
+                       "label")
+    # Labels are categorical: surrounding explanation is not accepted unless
+    # the contract explicitly allows it.
+    allowed = bool(contract.get("allow_explanation", False))
+    ok = expected == actual if not allowed else re.search(
+        rf"\b{re.escape(expected)}\b", actual) is not None
+    return _result("correct" if ok else "incorrect", 1.0 if ok else 0.0,
+                   0.99, "label_exact_match", "label",
+                   extracted_answer=answer.strip(),
+                   diagnostics={"expected_label": expected})
+
+
+def _evaluate_structured(answer: Any, contract: Mapping[str, Any]) -> EvaluationResult:
+    if not isinstance(answer, Mapping):
+        try:
+            answer = json.loads(_text(answer))
+        except (TypeError, ValueError):
+            answer = None
+    expected = contract.get("expected", contract.get("schema"))
+    if not isinstance(answer, Mapping) or not isinstance(expected, Mapping):
+        return _result("indeterminate", None, 0.0, "structured_contract_invalid",
+                       "structured")
+    missing = []
+    mismatched = {}
+    for key, value in expected.items():
+        if key not in answer:
+            missing.append(key)
+        elif answer[key] != value:
+            mismatched[key] = {"expected": value, "actual": answer[key]}
+    ok = not missing and not mismatched
+    return _result(
+        "correct" if ok else "incorrect", 1.0 if ok else 0.0, 0.99,
+        "structured_exact_match", "structured",
+        diagnostics={"missing": missing, "mismatched": mismatched},
+    )
+
+
 def evaluate(answer: str, reference: Any, *, answer_type: str = "auto") -> EvaluationResult:
     """Evaluate one answer using a deterministic reference contract."""
     contract = _parse_contract(reference)
@@ -241,6 +319,12 @@ def evaluate(answer: str, reference: Any, *, answer_type: str = "auto") -> Evalu
         return _evaluate_short_text(_text(answer), contract)
     if detected == "free_text":
         return _evaluate_free_text(_text(answer), contract)
+    if detected == "interval":
+        return _evaluate_interval(_text(answer), contract)
+    if detected == "label":
+        return _evaluate_label(_text(answer), contract)
+    if detected == "structured":
+        return _evaluate_structured(answer, contract)
     return _result("indeterminate", None, 0.0, "unknown_answer_type",
                    detected, diagnostics={"reason": "unsupported answer_type"})
 

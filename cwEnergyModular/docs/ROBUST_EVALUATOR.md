@@ -47,6 +47,51 @@ intermedio o un'estrazione dell'ultimo token.
 ## Interpretazione
 
 `correct` e `incorrect` entrano nel calcolo dell'accuracy. `indeterminate` viene
-conteggiato separatamente e non viene nascosto nel denominatore. La similarità
-semantica può essere aggiunta in futuro come evidenza calibrata su annotazioni
-umane, mai come sostituto automatico del contratto di verità.
+conteggiato separatamente e non viene nascosto nel denominatore. La similarità semantica può essere aggiunta in futuro come evidenza calibrata
+su annotazioni umane, mai come sostituto automatico del contratto di verità.
+
+## Tipi comuni aggiuntivi
+
+Il core supporta anche:
+
+- `interval`: confronto indipendente dei due estremi;
+- `label`: confronto categorico di un'etichetta;
+- `structured`: confronto esatto di un oggetto JSON atteso.
+
+Questi tipi sono usati dall'adattatore MUDILAB.
+
+## Valutazione MUDILAB
+
+`mudilab_adapter.py` valuta separatamente etichetta, traduzione, output e
+osservazione della chiamata a `cau_inference`. La pipeline è `correct` solo
+quando tutti i livelli sono corretti e la chiamata al tool è osservata.
+
+Il comando:
+
+```bash
+python mudilab_eval.py \
+  --ground-truth ../MUDILAB_run/consegna/ground_truth.csv \
+  --input outputs.jsonl \
+  --output evaluated.jsonl \
+  --summary summary.json
+```
+
+Il file JSONL di input contiene almeno:
+
+```json
+{
+  "task_id": "CP1",
+  "label": "backward_reasoning",
+  "translation": {
+    "input": {"DrivQuality": "Normal"},
+    "output": {"Age": "Senior"}
+  },
+  "output": "The probability is 0.2117",
+  "tool_calls": [{"name": "cau_inference"}],
+  "energy_j": 236.2,
+  "duration_s": 8.7
+}
+```
+
+L'aggregato riporta accuracy end-to-end, copertura, casi indeterminati, energia
+mediana totale, energia mediana delle risposte corrette e dati mancanti.
