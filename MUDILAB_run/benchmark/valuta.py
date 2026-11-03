@@ -29,6 +29,20 @@ run fallito prima del calcolo non ha una finestra totale, e senza i passi la
 copertura scende. Se la copertura non e' 1 il joule per corretta e' un limite
 inferiore e va scritto come tale.
 
+Il terzo ramo, `somma_passi`, soma il **package** dei passi e non la loro energia
+attiva, e su questo il conto va fatto prima di citare un numero:
+`verifica_energia.py` (03-11) lo misura sulla marca
+`risultati_misura/b_composta/20261102_191401`, dove **tutti e 102** i run fermati
+dal gate portano un'energia attiva per passo con `attiva_valida` vera -- la
+cascata potrebbe leggerla e non la legge. Con la stessa energia attiva su quelle
+righe la marca darebbe **901,683 J/corretta** invece dei 964,929 pubblicati
+(4.869,9 J di riposo non sottratto, -6,6%), a copertura invariata (240 righe su
+240) e con l'ordine fra rami immutato. Il numero pubblicato resta quello di questa
+cascata perche' e' con questa che la marca e' stata dichiarata il 02-11:
+allinearlo all'attiva e' una decisione sulla misura, non una correzione
+aritmetica, e l'evidenza e' tracciata in
+`harness/risultati/verifica_energia_20261103.txt`.
+
 Integrita'. Ogni riga dichiara `rete` e `rete_hash`; se l'hash non e' quello del
 manifest, la riga ha girato su una rete diversa da quella dell'oracolo e non e'
 confrontabile. Si conta in `rete_non_coerente`, non si corregge.
