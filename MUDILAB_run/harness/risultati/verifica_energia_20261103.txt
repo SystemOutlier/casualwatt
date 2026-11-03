@@ -1,5 +1,5 @@
 cartella: C:\Users\Massimo\Documents\CasualWatt\CWProject\MUDILAB_run\risultati_misura\b_composta\20261102_191401
-comando: MUDILAB_COPIE=1 python verifica_energia.py risultati_misura/b_composta/20261102_191401
+comando: MUDILAB_COPIE=1 C:\Users\Massimo\Documents\CasualWatt\CWProject\MUDILabV\mudilab_env\Scripts\python.exe verifica_energia.py risultati_misura/b_composta/20261102_191401
 righe: 240, corrette: 77, rami pubblicati: ['somma_passi', 'totale_attiva']
 
 --- joule per corretta sotto ogni definizione
@@ -41,3 +41,65 @@ righe: 240, corrette: 77, rami pubblicati: ['somma_passi', 'totale_attiva']
   dal piu' caro: pubblicata    counterfactual > coherence > inter > cond_prob
   dal piu' caro: passi_attiva  counterfactual > coherence > inter > cond_prob
   l'ordine NON cambia: la correzione sposta i valori, non la classifica
+
+--- che cosa sono i 4869.9 J (riga per riga)
+  righe con le tre grandezze per passo e una baseline dichiarata: 102/102
+  baseline dichiarate nelle note distinte: [6.48] (il conto e' per riga, non uno solo per la marca)
+  scarto misurato    :    4869.9 J   (la cascata pubblicata non sottrae questo)
+  riposo identificato:    4851.5 J   (baseline x secondi degli stessi passi)
+  identita' con la sezione 4: lo scarto misurato qui e la differenza fra le due definizioni torna: True
+  residuo: +18.33 J, cioe' il +0.38% dello scarto
+  residuo per riga: min 0.132 / mediana 0.156 / max 0.452 J
+  e' tempo, non energia: convertito alla baseline dichiarata da ogni riga, il residuo mediano vale 24 ms di bordo fra il tempo del contatore e `steps[].seconds` (min 20 / max 70 ms)
+  il segno e' sempre lo stesso (tutte le righe True): il tempo registrato per passo e' sistematicamente un po' meno della finestra del contatore, che e' la direzione attesa da un bordo di timestamp, non da un rumore
+  controllo sulle 138 righe con finestra (li' la cascata prende l'attiva):
+    package - attiva - baseline x seconds_total: mediana 0.078 J, max in valore assoluto 0.138 J, min 0.065 J
+    stesso ordine di grandezza del residuo delle 102: la formula e' una,
+    e lo scarto e' il suo non essere applicata a un ramo della cascata.
+
+--- il conto contro l'artefatto tracciato, riga per riga
+  artefatto: C:\Users\Massimo\Documents\CasualWatt\CWProject\MUDILAB_run\risultati_misura\valutazione.json  variante: b_composta  righe a confronto: 240
+  chiavi dell'artefatto senza JSON nella marca: 0
+  energia: artefatto 74299.4997 J | ricalcolo 74299.4997 J | differenza +0.000000 J
+  righe con un joule diverso (sopra 1e-6): 0
+  corrette: artefatto 77 | ricalcolo 77 | discordanze etichetta/numero: 0
+  J/corretta: artefatto 964.929 | ricalcolo 964.929
+  fonti d'arte: {'somma_passi': 102, 'totale_attiva': 138}
+  fonti del ricalcolo: {'somma_passi': 102, 'totale_attiva': 138}
+  -> se le due colonne Joule coincidono, 964,929 non e' un numero di
+     questo script: e' l'artefatto committato, e la correzione della
+     sezione 4 si applica a un numero che la marca ha gia' pubblicato.
+
+--- la stessa coppia di definizioni sul pilota dev
+  marca: 20261102_183844  righe: 81  corrette: 32  baseline dichiarate: [6.901]
+  pubblicata     25517.2 J / 32 = 797.412 J/corretta  (81/81 righe coperte)
+  passi_attiva   24551.4 J / 32 = 767.230 J/corretta  (81/81 righe coperte)
+  delta: 965.8 J (+3.8%) su 22 righe fermate dal gate
+  identita' anche qui: scarto misurato 965.8 J contro riposo previsto 961.6 J, residuo +4.19 J (+0.43%) su 22 righe
+  artefatto del pilota (valutazione_pilota_dev.json): 25517.2 J / 32 corrette = 797.412 J/corretta
+  differenza dal ricalcolo: +0.0000 J, +0 corrette
+
+--- una riga che passa il gate non aggiunge energia: cambia ramo
+  medie di branca **sul tratto che il gate taglia**, prese dalle 138 righe che arrivano al tool:
+  ramo              n  attiva extra   riposo testa  finestra/passi
+  coherence        45         220.3 J           53.3 J          1.004
+  cond_prob        34         166.3 J           38.3 J          1.006
+  counterfactual   42         228.2 J           45.2 J          1.004
+  inter            17         187.8 J           36.9 J          1.005
+  righe fermate con una stima di ramo nuovo: 102/102
+  ramo             n   delta su pubblicata  delta su passi_attiva
+  coherence       15         167.5 J (+147.6/+173.8)        222.1 J (+222.0/+222.4)
+  cond_prob       26         129.8 J (+112.6/+139.7)        168.0 J (+167.8/+168.3)
+  counterfactual  18         180.8 J (+176.9/+184.1)        229.8 J (+229.7/+229.8)
+  inter           43         146.0 J (+41.4/+156.0)        189.5 J (+189.3/+191.2)
+  se TUTTE le 102 convertissero, a parita' di corrette:
+    pubblicata   74299.5 J -> 89416.0 J  (+15116.5 J, +20.3%)
+    passi_attiva 69429.6 J -> 89416.0 J  (+19986.4 J, +28.8%)
+    i due deltas differiscono di -4869.9 J: ed e' la quota di riposo (-4869.9 J) che il ramo nuovo sottrae e quello vecchio no
+  Perche' il numero che gira non e' confrontabile: una stima del tipo
+  `(pubblicato + energia aggiuntiva) / (corrette nuove)` tiene il terzo ramo
+  in package -- cioe' si porta dietro il riposo non sottratto delle righe
+  fermate (mediana 44.6 J per riga, sezione 2) e aggiunge
+  i joule del tratto nuovo. Sono due correzioni di segno opposto sullo
+  stesso numeratore: quella che circola e' un **limite superiore**, non il
+  J/corretta della stessa variante sotto la definizione pubblicata.
