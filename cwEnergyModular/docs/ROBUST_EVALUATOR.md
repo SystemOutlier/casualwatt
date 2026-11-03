@@ -88,7 +88,7 @@ Il file JSONL di input contiene almeno:
     "output": {"Age": "Senior"}
   },
   "output": "The probability is 0.2117",
-  "tool_calls": [{"name": "cau_inference"}],
+  "tool_calls": [{"name": "cau_inference", "success": true, "result": {"ok": true}}],
   "energy_j": 236.2,
   "duration_s": 8.7
 }
