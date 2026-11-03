@@ -95,3 +95,39 @@ Il file JSONL di input contiene almeno:
 
 L'aggregato riporta accuracy end-to-end, copertura, casi indeterminati, energia
 mediana totale, energia mediana delle risposte corrette e dati mancanti.
+
+
+## Limiti e interpretazione della confidenza
+
+I valori `confidence` restituiti dai controlli deterministici sono punteggi
+euristici interni, **non probabilità calibrate**. Il risultato espone
+`confidence_calibrated=false`; gli aggregati non li presentano come media di
+confidenza calibrata. Per poterli interpretare probabilisticamente serve una
+procedura separata di calibrazione su un insieme indipendente con etichette
+umane.
+
+Il controllo `free_text` è deliberatamente lessicale: richiede
+`fact_match_mode: "literal"` e verifica la presenza letterale dei fatti
+dichiarati. Se rileva una negazione locale di un fatto richiesto, restituisce
+`indeterminate`. Non dimostra entailment, correttezza contestuale o assenza
+di contraddizioni: non è un valutatore semantico e non deve essere descritto
+come tale.
+
+I contratti sono validati prima della valutazione. Contratti incompleti,
+tolleranze negative/non finite, limiti non validi e schemi strutturati vuoti
+producono `indeterminate` con diagnostica, non un punteggio di accuratezza.
+
+## Verifica dell'esecuzione MUDILAB
+
+La sola presenza di una voce `cau_inference` prova al massimo che la chiamata
+è stata registrata. Per considerarla riuscita, il record deve contenere
+`success: true` oppure uno `status` esplicito tra `success`, `succeeded`,
+`completed`. Una chiamata senza esito verificabile è `unverified` e rende
+l'end-to-end `indeterminate`; un fallimento esplicito rende il caso
+`incorrect`. Il controllo del nome dello strumento non prova da solo che
+argomenti e risultato siano corretti: per quello occorre aggiungere al trace
+il contratto degli argomenti attesi e l'output effettivo del tool.
+
+Il caricamento del ground truth MUDILAB interrompe l'esecuzione in presenza di
+ID vuoti o duplicati, tipi non supportati, etichette mancanti o riferimenti
+numerici/intervalli obbligatori assenti.
