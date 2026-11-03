@@ -73,6 +73,15 @@ def test_timeout_non_conclusivo(monkeypatch):
 
 
 def test_json_non_valido_non_conclusivo(monkeypatch):
+    """Un stdout che non si parsa non e' "zero meter": distingue le due uscite
+    di ``diagnostics.py:120-126``, perche' sono due verita' diverse. L'output
+    vuoto (:121-122) significa "interrogazione riuscita, nessun meter esposto"
+    e chiude il discorso; ``"non-json"`` significa che PowerShell ha scritto
+    qualcosa che non e' la risposta attesa (un messaggio, un progresso, un
+    errore in un stream diverso) e della presenza dei meter non dice niente.
+    Un ``json.loads`` che fallisce e venisse letto come lista vuota
+    trasformerebbe un guasto della sonda in un'affermazione sul driver.
+    """
     monkeypatch.setattr(diagnostics.subprocess, "run",
                         _fake_run(stdout="non-json"))
     res = diagnostics._probe_pmi_power_meter()
