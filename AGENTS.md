@@ -58,6 +58,12 @@ in `tests/test_rapl.py` (`test_rapl_basic`, `test_rapl_readings`,
 `test_rapl_idle_window`, la cui docstring chiede un host Linux; il quarto,
 `test_rapl_diagnostics`, passa anche qui). Correzione di un ancoraggio stantio,
 rilevata rigenerando l'Appendice D, non cambio di comportamento.
+Gli altri due conteggi di quella riga sono riverificati dopo `244d1c2f` (23:05 dello
+stesso 04-11, la sonda Monte Carlo di P6.4): gli script `.py` tracciati alla radice
+sono **36** (erano 35, e il nuovo e' `montecarlo_protocollo_p64_probe.py`), e i file
+tracciati sotto `experiment_results/` sono **220** ($219$ in radice, $1$ in
+`codecarbon_four_way/`), perche' lo stesso commit porta la sua analisi accanto alla
+sonda. La suite resta a **608**: quel commit non aggiunge test.
 Se un ancoraggio non torna, il file e' stantio: va corretto, non ignorato.
 
 Fonti primarie, in ordine di autorita':
@@ -623,7 +629,8 @@ indefiniti.
   di `budget_pred`
   di P4.6 senza hardware né dati: sono i test da eseguire quando qualcuno propone
   di cambiare i vertici dell'inviluppo o la formula del budget.
-- **Alla radice del repo stanno 35 script `.py` tracciati**: sono gli harness
+- **Alla radice del repo stanno 36 script `.py` tracciati** (35 fino a `244d1c2f`,
+  che ha portato `montecarlo_protocollo_p64_probe.py`): sono gli harness
   degli esperimenti (`emi_50ms_probe.py`, `emi_resolution_check.py`,
   `four_way_test.py`, `srum.py`, `srum_emi_cross.py`, `observer_cost_probe.py`,
   `idle_floor_sensitivity.py`, `four_way_pi_audit.py`, ...). Questa e' la
@@ -637,8 +644,9 @@ indefiniti.
   release con hash pinnato, `pawnio_probe.py` confronta il contatore con EMI e
   misura il costo di osservazione A-B-A, `pawnio_priv_probe.py` misura i
   privilegi invece di dedurli).
-- `experiment_results/` — dati sperimentali e analisi, tracciati (219 file: 218 in
-  radice, 1 in `codecarbon_four_way/`; riverificati il 04-11-2026). I
+- `experiment_results/` — dati sperimentali e analisi, tracciati (220 file: 219 in
+  radice, 1 in `codecarbon_four_way/`; riverificati il 04-11-2026, dopo `244d1c2f`,
+  che porta l'analisi Monte Carlo di P6.4). I
   protocolli congelati stanno qui. Un artefatto nuovo entra con il proprio commit
   e con la propria analisi. Il gruppo `pawnio_probe_20261028*` (due run di
   confronto, due A-B-A, tre token di privilegio, l'analisi) e' l'evidenza sotto
