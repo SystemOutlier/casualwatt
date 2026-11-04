@@ -341,7 +341,8 @@ indefiniti.
   dalla cartella del modulo gli stessi $538$ e $3$ in $6{,}94$ s. Due invocazioni
   della stessa giornata avevano la stessa raccolta e lo stesso esito in $10{,}9$ s:
   la durata non e' un ancoraggio citabile, il conteggio si'.
-  Il documento compila: **183 pagine, 0 riferimenti indefiniti, 0 `Overfull \hbox`**.
+  Il documento compila: **184 pagine, 0 riferimenti indefiniti, 0 `Overfull \hbox`**
+  (183 prima della prosa sulla selezione del device GPU, aggiunta il 04-11).
   I cinque boxes che stavano nel log del 03-11 (4 in
   `capitoli/cap04_architettura_implementazione.tex` righe 125-141, i token
   `librehardwaremonitor-energy`, `nvml-power-integral`, `amdsmi-power-integral`,
@@ -352,9 +353,19 @@ indefiniti.
   `p{0.15} p{0.19} p{0.23} p{0.16} p{0.20}`: il solo punto di capo non bastava,
   perche' `librehardwaremonitor-` e' un frammento di 21 caratteri e nessuna
   sillabazione lo spezza. Quei cinque non erano dell'appendice: erano dei capitoli
-  scritti a mano fra il 28-10 e il 02-11. **Resta aperta e segnalata una lacuna di
-  sostanza**: la regola di selezione del device GPU non ha ancora una frase in prosa
-  nei capitoli; vive nel codice, nei 13 test nuovi e nell'appendice generata.
+  scritti a mano fra il 28-10 e il 02-11. **La lacuna di sostanza che era aperta e'
+  chiusa il 04-11**: la regola di selezione del device GPU ora sta in prosa nei
+  capitoli, non solo nel codice, nei 13 test e nell'appendice generata -- due
+  paragrafi in `cap03_metodologia_misura.tex` (sezione 3.8, dopo `eq:gpu`: i due
+  livelli della scelta, per vendor e poi per posizione, e le due condizioni che ne
+  discendono), un `\paragraph` in `cap04_architettura_implementazione.tex` (dopo
+  `tab:backend-fallback`: dove arriva la richiesta, cosa finisce nella riga, perche'
+  `CSV_COLUMNS` resta a 174 nomi, perche' la via di produzione e' `CW_GPU_INDEX`) e
+  una frase in `cap06_conclusioni_sviluppi.tex` (riga 162: il ramo multi-device e'
+  [I] con [V] da fare, provato solo contro `pynvml` e `amdsmi` finti). Le tre
+  aggiunte non introducono claim nuovi: ripetono in prosa ancoraggi gia' nel codice
+  (`energy_session.py:1465-1487`, `:1490-1509`, `:1553`, `:1716-1720`, `:1737`,
+  `:765`, `local_energy.py:809-811`, `casualwatt_csv_export.py:35`).
   I conteggi non si aggiornano a mano: si rigenera dopo ogni test aggiunto, rimosso
   o rinominato. La verifica del conteggio al 28-10 e' in
   `experiment_results/appD_conteggio_20261028.md`.
