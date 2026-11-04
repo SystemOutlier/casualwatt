@@ -974,14 +974,25 @@ class CasualWattLocalEnergyProfiler:
                     pj = proc_fn(t_start, t_end, ollama_pids)
                     if pj is not None:
                         res.gpu_process_energy_j = round(pj, 6)
-                        notes.append("GPU: attribuzione per processo NVML disponibile")
-                    else:
                         notes.append(
-                            "GPU: nvmlDeviceGetProcessUtilization non disponibile "
-                            "per i PID Ollama -> gpu_process_energy_j = N/A"
-                        )
-                except Exception:
-                    notes.append("GPU process-level attribution unavailable (N/A)")
+                            "GPU: attribuzione per processo NVML disponibile "
+                            "(frazione dagli ultimi 10 s di storia NVML, non "
+                            "dalla finestra della riga: campo informativo)")
+                    else:
+                        # La ragione la conosce il monitor, non la riga: prima
+                        # scriveva sempre "nvmlDeviceGetProcessUtilization non
+                        # disponibile per i PID Ollama", che era falsa nel caso
+                        # in cui la chiamata fosse riuscita e mancasse solo il
+                        # bordo board-attivo della finestra.
+                        why = getattr(gpu_mon, "process_energy_reason", None)
+                        notes.append(
+                            "GPU: gpu_process_energy_j = N/A (" + (
+                                str(why) if why else
+                                "ragione non dichiarata dal monitor") + ")")
+                except Exception as exc:
+                    notes.append(
+                        "GPU process-level attribution unavailable (N/A): "
+                        f"{type(exc).__name__}")
             else:
                 notes.append(
                     "GPU process-level attribution non supportata dal monitor "

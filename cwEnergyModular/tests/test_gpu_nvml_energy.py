@@ -290,3 +290,93 @@ def test_senza_nota_di_selezione_la_riga_non_ne_inventa_una():
     s = FakeSession(p_gpu=100.0, idle_gpu_w=20.0, energy_counter=True)
     res = profile(s)
     assert not any("indice 0" in n for n in res.notes)
+
+
+# ------------------------------------------------- attribuzione per processo (N/A dichiarato)
+# ``process_energy_j`` rispondeva None e la riga scriveva comunque
+# "nvmlDeviceGetProcessUtilization non disponibile per i PID Ollama": una
+# ragione sola, falsa nel caso piu' frequente (il bordo board-attivo, letto via
+# ``getattr`` e mai assegnato da nessun percorso). Inoltre il binding NVML
+# installato su questa macchina espone i campioni come
+# ``(pid, timeStamp, smUtil, memUtil, encUtil)`` -- nessuna DURATA per processo
+# (pynvml.py:1755-1761, letto il 04-11-2026) -- quindi la "frazione del tempo di
+# finestra" che il codice costruiva non ha un campo da cui venire. Questi test
+# fissano che l'assenza sia nominata, non mascherata da una sola ragione.
+def _campione_legame_reale(pid=7, sm=40):
+    """La forma vera del binding: pid + timeStamp + percentuali, senza durata."""
+    return SimpleNamespace(pid=pid, timeStamp=1_000_000, smUtil=sm,
+                           memUtil=0, encUtil=0)
+
+
+def test_il_legame_nvml_reale_non_espone_una_durata_e_lo_dice(monkeypatch):
+    """PID presente e API disponibile, ma nessun campo durata: N/A con la ragione giusta."""
+    mod = _fake_nvml(monkeypatch)
+    mod.nvmlDeviceGetProcessUtilization = lambda h, t: [_campione_legame_reale()]
+    m = _GPUMonitor()
+    assert m.available is True
+    assert m.process_energy_j(T0, T0 + 1.0, [7]) is None
+    assert "non espongono una durata" in m.process_energy_reason
+    # e non accusa ne' i PID ne' il bordo: la ragione e' una sola
+    assert "nessun PID" not in m.process_energy_reason
+    assert "_last_window_board_active_j" not in m.process_energy_reason
+
+
+def test_pid_non_nei_campioni_dichiara_i_pid(monkeypatch):
+    """I campioni ci sono ma per altri PID: la ragione sono i PID, non l'API."""
+    mod = _fake_nvml(monkeypatch)
+    mod.nvmlDeviceGetProcessUtilization = lambda h, t: [
+        _campione_legame_reale(pid=99)]
+    m = _GPUMonitor()
+    assert m.process_energy_j(T0, T0 + 1.0, [7]) is None
+    assert m.process_energy_reason == (
+        "nessun PID Ollama nei campioni di utilizzo NVML")
+
+
+def test_bordo_board_attivo_mai_assegnato_non_accusa_l_api(monkeypatch):
+    """Con una durata disponibile il None viene dal bordo mancante, e la ragione dice quello."""
+    mod = _fake_nvml(monkeypatch)
+    mod.nvmlDeviceGetProcessUtilization = lambda h, t: [SimpleNamespace(
+        pid=7, utilization={"gpu": 50.0},
+        time_range=SimpleNamespace(start=0, end=500_000))]
+    m = _GPUMonitor()
+    assert m.process_energy_j(T0, T0 + 1.0, [7]) is None
+    assert "_last_window_board_active_j" in m.process_energy_reason
+    assert "nvmlDeviceGetProcessUtilization ha fallito" not in (
+        m.process_energy_reason)
+
+
+def test_con_bordo_registrato_il_campo_esiste_e_resta_sotto_il_board(monkeypatch):
+    """Scala la frazione sul board attivo: il valore esiste solo con entrambi gli ingressi.
+
+    Si verifica la disuguaglianza (0 < attribuito < board), non il numero
+    assoluto: il fattore che converte i campioni in frazione di finestra non e'
+    ancorato a un binding reale -- quello reale non da durate -- e un test che
+    congeli un numero qui congeli un'assunzione.
+    """
+    mod = _fake_nvml(monkeypatch)
+    mod.nvmlDeviceGetProcessUtilization = lambda h, t: [SimpleNamespace(
+        pid=7, utilization={"gpu": 50.0},
+        time_range=SimpleNamespace(start=0, end=500_000))]
+    m = _GPUMonitor()
+    m._last_window_board_active_j = 10.0
+    v = m.process_energy_j(T0, T0 + 1.0, [7])
+    assert v is not None and 0.0 < v < 10.0
+    assert m.process_energy_reason is None
+
+
+def test_la_riga_porta_la_ragione_del_monitor_non_una_formula_fissa():
+    """Il motivo dell'N/A attraversa la catena fino alla riga."""
+
+    class _GpuConRagione(FakeGpu):
+        def process_energy_j(self, t_start, t_end, pids):
+            self.process_energy_reason = (
+                "i campioni NVML dei PID dichiarati non espongono una durata")
+            return None
+
+    s = FakeSession(p_gpu=100.0, idle_gpu_w=20.0, energy_counter=True)
+    s._gpu = _GpuConRagione()
+    res = profile(s)
+    assert res.gpu_process_energy_j is None
+    assert any("non espongono una durata" in n for n in res.notes)
+    assert not any("nvmlDeviceGetProcessUtilization non disponibile" in n
+                   for n in res.notes)
