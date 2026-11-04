@@ -22,6 +22,14 @@ def _case(task_type="cond_prob", expected_decision=""):
 
 
 def test_conditional_probability_requires_all_stages():
+    """`end_to_end` e' corretto solo se reggono tutte le tappe: traduzione, esito,
+    tool eseguito.
+
+    Una probabilita' giusta con l'input tradotto giusto e il call verificato e' la
+    condizione completa; qualunque tappa mancante deve togliere la correttezza
+    senza dichiarare l'errore (i test successivi coprono quei casi). Qui si fissa
+    il lato positivo, che e' quello che l'aggregato conta.
+    """
     result = evaluate_case(
         _case(), label="backward_reasoning",
         translation={"input": {"DrivQuality": "Normal"},
@@ -33,6 +41,12 @@ def test_conditional_probability_requires_all_stages():
 
 
 def test_missing_tool_call_invalidates_end_to_end():
+    """Senza trace del tool non c'e' prova che il numero venga dal motore causale.
+
+    Un numero corretto scritto senza invocare `cau_inference` puo' essere
+    un'ipotesi del modello: la risposta e' giusta ma il percorso non e' quello
+    misurato, quindi l'esito e' `indeterminate` e non `correct`.
+    """
     result = evaluate_case(
         _case(), label="backward_reasoning",
         translation={"input": {"DrivQuality": "Normal"},
@@ -43,6 +57,12 @@ def test_missing_tool_call_invalidates_end_to_end():
 
 
 def test_counterfactual_compares_both_bounds():
+    """Il controfattuale ha un contratto a intervallo: vanno letti entrambi gli estremi.
+
+    Con `expected_lower_graph = 0.0827` e `expected_upper_graph = 0.2396` una
+    risposta che riporta un solo estremo non e' verificabile; il test fissa che la
+    risposta con i due valori produce `correct` contro quel contratto.
+    """
     result = evaluate_case(
         _case("counterfactual"), label="counterfactual",
         translation={"input": {"RiskAversion": "Cautious"},
@@ -54,6 +74,12 @@ def test_counterfactual_compares_both_bounds():
 
 
 def test_unverified_tool_call_is_indeterminate():
+    """Un call registrato senza `success` ne' contatori non dice se ha funzionato.
+
+    Trattarlo come riuscito attribuirebbe al tool un numero che nessuno ha visto
+    tornare; trattarlo come fallito punirebbe il modello per un dato assente.
+    `unverified` -> `indeterminate` e' la terza via, esplicita nello stato.
+    """
     result = evaluate_case(
         _case(), label="backward_reasoning",
         translation={"input": {"DrivQuality": "Normal"},
@@ -66,6 +92,12 @@ def test_unverified_tool_call_is_indeterminate():
 
 
 def test_failed_tool_call_is_incorrect():
+    """Un call dichiarato fallito e' un esito del percorso, non un buco nei dati.
+
+    `success = False` dice che il motore e' stato invocato e non ha prodotto il
+    numero: la riga e' determinabile e sbagliata, quindi `incorrect` -- al
+    contrario di `unverified`, dove l'informazione manca e non si puo' concludere.
+    """
     result = evaluate_case(
         _case(), label="backward_reasoning",
         translation={"input": {"DrivQuality": "Normal"},
