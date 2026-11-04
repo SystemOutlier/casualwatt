@@ -685,8 +685,11 @@ def _finalize_energy_fields(rec: Dict, local_j: Optional[float], network_j: Opti
     # C1: nota che dichiara quale delle due metriche derivate e' valida
     new_note = (
         "metriche derivate: energy_per_correct_answer_j=e2e se is_correct "
-        "altrimenti N/A; epcl_j_per_link=e2e/n_correct_links solo con triple "
-        "causali F1 vs GT valide"
+        "(accuratezza binaria primaria) altrimenti N/A; epcl_j_per_link=e2e/"
+        "n_correct_links solo con triple causali F1 vs GT valide; "
+        "ece_per_joule=acc_comp/e2e dove acc_comp e' l'INDICE DESCRITTIVO a "
+        "pesi, non un'accuratezza: il suo numeratore non e' omogeneo al "
+        "numeratore delle altre due"
     )
     existing = rec.get("notes", "")
     rec["notes"] = f"{existing}; {new_note}" if existing else new_note

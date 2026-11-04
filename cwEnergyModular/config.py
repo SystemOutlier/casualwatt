@@ -383,7 +383,8 @@ NETWORK_ENERGY_COEFFICIENT_J_PER_BIT = float(
 IGPU_POWER_SHARE = float(os.getenv("CW_IGPU_SHARE", "0.30"))  # DEPRECATED, unused
 
 # ---------------------------------------------------------------------------
-# Pesi Accuratezza Composita (acc_comp) — C2: configurabili, mai magici.
+# Pesi dell'indice descrittivo acc_comp (NON un'accuratezza: l'accuratezza
+# primaria e' is_correct) — C2: configurabili, mai magici.
 # Regime A (con ground truth): (links, judge/5, cosine) default 0.50/0.30/0.20
 # Regime B (senza ground truth): (links, judge/5)        default 0.65/0.35
 # I pesi effettivi vengono scritti nelle note di ogni riga CSV.

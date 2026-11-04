@@ -3,7 +3,9 @@
 test_answer_type_evaluation.py — Test per valutazione basata su answer_type.
 
 Le 26 docstring dei test di questo file sono state aggiunte il 23/10/2026
-leggendo i corpi, non dall'autore originale delle funzioni.
+leggendo i corpi, non dall'autore originale delle funzioni. I 5 test della
+classe TestRuoloDiAccComp sono entrati il 04-11-2026 con il declassamento di
+acc_comp e hanno la docstring scritta insieme al test.
 
 Casi reali:
 - number: verità "21", risposta con passaggi -> corretto; risposta "25" -> sbagliato
@@ -12,6 +14,8 @@ Casi reali:
 """
 import pytest
 from evaluator import (
+    RUOLO_BINARIA,
+    RUOLO_COMPOSITO,
     detect_answer_type,
     extract_final_number,
     compare_numbers,
@@ -286,6 +290,61 @@ class TestEvaluateResponseIntegration:
         )
         assert res.is_correct == 1
         assert res.answer_type == "short_text"
+
+
+class TestRuoloDiAccComp:
+    """Il nome 'accuracy composita' era ambiguo: ogni ramo scrive in `notes` cosa
+    il suo valore di acc_comp effettivamente e' (04-11-2026, declassamento)."""
+
+    def test_numero_dichiara_che_non_e_una_media(self):
+        """Ramo number: acc_comp == is_correct (0/1) e la riga lo dichiara con RUOLO_BINARIA."""
+        res = evaluate_response("21", ground_truth="21", answer_type="auto")
+        assert res.acc_comp == float(res.is_correct)
+        assert RUOLO_BINARIA in res.notes
+        assert RUOLO_COMPOSITO not in res.notes
+
+    def test_short_text_dichiara_che_non_e_una_media(self):
+        """Ramo short_text: un solo confronto binario, nessuna componente pesata da mediare."""
+        res = evaluate_response("Roma", ground_truth="Atene|Athens", answer_type="auto")
+        assert res.acc_comp == float(res.is_correct) == 0.0
+        assert RUOLO_BINARIA in res.notes
+
+    def test_regime_a_dichiara_l_indice_pesato(self):
+        """free_text con giudice: acc_comp e' la media rinormalizzata 0.5/0.3 (cosine N/A),
+        e per questo puo' divergere da is_correct — la nota lo dice."""
+        res = evaluate_response(
+            "Il riscaldamento globale causa un aumento delle temperature, "
+            "che e un effetto sul livello dei mari",
+            ground_truth="Il riscaldamento globale causa un aumento delle temperature",
+            judge_fn=lambda q, a, m: (4.0, {"ok": True, "judge_model": "finto"}),
+        )
+        assert res.eval_mode == "ground_truth"
+        assert RUOLO_COMPOSITO in res.notes
+        # 0.5*acc_links + 0.3*(judge/5) rinormalizzato su 0.8 (cosine_sim assente)
+        assert res.acc_comp == pytest.approx((0.5 * res.acc_links + 0.3 * 0.8) / 0.8)
+        assert res.acc_comp != float(res.is_correct)
+
+    def test_regime_b_dichiara_l_indice_pesato(self):
+        """Senza GT il giudice decide is_correct e acc_comp resta un indice a pesi:
+        qui vale 0.315 su una risposta giudicata corretta, precisamente perche'
+        non misura quante risposte sono corrette."""
+        res = evaluate_response(
+            "La causa produsse un effetto sul sistema",
+            ground_truth=None,
+            judge_fn=lambda q, a, m: (4.5, {"ok": True, "judge_model": "finto"}),
+        )
+        assert res.eval_mode == "causal_agent_eval"
+        assert RUOLO_COMPOSITO in res.notes
+        assert res.is_correct == 1 and res.acc_comp < 1.0
+
+    def test_keyword_diagnostico_dichiara_l_indice_pesato(self):
+        """Il fallback keyword ha costanti fisse al posto del giudice e del coseno:
+        la sua nota di ruolo deve esserci come sui rami a pesi veri."""
+        res = evaluate_response(
+            "The cause produced an effect on the system", mode="causal")
+        assert res.eval_mode == "heuristic_keyword_fallback"
+        assert RUOLO_COMPOSITO in res.notes
+        assert res.acc_comp != float(res.is_correct)
 
 
 if __name__ == "__main__":
