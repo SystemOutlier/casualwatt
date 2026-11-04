@@ -519,6 +519,22 @@ class CasualWattLocalEnergyProfiler:
                         "sottofinestre escluse: la differenza diretta fra i "
                         "bordi non puo' scorporarle; energia dal buffer gia' "
                         "ridotto (emi_edge_source=buffer-interp)")
+            # Il percorso a campioni ora conserva il segno (energy_session:
+            # ``package_energy_exact_between`` non tronca piu'): un negativo e'
+            # un reset o un riporto fra i due campioni estremi. Va dichiarato
+            # come finestra invalida, perche' il ramo sotto, con ``e_package``
+            # negativo, l'avrebbe mascherata degradando ai campioni interpolati
+            # e presentando una seconda lettura della stessa grandezza.
+            if e_package is not None and e_package < 0.0:
+                counter_increment_invalid = True
+                res.package_window_source = "counter-invalid"
+                res.emi_edge_source = "counter-invalid"
+                notes.append(
+                    "delta negativo del contatore package sul percorso a "
+                    f"campioni ({float(e_package):+.6f} J): reset o riporto fra "
+                    "i campioni estremi; il valore firmato resta in riga, la "
+                    "finestra e' invalida e non degrada ai campioni interpolati"
+                )
         if e_package is not None and e_package >= 0.0 \
                 and not counter_increment_invalid:
             res.package_window_source = "exact-counter"

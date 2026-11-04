@@ -1220,15 +1220,21 @@ class EnergySession:
                           if t_start <= s.t <= t_end and s.package_energy_j is not None]
             if len(inside) < 2:
                 return None
-            base = max(inside[-1].package_energy_j - inside[0].package_energy_j, 0.0)
+            # Incrementi FIRMATI, mai troncati (regola "nessun troncamento" di
+            # AGENTS.md e F.2): un package che fra i due campioni estremi
+            # regressa non e' un consumo zero, e' un reset o un riporto del
+            # contatore. Il buffer EMI a 0,05 s viene svuotato al calare
+            # (``_append_emi_tick``), i campioni della sessione no: qui il
+            # segno arriva al chiamante, che dichiara la finestra invalida.
+            base = inside[-1].package_energy_j - inside[0].package_energy_j
             if exclude_windows:
                 removed = 0.0
                 for (xa, xb) in exclude_windows:
                     seg = [s for s in inside if xa <= s.t <= xb]
                     if len(seg) >= 2:
-                        removed += max(seg[-1].package_energy_j
-                                       - seg[0].package_energy_j, 0.0)
-                base = max(base - removed, 0.0)
+                        removed += (seg[-1].package_energy_j
+                                    - seg[0].package_energy_j)
+                base = base - removed
             return round(base, 6)
         return None
 
