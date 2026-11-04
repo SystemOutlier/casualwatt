@@ -285,6 +285,32 @@ Il codice riporta anche:
 - tasso di indeterminati;
 - confidenza media del metodo.
 
+#### 4.6.1 Incertezza a livello di task (dal 04-11-2026)
+
+L’intervallo di Wilson conta le *righe*. Se la stessa domanda ricompare in più
+richieste — il caso delle ripetizioni a temperatura non nulla e dei benchmark
+dove una richiesta produce più righe — quelle righe non sono tentativi
+indipendenti e il denominatore del Wilson è più grande dell’evidenza reale. Per
+questo `summarize` accetta `task_ids` e pubblica, accanto al Wilson, un
+bootstrap **a cluster**: si ricampionano i task (2000 ricampioni, seed fisso
+`20261104`, percentile 2,5–97,5) e si riporta `n_effective_tasks`, che dice
+quanti esperimenti ci sono davvero.
+
+Tre limiti sono dichiarati dal codice stesso:
+
+- se l’identità del task non è registrata l’intervallo a cluster è `null` con il
+  motivo in `cluster_bootstrap_note` — un bootstrap per riga sarebbe peggiorativo,
+  perché restringe assumendo l’indipendenza che voleva correggere;
+- con un solo task distinto l’intervallo non si pubblica: la dispersione dei
+  ricampioni sarebbe zero per costruzione, non per evidenza;
+- i due intervalli si leggono insieme, e non sostituiscono il confronto fra due
+  sistemi sullo stesso task, che resta una McNemar appaiata.
+
+Nessun riferimento bibliografico è associato a questa sezione: la procedura è il
+cluster bootstrap standard, ma la fonte va scelta e verificata alla fonte
+primaria prima che la tesi la citi (regola del repository: mai inventare una
+citazione).
+
 ## 5. Confronto con il valutatore storico
 
 | Aspetto | Valutatore storico | Valutatore parallelo |

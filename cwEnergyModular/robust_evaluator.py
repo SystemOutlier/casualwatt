@@ -36,6 +36,8 @@ import unicodedata
 from dataclasses import asdict, dataclass, field
 from typing import Any, Iterable, Mapping, Optional, Sequence
 
+from evaluation_runner import cluster_bootstrap_interval
+
 
 VERDICTS = ("correct", "incorrect", "indeterminate")
 _NUMBER_RE = re.compile(r"[-+]?(?:\d+(?:[.,]\d+)?|\d+[.,]\d+e[-+]?\d+)", re.I)
@@ -447,15 +449,31 @@ def evaluate(answer: str, reference: Any, *, answer_type: str = "auto") -> Evalu
                    detected, diagnostics={"reason": "unsupported answer_type"})
 
 
-def summarize(results: Iterable[EvaluationResult]) -> dict[str, Any]:
+def summarize(results: Iterable[EvaluationResult],
+              task_ids: Optional[Sequence[Any]] = None) -> dict[str, Any]:
     """Aggregate results without hiding indeterminate cases.
 
     Accuracy is computed only over determinate cases.  The Wilson interval is
     reported instead of a misleading normal approximation for small samples.
+
+    ``task_ids``, when supplied, is aligned positionally with ``results`` and
+    names the task each row answers: the same task repeated across requests is
+    ONE statistical unit, so the cluster bootstrap that uses it is reported
+    beside the row-level Wilson interval.  ``EvaluationResult`` carries no task
+    identity of its own, so without ``task_ids`` the cluster interval stays
+    ``None`` with its reason declared — a row-level bootstrap would narrow the
+    interval by assuming exactly the independence the cluster corrects.
     """
     rows = list(results)
-    determinate = [row for row in rows if row.verdict in ("correct", "incorrect")]
-    correct = sum(row.verdict == "correct" for row in determinate)
+    if task_ids is not None and len(task_ids) != len(rows):
+        raise ValueError(
+            f"task_ids has {len(task_ids)} entries but {len(rows)} results were "
+            "summarized: a misaligned pairing would attribute verdicts to the "
+            "wrong task")
+    determinate = [(row, None if task_ids is None else task_ids[i])
+                   for i, row in enumerate(rows)
+                   if row.verdict in ("correct", "incorrect")]
+    correct = sum(1 for row, _ in determinate if row.verdict == "correct")
     n = len(determinate)
     accuracy = correct / n if n else None
     if n:
@@ -469,6 +487,16 @@ def summarize(results: Iterable[EvaluationResult]) -> dict[str, Any]:
     else:
         interval = None
     calibrated = [row.confidence for row in rows if row.confidence_calibrated]
+    cluster = cluster_bootstrap_interval(
+        [(1 if row.verdict == "correct" else 0, task)
+         for row, task in determinate])
+    cluster_note = (
+        "cluster bootstrap resamples tasks, not rows; Wilson assumes row "
+        "independence — read the two widths together, a wider cluster interval "
+        "means the rows were not independent trials"
+        if cluster["interval"] is not None else
+        f"cluster interval not computable: {cluster['reason']}"
+    )
     return {
         "n_total": len(rows),
         "n_determinate": n,
@@ -476,6 +504,10 @@ def summarize(results: Iterable[EvaluationResult]) -> dict[str, Any]:
         "n_correct": correct,
         "accuracy": round(accuracy, 6) if accuracy is not None else None,
         "accuracy_wilson_95": interval,
+        "n_effective_tasks": (None if task_ids is None
+                              else cluster["n_effective_tasks"]),
+        "accuracy_cluster_bootstrap_95": cluster["interval"],
+        "cluster_bootstrap_note": cluster_note,
         "indeterminate_rate": round(
             (len(rows) - n) / len(rows), 6) if rows else None,
         "n_confidence_calibrated": len(calibrated),

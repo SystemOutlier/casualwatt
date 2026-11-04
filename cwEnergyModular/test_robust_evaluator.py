@@ -1,5 +1,7 @@
 import json
 
+import pytest
+
 from robust_evaluator import evaluate, summarize
 
 
@@ -107,6 +109,55 @@ def test_summary_reports_indeterminate_cases_and_wilson_interval():
     assert summary["n_indeterminate"] == 1
     assert summary["accuracy"] == 0.5
     assert summary["accuracy_wilson_95"][0] >= 0
+
+
+def test_task_ids_pongono_l_incertezza_a_livello_di_task():
+    """Quattro righe da due task: la Wilson le legge come quattro tentativi
+    indipendenti, il bootstrap a cluster no.
+
+    Task A = (correct, incorrect), task B = (correct, correct): accuratezza 0,75 su
+    `n_determinate = 4`, Wilson `[0,301; 0,954]`. Ricampionando i task ogni
+    ricampiono vale 0,5 (due A), 0,75 (A+B) o 1,0 (due B), quindi il 2,5 e il 97,5
+    per cento cadono su `[0,5; 1,0]`: il bordo inferiore SALE perche' la
+    variabilita' entro il task non e' variabilita' fra task. `n_effective_tasks`
+    dice quanti sono davvero gli esperimenti.
+    """
+    reference = {"answer_type": "number", "accepted_answers": ["21"]}
+    rows = [
+        evaluate("La risposta: 21", reference),
+        evaluate("La risposta: 20", reference),
+        evaluate("La risposta: 21", reference),
+        evaluate("La risposta: 21", reference),
+    ]
+    summary = summarize(rows, task_ids=["A", "A", "B", "B"])
+    assert summary["n_determinate"] == 4
+    assert summary["accuracy"] == 0.75
+    assert summary["n_effective_tasks"] == 2
+    assert summary["accuracy_cluster_bootstrap_95"] == [0.5, 1.0]
+    assert summary["accuracy_cluster_bootstrap_95"][0] > summary["accuracy_wilson_95"][0]
+
+
+def test_senza_task_ids_l_intervallo_di_cluster_e_dichiarato_assente():
+    """`EvaluationResult` non porta l'identita' del task: senza `task_ids` il
+    cluster non esiste e l'assenza va scritta, non sostituita da un bootstrap per riga."""
+    reference = {"answer_type": "number", "accepted_answers": ["21"]}
+    rows = [evaluate("La risposta: 21", reference),
+            evaluate("La risposta: 20", reference)]
+    summary = summarize(rows)
+    assert summary["n_effective_tasks"] is None
+    assert summary["accuracy_cluster_bootstrap_95"] is None
+    assert "task identity not recorded" in summary["cluster_bootstrap_note"]
+    assert summary["accuracy_wilson_95"] is not None
+
+
+def test_task_ids_disallineati_sono_un_errore_non_un_silenzio():
+    """Un accoppiamento storto fra esiti e task attribuirebbe verdetti al task
+    sbagliato: fallisce in faccia, non raggruppa a caso."""
+    reference = {"answer_type": "number", "accepted_answers": ["21"]}
+    rows = [evaluate("La risposta: 21", reference),
+            evaluate("La risposta: 20", reference)]
+    with pytest.raises(ValueError, match="misaligned pairing"):
+        summarize(rows, task_ids=["A"])
 
 
 def test_free_text_negation_is_indeterminate_not_correct():
