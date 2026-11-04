@@ -4,6 +4,16 @@ from robust_evaluator import evaluate, summarize
 
 
 def test_number_requires_unambiguous_or_marked_final_answer():
+    """Un numero in mezzo al ragionamento non e' la risposta: serve un'unica
+    occorrenza, oppure un marcatore finale dichiarato.
+
+    `5 * 5 = 25, poi 25 - 4 = 21` contiene due numeri e nessun marcatore, quindi non
+    esiste un criterio per dire quale sia la risposta -> `indeterminate`; con `La
+    risposta: 21` il marcatore toglie l'ambiguita' e l'esito e' `correct`, mentre
+    `La risposta: 25` e' `incorrect`. Senza questa regola l'ultimo numero trovato
+    diventerebbe la risposta e un passaggio intermedio verrebbe contato come errore
+    (o come successo).
+    """
     reference = {"answer_type": "number", "accepted_answers": ["21"]}
     assert evaluate("La risposta: 21", reference).verdict == "correct"
     assert evaluate("5 * 5 = 25, poi 25 - 4 = 21", reference).verdict == "indeterminate"
@@ -11,6 +21,14 @@ def test_number_requires_unambiguous_or_marked_final_answer():
 
 
 def test_number_tolerance_is_explicit():
+    """La tolleranza numerica esiste solo se il contratto la dichiara.
+
+    Con `absolute_tolerance = 0.001` l'errore `0.2124 - 0.212 = 0.0004` passa e
+    l'errore `0.22 - 0.212 = 0.008` no; senza tolleranza un confronto approssimato
+    sarebbe una soglia arbitraria del valutatore, non una regola del dataset. Il
+    test fissa i due lati del confronto sullo stesso riferimento, cosi' che la
+    soglia si veda applicata e non solo nominata.
+    """
     reference = {
         "answer_type": "number",
         "accepted_answers": ["0.212"],
@@ -21,12 +39,27 @@ def test_number_tolerance_is_explicit():
 
 
 def test_short_text_uses_token_boundaries_and_aliases():
+    """`short_text` confronta token interi contro gli alias dichiarati, non sottostringhe.
+
+    `Athens` e' un alias di `Atene`, quindi `La capitale è Athens.` e' corretta;
+    `Ateneo` contiene la sottostringa `Atene` ma e' un'altra parola, e un match
+    ingenuo la conterebbe come giusta. Il test blocca entrambe le direzioni: alias
+    si', prefisso no.
+    """
     reference = {"answer_type": "short_text", "accepted_answers": ["Atene", "Athens"]}
     assert evaluate("La capitale è Athens.", reference).verdict == "correct"
     assert evaluate("La capitale è Ateneo.", reference).verdict == "incorrect"
 
 
 def test_free_text_requires_declared_facts():
+    """`free_text` si valuta contro i fatti dichiarati, non contro una somiglianza.
+
+    Servono tutti e due i fatti richiesti e nessuno dei vietati: `Roma si trova nel
+    Lazio` passa, `Roma è in Toscana` manca `Lazio`, `Roma è importante` ne
+    contiene uno solo. Il minimo e' un campo del contratto
+    (`minimum_required_facts`), non una costante del valutatore, perche' la soglia
+    appartiene a chi ha scritto il riferimento.
+    """
     reference = {
         "answer_type": "free_text",
         "required_facts": ["Roma", "Lazio"],
@@ -40,6 +73,13 @@ def test_free_text_requires_declared_facts():
 
 
 def test_unstructured_legacy_reference_is_indeterminate():
+    """Un riferimento non strutturato non e' un contratto: il tipo non si inventa.
+
+    La stringa `"Roma"` non dice se e' un numero, un `short_text` o un `free_text`,
+    e indovinare sarebbe la stessa cosa che assumere la risposta giusta; lo stesso
+    contenuto in JSON con `answer_type` dichiarato produce `correct`. Il test separa
+    la mancanza di contratto (`indeterminate`) dalla risposta sbagliata.
+    """
     assert evaluate("Roma", "Roma").verdict == "indeterminate"
     result = evaluate("Roma", json.dumps({
         "answer_type": "short_text", "accepted_answers": ["Roma"]
@@ -48,6 +88,14 @@ def test_unstructured_legacy_reference_is_indeterminate():
 
 
 def test_summary_reports_indeterminate_cases_and_wilson_interval():
+    """L'accuratezza si calcola sui determinati, ma gli indeterminati restano contati.
+
+    Con una risposta giusta, una sbagliata e una ambigua l'accuratezza e' 0.5 su
+    `n_determinate = 2`, e `n_indeterminate = 1` resta nel riepilogo: escluderli dal
+    denominatore senza esporli permetterebbe di alzare l'accuratezza fermando righe
+    senza che il numero lo dica. L'intervallo di Wilson accompagna la proporzione
+    invece di lasciarla nuda.
+    """
     rows = [
         evaluate("21", {"answer_type": "number", "accepted_answers": ["21"]}),
         evaluate("20", {"answer_type": "number", "accepted_answers": ["21"]}),
@@ -62,6 +110,14 @@ def test_summary_reports_indeterminate_cases_and_wilson_interval():
 
 
 def test_free_text_negation_is_indeterminate_not_correct():
+    """I fatti presenti in una frase negata non soddisfano il contratto.
+
+    `Roma non si trova nel Lazio` contiene sia `Roma` sia `Lazio`, quindi un
+    controllo di sola presenza la dichiarerebbe corretta mentre dice l'opposto;
+    senza un verificatore di implicazione semantica l'esito onesto e'
+    `indeterminate`, e il diagnostico `semantic_entailment_verified = False` lo
+    rende esplicito invece di lasciarlo dedurre.
+    """
     reference = {
         "answer_type": "free_text",
         "required_facts": ["Roma", "Lazio"],
@@ -74,6 +130,13 @@ def test_free_text_negation_is_indeterminate_not_correct():
 
 
 def test_non_finite_numeric_reference_is_indeterminate():
+    """Un riferimento `NaN` e' un contratto non valido, non un valore da confrontare.
+
+    `NaN` non e' un numero e ogni confronto con esso e' falso: senza il controllo il
+    contratto produrrebbe `incorrect` per costruzione, cioe' una riga punita per un
+    errore del dataset. Il test fissa `invalid_reference_contract`, che dice da che
+    parte sta il difetto.
+    """
     result = evaluate("answer: 1", {
         "answer_type": "number", "accepted_answers": ["NaN"]
     })
@@ -82,6 +145,13 @@ def test_non_finite_numeric_reference_is_indeterminate():
 
 
 def test_invalid_free_text_contract_requires_explicit_literal_mode():
+    """Il modo di confronto si dichiara: senza `fact_match_mode` il contratto e' invalido.
+
+    Un `free_text` i cui fatti potrebbero essere confrontati in modi diversi
+    (letterale, lemma, implicazione) non e' riproducibile finche' il modo non e'
+    scritto; il messaggio di validazione nomina la chiave mancante, cosi' chi scrive
+    il riferimento sa cosa aggiungere invece di vedere un fallimento senza causa.
+    """
     result = evaluate("Roma è nel Lazio", {
         "answer_type": "free_text", "required_facts": ["Roma", "Lazio"]
     })
@@ -90,9 +160,24 @@ def test_invalid_free_text_contract_requires_explicit_literal_mode():
 
 
 def test_auto_contract_inference_remains_supported():
+    """Un contratto minimo `{accepted_answers: [...]}` continua a valere: il tipo si
+    inferisce, l'inferenza non e' deprecata.
+
+    Il dataset storico non dichiara `answer_type` su tutte le righe; togliere
+    l'inferenza farebbe degradare a `indeterminate` righe con un riferimento
+    numerico inequivocabile. Il test difende la compatibilita' all'indietro: la
+    regola nuova chiede un contratto valido, non un formato nuovo.
+    """
     assert evaluate("42", {"accepted_answers": ["42"]}).verdict == "correct"
 
 def test_scalar_reference_and_explicit_answer_type_are_supported():
+    """Lo scalare `21` e il tipo dichiarato sono due forme dello stesso contratto.
+
+    Un `accepted_answers` scalare non e' una lista ma e' comunque un riferimento
+    univoco, quindi vale; `answer_type = "short_text"` scritto a mano deve vincere
+    sull'inferenza, altrimenti il campo esplicito non servirebbe a nulla. Il test
+    copre entrambe le normalizzazioni sullo stesso percorso di `evaluate`.
+    """
     assert evaluate("21", {"accepted_answers": 21}).verdict == "correct"
     assert evaluate("Athens", {"accepted_answers": ["Athens"]},
                     answer_type="short_text").verdict == "correct"
