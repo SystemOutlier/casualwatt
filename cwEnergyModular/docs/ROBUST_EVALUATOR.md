@@ -15,7 +15,18 @@ se una risposta è corretta.
 4. **Tracciabilità**: ogni risultato contiene metodo, risposta estratta,
    fatti mancanti, elementi proibiti e diagnostica.
 5. **Intervallo d'incertezza**: gli aggregati riportano l'intervallo Wilson al
-   95% e il tasso di casi indeterminati.
+   95% e il tasso di casi indeterminati. Il Wilson è a livello di *riga* e
+   suppone che ogni riga sia un tentativo indipendente; quando la stessa domanda
+   ricompare in più richieste quell'ipotesi cade, quindi `summarize(rows,
+   task_ids=[...])` pubblica anche `accuracy_cluster_bootstrap_95` (percentile
+   2,5–97,5 di un bootstrap **a cluster** sul task, 2000 ricampioni, seed fisso
+   `20261104`) e `n_effective_tasks`. I due intervalli si leggono insieme, non in
+   alternativa. Senza `task_ids` il secondo resta `null` con il motivo scritto in
+   `cluster_bootstrap_note`: un bootstrap per riga restringerebbe l'intervallo
+   assumendo proprio l'indipendenza che il cluster deve correggere. Con un solo
+   task distinto l'intervallo non si pubblica affatto (la dispersione sarebbe
+   zero per costruzione, non per evidenza). Il confronto fra due sistemi sullo
+   stesso task resta una McNemar appaiata.
 
 ## Contratto di riferimento
 
