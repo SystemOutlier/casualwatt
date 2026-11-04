@@ -215,6 +215,89 @@ def test_c_reset_contatore_ai_bordi_non_degrada_al_fallback():
     assert any("delta negativo del contatore package" in n for n in res.notes)
 
 
+def _stesso_record(ts=10_000_000, pkg_j=100.0):
+    """I due bordi nell'unica forma in cui il registro EMI non e' avanzato."""
+    return (
+        {"t_counter_mono": T0, "t_cpu_mid": T0,
+         "counter": {"pkg_j": pkg_j, "pkg_pwh": pkg_j * 10.0,
+                     "ts_100ns": ts}},
+        {"t_counter_mono": T0 + 1.0, "t_cpu_mid": T0 + 1.0,
+         "counter": {"pkg_j": pkg_j, "pkg_pwh": pkg_j * 10.0,
+                     "ts_100ns": ts}},
+    )
+
+
+def test_c_bordi_sul_medesimo_record_non_diventano_zero_misurato():
+    """ts_100ns identico ai bordi: la finestra e' invalida, non un consumo di 0,0 J.
+
+    La relazione verificata e' quella del registro EMI: il timestamp e' per
+    dominio e due bordi che riportano lo stesso timestamp hanno letto la STESSA
+    riga di memoria, quindi la differenza dei due ``pkg_j`` vale zero per
+    costruzione e non perche' il package non ha consumato: e' l'assenza di un
+    nuovo campionamento. Un 0,0 J spacciato per misura e' anche il caso piu'
+    costoso: porta l'energia attiva a ``-P_idle*dt`` e, su una finestra di
+    baseline, darebbe ``P_pre = 0``.
+    """
+    start, end = _stesso_record()
+    res = _profile(_FakeSession(package_j=100.0, idle_w=10.0),
+                   direct_cpu_delta=1.0, direct_busy_delta=2.0,
+                   edge_start=start, edge_end=end)
+
+    assert res.package_energy_raw_j == pytest.approx(0.0)
+    assert res.package_window_source == "counter-invalid"
+    assert res.emi_edge_source == "counter-invalid"
+    assert res.active_valid is False
+    assert res.ollama_active_energy_j == 0.0
+    # gli ingressi del flag stanno nella riga (P4.12): un flag senza i suoi
+    # timestamp non e' verificabile da un terzo
+    assert res.emi_ts_start_100ns == 10_000_000
+    assert res.emi_ts_end_100ns == 10_000_000
+    assert any("contatore package non avanzato fra i bordi" in n
+               for n in res.notes)
+    # e la ragione dell'invalidita' e' una sola: non deve arrivare anche la
+    # nota del degrado al buffer, che qui non avviene
+    assert not any("energia dal buffer a 0,05 s" in n for n in res.notes)
+
+
+def test_c_timestamp_che_regressa_e_invalido_come_quello_fermo():
+    """ts fine < ts inizio: il record e' tornato indietro, la finestra non e' usabile.
+
+    Stessa relazione del caso "fermo" (``delta = E(ts1) - E(ts0)`` ha senso solo
+    se ``ts1 > ts0``): un registro che regressa non e' mai un consumo nullo.
+    """
+    start, end = _stesso_record()
+    end["counter"]["ts_100ns"] = 5_000_000
+    res = _profile(_FakeSession(package_j=100.0, idle_w=10.0),
+                   direct_cpu_delta=1.0, direct_busy_delta=2.0,
+                   edge_start=start, edge_end=end)
+
+    assert res.package_window_source == "counter-invalid"
+    assert res.active_valid is False
+    assert any("contatore package non avanzato fra i bordi" in n
+               for n in res.notes)
+
+
+def test_c_senza_timestamp_la_domanda_non_e_decidibile_e_il_bordo_vale():
+    """Senza ts (PawnIO, o record senza campo) il delta 0,0 J resta una lettura.
+
+    Il guard non puo' inventare un'assenza: li' dove il contatore non espone un
+    timestamp per dominio la domanda "il registro e' fermo?" non ha risposta, e
+    la riga deve restare ``direct-ioctl``/``exact-counter`` invece di essere
+    degradata da un controllo che non puo' essere eseguito. E' la stessa clausola
+    con cui ``_emi_pp1_frozen`` rinuncia sotto i due campioni.
+    """
+    start, end = _stesso_record()
+    del start["counter"]["ts_100ns"]
+    del end["counter"]["ts_100ns"]
+    res = _profile(_FakeSession(package_j=100.0, idle_w=10.0),
+                   direct_cpu_delta=1.0, direct_busy_delta=2.0,
+                   edge_start=start, edge_end=end)
+
+    assert res.package_window_source == "exact-counter"
+    assert res.emi_edge_source == "direct-ioctl"
+    assert not any("contatore package non avanzato" in n for n in res.notes)
+
+
 # ------------------------------------------------------------------ d
 def test_d_nato_dentro_la_finestra_conta_dal_suo_inizio():
     """Un worker visto solo a t_end ha tutto il suo cpu_times dentro la finestra (da 0)."""

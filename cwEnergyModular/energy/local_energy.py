@@ -449,6 +449,30 @@ class CasualWattLocalEnergyProfiler:
                 )
             elif edge_delta is not None:
                 e_package = None
+            # Il registro puo' non essere stato aggiornato fra i due bordi: i
+            # due timestamp PKG sono allora lo stesso record e la differenza
+            # vale 0,0 J, che non e' "il package non ha consumato" ma l'assenza
+            # di una lettura nuova. Stessa regola gia' in vigore per il dominio
+            # PP1 (``_emi_pp1_frozen``) e per il ramo giudice del runner v4
+            # (``benchmark_v4.py``, "stesso record ai bordi"): qui la finestra e'
+            # invalida, non degradata. Con PawnIO il timestamp non esiste
+            # (``ts_100ns`` e' None) e la domanda non e' decidibile: si lascia
+            # rispondere il bordo, come per PP1 con meno di due campioni.
+            ts_edge0 = self._edge_counter_ts(edge_start)
+            ts_edge1 = self._edge_counter_ts(edge_end)
+            if not counter_increment_invalid and ts_edge0 is not None \
+                    and ts_edge1 is not None and ts_edge1 <= ts_edge0:
+                counter_increment_invalid = True
+                e_package = edge_delta if edge_delta is not None else 0.0
+                res.package_window_source = "counter-invalid"
+                res.emi_edge_source = "counter-invalid"
+                notes.append(
+                    "contatore package non avanzato fra i bordi "
+                    f"(ts_100ns {ts_edge0} -> {ts_edge1}): i due bordi hanno "
+                    "letto lo stesso record, quindi il delta "
+                    f"({float(e_package):+.6f} J) non e' una misura e la "
+                    "finestra e' invalida; non si usa il fallback sui campioni"
+                )
             e_edge = self._edge_energy_j(edge_start, edge_end)
             if counter_increment_invalid:
                 e_edge = None
@@ -471,15 +495,16 @@ class CasualWattLocalEnergyProfiler:
                         or self._edge_raw_unit(edge_end) or "pWh")
                     res.domain = "pkg"
             else:
-                edge_reason = (
-                    str(edge_start.get("counter_error") or "")
-                    or str(edge_end.get("counter_error") or "")
-                    or "valore assente o non crescente"
-                )
-                notes.append(
-                    "differenza diretta del contatore non disponibile ai "
-                    f"bordi ({edge_reason}): energia dal buffer a 0,05 s "
-                    "(interpolazione dichiarata, emi_edge_source=buffer-interp)")
+                if not counter_increment_invalid:
+                    edge_reason = (
+                        str(edge_start.get("counter_error") or "")
+                        or str(edge_end.get("counter_error") or "")
+                        or "valore assente o non crescente"
+                    )
+                    notes.append(
+                        "differenza diretta del contatore non disponibile ai "
+                        f"bordi ({edge_reason}): energia dal buffer a 0,05 s "
+                        "(interpolazione dichiarata, emi_edge_source=buffer-interp)")
         exact_fn = getattr(self.session, "package_energy_exact_between", None)
         if e_package is None and not counter_increment_invalid and callable(exact_fn):
             try:
@@ -494,7 +519,8 @@ class CasualWattLocalEnergyProfiler:
                         "sottofinestre escluse: la differenza diretta fra i "
                         "bordi non puo' scorporarle; energia dal buffer gia' "
                         "ridotto (emi_edge_source=buffer-interp)")
-        if e_package is not None and e_package >= 0.0:
+        if e_package is not None and e_package >= 0.0 \
+                and not counter_increment_invalid:
             res.package_window_source = "exact-counter"
             if not res.emi_edge_source:
                 res.emi_edge_source = "buffer-interp"
