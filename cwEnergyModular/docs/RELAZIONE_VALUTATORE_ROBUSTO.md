@@ -363,10 +363,16 @@ risposta.
    ground truth (`compatible`, `non_compatibile`) solo in quella formulazione
    inglese, e per un valore fuori vocabolario sospende il giudizio invece di
    inventare un marcatore. Non è una verifica di equivalenza semantica.
-9. La prova di esecuzione del tool non copre gli argomenti della chiamata: i run
-   registrano il testo della risposta, non gli input. L'adattatore lo dichiara
-   nei `notes` con lo stato `not recorded`; perché sia verificato serve aggiungere
-   al trace il contratto degli argomenti attesi.
+9. La prova di esecuzione del tool non copriva gli argomenti della chiamata: i run
+   registravano il testo della risposta, non gli input. Chiusa in parte il 04-11:
+   l'harness orchestrato registra ora gli argomenti inviati insieme alla risposta
+   (`run_orchestrato.py:491-495`) e l'adattatore li confronta con la traduzione
+   valutata scartando l'involucro `{label, features, path}` della firma del tool.
+   Restano `not recorded`, e lo dichiarano nei `notes`: i run pubblicati prima di
+   questa modifica e la pipeline a contatori
+   (`MUDILAB_run/MUDILAB_correzioni/run_query.py:188-194`), che dal framework degli
+   agenti riceve solo i conteggi. Il disallineamento degli argomenti non cambia
+   l'esito `end_to_end` -- è una dichiarazione, non un criterio nuovo.
 
 ## 8. Piano di validazione scientifica
 

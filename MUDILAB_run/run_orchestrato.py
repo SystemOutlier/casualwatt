@@ -481,6 +481,18 @@ async def run(task: str, misura: Misura, opzioni_passi: dict | None = None,
     t1 = time.perf_counter()
     steps.append({
         "step": "cau_inference",
+        # Gli argomenti effettivamente inviati, accanto alla risposta.  Il record
+        # aveva solo il testo del tool, nel campo `text`, quindi
+        # `mudilab_adapter._argomenti_verificati` non aveva niente da leggere e ogni run orchestrato usciva `not recorded`: la prova
+        # dell'esecuzione copriva il fatto che il tool fosse girato, non che
+        # avesse ricevuto la traduzione messa in punteggi.  `name` e `surname`
+        # della firma (`consegna/tools_corretto.py:322-323`) non sono passati
+        # qui, e la loro assenza e' registrata come assenza, non come default.
+        "args": {
+            "label": etichetta,
+            "features": json.dumps(traduzione),
+            "path": path_rete,
+        },
         "seconds": round(t1 - t0, 3),
         "tokens": {},
         "misura": misura.riga(t0, t1, e0, misura.bordo()),

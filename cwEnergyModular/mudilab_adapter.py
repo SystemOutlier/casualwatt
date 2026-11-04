@@ -164,12 +164,13 @@ def _prova_esecuzione(tool_calls: Any) -> tuple[str, list[str]]:
     The three accepted forms:
 
     * ``[{"step": "cau_inference", "text": ...}]`` -- the step appended by
-      ``run_orchestrato.py:482-488``.  It is appended only after the call
+      ``run_orchestrato.py:482-500``.  It is appended only after the call
       returned (``:468-480`` routes an exception to ``errore`` with no step),
       so a step with a non-empty text is a successful execution.
     * ``{"cau_inference": {"invocazioni": n, "eccezioni": m}}`` -- the counter
-      dict written by ``MUDILAB_correzioni/run_query.py:188-193``, where
-      ``tool_ok`` at ``:185`` is exactly ``invocazioni >= 1 and eccezioni == 0``.
+      dict written by ``MUDILAB_run/MUDILAB_correzioni/run_query.py:188-194``,
+      where ``tool_ok`` is defined at ``:178`` and written at ``:185`` as exactly
+      ``invocazioni >= 1 and eccezioni == 0``.
     * ``[{"name": "cau_inference", "success": true}]`` -- the declared schema,
       still read.
 
@@ -237,14 +238,64 @@ def _prova_esecuzione(tool_calls: Any) -> tuple[str, list[str]]:
     ]
 
 
-def _argomenti_verificati(tool_calls: Any, translation: Any) -> tuple[str, str]:
+_CHIAVI_ARGOMENTI = ("arguments", "args", "input", "inputs", "features", "params")
+
+
+def _scarta_involucro(payload: Any) -> Any:
+    """La query dentro gli argomenti registrati, nella firma che il tool riceve.
+
+    `cau_inference(label, features, path, name, surname)`
+    (``MUDILAB_run/consegna/tools_corretto.py:322-323``) prende la traduzione nel
+    secondo argomento, come stringa JSON, e l'harness orchestrato registra la
+    forma mandata: ``{"label": ..., "features": "{\\"input\\": ...}", "path": ...}``
+    (``run_orchestrato.py:491-495``).  Confrontare quell'involucro con la
+    traduzione in punteggi avrebbe dato ``mismatch`` fra due dizionari che
+    descrivono la stessa query.  La traduzione reale ha la chiave ``input``, quindi
+    un payload che ce l'ha gia' non viene scartato un secondo giro.
+    """
+    while isinstance(payload, Mapping) and "features" in payload and "input" not in payload:
+        payload = payload["features"]
+    if isinstance(payload, str):
+        try:
+            payload = json.loads(payload)
+        except (TypeError, ValueError):
+            pass
+    return payload
+
+
+def _etichetta_del_ramo(value: Any) -> str:
+    """L'etichetta del ramo come la intende il tool, non come e' scritta.
+
+    `cau_inference` normalizza il refuso `conterfactual` in `counterfactual`
+    (``tools_corretto.py:331-333``, la FIX 2, accettata per non rompere i prompt
+    esistenti): confrontare le stringhe crude avrebbe chiamato ``mismatch`` una
+    chiamata che il tool esegue sul ramo giusto.
+    """
+    etichetta = _text(value).lower()
+    return "counterfactual" if etichetta == "conterfactual" else etichetta
+
+
+def _argomenti_verificati(tool_calls: Any, translation: Any,
+                          expected_label: str = "") -> tuple[str, str]:
     """Whether the call inputs are readable, and whether they are the scored ones.
 
     Execution proof alone is not argument proof: the review asked for the call
-    arguments to be checked too.  The pipeline records the tool's answer text
-    but not its inputs, so the honest verdict on the runs produced so far is
-    ``not recorded``, which is stated in the notes rather than passed off as a
-    verified call.
+    arguments to be checked too.  Two of the three recorded shapes can now answer
+    that, and one cannot:
+
+    * the orchestrated harness passes the arguments to the tool itself and
+      registers them beside the answer (``run_orchestrato.py:469`` and ``:491-495``),
+      so its runs are decidable -- ``verified`` when the payload equals the scored
+      translation, ``mismatch`` when it does not;
+    * a recorded mapping that carries the inputs under another name is read as
+      ``unreadable`` rather than guessed;
+    * the counter dict of ``MUDILAB_run/MUDILAB_correzioni/run_query.py:188-194``
+      reports ``invocazioni``/``eccezioni`` only: ``invocation_count`` is read at
+      ``:178`` and ``:190`` and nothing in this repository writes it, so it belongs
+      to the agent framework, which does not hand the call inputs back.  For those
+      runs -- and for every run recorded before the harness started writing
+      ``args`` -- the honest verdict stays ``not recorded``, and it is said in the
+      notes instead of being passed off as a verified call.
     """
     raw: list[Mapping[str, Any]] = []
     if isinstance(tool_calls, Mapping):
@@ -252,27 +303,53 @@ def _argomenti_verificati(tool_calls: Any, translation: Any) -> tuple[str, str]:
         raw = [entry] if isinstance(entry, Mapping) else [tool_calls]
     else:
         raw = [call for call in (tool_calls or []) if isinstance(call, Mapping)]
+
+    registrato: Optional[tuple[Any, Any]] = None
     for call in raw:
         if _nome_chiamata(call) not in ("", "cau_inference"):
             continue
-        for key in ("arguments", "args", "input", "inputs", "features", "params"):
-            if key not in call:
-                continue
-            inviati = call[key]
-            if isinstance(inviati, str):
-                try:
-                    inviati = json.loads(inviati)
-                except (TypeError, ValueError):
-                    inviati = inviati.strip()
-            if isinstance(inviati, Mapping) and inviati == translation:
-                return "verified", "call inputs match the scored translation"
-            if isinstance(inviati, Mapping):
-                return "mismatch", (
-                    "call inputs differ from the scored translation: "
-                    f"{sorted(inviati)} vs {sorted(translation) if isinstance(translation, Mapping) else translation!r}"
-                )
-            return "unreadable", f"call inputs recorded as {type(inviati).__name__}, not a mapping"
-    return "not recorded", "call inputs are not recorded; execution proof does not cover the arguments"
+        for key in _CHIAVI_ARGOMENTI:
+            if key in call:
+                registrato = (call[key], _scarta_involucro(call[key]))
+                break
+        if registrato is not None:
+            break
+
+    if registrato is None:
+        return ("not recorded",
+                "call inputs are not recorded; execution proof does not cover the arguments")
+
+    involucro, inviati = registrato
+    if not isinstance(inviati, Mapping):
+        return ("unreadable",
+                f"call inputs recorded as {type(inviati).__name__}, not a mapping")
+
+    if not isinstance(translation, Mapping):
+        translation = _scarta_involucro(translation)
+    if not isinstance(translation, Mapping):
+        # Niente traduzione in punteggi = niente termine di confronto.  Dirlo
+        # `mismatch` avrebbe attribuito al call un input diverso da una cosa che
+        # non era stata registrata; la tappa della traduzione e' gia'
+        # `indeterminate` per sua propria ragione.
+        return ("unreadable",
+                f"no scored translation to compare the recorded inputs with ({type(translation).__name__})")
+
+    if inviati != translation:
+        return ("mismatch",
+                "call inputs differ from the scored translation: "
+                f"{sorted(inviati)} vs {sorted(translation)}")
+
+    # La query coincide.  Se l'involucro porta anche l'etichetta del ramo,
+    # un'etichetta diversa da quella del case significa che il tool ha risposto a
+    # un'altra domanda con la stessa query: il numero non e' di questa riga.
+    if expected_label and isinstance(involucro, Mapping) and "label" in involucro:
+        mandata = _etichetta_del_ramo(involucro["label"])
+        if mandata and mandata != _etichetta_del_ramo(expected_label):
+            return ("mismatch",
+                    f"the recorded call asked label {mandata!r}, the case expects "
+                    f"{_etichetta_del_ramo(expected_label)!r}: the number comes from "
+                    "another branch of the tool")
+    return "verified", "call inputs match the scored translation"
 
 
 def _case_contract(case: MudilabCase) -> dict[str, Any]:
@@ -380,7 +457,8 @@ def evaluate_case(case: MudilabCase, *, label: str, translation: Any,
     output_result = evaluate(output, contract)
     tool_status, tool_notes = _prova_esecuzione(tool_calls)
     valid_call = tool_status == "success"
-    arg_state, arg_note = _argomenti_verificati(tool_calls, translation)
+    arg_state, arg_note = _argomenti_verificati(
+        tool_calls, translation, case.expected_label)
     stages = (label_result.verdict, translation_result.verdict, output_result.verdict)
     if any(item == "incorrect" for item in stages) or tool_status == "failed":
         end_to_end = "incorrect"

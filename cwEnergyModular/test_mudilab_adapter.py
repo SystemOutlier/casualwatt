@@ -252,7 +252,7 @@ def test_counter_dict_with_zero_invocations_is_missing():
 
 
 def test_recorded_step_with_answer_text_proves_execution():
-    """`run_orchestrato.py:468-488` aggiunge il passo solo dopo il ritorno.
+    """`run_orchestrato.py:468-500` aggiunge il passo solo dopo il ritorno.
 
     La eccezione finisce in `errore` senza passo, quindi un passo
     `cau_inference` con il testo della risposta e' la prova che il call e'
@@ -421,3 +421,94 @@ def test_unmeasured_branch_declares_its_tolerance_instead_of_borrowing_one():
     assert result.output.diagnostics["absolute_tolerance"] == 0.5 * 10.0 ** -3 + 1e-12
     assert any("absolute tolerance declared, not derived" in note
                for note in result.notes)
+
+
+# --- argomenti del call registrati e letti ----------------------------------
+#
+# La forma e' quella che l'harness orchestrato scrive adesso nel passo:
+# `run_orchestrato.py:469` passa etichetta, query e path a `cau_inference.func`
+# e `:491-495` li registra insieme alla risposta.  La query e' il secondo
+# argomento della firma del tool (`consegna/tools_corretto.py:322-323`), cioe' una
+# stringa JSON dentro un involucro con tre chiavi: confrontare l'involucro con la
+# traduzione in punteggi avrebbe dato `mismatch` fra due dizionari che descrivono
+# la stessa query, e il confronto sarebbe fallito per la forma, non per il
+# contenuto.
+_QUERY_JSON = '{"input": {"DrivQuality": "Normal"}, "output": {"Age": "Senior"}}'
+
+
+def _passo(args_label="backward_reasoning", args_features=_QUERY_JSON,
+           text="The probability is 0.212"):
+    return {"step": "cau_inference",
+            "args": {"label": args_label, "features": args_features,
+                     "path": "insurance_grafo.bif"},
+            "text": text}
+
+
+def test_recorded_arguments_are_read_through_the_tools_signature():
+    """Un passo che registra gli argomenti mandati e' decidibile: niente piu' `not recorded`.
+
+    Prima di questa registrazione il record conteneva solo il testo della risposta,
+    quindi la prova di esecuzione copriva il fatto che il tool fosse girato ma non
+    che avesse ricevuto la traduzione messa in punteggi.  Qui la coincidenza e'
+    reale: lo stato `verified` si vede dall'assenza della nota.
+    """
+    result = evaluate_case(
+        _case(), label="backward_reasoning", translation=_TRADUZIONE,
+        output="The probability is 0.212", tool_calls=[_passo()],
+    )
+    assert result.tool_call_status == "success"
+    assert not any("cau_inference arguments" in note for note in result.notes)
+    assert result.end_to_end == "correct"
+
+
+def test_arguments_that_differ_from_the_scored_translation_are_declared():
+    """Query registrata diversa da quella valutata: la nota lo dice, il punteggio no.
+
+    `input` registato `Bad` contro una traduzione valutata `Normal` significa che
+    il numero viene da un'altra query della stessa riga.  La nota e' obbligatoria
+    per onesta' della misura; cambiare `end_to_end` sarebbe un criterio nuovo, e
+    i criteri nuovi si decidono sui dati, non nel codice del valutatore.
+    """
+    result = evaluate_case(
+        _case(), label="backward_reasoning", translation=_TRADUZIONE,
+        output="The probability is 0.212",
+        tool_calls=[_passo(args_features=(
+            '{"input": {"DrivQuality": "Bad"}, "output": {"Age": "Senior"}}'))],
+    )
+    assert any("cau_inference arguments: mismatch" in note for note in result.notes)
+    assert result.end_to_end == "correct"
+
+
+def test_arguments_sent_to_another_branch_of_the_tool_are_declared():
+    """Stessa query ma etichetta `intervention`: il tool ha risposto ad altra domanda.
+
+    Il contratto numerico del ramo `cond_prob` e quello dell'intervento non sono lo
+    stesso numero, quindi una riga con gli argomenti dell'altro ramo non e'
+    verificata dalla traduzione: e' un ramo diverso eseguito sulla stessa query.
+    L'etichetta si confronta dopo la normalizzazione del tool, non alla lettera.
+    """
+    result = evaluate_case(
+        _case(), label="backward_reasoning", translation=_TRADUZIONE,
+        output="The probability is 0.212", tool_calls=[_passo(args_label="intervention")],
+    )
+    assert any("another branch of the tool" in note for note in result.notes)
+
+
+def test_refuso_nei_args_registrati_non_e_un_ramo_sbagliato():
+    """`conterfactual` nei argomenti e' il refuso che il tool accetta, non un ramo altro.
+
+    `tools_corretto.py:331-333` normalizza il refuso in `counterfactual` (FIX 2,
+    accettato per non rompere i prompt esistenti): un confronto letterale avrebbe
+    dichiarato `mismatch` una chiamata che il tool esegue sul ramo giusto, e la
+    nota avrebbe accusato il run per colpa dell'ortografia.
+    """
+    result = evaluate_case(
+        _case("counterfactual"), label="counterfactual", translation=_TRADUZIONE_INTER,
+        output="The answer is between 0.0827 and 0.2396",
+        tool_calls=[_passo(args_label="conterfactual",
+                           args_features='{"input": {"RiskAversion": "Cautious"}, '
+                                         '"output": {"Age": "Senior"}}',
+                           text="The answer is between 0.0827 and 0.2396")],
+    )
+    assert not any("cau_inference arguments" in note for note in result.notes)
+    assert result.end_to_end == "correct"
