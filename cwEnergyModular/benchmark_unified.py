@@ -540,7 +540,7 @@ def _basic_record(run_id, session_id, model_name, model_label, provider, mode,
         "cloud_carbon_intensity_timestamp": "",
         # PUNTO TESI (23/10): il template non scrive NOMI di metodo cloud che
         # descrivano un percorso mai invocato. Il dataset pubblicato 19/10 porta
-        # "ecologits gwp (...)" in 9/9 righe locali (benchmark_unified.py:928-930
+        # "ecologits gwp (...)" in 9/9 righe locali (benchmark_unified.py:1113-1115
         # fa SKIP senza chiave). L'unica eccezione e' il token "not-applicable"
         # della riga locale, che dichiara l'assenza di un metodo e non un metodo:
         # lo zero di quella riga e' il confine (D4), non una stima. La riga che
