@@ -1565,6 +1565,8 @@ class _GPUMonitor:
             self.error = f"{type(exc).__name__}"
         self.energy_counter = False
         self.energy_counter_reason = ""
+        # Ragione dell'ultimo None di ``process_energy_j`` (N/A dichiarato).
+        self.process_energy_reason = None
         self._probe_energy_counter()
 
     def _probe_energy_counter(self) -> None:
@@ -1647,40 +1649,99 @@ class _GPUMonitor:
                          pids: Optional[List[int]] = None) -> Optional[float]:
         """Energia GPU attribuibile ai processi indicati (es. albero Ollama).
 
-        Usa nvmlDeviceGetProcessUtilization [ms/GPU per PID] nella finestra e
-        lo converte in frazione del tempo di finestra; la quota si applica
-        all'energia board attiva (whole-device minus idle), che e' l'unica
-        grandezza energetica misurata da NVML. Ritorna None (N/A dichiarato)
-        se NVML non espone il contatore o i PID non compaiono — mai un valore
-        inventato. Campo INFORMATIVO: non sostituisce l'attribuzione
-        whole-device usata in gpu_energy_attributed_j.
+        Il ramo nasce con un'assunzione falsa, dichiarata qui e non piu'
+        rimossa: ``nvmlDeviceGetProcessUtilization`` NON espone una durata per
+        processo. Il binding installato restituisce campioni con i campi
+        ``pid, timeStamp, smUtil, memUtil, encUtil`` (``pynvml.py:1755-1761``,
+        letto il 04-11-2026): ``timeStamp`` data l'ultimo campionamento, non
+        intervals. Senza una durata non esiste una frazione del tempo di
+        finestra da applicare all'energia board, e questo percorso lo dice
+        invece di produrla lo stesso. Dove il binding (o un mock) espone una
+        durata, la quota si applica all'energia board attiva (whole-device
+        minus idle), che e' l'unica grandezza energetica misurata da NVML.
+        Ritorna None (N/A dichiarato) se NVML non espone la funzione, se i PID
+        non compaiono, o se non c'e' una durata — mai un valore inventato.
+        Campo INFORMATIVO: non sostituisce l'attribuzione whole-device usata in
+        ``gpu_energy_attributed_j``.
+
+        ``process_energy_reason`` porta PERCHE' ha risposto None, su ognuno dei
+        rami: un N/A senza ragione e' ambiguo quanto un numero sbagliato, e le
+        quattro assenze qui non sono lo stesso fatto (monitor chiuso, PID non
+        dichiarati, API non esposta, PID fuori dai campioni, bordo board-attivo
+        mai registrato). Il motivo storico di questa nota: il ramo finale —
+        ``_last_window_board_active_j`` letto via ``getattr`` e mai assegnato
+        da nessuna parte — produceva un None che il chiamante etichettava come
+        "nvmlDeviceGetProcessUtilization non disponibile per i PID Ollama",
+        cioe' una ragione falsa: la chiamata poteva essere riuscita benissimo.
+
+        LIMITE DEL CAMPO, dichiarato: i campioni di utilizzo si prendono dagli
+        ULTIMI 10 s di storia NVML (``time.time_ns() - 10_000_000``), non da
+        ``[t_start, t_end]``. La frazione quindi non e' sulla finestra della
+        riga quando la finestra non dura 10 s: il campo resta informativo e non
+        entra in nessuna attribuzione primaria.
         """
-        if not self.available or not pids:
+        self.process_energy_reason = None
+        if not self.available:
+            self.process_energy_reason = "monitor NVML non disponibile"
+            return None
+        if not pids:
+            self.process_energy_reason = (
+                "nessun PID dichiarato: l'albero del motore non e' leggibile")
             return None
         try:
             import pynvml
 
             # timestamp NVML in microsecondi: finestra degli ultimi 10 s
-            samples = pynvml.nvmlDeviceGetProcessUtilization(
-                self.handle, int(time.time_ns() // 1000) - 10_000_000)
+            # (vedi il limite dichiarato nella docstring, non e' [t_start, t_end])
+            fn = getattr(pynvml, "nvmlDeviceGetProcessUtilization", None)
+            if fn is None:
+                self.process_energy_reason = (
+                    "pynvml senza nvmlDeviceGetProcessUtilization")
+                return None
+            samples = fn(self.handle, int(time.time_ns() // 1000) - 10_000_000) or []
+            matched = [s for s in samples if getattr(s, "pid", None) in pids]
+            if not matched:
+                self.process_energy_reason = (
+                    "nessun PID Ollama nei campioni di utilizzo NVML")
+                return None
             span_ms = max((t_end - t_start) * 1000.0, 1e-6)
             busy_ms = 0.0
-            for s in samples or []:
-                pid = getattr(s, "pid", None)
-                if pid in pids:
-                    u = getattr(s, "utilization", None) or {}
-                    sm = u.get("gpu", 0) or 0
-                    st = getattr(s, "time_range", None)
-                    dur = (st.end - st.start) / 1e6 if st else 0.0
-                    busy_ms += dur * float(sm) / 100.0
+            for s in matched:
+                u = getattr(s, "utilization", None) or {}
+                sm = u.get("gpu", 0) or 0
+                st = getattr(s, "time_range", None)
+                dur = (st.end - st.start) / 1e6 if st else 0.0
+                busy_ms += dur * float(sm) / 100.0
             if busy_ms <= 0:
+                # Il binding NVML realmente installato espone i campioni come
+                # (pid, timeStamp, smUtil, memUtil, encUtil) — nessuna DURATA
+                # per processo (pynvml.py:1755-1761, letto il 04-11-2026). Con
+                # quei campi la frazione di tempo di finestra non e'
+                # calcolabile: sarebbe una frazione di un istante. Non si
+                # inventa una durata: lo si scrive, e il campo resta N/A.
+                se_una_durata = any(getattr(s, "time_range", None)
+                                    for s in matched)
+                self.process_energy_reason = (
+                    "smUtil = 0 nei record dei PID dichiarati" if se_una_durata
+                    else "i campioni NVML dei PID dichiarati non espongono "
+                    "una durata per processo (il binding da pid, timeStamp, "
+                    "smUtil, memUtil, encUtil): la quota di finestra non e' "
+                    "calcolabile da questi campi")
                 return None
             frac = min(busy_ms / span_ms, 1.0)
             board_active = getattr(self, "_last_window_board_active_j", None)
             if board_active is None:
+                self.process_energy_reason = (
+                    "energia board attiva della finestra non registrata: "
+                    "_last_window_board_active_j non viene assegnato da "
+                    "nessun percorso, quindi la quota per processo non ha un "
+                    "numerico da scalare")
                 return None
             return round(board_active * frac, 6)
-        except Exception:
+        except Exception as exc:  # noqa: BLE001 - N/A dichiarato, non crash
+            self.process_energy_reason = (
+                f"nvmlDeviceGetProcessUtilization ha fallito "
+                f"({type(exc).__name__})")
             return None
 
 
