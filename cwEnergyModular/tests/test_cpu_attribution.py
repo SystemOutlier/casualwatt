@@ -298,6 +298,30 @@ def test_c_senza_timestamp_la_domanda_non_e_decidibile_e_il_bordo_vale():
     assert not any("contatore package non avanzato" in n for n in res.notes)
 
 
+def test_c_delta_negativo_del_percorso_a_campioni_non_degrada_ai_campioni():
+    """Il percorso a campioni che porta un negativo dichiara la finestra invalida.
+
+    Relazione verificata: ``E_package`` negativo rende ``E_attiva`` piu' negativa
+    di ``-P_idle*dt``, quindi la riga non e' utilizzabile e va marcata. Il
+    difetto che il test chiude e' a monte del segno: finche'
+    ``package_energy_exact_between`` tronava a zero, un reset arrivava qui come
+    ``+0,0 J`` e passava per ``exact-counter``; ora che il segno arriva, la
+    clausola ``e_package >= 0`` della stessa riga avrebbe degradato la finestra
+    ai ``samples-fallback``, cioe' a una seconda lettura della stessa grandezza
+    che nasconde l'evento invece di dichiararlo.
+    """
+    res = _profile(_FakeSession(package_j=-4.0, idle_w=10.0),
+                   direct_cpu_delta=1.0, direct_busy_delta=2.0)
+
+    assert res.package_energy_raw_j == pytest.approx(-4.0)
+    assert res.package_window_source == "counter-invalid"
+    assert res.emi_edge_source == "counter-invalid"
+    assert res.active_valid is False
+    assert any("delta negativo del contatore package sul percorso a campioni"
+               in n for n in res.notes)
+    assert not any("fallback dichiarato" in n for n in res.notes)
+
+
 # ------------------------------------------------------------------ d
 def test_d_nato_dentro_la_finestra_conta_dal_suo_inizio():
     """Un worker visto solo a t_end ha tutto il suo cpu_times dentro la finestra (da 0)."""

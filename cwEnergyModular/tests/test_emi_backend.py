@@ -167,6 +167,45 @@ def test_session_exact_between_routes_buffer_then_counter(monkeypatch):
     assert sess.package_energy_exact_between(1100.0, 1105.0) is None
 
 
+def test_session_exact_between_mantiene_il_segno_del_reset(monkeypatch):
+    """Un package che regressa fra i due campioni estremi vale negativo, non zero.
+
+    Relazione verificata: ``E = pkg(t_end) - pkg(t_start)`` e' un **incremento
+    firmato** (F.2, regola "nessun troncamento"). Un contatore MSR che cala fra
+    i bordi ha fatto un reset o un riporto, e ``max(..., 0.0)`` avrebbe
+    presentato quell'evento come un consumo nullo: lo zero legittimo va
+    dichiarato, non inventato. Il buffer EMI a 0,05 s viene svuotato al calare
+    (``_append_emi_tick``), quindi qui si passa deliberatamente dal percorso a
+    campioni della sessione, che non ha quella protezione.
+    """
+    src, _ = _make_source(monkeypatch)
+    sess = es.EnergySession.__new__(es.EnergySession)  # niente __post_init__
+    sess._source = src
+    sess._lock = threading.RLock()
+    _seed_buffer(src, [])  # nessun campione del contatore: ramo a campioni
+    sess._samples = [
+        es.SystemSample(t=1000.0, wall=0.0, package_energy_j=100.0,
+                        cpu_busy_seconds=0.0, cpu_percent=0.0),
+        es.SystemSample(t=1001.0, wall=0.0, package_energy_j=95.0,
+                        cpu_busy_seconds=0.0, cpu_percent=0.0),
+        es.SystemSample(t=1002.0, wall=0.0, package_energy_j=90.0,
+                        cpu_busy_seconds=0.0, cpu_percent=0.0),
+    ]
+    assert sess.package_energy_exact_between(1000.0, 1002.0) == pytest.approx(-10.0)
+    # anche lo scorporo delle sottofinestre resta firmato: -10 - (-5) = -5
+    assert sess.package_energy_exact_between(
+        1000.0, 1002.0, [(1000.0, 1001.0)]
+    ) == pytest.approx(-5.0)
+    # e un positive window resta una misura normale, non un caso speciale
+    sess._samples = [
+        es.SystemSample(t=1000.0, wall=0.0, package_energy_j=90.0,
+                        cpu_busy_seconds=0.0, cpu_percent=0.0),
+        es.SystemSample(t=1002.0, wall=0.0, package_energy_j=110.0,
+                        cpu_busy_seconds=0.0, cpu_percent=0.0),
+    ]
+    assert sess.package_energy_exact_between(1000.0, 1002.0) == pytest.approx(20.0)
+
+
 # ------------------------------------------------------------------ calibrazione
 def test_idle_window_reports_emi_mode(monkeypatch):
     """La finestra di idle dichiara 'emi-counter' e riporta il delta del contatore (30 J) e la sua durata."""
