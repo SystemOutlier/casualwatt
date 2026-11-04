@@ -544,18 +544,34 @@ indefiniti.
   dalla cartella del modulo gli stessi $538$ e $3$ in $6{,}94$ s. Due invocazioni
   della stessa giornata avevano la stessa raccolta e lo stesso esito in $10{,}9$ s:
   la durata non e' un ancoraggio citabile, il conteggio si'.
-  Il documento compila: **189 pagine, 0 riferimenti indefiniti, 0 `Overfull \hbox`**
-  (186 prima della riconciliazione dell'Appendice D con l'albero di integrazione,
-  eseguita il 04-11; 183 prima della prosa sulla selezione del device GPU, aggiunta
-  il 04-11; 184 prima del riallineamento dello schema CSV, eseguito lo stesso giorno).
-  **Quel conteggio di pagine non e' Current per l'albero da 608**: la quinta
-  rigenerazione aveva aggiunto 10 righe di tabella all'Appendice D e la sesta ne
-  aggiunge altre 21, mentre il testo dei capitoli che dichiara $577$ node id non
-  e' stato riscritto, perche' i tre interventi dell'audit e i quattro fix del
-  valutatore riguardano il codice, e la tesi sta fuori da git; la riallineazione
-  ($.tex$ + `pdflatex`/`biber` x2 + riconteggio delle pagine) e'
-  un passo dichiarato e non fatto, e fino ad allora i "189 pagine" si citano come
-  verifica del 04-11 mattina sull'albero da 577, non come stato corrente.
+  Il documento compila: **195 pagine, 0 riferimenti indefiniti, 0 `Overfull \hbox`**
+  (notte del 04-11-2026: `pdflatex`, `biber`, `pdflatex` x2, poi due `pdflatex`
+  ancora dopo la correzione di un accento nel glossario; il `.bbl` porta **65**
+  voci prima e dopo, nessuna citazione aggiunta o rimossa). I sei pagine sopra il
+  PDF da 189 sono localizzate confrontando i due `main.toc`: $+2$ dentro
+  `sec:valutatore` (la prosa dei quattro fix, che prima era una sezione di solo
+  titolo), $+1$ nella prosa dei conteggi di `sec:validazione-software`, $+1$ nel
+  paragrafo di `sec:statistica` sull'unita' statistica, $+1$ fra l'Appendice C e
+  la prosa dell'Appendice D, $+1$ nella tabella generata (le $31$ righe nuove fra
+  la quinta e la sesta rigenerazione). Le conteggi precedenti restano storia
+  datata: 186 prima della riconciliazione dell'Appendice D con l'albero di
+  integrazione, 183 prima della prosa sulla selezione del device GPU, 184 prima
+  del riallineamento dello schema CSV, 189 prima di questa.
+  **Il passo che queste righe dichiaravano non fatto e' fatto**: la tesi e'
+  riallineata all'albero da 608 node id nei capitoli 3-6, nell'Appendice C,
+  nell'Appendice D e nel glossario. Il testo che dichiarava $577$ node id e'
+  riscritto con i conteggi verificati col parser del generatore, non per
+  aritmetica; la declassazione di `acc_comp`, la tolleranza derivata, la
+  registrazione degli argomenti e l'incertezza a livello di task hanno ora prosa
+  ancorata (cap.\,4 `sec:valutatore`, cap.\,3 `sec:metriche-derivate`, cap.\,5
+  `sec:statistica`, cap.\,6 sviluppo 6), e il glossario non spiega piu' `ECE`
+  come ``Executive Capacity Evaluation'': lo sviluppo non compare nel codice, che
+  usa la sigla e basta (`benchmark_unified.py:15`, `:562`, `:666`). I tre PNG
+  citati dalla tesi sono rigenerati la stessa notte
+  (`genera_grafici_tesi.py --input results/semantic_evaluation_results.csv`, 2
+  righe su 9 sopravvivono al filtro) con le etichette entrate con `40f6c619`, e
+  copiati in `Tesi-latex/qoder-bozza/figure/`; restano non tracciati perche'
+  `cwEnergyModular/results/` non tiene i PNG.
   Lo stesso 04-11 l'Appendice A e' rigenerata con
   `cwEnergyModular/tools/dump_schema_latex.py` e porta i numeri dello schema vivo:
   $174$ colonne di riga + $30$ di metadato, $77$ di riga + $1$ di metadato ancora
