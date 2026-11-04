@@ -135,7 +135,7 @@ L'adapter legge le tre forme che la pipeline produce davvero, non una sola:
   `invocazioni >= 1` ed `eccezioni == 0`, cioè la condizione di `tool_ok` a
   `:178`; `failed` se le eccezioni sono più di zero; `missing` a zero
   invocazioni;
-- il passo registrato in `steps` (`run_orchestrato.py:482-488`): il passo viene
+- il passo registrato in `steps` (`run_orchestrato.py:482-500`): il passo viene
   aggiunto solo dopo che la chiamata è tornata, perché il percorso d'eccezione
   esce a `:470-480` senza aggiungerlo. Un passo `cau_inference` con un testo non
   vuoto è quindi una prova di esecuzione.
@@ -167,10 +167,26 @@ senza una seconda colpa.
 
 ## Argomenti della chiamata
 
-La prova di esecuzione non copre gli argomenti: i run registrano il testo della
-risposta, non gli input passati a `cau_inference`. L'adapter mette nei `notes`
-lo stato degli argomenti — `verified` se il record li contiene e coincidono con
-la traduzione valutata, `mismatch` se divergono, `unreadable` se non sono un
-mapping, `not recorded` quando il trace non li riporta — e per i run pubblicati
-oggi lo stato è `not recorded`.
+La prova di esecuzione non basta a provare gli argomenti. L'harness orchestrato
+passa etichetta, query e path a `cau_inference.func` (`run_orchestrato.py:469`)
+e dal 04-11 li registra nel passo insieme alla risposta (`:491-495`), quindi per
+i run prodotti da ora lo stato è decidibile: `verified` quando il payload coincide
+con la traduzione valutata, `mismatch` quando diverge. Il payload è il secondo
+argomento della firma del tool -- la query come stringa JSON
+(`consegna/tools_corretto.py:322-323`) -- e viene scartato dall'involucro
+`{label, features, path}` prima del confronto, perché confrontare l'involucro con
+la traduzione avrebbe dato `mismatch` fra due dizionari che descrivono la stessa
+query.
+
+Restano indecidibili, e l'adapter lo dice nei `notes` invece di dedurlo:
+
+- la pipeline a contatori (`MUDILAB_run/MUDILAB_correzioni/run_query.py:188-194`),
+  che riporta `invocazioni` ed `eccezioni` e non riceve gli input dal framework
+  degli agenti;
+- ogni run registrato prima che l'harness cominciasse a scrivere `args`, inclusi
+  tutti i 321 già pubblicati: per loro lo stato è `not recorded`.
+
+Un disallineamento degli argomenti è dichiarato, non punito: non cambia
+l'esito `end_to_end`, perché renderlo una colpa sarebbe un criterio di valutazione
+nuovo e andrebbe deciso sui dati, non scritto nel codice del valutatore.
 
