@@ -43,6 +43,21 @@ delta de-clampato sul percorso a campioni, `4b922db6` ragione dell'N/A per
 tre tocca lo schema: il primo scrive `counter-invalid` in una colonna che esiste
 gia', il secondo cambia il segno di un valore che la colonna gia' accetta, il terzo
 passa per `notes`.
+La raccolta e' riverificata nella **notte del 04-11-2026** (commit delle 22:04,
+22:11, 22:20 e 22:28), dopo i quattro fix minimi chiesti dalla revisione del
+valutatore (`98ec5972` tolleranza derivata, `8a91e16c` registrazione degli
+argomenti inviati al tool, `40f6c619` declassamento di `acc_comp`, `5f23853d`
+incertezza a livello di task): **608** node id (`605 + 3`), **493** in `tests/` e
+**115** alla radice. `CSV_COLUMNS` resta a **174** nomi anche qui, per la stessa
+ragione: la tolleranza e' un campo del contratto gia' accettato da
+`robust_evaluator.validate_contract`, gli argomenti passano per `args` nel passo
+gia' presente in `notes`, `acc_comp` si declassa attraverso le note di riga e il
+bootstrap aggiunge chiavi al riepilogo JSON, non al CSV. I tre salti **non**
+stanno in `test_rapl_zone.py`, come questo file ha affermato fino ad ora: stanno
+in `tests/test_rapl.py` (`test_rapl_basic`, `test_rapl_readings`,
+`test_rapl_idle_window`, la cui docstring chiede un host Linux; il quarto,
+`test_rapl_diagnostics`, passa anche qui). Correzione di un ancoraggio stantio,
+rilevata rigenerando l'Appendice D, non cambio di comportamento.
 Se un ancoraggio non torna, il file e' stantio: va corretto, non ignorato.
 
 Fonti primarie, in ordine di autorita':
@@ -288,6 +303,33 @@ stanno solo le regole che un agente puo' violare senza accorgersene.
   terna delle osservazioni riordinata, quindi `sd` ne e' una funzione
   deterministica. Si registrano i tre valori, la mediana, il minimo, il massimo e
   il range. Un indicatore ridondante suggerisce che esista una sigma stimata.
+- **`acc_comp` non e' un'accuratezza.** E' un indice descrittivo a pesi su tre
+  componenti di natura eterogenea (`acc_links`, `judge/5`, coseno nel regime A) e
+  la sua scala non e' omogenea: il numeratore di `ece_per_joule` mischia un
+  punteggio 0-1 con una media su scala 0-5. L'accuratezza primaria resta
+  `is_correct` (1/0/N/A) e in ogni ramo si determina **prima** di `acc_comp`
+  (`evaluator.py:400` e `:406`, `:507` e `:508`, `:535` e `:537`, `:580-597` e
+  `:610`, `:665` e `:667`). Il nome storico "accuracy composita" era ambiguo e la
+  rinomina **non** ha toccato lo schema P5: il ruolo della riga sta in `notes`
+  (`RUOLO_COMPOSITO` / `RUOLO_BINARIA`, `evaluator.py:238-245`, appese a `:414`,
+  `:524`, `:548`, `:617`, `:673`) e nelle etichette dei grafici
+  (`genera_grafici_tesi.py`), non in una colonna nuova. Sui rami `number` e
+  `short_text` `acc_comp` **coincide** con `float(is_correct)`: non e' un'eccezione
+  da annotare, e' la definizione del ramo.
+- **L'unita' statistica di un benchmark ripetuto e' il task, non la riga.**
+  Ripetere la stessa richiesta a temperatura zero non aggiunge un grado di
+  liberta'; la variabilita' da coprire e' fra task diversi. Accanto all'intervallo
+  di Wilson a livello di riga si pubblica un **bootstrap a livello di task**
+  (percentile 2,5-97,5, 2000 ricampioni, seed `20261104`:
+  `evaluation_runner.py:14-20`, chiave `accuracy_cluster_bootstrap_95` a `:169`, e
+  `robust_evaluator.py:490-510`, dove `task_ids` arriva come argomento perche'
+  `EvaluationResult` non porta l'identita' del task). Nei tre casi in cui non e'
+  calcolabile l'intervallo resta **`None` con la ragione dichiarata**: identita'
+  del task non registrata, un solo task distinto (varianza zero per costruzione non
+  e' evidenza), righe senza id escluse dal ricampiono ma conteggiate nella nota. Se
+  il bootstrap a cluster risulta piu' largo di Wilson, le righe non erano prove
+  indipendenti. Il confronto fra due sistemi sullo stesso task **non** si fa per
+  sovrapposizione di intervalli: resta una McNemar appaiata.
 - **Un accordo fra due letture dello stesso registro NON e' una validazione
   indipendente.** EMI, LibreHardwareMonitor (oggi fuori dall'implementazione) e
   SRUM leggono tutti
@@ -308,7 +350,7 @@ stanno solo le regole che un agente puo' violare senza accorgersene.
 ## Comandi di verifica
 
 ```
-pytest cwEnergyModular          # 587 raccolti: 584 passati, 3 saltati (04-11, sera)
+pytest cwEnergyModular          # 608 raccolti: 605 passati, 3 saltati (04-11, notte)
 ```
 
 **Mai `pytest` nudo dalla radice**: la raccolta viene interrotta da 6 errori in
@@ -343,31 +385,37 @@ indefiniti.
   `BLOCK_SUMMARY_COLUMNS`, 212-227; `POINT_SUMMARY_COLUMNS`, 229-237), e il
   runner v4 `benchmark_v4.py` (sequenza di blocco di P1.5).
 - **Il valutatore della risposta sta nello stesso modulo**: `evaluation_runner.py`
-  (aggregati con intervallo di Wilson, rifiuto dei valori non finiti),
+  (aggregati con intervallo di Wilson a livello di riga, bootstrap a cluster a
+  livello di task, rifiuto dei valori non finiti),
   `mudilab_adapter.py` (ponte MUDILAB: un tool call non verificabile rende la
   riga `indeterminate`), `robust_evaluator.py` (secondo criterio: numero univoco
   o marcatore finale, probabilita' condizionate a tutti gli stadi, controfattuale
   su entrambi i limiti) e `mudilab_eval.py`; i tre `test_*.py` alla radice li
-  coprono con 36 test. Il criterio robusto e' **secondario**:
+  coprono con **51** test (36 fino alla mattina del 04-11, +15 dai quattro fix
+  della notte). Il criterio robusto e' **secondario**:
   `MUDILAB_run/benchmark/valuta.py` e `_confronta` di
   `MUDILAB_run/benchmark/genera.py` restano il riferimento ufficiale delle misure
   pubblicate il 02-11-2026, e il criterio non tocca ne' il valore misurato ne' la
   scala del contatore. Le tre note di metodo stanno in `cwEnergyModular/docs/`
   (`EVALUATION_FRAMEWORK.md`, `ROBUST_EVALUATOR.md`,
   `RELAZIONE_VALUTATORE_ROBUSTO.md`).
-- **I test stanno in due posti**: `cwEnergyModular/tests/` (492 raccolti la sera
-  del 04-11; 482 al 03-11, +4 di `b3b12ffe` e +1 di `86bba6a8` e +5 di `4b922db6`)
-  e direttamente in `cwEnergyModular/` (`test_answer_type_evaluation.py`, 35;
+- **I test stanno in due posti**: `cwEnergyModular/tests/` (493 raccolti la notte
+  del 04-11; 482 al 03-11, +4 di `b3b12ffe` e +1 di `86bba6a8` e +5 di `4b922db6`
+  e +1 del declassamento di `acc_comp`)
+  e direttamente in `cwEnergyModular/` (`test_answer_type_evaluation.py`, 40;
   `test_synthetic_window.py`, 2; `test_validazione_valutazione.py`, 22;
-  `test_robust_evaluator.py`, 16; `test_mudilab_adapter.py`, 18;
-  `test_evaluation_runner.py`, 2); 492 + 95 = 587. Gli ultimi tre sono il criterio
+  `test_robust_evaluator.py`, 19; `test_mudilab_adapter.py`, 26;
+  `test_evaluation_runner.py`, 6); 493 + 115 = 608. Gli ultimi tre sono il criterio
   robusto del valutatore, entrato il 04-11 con `cf6aca71` e `6b1dccb8`: e' il
   secondo criterio di quella valutazione, non un dominio nuovo della misura, e non
   tocca ne' il valore misurato ne' la scala del contatore. Diciotto delle loro
-  trentasei docstring sono state scritte il 04-11 leggendo i corpi (11 in
+  trentasei docstring sono state scritte il 04-11 mattina leggendo i corpi (11 in
   `test_robust_evaluator.py`, 5 in `test_mudilab_adapter.py`, 2 in
-  `test_evaluation_runner.py`), le altre diciotto accompagnavano il test: la
-  provenienza e' dichiarata, non mascherata. Ogni test ha una docstring che
+  `test_evaluation_runner.py`), le altre diciotto accompagnavano il test; le
+  quindici entrate la notte (8 in `test_mudilab_adapter.py` dai due fix sul ramo
+  MUDILAB, 3 in `test_robust_evaluator.py` e 4 in `test_evaluation_runner.py` dal
+  bootstrap) accompagnano il test loro. La provenienza e' dichiarata, non
+  mascherata. Ogni test ha una docstring che
   dice *perche'* esiste e quale relazione matematica o fisica verifica, non solo
   cosa fa. Al 28-10-2026 la norma non era rispettata da nove funzioni (13 node
   id, tutte scritte il 27-28/10): otto in `tests/test_pawnio_backend.py`, una in
@@ -375,7 +423,7 @@ indefiniti.
   le nove docstring sono scritte alla fonte, nessuna parafrasi del generatore, e
   l'AST ora conta zero funzioni `test_` senza docstring su tutto il tree. Il
   generatore continua a stampare "nessuna docstring" invece di mascherare, e su
-  questa suite oggi non stampa quella riga per nessuna delle 587 righe.
+  questa suite oggi non stampa quella riga per nessuna delle 608 righe.
   Dal 27-10-2026 la cartella contiene anche `tests/test_rapl_zone.py`
   (8, logica RAPL su un finto sysfs), `tests/test_diagnostics_pmi.py` (7,
   sonda PMI/WMI) e `tests/test_emi_selezione.py` (16, metadati EMI sintetici:
@@ -436,7 +484,10 @@ indefiniti.
   interventi dell'audit** (`b3b12ffe`, `86bba6a8`, `4b922db6`): **587** node id,
   584 passati, 3 saltati, docstring 587/587, nessuna riga `\textbf{fallito}`,
   `\textbf{errore}` o `n/eseguito` -- ogni node id raccolto ha un esito eseguito.
-  I tre salti restano i tre `test_rapl_zone.py` strutturali su Windows. Il diff
+  I tre salti, qui attribuiti a `test_rapl_zone.py`, stanno in realta' in
+  `tests/test_rapl.py:43` (lo dichiara il generatore stesso nella sezione
+  "Motivi dei salti"): l'attribuzione di questa riga era stantia, il conteggio
+  no. Il diff
   dalle 577 e' di 10 righe: 4 in `test_cpu_attribution.py` (bordi sullo stesso
   record, timestamp che regrada, assenza di timestamp non decidibile, delta
   negativo del percorso a campioni), 1 in `test_emi_backend.py` (il segno del
@@ -456,6 +507,30 @@ indefiniti.
   e' la stessa regola usata per i 459 + 118 del 04-11 mattina e per i 423 + 118
   del 03-11. La somma dei due tagli e' 577 e 587 in entrambi i casi; cambia solo
   dove si mettono due righe, e va detto quale regola si sta usando.
+  **Rigenerata una sesta volta la notte del 04-11-2026, sull'albero dei quattro
+  fix del valutatore** (`98ec5972`, `8a91e16c`, `40f6c619`, `5f23853d`): **608**
+  node id, 605 passati, 3 saltati, docstring 608/608, intestazioni di modulo in
+  corsivo 45 su 48 (i tre file senza restano `test_robust_evaluator.py`,
+  `test_mudilab_adapter.py`, `test_evaluation_runner.py`), nessuna riga
+  `\textbf{fallito}`, `\textbf{errore}` o `n/eseguito` -- contato sul file
+  generato, non dichiarato. Il diff dalle 587 e' di **+21** righe: 8 in
+  `test_mudilab_adapter.py` (4 sulla tolleranza derivata dai decimali stampati, 4
+  sulla registrazione degli argomenti), 5 in `test_answer_type_evaluation.py` (il
+  ruolo di `acc_comp` nei due regimi a pesi e nei due rami binari), 1 in
+  `tests/test_cloud_energy_none_preservato.py` (il numeratore di
+  `ece_per_joule` nominato nella nota), 4 in `test_evaluation_runner.py` e 3 in
+  `test_robust_evaluator.py` (bootstrap a cluster). Il confronto e' fatto per
+  **conteggio per file** contro i numeri registrati in questo file (35, 18, 16, 2,
+  492), non per diff testuale: `Tesi-latex/` sta fuori da git e la versione
+  precedente del generato e' stata sovrascritta, quindi la scomparsa di una riga
+  sarebbe visibile solo come ammanco nell'aritmetica -- che qui chiude a
+  $8+5+1+4+3=21$. I tre salti sono gli stessi tre di `tests/test_rapl.py`.
+  I conteggi della prosa, di nuovo col parser del generatore e non per
+  aritmetica: **514** funzioni per `(percorso, classe, nome)`, **513** ignorando
+  la classe, **492** monoriga + **116** righe parametrizzate come le stampa il
+  parser, che sono **490 + 118** con la regola delle appartenenze usata in questo
+  file (le due righe ``[]`` tornano nelle famiglie da 7 e da 3); famiglie 24 in
+  12 file, 48 file; delta $587 \to 608 = +21$.
   **Il 03-11 anche il testo della tesi e' stato allineato a quel conteggio**: i
   paragrafi che dichiaravano $294$ node id, $291$ verdi, $237$ funzioni,
   ``ventisei file``, la decomposizione per file e l'ancoraggio di
@@ -473,11 +548,12 @@ indefiniti.
   (186 prima della riconciliazione dell'Appendice D con l'albero di integrazione,
   eseguita il 04-11; 183 prima della prosa sulla selezione del device GPU, aggiunta
   il 04-11; 184 prima del riallineamento dello schema CSV, eseguito lo stesso giorno).
-  **Quel conteggio di pagine non e' Current per l'albero da 587**: la quinta
-  rigenerazione aggiunge 10 righe di tabella all'Appendice D e il testo dei
-  capitoli che dichiara $577$ node id non e' stato riscritto, perche' i tre
-  interventi dell'audit riguardano il codice di misura e la tesi sta fuori da git;
-  la riallineazione ($.tex$ + `pdflatex`/`biber` x2 + riconteggio delle pagine) e'
+  **Quel conteggio di pagine non e' Current per l'albero da 608**: la quinta
+  rigenerazione aveva aggiunto 10 righe di tabella all'Appendice D e la sesta ne
+  aggiunge altre 21, mentre il testo dei capitoli che dichiara $577$ node id non
+  e' stato riscritto, perche' i tre interventi dell'audit e i quattro fix del
+  valutatore riguardano il codice, e la tesi sta fuori da git; la riallineazione
+  ($.tex$ + `pdflatex`/`biber` x2 + riconteggio delle pagine) e'
   un passo dichiarato e non fatto, e fino ad allora i "189 pagine" si citano come
   verifica del 04-11 mattina sull'albero da 577, non come stato corrente.
   Lo stesso 04-11 l'Appendice A e' rigenerata con
