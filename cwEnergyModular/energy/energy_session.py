@@ -1852,8 +1852,12 @@ def _open_gpu_monitor(index: Optional[int] = None):
 
     ``index`` e' la posizione del device; se non passata, la legge
     ``CW_GPU_INDEX``. Su due vendor diversi lo stesso numero NON e' lo stesso
-    silicon: l'indice e' una posizione nell'elenco del backend che ha risposto,
-    e la riga lo dichiara con ``device_selection``.
+    silicon: l'indice e' una posizione nell'elenco del backend che ha risposto.
+    Nella riga arriva il numero in ``gpu_device_index``
+    (``local_energy.py:803``) e, se le schede sono piu' di una e la selezione non
+    e' dichiarata, la nota ``device_note`` appesa a ``notes``
+    (``local_energy.py:809-811``); ``device_selection`` e' un attributo del
+    monitor, letto dai test, e non finisce nel CSV.
     """
     nv = _GPUMonitor(index=index)
     if nv.available:
