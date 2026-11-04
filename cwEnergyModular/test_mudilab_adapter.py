@@ -1,16 +1,17 @@
 from mudilab_adapter import evaluate_case, load_case
 
 
-def _case(task_type="cond_prob", expected_decision=""):
+def _case(task_type="cond_prob", expected_decision="",
+          expected_probability="0.2117494190"):
+    # L'etichetta attesa non e' passata qui: la deriva `load_case` dalla sua
+    # tavola interna (cond_prob -> backward_reasoning, inter -> intervention,
+    # ...).  Duplicarla nel fixture significava avere due vocabolari, e il secondo
+    # era gia' incompleto: `inter` usciva "backward_reasoning" e la tappa
+    # dell'etichetta falliva per colpa del fixture, non del valutatore.
     return load_case({
         "task_id": "CP1",
         "task_type": task_type,
-        "expected_label": {
-            "cond_prob": "backward_reasoning",
-            "counterfactual": "counterfactual",
-            "coherence": "coherence",
-        }.get(task_type, "backward_reasoning"),
-        "expected_probability": "0.2117494190",
+        "expected_probability": expected_probability,
         "expected_lower_graph": "0.0827",
         "expected_upper_graph": "0.2396",
         "expected_decision": expected_decision,
@@ -270,7 +271,7 @@ def test_arguments_of_the_call_are_declared_not_recorded():
     """La prova di esecuzione non copre gli argomenti: lo stato va dichiarato.
 
     Il record contiene il testo del tool, non i suoi input.  Dire `success` e
-    tacere avrebbe presented come verificato un argomento mai letto.
+    tacere avrebbe presentato come verificato un argomento mai letto.
     """
     result = evaluate_case(
         _case(), label="backward_reasoning", translation=_TRADUZIONE,
@@ -283,7 +284,7 @@ def test_empty_output_is_indeterminate_not_incorrect():
     """Il gate ferma il run prima del passo causale: una risposta vuota non e'
     un numero sbagliato.
 
-    `number_no_answer` a 0.99 fundeva i fallimenti di acquisizione con gli errori
+    `number_no_answer` a 0.99 fondeva i fallimenti di acquisizione con gli errori
     del modello e spostava il denominatore del J/corretta per la ragione sbagliata
     (sui run registrati: 105 righe).
     """
@@ -307,3 +308,116 @@ def test_empty_counterfactual_output_is_indeterminate():
     assert result.output.verdict == "indeterminate"
     assert result.output.method == "interval_answer_absent"
     assert result.end_to_end == "indeterminate"
+
+
+# --- tolleranza derivata dalla precisione stampata dal tool -----------------
+#
+# I decimali non sono un parametro del valutatore: sono l'ultima cifra che
+# `cau_inference` scrive, e si misurano sul codice consegnato -- 3 in
+# backward_reasoning (`tools_corretto.py:349`) e intervention (`:380`, `:384`), 4
+# in coherence (`:449`, `:454`, dopo la FIX 12 che passa da due a quattro) e nei
+# due estremi del controfattuale (`funtions_corretto.py:302`, chiamato da
+# `tools_corretto.py:366`).  Il ground truth sta a piena precisione: le 121
+# `expected_probability` di `MUDILAB_run/benchmark/benchmark.csv` hanno tutte 10
+# decimali (misurato il 04-11), e i 40 estremi controfattuali ne hanno 4.  La
+# distanza legittima fra la verita' e il numero trascritto dall'output del tool
+# non puo' superare meta' del passo stampato: piu' larga accetta un'ultima cifra
+# sbagliata, piu' stretta punisce l'arrotondamento.
+_DECIMALI_PER_RAMO = {"cond_prob": 3, "inter": 3, "coherence": 4, "counterfactual": 4}
+_TRADUZIONE_INTER = {"input": {"RiskAversion": "Cautious"}, "output": {"Age": "Senior"}}
+
+
+def _risposta_veritiera(case, decimali: int) -> tuple[str, dict, str]:
+    """Etichetta, traduzione e risposta che il ramo produce davvero su questo case.
+
+    La risposta e' il ground truth arrotondato ai decimali di quello che il tool
+    stampa, perche' e' esattamente quella la stringa che il modello trascrive: un
+    contratto superato su questa risposta dice che la soglia copre l'arrotondamento
+    del tool, non che il test e' scritto largo.
+    """
+    if case.task_type == "counterfactual":
+        return (case.expected_label, _TRADUZIONE_INTER,
+                f"The answer is between {round(case.expected_lower, decimali)} "
+                f"and {round(case.expected_upper, decimali)}")
+    traduzione = _TRADUZIONE_INTER if case.task_type == "inter" else _TRADUZIONE
+    if case.task_type == "coherence":
+        risposta = ("Evidences are compatible with a single Age of Senior "
+                    f"with a probability of {round(case.expected_probability, decimali)}")
+    else:
+        risposta = f"The probability is {round(case.expected_probability, decimali)}"
+    return case.expected_label, traduzione, risposta
+
+
+def test_each_branch_tolerance_is_half_the_printed_step():
+    """Ogni ramo ha come soglia meta' dell'ultimo ordine che il tool stampa.
+
+    Fissa la relazione fra la stampa del tool e la tolleranza del contratto: se
+    un ramo cambia i decimali stampati, questo test chiede di muovere la soglia
+    insieme a lui.  Il valore sta nei diagnostics di ogni verdetto, quindi la
+    riga valutata porta con se' il numero che l'ha giudicata.
+    """
+    for ramo, decimali in _DECIMALI_PER_RAMO.items():
+        case = _case(ramo)
+        label, traduzione, output = _risposta_veritiera(case, decimali)
+        result = evaluate_case(case, label=label, translation=traduzione,
+                               output=output, tool_calls=_CONTATORE_OK)
+        assert result.output.verdict == "correct", (ramo, result.output.method)
+        assert result.output.diagnostics["absolute_tolerance"] == (
+            0.5 * 10.0 ** -decimali + 1e-12
+        ), ramo
+        assert f"{decimali} decimals" in result.tolerance_provenance, ramo
+
+
+def test_coherence_rejects_a_probability_with_the_last_printed_digit_wrong():
+    """0.2118 non e' la stampa di 0.2117494190 a quattro decimali: e' 0.2117.
+
+    Con la soglia fissa a 5e-4 questa risposta passava, perche' lo scarto reale
+    (5,06e-5) stava dentro un passo dieci volte piu' grosso di quello che il ramo
+    stampa.  E' il falso positivo che la derivazione chiude: un numero la cui
+    ultima cifra stampata e' sbagliata non e' un arrotondamento legittimo.
+    """
+    result = evaluate_case(
+        _case("coherence", expected_decision="compatible"), label="coherence",
+        translation=_TRADUZIONE,
+        output=("Evidences are compatible with a single Age of Senior "
+                "with a probability of 0.2118"),
+        tool_calls=_CONTATORE_OK,
+    )
+    assert result.output.diagnostics["absolute_tolerance"] == 0.5 * 10.0 ** -4 + 1e-12
+    assert result.output.verdict == "incorrect"
+    assert result.end_to_end == "incorrect"
+
+
+def test_transcrizione_esattamente_a_meta_del_passo_non_e_rifiutata():
+    """La meta' del passo stampato e' una trascrizione corretta, non un errore.
+
+    0.0625 a tre decimali esce 0.062 (arrotondamento al pari), e in binario
+    0.0625 - 0.062 fa 0.0005000000000000004: una soglia nuda a 0.0005 leggerebbe
+    il numero come sbagliato per colpa della sua rappresentazione.  La guardia di
+    1e-12 sta sei ordini sotto la soglia -- copre il bordo, non accetta nessun
+    valore diverso -- e questo test e' cio' che la rende necessaria.
+    """
+    assert abs(0.0625 - 0.062) > 0.5 * 10.0 ** -3
+    result = evaluate_case(
+        _case("cond_prob", expected_probability="0.0625000000"),
+        label="backward_reasoning", translation=_TRADUZIONE,
+        output="The probability is 0.062", tool_calls=_CONTATORE_OK,
+    )
+    assert result.output.verdict == "correct"
+
+
+def test_unmeasured_branch_declares_its_tolerance_instead_of_borrowing_one():
+    """Un ramo mai letto nella stampa del tool non riceve una soglia derivata.
+
+    `influence` non stampa una probabilita' e non ha una precisione osservata:
+    stringere la misura su di esso sarebbe un cambio di metodo senza evidenza,
+    quindi il contratto prende la soglia del ramo piu' rozzo fra quelli osservati
+    -- lo stesso valore che usava prima -- e la nota lo dichiara nella riga.
+    """
+    result = evaluate_case(
+        _case("influence"), label="influence", translation=_TRADUZIONE,
+        output="The probability is 0.212", tool_calls=_CONTATORE_OK,
+    )
+    assert result.output.diagnostics["absolute_tolerance"] == 0.5 * 10.0 ** -3 + 1e-12
+    assert any("absolute tolerance declared, not derived" in note
+               for note in result.notes)

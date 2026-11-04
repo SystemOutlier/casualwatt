@@ -28,9 +28,68 @@ _NEGATIVO_DECISIONE = "not strongly compatible"
 _DECISIONI_POSITIVE = ("compatible", "strongly_compatible")
 _DECISIONI_NEGATIVE = ("non_compatibile", "not_strongly_compatible")
 
+# Decimali con cui il tool della relatrice stampa il numero, ramo per ramo,
+# misurati sul codice consegnato (tools_corretto.py:349 backward_reasoning,
+# :380 e :384 intervention, :449 e :454 coherence con la FIX 12 che passa da due
+# a quattro, e funtions_corretto.py:302 per i due estremi del controfattuale,
+# chiamata da tools_corretto.py:366).  Non e' un'assunzione sulla forma della
+# risposta: e' l'ultima cifra che il tool puo' aver scritto.
+#
+# La tolleranza del contratto deve essere meta' di quell'ordine, perche' il
+# ground truth e' a piena precisione (expected_probability ha 10 decimali in
+# MUDILAB_run/benchmark/benchmark.csv) e il numero che il modello trascrive e'
+# l'arrotondamento del tool: la distanza legittima fra i due non puo' superare
+# meta' dell'ultimo passo stampato.  Una tolleranza piu' larga accetta un numero
+# con l'ultima cifra sbagliata; una piu' stretta punisce l'arrotondamento.  Il
+# valore fisso di prima -- 5e-4, cioe' la meta'-ULP dei rami a 3 decimali -- era
+# giusto su cond_prob e inter e dieci volte piu' largo del necessario su
+# coherence e counterfactual, che stampano 4 decimali.
+_DECIMALI_STAMPATI: Mapping[str, int] = {
+    "cond_prob": 3,
+    "inter": 3,
+    "coherence": 4,
+    "counterfactual": 4,
+}
+
+# Guardia sulla soglia: 0.5 * 10**-3 non e' rappresentabile esatto in binario,
+# quindi un numero legittimamente a meta' del passo di arrotondamento puo'
+# risultare di qualche unita' dell'ultimo bit sopra la meta'-ULP e venire
+# rifiutato.  1e-12 sta sei ordini sotto la tolleranza piu' stretta che questo
+# contratto usa: copre la rappresentazione, non un valore diverso.
+_GUARDIA_RAPPRESENTAZIONE = 1e-12
+
 
 def _text(value: Any) -> str:
     return "" if value is None else str(value).strip()
+
+
+def _tolleranza_assoluta(task_type: str) -> tuple[float, int, str]:
+    """Meta'-ULP della stampa del tool per questo ramo, con la sua provenienza.
+
+    Ritorna ``(tolleranza, decimali, provenienza)``.  La provenienza serve perche'
+    il numero smette di essere una costante del valutatore e diventa una proprieta'
+    misurata del tool: chi legge il contratto deve poter vedere quale stampa l'ha
+    prodotto, e quale stampa ha *non* misurata quando il ramo non e' conosciuto.
+
+    Un ramo fuori tavola non riceve una tolleranza inventata ne' una piu' stretta:
+    prende la meta'-ULP del ramo piu' rozzo fra quelli osservati -- lo stesso
+    valore che il contratto usava prima di questa derivazione -- e la nota lo
+    dichiara.  Stringere la misura su un ramo mai letto sarebbe un cambio di
+    metodo senza evidenza.
+    """
+    decimals = _DECIMALI_STAMPATI.get(task_type)
+    if decimals is None:
+        decimals = min(_DECIMALI_STAMPATI.values())
+        provenienza = (
+            f"branch {task_type!r} not measured in tools_corretto.py: coarsest "
+            f"observed precision ({decimals} decimals) used, tolerance not derived "
+            "from this branch's own print"
+        )
+    else:
+        provenienza = (
+            f"{decimals} decimals printed by cau_inference for branch {task_type!r}"
+        )
+    return 0.5 * 10.0 ** -decimals + _GUARDIA_RAPPRESENTAZIONE, decimals, provenienza
 
 
 @dataclass(frozen=True)
@@ -61,6 +120,7 @@ class MudilabEvaluation:
     energy_j: Optional[float] = None
     duration_s: Optional[float] = None
     notes: tuple[str, ...] = ()
+    tolerance_provenance: str = ""
 
     def to_dict(self) -> dict[str, Any]:
         return {
@@ -75,6 +135,7 @@ class MudilabEvaluation:
             "energy_j": self.energy_j,
             "duration_s": self.duration_s,
             "notes": list(self.notes),
+            "tolerance_provenance": self.tolerance_provenance,
         }
 
 
@@ -215,19 +276,32 @@ def _argomenti_verificati(tool_calls: Any, translation: Any) -> tuple[str, str]:
 
 
 def _case_contract(case: MudilabCase) -> dict[str, Any]:
+    """Contract of the case, with the tolerance derived from the tool's print.
+
+    ``tolerance_provenance`` is not read by :mod:`robust_evaluator` -- unknown
+    keys pass through :func:`robust_evaluator.validate_contract` untouched -- it
+    is what makes the number in ``absolute_tolerance`` traceable: the evaluator
+    puts that number in the diagnostics of every ``number_tolerance_match`` and
+    ``interval_bounds_match`` verdict, so the derived tolerance of the branch is
+    visible in the scored output instead of only in this source file.
+    """
+    tolerance, _, provenance = _tolleranza_assoluta(case.task_type)
     if case.task_type == "counterfactual":
         return {
             "answer_type": "interval", "lower": case.expected_lower,
-            "upper": case.expected_upper, "absolute_tolerance": 5e-4,
+            "upper": case.expected_upper, "absolute_tolerance": tolerance,
+            "tolerance_provenance": provenance,
         }
     if case.task_type == "coherence":
         return {
             "answer_type": "number", "accepted_answers": [case.expected_probability],
-            "absolute_tolerance": 5e-4,
+            "absolute_tolerance": tolerance,
+            "tolerance_provenance": provenance,
         }
     return {
         "answer_type": "number", "accepted_answers": [case.expected_probability],
-        "absolute_tolerance": 5e-4,
+        "absolute_tolerance": tolerance,
+        "tolerance_provenance": provenance,
     }
 
 
@@ -302,7 +376,8 @@ def evaluate_case(case: MudilabCase, *, label: str, translation: Any,
         "answer_type": "label", "label": case.expected_label,
     })
     translation_result = evaluate_translation(case, translation)
-    output_result = evaluate(output, _case_contract(case))
+    contract = _case_contract(case)
+    output_result = evaluate(output, contract)
     tool_status, tool_notes = _prova_esecuzione(tool_calls)
     valid_call = tool_status == "success"
     arg_state, arg_note = _argomenti_verificati(tool_calls, translation)
@@ -314,6 +389,12 @@ def evaluate_case(case: MudilabCase, *, label: str, translation: Any,
     else:
         end_to_end = "correct"
     notes = []
+    if case.task_type not in _DECIMALI_STAMPATI:
+        # Il contratto ha preso la tolleranza del ramo piu' rozzo perche' questo
+        # ramo non e' mai stato letto nella stampa del tool.  Va detto nella riga:
+        # un numero che sembra derivato da una misura, su un ramo mai misurato, e'
+        # un'assunzione travestita.
+        notes.append(f"absolute tolerance declared, not derived: {contract['tolerance_provenance']}")
     if tool_status != "success":
         notes.append(f"cau_inference execution status: {tool_status}; "
                      f"{'; '.join(tool_notes) if tool_notes else 'outcome not stated'}")
@@ -356,4 +437,5 @@ def evaluate_case(case: MudilabCase, *, label: str, translation: Any,
         tool_call_status=tool_status,
         end_to_end=end_to_end, energy_j=energy_j, duration_s=duration_s,
         notes=tuple(notes),
+        tolerance_provenance=str(contract.get("tolerance_provenance", "")),
     )
