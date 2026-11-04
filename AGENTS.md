@@ -39,7 +39,9 @@ Fonti primarie, in ordine di autorita':
 - **Mai `git push`** se non richiesto esplicitamente. Il lavoro e' locale.
 - **Mai toccare `.casualwatt_keys.json`**: non crearlo, non leggerlo, non
   scriverlo, non forzarne l'aggiunta, non rimuovere la sua riga da `.gitignore`.
-  Oggi non esiste sul disco ed e' ignorato.
+  Al 04-11-2026 **esiste sul disco** in `cwEnergyModular/`, non e' tracciato e la
+  sua riga sta in `.gitignore:18`: la regola non cambia, cambia il fatto che la
+  frase precedente descriveva.
 - **Un commit per punto.** Ogni punto del protocollo congelato, e ogni modifica
   concettualmente unitaria, ha il suo commit con messaggio che dice cosa e'
   cambiato e perche'.
