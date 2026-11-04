@@ -24,8 +24,11 @@ resta a **174** nomi perche' la selezione passa per `notes`, non per una colonna
 Il **04-11-2026** e' riverificato il pacchetto di ancoraggi che la tesi cita dallo
 `schema CSV` in poi (nomi e righe di `casualwatt_csv_export.py`, durate di fase,
 scorporo del giudice, enumerazione per richiesta, salto del ramo cloud, template
-di record) e la suite produce gli stessi **541** node id (`538 + 3`); sulla selezione
-GPU la docstring di `_open_gpu_monitor` ora dice cosa arriva davvero nella riga --
+di record) e la suite produce gli stessi **541** node id (`538 + 3`); con l'ingresso
+del criterio robusto del valutatore (`cf6aca71`, `6b1dccb8`), lo stesso giorno, la
+raccolta e' a **577** node id (`574 + 3`), 482 in `tests/` e 95 alla radice; sulla
+selezione GPU la docstring di `_open_gpu_monitor` ora dice cosa arriva davvero nella
+riga --
 `gpu_device_index` e la nota in `notes` -- perche' `device_selection` e' un
 attributo del monitor, letto dai test, e non finisce nel CSV. Nello stesso giorno
 il conteggio dei file tracciati sotto `experiment_results/` e' riverificato a
@@ -252,7 +255,7 @@ stanno solo le regole che un agente puo' violare senza accorgersene.
 ## Comandi di verifica
 
 ```
-pytest cwEnergyModular          # 541 raccolti: 538 passati, 3 saltati (7,39 s al 03-11)
+pytest cwEnergyModular          # 577 raccolti: 574 passati, 3 saltati (04-11)
 ```
 
 **Mai `pytest` nudo dalla radice**: la raccolta viene interrotta da 6 errori in
@@ -286,10 +289,31 @@ indefiniti.
   `casualwatt_csv_export.py` (`CSV_COLUMNS`, righe 17-204 — 174 nomi;
   `BLOCK_SUMMARY_COLUMNS`, 212-227; `POINT_SUMMARY_COLUMNS`, 229-237), e il
   runner v4 `benchmark_v4.py` (sequenza di blocco di P1.5).
+- **Il valutatore della risposta sta nello stesso modulo**: `evaluation_runner.py`
+  (aggregati con intervallo di Wilson, rifiuto dei valori non finiti),
+  `mudilab_adapter.py` (ponte MUDILAB: un tool call non verificabile rende la
+  riga `indeterminate`), `robust_evaluator.py` (secondo criterio: numero univoco
+  o marcatore finale, probabilita' condizionate a tutti gli stadi, controfattuale
+  su entrambi i limiti) e `mudilab_eval.py`; i tre `test_*.py` alla radice li
+  coprono con 36 test. Il criterio robusto e' **secondario**:
+  `MUDILAB_run/benchmark/valuta.py` e `_confronta` di
+  `MUDILAB_run/benchmark/genera.py` restano il riferimento ufficiale delle misure
+  pubblicate il 02-11-2026, e il criterio non tocca ne' il valore misurato ne' la
+  scala del contatore. Le tre note di metodo stanno in `cwEnergyModular/docs/`
+  (`EVALUATION_FRAMEWORK.md`, `ROBUST_EVALUATOR.md`,
+  `RELAZIONE_VALUTATORE_ROBUSTO.md`).
 - **I test stanno in due posti**: `cwEnergyModular/tests/` (482 raccolti al 03-11)
   e direttamente in `cwEnergyModular/` (`test_answer_type_evaluation.py`, 35;
-  `test_synthetic_window.py`, 2; `test_validazione_valutazione.py`, 22);
-  482 + 59 = 541. Ogni test ha una docstring che
+  `test_synthetic_window.py`, 2; `test_validazione_valutazione.py`, 22;
+  `test_robust_evaluator.py`, 16; `test_mudilab_adapter.py`, 18;
+  `test_evaluation_runner.py`, 2); 482 + 95 = 577. Gli ultimi tre sono il criterio
+  robusto del valutatore, entrato il 04-11 con `cf6aca71` e `6b1dccb8`: e' il
+  secondo criterio di quella valutazione, non un dominio nuovo della misura, e non
+  tocca ne' il valore misurato ne' la scala del contatore. Diciotto delle loro
+  trentasei docstring sono state scritte il 04-11 leggendo i corpi (11 in
+  `test_robust_evaluator.py`, 5 in `test_mudilab_adapter.py`, 2 in
+  `test_evaluation_runner.py`), le altre diciotto accompagnavano il test: la
+  provenienza e' dichiarata, non mascherata. Ogni test ha una docstring che
   dice *perche'* esiste e quale relazione matematica o fisica verifica, non solo
   cosa fa. Al 28-10-2026 la norma non era rispettata da nove funzioni (13 node
   id, tutte scritte il 27-28/10): otto in `tests/test_pawnio_backend.py`, una in
@@ -297,7 +321,7 @@ indefiniti.
   le nove docstring sono scritte alla fonte, nessuna parafrasi del generatore, e
   l'AST ora conta zero funzioni `test_` senza docstring su tutto il tree. Il
   generatore continua a stampare "nessuna docstring" invece di mascherare, e su
-  questa suite oggi non stampa quella riga per nessuna delle 541 righe.
+  questa suite oggi non stampa quella riga per nessuna delle 577 righe.
   Dal 27-10-2026 la cartella contiene anche `tests/test_rapl_zone.py`
   (8, logica RAPL su un finto sysfs), `tests/test_diagnostics_pmi.py` (7,
   sonda PMI/WMI) e `tests/test_emi_selezione.py` (16, metadati EMI sintetici:
@@ -340,6 +364,20 @@ indefiniti.
   3 saltati, docstring 541/541 -- le nove funzioni elencate sopra le hanno tutte
   (`9d4ce024`). Il diff dalle 528 del mattino e' di 13 righe, tutte e 13 dentro i
   due file GPU della selezione del device: nessun fallimento, nessuna riga sparita.
+  **Rigenerata una quarta volta il 04-11-2026, sull'albero che porta il criterio
+  robusto del valutatore**: 577 node id, 574 passati, 3 saltati, docstring 577/577;
+  le intestazioni di modulo in corsivo sono 45 su 48, perche' i tre file nuovi non
+  ne hanno una. Il diff dalle 541 e' di 36 righe, tutte dentro
+  `test_robust_evaluator.py` (16), `test_mudilab_adapter.py` (18) e
+  `test_evaluation_runner.py` (2): nessun fallimento, nessuna riga sparita.
+  Diciotto delle loro trentasei docstring sono state scritte il 04-11 leggendo i
+  corpi, le altre diciotto accompagnavano il test. I conteggi della prosa sono
+  rifatti col parser dello stesso generatore (`raccogli` e `nome_e_parametri`),
+  non per aritmetica: 483 funzioni per `(percorso, classe, nome)`, 482 ignorando
+  la classe, 459 monoriga + 118 righe da 24 famiglie parametrizzate in 12 file,
+  48 file; delta $294 \to 577 = +288 - 8 + 3$. Il testo dei capitoli e
+  dell'Appendice D che dichiarava 541 node id, 447 funzioni, 423 monoriga e 45
+  file e' riscritto con questi numeri.
   **Il 03-11 anche il testo della tesi e' stato allineato a quel conteggio**: i
   paragrafi che dichiaravano $294$ node id, $291$ verdi, $237$ funzioni,
   ``ventisei file``, la decomposizione per file e l'ancoraggio di
@@ -353,9 +391,10 @@ indefiniti.
   dalla cartella del modulo gli stessi $538$ e $3$ in $6{,}94$ s. Due invocazioni
   della stessa giornata avevano la stessa raccolta e lo stesso esito in $10{,}9$ s:
   la durata non e' un ancoraggio citabile, il conteggio si'.
-  Il documento compila: **186 pagine, 0 riferimenti indefiniti, 0 `Overfull \hbox`**
-  (183 prima della prosa sulla selezione del device GPU, aggiunta il 04-11; 184
-  prima del riallineamento dello schema CSV, eseguito lo stesso giorno).
+  Il documento compila: **189 pagine, 0 riferimenti indefiniti, 0 `Overfull \hbox`**
+  (186 prima della riconciliazione dell'Appendice D con l'albero di integrazione,
+  eseguita il 04-11; 183 prima della prosa sulla selezione del device GPU, aggiunta
+  il 04-11; 184 prima del riallineamento dello schema CSV, eseguito lo stesso giorno).
   Lo stesso 04-11 l'Appendice A e' rigenerata con
   `cwEnergyModular/tools/dump_schema_latex.py` e porta i numeri dello schema vivo:
   $174$ colonne di riga + $30$ di metadato, $77$ di riga + $1$ di metadato ancora
