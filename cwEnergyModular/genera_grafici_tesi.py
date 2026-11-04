@@ -5,9 +5,9 @@ genera_grafici_tesi.py - Grafici per la Tesi di Laurea CasualWatt
 
 Genera 3 grafici in alta risoluzione (300 DPI) dai dati del benchmark:
 
-1. Frontiera di Pareto: Accuratezza vs Energia (scala log X)
+1. Frontiera di Pareto: indice composito (acc_comp) vs Energia (scala log X)
    - Annotazioni sui "sweet spot" (miglior ECE)
-2. Boxplot Accuratezza per provider (ollama vs cloud)
+2. Boxplot dell'indice composito per provider (ollama vs cloud)
 3. Throughput (token/s) vs Energia
 
 Output:
@@ -99,9 +99,11 @@ def load_and_clean_data(csv_path: str) -> pd.DataFrame:
 # ==============================================================================
 def plot_pareto_frontier(df: pd.DataFrame, output_dir: Path):
     """
-    Grafico principale: accuratezza composita vs energia end-to-end.
+    Grafico principale: indice descrittivo acc_comp vs energia end-to-end.
     Scala logaritmica sull'asse X (ampio range di energie).
     Annotazioni sui "sweet spot" (miglior ECE = acc_comp/energia).
+    L'asse Y NON e' un'accuratezza: acc_comp e' la media pesata di componenti
+    eterogenee (F1, giudice, coseno); l'accuratezza primaria e' is_correct.
     """
     fig, ax = plt.subplots(figsize=(10, 6))
     
@@ -145,8 +147,8 @@ def plot_pareto_frontier(df: pd.DataFrame, output_dir: Path):
             'k--', alpha=0.4, linewidth=1.5, label='Frontiera di Pareto')
     
     ax.set_xlabel('Energia End-to-End (Joule)')
-    ax.set_ylabel('Accuratezza Composita (acc_comp)')
-    ax.set_title('Frontiera di Pareto: Accuratezza vs Consumo Energetico\n'
+    ax.set_ylabel('Indice descrittivo (acc_comp) - non e\' accuratezza')
+    ax.set_title('Frontiera di Pareto: indice composito vs consumo energetico\n'
                  'CasualWatt Benchmark - Tesi di Laurea',
                  fontweight='bold')
     ax.set_xscale('log')  # Scala logaritmica per energia
@@ -180,7 +182,7 @@ def plot_pareto_frontier(df: pd.DataFrame, output_dir: Path):
 # ==============================================================================
 def plot_boxplot_accuracy(df: pd.DataFrame, output_dir: Path):
     """
-    Boxplot dell'accuratezza composita per provider (ollama vs cloud).
+    Boxplot dell'indice descrittivo acc_comp per provider (ollama vs cloud).
     Mostra la distribuzione e la variabilita' delle prestazioni.
     """
     fig, ax = plt.subplots(figsize=(8, 6))
@@ -206,8 +208,8 @@ def plot_boxplot_accuracy(df: pd.DataFrame, output_dir: Path):
         patch.set_facecolor(color)
         patch.set_alpha(0.6)
     
-    ax.set_ylabel('Accuratezza Composita (acc_comp)')
-    ax.set_title('Distribuzione Accuratezza per Provider',
+    ax.set_ylabel('Indice descrittivo (acc_comp) - non e\' accuratezza')
+    ax.set_title('Distribuzione dell\'indice composito per provider',
                  fontweight='bold')
     ax.grid(True, alpha=0.3, axis='y')
     

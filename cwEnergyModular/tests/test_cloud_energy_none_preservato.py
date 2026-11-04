@@ -137,6 +137,22 @@ def test_percorso_completo_invariato():
     assert rec["cloud_energy_kwh"] == pytest.approx(8.0 / 3_600_000.0)
 
 
+def test_nota_dei_derivati_nomina_il_numeratore_di_ece_per_joule():
+    """ece_per_joule divide per l'indice descrittivo, energy_per_correct_answer_j per
+    l'is_correct binario: la riga deve nominare entrambi, perche' con lo stesso
+    denominatore (e2e) i due numeratori non sono la stessa grandezza."""
+    rec = _rec()
+    ev = _ev(acc_comp=0.8, is_correct=1, n_correct_links=3,
+             acc_links_basis="f1_triples")
+    bu._finalize_energy_fields(rec, 60.0, 2.0, 8.0, ev)
+    assert "ece_per_joule=acc_comp/e2e" in rec["notes"]
+    assert "INDICE DESCRITTIVO" in rec["notes"]
+    assert "energy_per_correct_answer_j=e2e se is_correct" in rec["notes"]
+    # e il valore conferma la nota: 0.8 non e' 1, benché la risposta sia corretta
+    assert rec["ece_per_joule"] == pytest.approx(0.8 / 70.0)
+    assert rec["energy_per_correct_answer_j"] == pytest.approx(70.0)
+
+
 def test_emissioni_locali_reggono_assenza_locale():
     """Se il locale manca, i kWh e le emissioni locali sono N/A: non 0 gCO2eq."""
     rec = _rec(local_carbon_intensity_gco2eq_kwh=267.0)

@@ -12,7 +12,7 @@ REGIME A — CON ground truth (eval_mode = "ground_truth"):
   * cosine_sim = semantic_similarity (misura reale, non hardcoded).
   * judge_score = LLM-as-a-Judge Ollama temperatura 0.0 (se disponibile;
     altrimenti N/A e acc_comp ricalcolato senza di esso, dichiarato).
-  * Formula approvata Regime A:
+  * Formula (indice descrittivo) Regime A:
       acc_comp = 0.50*acc_links + 0.30*(judge_score/5) + 0.20*cosine_sim
     (pesi ridistribuiti e dichiarati se un componente e' N/A).
   * ETICHETTA della similarita': "semantic similarity between model response
@@ -22,8 +22,18 @@ REGIME B — SENZA ground truth (eval_mode = "causal_agent_eval"):
   * cosine_sim NON calcolata e MAI forzata a valori fittizi -> N/A nel CSV.
   * acc_links = F1 sulle triple estratte dalla domanda/riferimenti quando
     possibile, altrimenti 0.0 (punteggio demandato al judge).
-  * judge_score OBBLIGATORIO via LLM Judge (llm_judge.py). Formula:
+  * judge_score OBBLIGATORIO via LLM Judge (llm_judge.py). Formula (indice
+    descrittivo):
       acc_comp = 0.65*acc_links + 0.35*(judge_score/5)
+
+RUOLO DI acc_comp (rinomina dichiarata, 04-11-2026): il nome storico
+"accuracy composita" e' ambiguo. acc_comp NON e' l'accuratezza: e' un indice
+descrittivo a pesi su tre componenti di natura eterogenea (F1 strutturale,
+giudizio 0-5, coseno), che non ha una scala di "risposta corretta" e non e'
+additiva fra righe. L'accuratezza primaria resta is_correct (1/0/N/A),
+determinata PRIMA di acc_comp in ogni regime; gli aggregati che intendono
+un'accuratezza usano is_correct. Sui rami number e short_text acc_comp coincide
+con is_correct (0/1) e non e' una media a pesi: la riga lo dichiara in nota.
 
 REGIME euristico keyword cause/effect: RIMOSSO dal calcolo (la funzione
 storica resta solo come helper diagnostico has_cause/has_effect nel record).
@@ -188,6 +198,7 @@ class EvaluationResult:
     n_correct_links: Optional[int] = NA
     causal_accuracy: Optional[float] = NA
     explanation_quality: Optional[float] = NA
+    # indice DESCRITTIVO a pesi (vedi RUOLO_COMPOSITO): NON e' un'accuratezza.
     acc_comp: Optional[float] = NA
     # accuracy binaria PRIMARIA: 1 = risposta corretta, 0 = errata, None = N/A
     # (nessuna GT confrontabile). Determinata PRIMA di acc_comp in ogni regime.
@@ -217,6 +228,21 @@ _EFFECT_RE = re.compile(r"\beffect(?:s|ed|ing|ive|ually)?\b", re.IGNORECASE)
 
 GT_LABEL = ("semantic similarity between model response and ground truth "
             "(proxy of correctness, not pure causal accuracy)")
+
+# --- ruolo di acc_comp, scritto nella riga --------------------------------
+# Le due frasi vanno in `notes` accanto al valore, perche' il nome del campo
+# non puo' cambiare (lo schema P5 e' congelato e le colonne si aggiungono solo
+# in coda) e perche' una riga letta da sola, senza il modulo, deve dichiarare
+# cosa quel numero e'. RUOLO_COMPOSITO sui rami a pesi, RUOLO_BINARIA dove
+# acc_comp coincide con is_correct e quindi NON e' una media.
+RUOLO_COMPOSITO = (
+    "acc_comp: indice descrittivo a pesi (componenti eterogenee, pesi "
+    "dichiarati), NON l'accuratezza; l'accuratezza primaria e' is_correct"
+)
+RUOLO_BINARIA = (
+    "acc_comp: su questo ramo coincide con is_correct (0/1), non e' una media "
+    "a pesi; l'accuratezza primaria resta is_correct"
+)
 
 
 def detect_causal_terms(text: str):
@@ -263,7 +289,12 @@ def compute_acc_comp(has_ground_truth: bool, acc_links: Optional[float],
                      judge_score: Optional[float],
                      cosine_sim: Optional[float] = None,
                      weights=None) -> Optional[float]:
-    """Accuratezza composita con pesi DINAMICI (nessuna costante magica).
+    """Indice descrittivo a pesi, con pesi DINAMICI (nessuna costante magica).
+
+    NON e' un'accuratezza: combina componenti di natura eterogenea (F1
+    strutturale, giudizio 0-5, coseno) su scale diverse, percio' il suo valore
+    non risponde "quante risposte sono corrette" e le sue medie fra righe non
+    sono tassi. L'accuratezza primaria e' is_correct (che qui non si calcola).
 
     Regime A (GT + cosine disponibile), default 0.50/0.30/0.20:
         w1*acc_links + w2*(judge/5) + w3*cosine
@@ -343,7 +374,8 @@ def _keyword_fallback_result(text: str, is_tool: bool, res: EvaluationResult,
                    links=0.5 -> 3.0; links=0.0 -> 1.5.
       cosine_sim: 0.88 se is_tool, altrimenti 0.75 (costanti diagnostiche,
                   dichiarate come tali nelle note del record).
-      acc_comp = w1*acc_links + w2*(judge/5) + w3*cosine (default 0.6/0.3/0.1).
+      acc_comp = w1*acc_links + w2*(judge/5) + w3*cosine (default 0.6/0.3/0.1):
+                 indice descrittivo, NON un'accuratezza (vedi RUOLO_COMPOSITO).
     I campi semantic_similarity / lexical_similarity restano N/A: nessuna GT
     e' stata confrontata.
     """
@@ -379,6 +411,7 @@ def _keyword_fallback_result(text: str, is_tool: bool, res: EvaluationResult,
         f"constants; acc_comp={w1}*acc_links+{w2}*(judge/5)+{w3}*cosine "
         "(legacy formula); non usare per EPCL ne' per confronti causali formali"
     )
+    res.notes.append(RUOLO_COMPOSITO)
     return res
 
 
@@ -488,6 +521,7 @@ def evaluate_response(text: str, is_tool: bool = False,
             res.acc_links = res.acc_comp
             res.acc_links_basis = "exact_number_match"
             res.n_correct_links = 1 if res.is_correct else 0
+            res.notes.append(RUOLO_BINARIA)
             res.semantic_similarity = NA
             res.cosine_sim = NA
             res.lexical_similarity = NA
@@ -511,6 +545,7 @@ def evaluate_response(text: str, is_tool: bool = False,
             res.acc_links = res.acc_comp
             res.acc_links_basis = "exact_text_containment"
             res.n_correct_links = 1 if res.is_correct else 0
+            res.notes.append(RUOLO_BINARIA)
             res.semantic_similarity = NA
             res.cosine_sim = NA
             res.lexical_similarity = NA
@@ -579,6 +614,7 @@ def evaluate_response(text: str, is_tool: bool = False,
                 f"regime A (free_text): acc_comp={w_gt[0]}*acc_links+{w_gt[1]}*(judge/5)"
                 f"+{w_gt[2]}*cosine (pesi da config; componenti N/A rinormalizzati)"
             )
+            res.notes.append(RUOLO_COMPOSITO)
             return res
 
     # ----------------- REGIME B: senza GT -> LLM-as-a-Judge -----------------
@@ -634,6 +670,7 @@ def evaluate_response(text: str, is_tool: bool = False,
         f"regime B: acc_comp={w_nogt[0]}*acc_links+{w_nogt[1]}*(judge/5) "
         f"(pesi da config); cosine_sim/semantic_similarity=N/A (nessuna ground truth)"
     )
+    res.notes.append(RUOLO_COMPOSITO)
     return res
 
 
