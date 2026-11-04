@@ -79,7 +79,7 @@ class BenchmarkPanel(ttk.Frame):
         log_frame.grid(row=2, column=0, sticky="nsew")
 
         # drag: regola solo il minsize della riga alta; la riga log resta
-        # weight=0 -> mantiene sempre il suo spazio naturale (>=90px)
+        # weight=0 con minsize fisso (108px, :63) -> non viene mai schiacciato
         def _apply(pos_y):
             try:
                 h_top = top.winfo_height()
