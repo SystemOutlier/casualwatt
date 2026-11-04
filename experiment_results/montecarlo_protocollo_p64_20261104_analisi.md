@@ -73,7 +73,8 @@ P6.4 fissa una precedenza (`:2430-2433`): «**dopo** la chiusura di P5 e **prima
 della pubblicazione degli intervalli della campagna, perché la simulazione deve
 girare **sul disegno e sui pesi che il runner implementa davvero**». P5 è chiuso
 il 2026-10-26, ma la seconda metà della frase oggi **non è soddisfatta**: il
-runner v4 non implementa quei pesi. `benchmark_v4.py:23-24` lo dichiara («non
+runner di produzione non calcola ancora i campi da cui derivano i pesi WLS e
+`budget_fit_b`. `benchmark_v4.py:23-24` lo dichiara («non
 calcola i campi di analisi (`r_A`, `r_B`, `u_edge_j`, `budget_fit_j`, ...):
 restano celle vuote nei riepiloghi finché l'analisi non li produce») e `:1689-1690`
 li scrive vuoti; lo stesso vale per `r_A`, `r_B` (`:1697`) e per `hull_margin_*`
@@ -156,8 +157,9 @@ dichiari `bias_declared` su una macchina corretta **solo perché il filtro ne
 scarta troppi**» — ha una risposta negativa: il quorum **non è il collo di
 bottiglia** sulle scale reali (`0,0%` fino a `σ_P = 0,30 W`). Il falso fallimento
 arriva prima e da un'altra parte: la prova **per controllo**
-`|E_net,c| > budget_base_j,c`. Su una macchina corretta dichiara il bias nel
-**96,8–99,2%** delle campagne a bias zero.
+`|E_net,c| > budget_base_j,c`. Il gate dichiara `bias_declared` anche in assenza
+di bias simulato: su una macchina corretta succede nel **96,8–99,2%** delle
+campagne.
 
 Non è un artefatto del generatore: è l'aritmetica della regola congelata. Il
 rapporto `|E_net|/budget_base_j` vale, in unità di `σ_P`, `0,926` di scarto
@@ -199,11 +201,11 @@ Sui 6 blocchi di conferma × 400 campagne = 2400 casi:
 
 **Verdetto.** Il numero che mancava c'è, e conferma la lettera del
 protocollo: `intervallo_conf` **non è un 95%**. Con il fattore 2 congelato la
-copertura reale è ≈`99,8%`, e la larghezza viene moltiplicata in media per
-`9,08`. Il motivo aritmetico è nella forma di F.10: l'intervallo è
-`[q2.5 − 2·u_conf, q97.5 + 2·u_conf]`, quindi i due capi aggiungono in tutto
-`4·u_conf` alla distanza fra i due quantili parametrici; `u_conf` è il
-semi-range di un blocco singolo, ed è di un ordine di grandezza più grande
+copertura empirica su 400 campagne simulate è ≈`99,8%`, e la larghezza viene
+moltiplicata in media per `9,08`. Il motivo aritmetico è nella forma di F.10:
+l'intervallo è `[q2.5 − 2·u_conf, q97.5 + 2·u_conf]`, quindi i due capi aggiungono
+in tutto `4·u_conf` alla distanza fra i due quantili parametrici; `u_conf` è
+il semi-range di un blocco singolo, ed è di un ordine di grandezza più grande
 dell'incertezza dei coefficienti. **L'amplificazione non è una maggiorazione
 modesta: è quasi un ordine di grandezza.** Chi pubblica `intervallo_conf` deve
 scriverlo come intervallo di copertura ≈99,8% (o come intervallo
@@ -256,9 +258,9 @@ Copertura dei quantili 2,5/97,5 su 400 campagne:
 ```
 
 **Verdetto primario: la copertura dichiarata «nominale e non arbitrata» in P4.8
-(`:2072-2080`) è ora arbitrata, e il verdetto è NEGATIVO.** Il `95%` non si può
-pubblicare con la procedura di F.14 così com'è: la copertura reale del primario
-sta fra `59,8%` e `74,2%`.
+(`:2072-2080`) è ora arbitrata, e il verdetto è NEGATIVO.** Il `95%` nominale non
+è supportato dalla procedura di F.14 nella configurazione simulata: la copertura
+empirica del primario — su 400 campagne simulate — sta fra `59,8%` e `74,2%`.
 
 La diagnosi è per **ampiezza**, non per bias né per scala dei budget. Quattro
 scale dell'ampiezza di `θ̂`, tutte divise per la diffusione reale di `θ` sulle
@@ -315,8 +317,9 @@ toglie l'errore delle **medie di cella**, che per le equazioni di score del fit
 ha somma pesata nulla, quindi un prelievo entro cella non può generare uno
 scarto della media di cella più grande dello scarto fra i suoi tre `z`
 (fattore `√(2/3) = 0,816`). Nessuno dei due arriva a `0,5` e nessuno dei due
-spiega `b/v`. **La causa completa non è arbitrata da queste colonne.** Ciò che
-è arbitrato è il fatto, col numero: l'intervallo pubblicato da F.14 è ≈2 volte
+spiega `b/v`. **La causa completa del deficit di ampiezza non è identificata;
+le ipotesi esaminate sono insufficienti.** Ciò che è arbitrato è il fatto, col
+numero: l'intervallo pubblicato da F.14 è ≈2 volte
 più stretto della diffusione reale, su tutte e cinque le quantità.
 
 Le due soglie operative di F.14, valutate sui numeri:
@@ -343,15 +346,16 @@ Sui costi marginali il predittivo non è definito da F.14 e resta `n/d`.
 Tre effetti su ciò che si può scrivere, da portare alla decisione dell'autore:
 
 1. P4.8 può ora sostituire la clausola «copertura non arbitrata» con il numero
-   misurato, ma il numero dice che il `95%` **non regge**: le etichette
-   possibili sono «bootstrap, copertura reale misurata 60–74% in simulazione»,
+   misurato, ma il numero dice che il `95%` nominale **non è supportato dalla
+   procedura di F.14 nella configurazione simulata**: le etichette possibili
+   sono «bootstrap, copertura empirica su 400 campagne simulate: 60–74%»,
    oppure una revisione della procedura. Non è questa sede per sceglierla, e la
    scelta non è presa.
-2. L'anello 4 di P4.9 (`bias_declared`) dichiara il bias su una macchina
-   corretta nel 97% dei casi simulati: la sua entrata in `chain_status` rende
-   `validated` praticamente irraggiungibile per quella via. È una proprietà
-   della **regola congelata**, indipendente dalla scala del rumore, e tocca le
-   regole di P5/P6, non solo l'analisi.
+2. L'anello 4 di P4.9 dichiara `bias_declared` anche in assenza di bias
+   simulato — su una macchina corretta nel 97% dei casi simulati — e la sua
+   entrata in `chain_status` rende `validated` praticamente irraggiungibile per
+   quella via. È una proprietà della **regola congelata**, indipendente dalla
+   scala del rumore, e tocca le regole di P5/P6, non solo l'analisi.
 3. Il fattore 2 di F.10 produce una copertura ≈99,8%, non 95%: il nome
    `intervallo_conf` e la sua lettura vanno coerenti con P3.10, che infatti non
    lo chiama 95%.
@@ -363,13 +367,14 @@ blocchi su 10 strati, **di cui otto da tre**». Con il disegno di P3.5
 (`:1008-1009`: 10 punti = 9 celle + minimo `(8,4)`, centro a 6) gli strati da
 tre sono **nove** (8 celle non centrali + il minimo) e uno da sei, che è
 esattamente ciò che il pseudocodice dello stesso F.14 dice a `:2038-2039`
-(«10 strati, numerosità preservata: 3 per punto, 6 per il centro»). La prose
+(«10 strati, numerosità preservata: 3 per punto, 6 per il centro»). La prosa
 dell'emendamento del 2026-10-24 conta un strato in meno; il conteggio usato
 dall'harness è quello del pseudocodice e del disegno. Il testo congelato non è
 stato toccato.
 
 ## Vincolo di metodo (P6.4:2467-2469)
 
-La simulazione non valida la scala assoluta, perché genera essa stessa l'energia.
-Controlla la procedura statistica, non la misura. Tutti i verdetti sopra restano dentro
-questa frontiera: nessuno di essi dice che il contatore legga giusto.
+La simulazione non valida la scala assoluta, perché genera essa stessa
+l'energia. Controlla la procedura statistica, non la misura. Tutti i verdetti
+sopra restano dentro questa frontiera: nessuno di essi dice che il contatore
+legga giusto.
