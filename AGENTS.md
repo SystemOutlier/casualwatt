@@ -34,6 +34,15 @@ attributo del monitor, letto dai test, e non finisce nel CSV. Nello stesso giorn
 il conteggio dei file tracciati sotto `experiment_results/` e' riverificato a
 **219** ($218$ in radice, $1$ in `codecarbon_four_way/`): il $210$ del 26-10 era
 stantio di nove file entrati fra il 28 e il 29-10.
+Il conteggio della suite e' riverificato la **sera del 04-11-2026**, dopo i tre
+interventi di codice che l'audit tecnico dello stesso giorno ha chiesto e che sono
+stati applicati come commit separati (`b3b12ffe` registro PKG fermo, `86bba6a8`
+delta de-clampato sul percorso a campioni, `4b922db6` ragione dell'N/A per
+`gpu_process_energy_j`): la raccolta e' a **587** node id (`584 + 3`), **492** in
+`tests/` e 95 alla radice. `CSV_COLUMNS` resta a **174** nomi, perche' nessuno dei
+tre tocca lo schema: il primo scrive `counter-invalid` in una colonna che esiste
+gia', il secondo cambia il segno di un valore che la colonna gia' accetta, il terzo
+passa per `notes`.
 Se un ancoraggio non torna, il file e' stantio: va corretto, non ignorato.
 
 Fonti primarie, in ordine di autorita':
@@ -115,7 +124,8 @@ stanno solo le regole che un agente puo' violare senza accorgersene.
   (misurato il 28-10-2026). EMI non ha questo requisito. Il canale va scritto per
   riga in `energy_calculation_method` (`energy/local_energy.py:151`), la finestra
   in `package_window_source` (`exact-counter | samples-fallback | counter-invalid
-  | unavailable`, `:140-141`; `counter-invalid` dal 02-11-2026, `9fa9a44c`),
+  | unavailable`, `:140-141`; `counter-invalid` dal 02-11-2026, `9fa9a44c`, e con un
+  **secondo** trigger dal 04-11-2026 -- `b3b12ffe`, vedi la regola del registro fermo),
   l'origine della baseline in `idle_provenance` (`:142`) e, dalla v4, in
   `baseline_backend` — campo del protocollo P1.3, non ancora presente nel codice.
   Il flag `external_counter` (`:156`, D14) dice se quel numero viene da un canale
@@ -143,14 +153,14 @@ stanno solo le regole che un agente puo' violare senza accorgersene.
   NVML -> AMD SMI per la stessa scheda, e i due non girano mai in parallelo.
   **La scheda dentro un backend si seleziona per indice, e l'indice 0 non e'
   una scelta implicita** (dal 03-11-2026): `_gpu_indice_richiesto`
-  (`energy/energy_session.py:1465`) legge argomento esplicito, poi
-  `CW_GPU_INDEX`, poi "non dichiarato"; `_selezione_device` (`:1490`) apre
+  (`energy/energy_session.py:1471`) legge argomento esplicito, poi
+  `CW_GPU_INDEX`, poi "non dichiarato"; `_selezione_device` (`:1496`) apre
   l'indice richiesto e, se e' fuori intervallo, **non apre la scheda 0** —
   misurare una scheda e scrivere la riga come se fosse quella richiesta e' un
   numero attribuito male, non un degrado. Con un solo device l'indice 0 non e'
   un'assunzione e non produce nota; con piu' device e nessuna selezione la riga
   lo dice per via sua (`device_note`, appendice in `notes`,
-  `energy/local_energy.py:809-811`, lo schema P5 resta 174 nomi). Un
+  `energy/local_energy.py:851-853`, lo schema P5 resta 174 nomi). Un
   `CW_GPU_INDEX` non numerico e' un errore dichiarato, non un "non dichiarato".
   L'indice e' una **posizione nell'elenco del backend che ha risposto**
   (`nvmlDeviceGetHandleByIndex`, `amdsmi_get_processor_handles`), non un ID del
@@ -158,6 +168,23 @@ stanno solo le regole che un agente puo' violare senza accorgersene.
   runner non ha un flag per l'indice — la via di produzione oggi e'
   `CW_GPU_INDEX`, perche' la sessione chiama `_open_gpu_monitor()` senza
   argomento (`energy_session.py:765`).
+  **Il ramo per processo non ha una durata da usare, e deve dirlo.**
+  `gpu_process_energy_j` vale N/A nella quasi totalita' dei casi, perche' il
+  binding NVML installato espone i campioni di `nvmlDeviceGetProcessUtilization`
+  come `(pid, timeStamp, smUtil, memUtil, encUtil)` -- **nessun intervallo per
+  processo** (`pynvml.py:1755-1761`, letto il 04-11-2026). Senza durata non
+  esiste frazione del tempo di finestra da scalare all'energia board: **non si
+  inventa un intervallo** e non si sposta il ramo su un'altra unita' di misura.
+  Ogni `None` di `process_energy_j` (`energy_session.py:1648`) scrive la **propria**
+  ragione in `process_energy_reason` (inizializzata a `:1569, :1683`) e
+  `local_energy.py:989` porta quella stringa nella riga: una formula fissa per
+  tutti i rami era falsa, perche' il ramo piu' frequente non e' un problema di
+  NVML bensi' `_last_window_board_active_j`, letto via `getattr` e mai assegnato
+  da nessun percorso. Il campo resta **informativo**: non entra in
+  `gpu_energy_attributed_j` e non sostituisce l'attribuzione whole-device. Limite
+  dichiarato del ramo che funziona: i campioni vengono dagli **ultimi 10 s** di
+  storia NVML, non da `[t_start, t_end]`, quindi la frazione non e' sulla finestra
+  della riga quando la finestra non dura 10 s.
   Le due catene sono **[I]** (implementate, provate con `pynvml` e `amdsmi` finti,
   28-10-2026) con **[V] da fare**: su questa macchina non c'e' ne' una NVIDIA
   ne' una AMD, quindi l'esecuzione su GPU reale e' ancora da registrare. Qui
@@ -192,21 +219,47 @@ stanno solo le regole che un agente puo' violare senza accorgersene.
   causale: la richiesta e' l'intervento, quindi il post e' una grandezza
   post-trattamento e condizionarvi l'estimatore renderebbe la correzione
   dipendente dall'esito che deve correggere (P1.14, motivazione causale).
+- **Un registro fermo ai bordi non e' una finestra da 0 J.** Il record EMI porta
+  il timestamp del contatore in unita' da 100 ns (`energy/emi_backend.py:31`,
+  esposto come `ts_100ns` a `:588`; solo EMI lo ha -- PawnIO risponde `None`,
+  `energy/energy_session.py:888` e `:903`). Se i due bordi leggono **lo stesso
+  record** (`ts_edge1 <= ts_edge0`, `energy/local_energy.py:461-471`, da
+  `b3b12ffe` del 04-11-2026) l'incremento nullo non e' una misura: e' una lettura
+  non avanzata, e la finestra va `counter-invalid` con `active_valid = False`, non
+  `exact-counter` con `package_energy_raw_j = 0.0`. Nello stesso colpo la riga non
+  degrada al buffer a 0,05 s. Con il timestamp **assente** (PawnIO, o un canale
+  che non lo espone) la domanda non e' decidibile e il bordo vale: `None` non e'
+  un "fermo". Su questo host la guardia non invalida righe reali, perche' il
+  registro non e' mai rimasto fermo nelle letture campionante: 0 timestamp
+  identici su 11.192 transizioni consecutive
+  (`experiment_results/emi_cadenza_distribuzione_20261023.md:74`, `:79-81`,
+  misurato il 23-10-2026); rimuove un numero che non deve esistere, non un numero
+  che esiste.
 - **Nessun troncamento.** Gli incrementi negativi si conservano: sul ramo CPU il
   flag di riga e' `active_valid` con i valori grezzi `package_energy_raw_j` e
-  `active_energy_raw_j` (`energy/local_energy.py:561-562`, `:578-581`; colonne
+  `active_energy_raw_j` (`energy/local_energy.py:603-604`, `:622-633`; colonne
   nel schema a `casualwatt_csv_export.py:118`), e a livello di blocco resta il
   flag `negative_increment` (`benchmark_v4.py:1694`, colonna di riepilogo). **Il
   debito di metodo dichiarato il 24-10 e' chiuso al 02-11-2026 da `cd881e6b`**:
   i tre clamp a zero che la produzione applicava (`:512`, `:530`, `:548`
   nell'antesistema) non esistono piu' — l'integrale di fallback somma `cur -
-  prev` senza `max` (`local_energy.py:539`), `package_energy_j` e' il valore
-  firmato (`:561`) e `active = active_raw` (`:579`), con la nota che nomina il
-  negativo quando c'e' (`:592-597`). Resta clampato cio' che **non e' energia**:
-  i delta di tempo CPU (`:620`, `:637`) perche' un contatore di secondi che
-  torna indietro e' un reset, e la quota dove viene usata (`:684`) perche' il
-  rapporto grezzo `share_raw` e' conservato a `:672` con le anomalie dichiarate
-  (`:663-666`, `:683`). La regola non nasce con la v4: era gia' DP-A nella
+  prev` senza `max` (`local_energy.py:578-581`), `package_energy_j` e' il valore
+  firmato (`:603`) e `active = active_raw` (`:621`), con la nota che nomina il
+  negativo quando c'e' (`:634-639`). **Anche il quarto clamp, quello del percorso
+  a campioni, cade il 04-11-2026 con `86bba6a8`**:
+  `package_energy_exact_between` (`energy/energy_session.py:1188`) restituiva
+  `max(base, 0.0)` -- e lo applicava anche dopo la sottrazione delle
+  sottofinestre escluse, quindi un reset fra i campioni diventava una finestra da
+  `+X` J invece che da `-X` J -- e ora restituisce il delta firmato in entrambi i
+  rami. **Le coordinate di questo elenco sono del 04-11 (sera), dopo i ~40 righe
+  di guardie aggiunte da `b3b12ffe` e `86bba6a8`**: i valori citati a `:539`,
+  `:561`, `:579`, `:592-597`, `:620`, `:637`, `:672`, `:683-684` dell'ancoraggio
+  del 02-11 sono gli stessi codici piu' su di quelle righe, e chi corregge di
+  nuovo le guardie deve re-indirizzarli. Resta clampato cio' che **non e' energia**:
+  i delta di tempo CPU (`:662`, `:665`, `:679`) perche' un contatore di secondi che
+  torna indietro e' un reset, e la quota dove viene usata (`:726`) perche' il
+  rapporto grezzo `share_raw` e' conservato a `:746-747` con le anomalie dichiarate
+  (`:712-718`, `:725`). La regola non nasce con la v4: era gia' DP-A nella
   specifica `METODI_E_FORMULE.md` del 21-10
   (`Ê_att = E_pkg^raw − E_base`, "firmata, mai clampata"), documento che sta in
   `Tesi-latex/` e quindi **fuori da git**: la
@@ -255,7 +308,7 @@ stanno solo le regole che un agente puo' violare senza accorgersene.
 ## Comandi di verifica
 
 ```
-pytest cwEnergyModular          # 577 raccolti: 574 passati, 3 saltati (04-11)
+pytest cwEnergyModular          # 587 raccolti: 584 passati, 3 saltati (04-11, sera)
 ```
 
 **Mai `pytest` nudo dalla radice**: la raccolta viene interrotta da 6 errori in
@@ -302,11 +355,12 @@ indefiniti.
   scala del contatore. Le tre note di metodo stanno in `cwEnergyModular/docs/`
   (`EVALUATION_FRAMEWORK.md`, `ROBUST_EVALUATOR.md`,
   `RELAZIONE_VALUTATORE_ROBUSTO.md`).
-- **I test stanno in due posti**: `cwEnergyModular/tests/` (482 raccolti al 03-11)
+- **I test stanno in due posti**: `cwEnergyModular/tests/` (492 raccolti la sera
+  del 04-11; 482 al 03-11, +4 di `b3b12ffe` e +1 di `86bba6a8` e +5 di `4b922db6`)
   e direttamente in `cwEnergyModular/` (`test_answer_type_evaluation.py`, 35;
   `test_synthetic_window.py`, 2; `test_validazione_valutazione.py`, 22;
   `test_robust_evaluator.py`, 16; `test_mudilab_adapter.py`, 18;
-  `test_evaluation_runner.py`, 2); 482 + 95 = 577. Gli ultimi tre sono il criterio
+  `test_evaluation_runner.py`, 2); 492 + 95 = 587. Gli ultimi tre sono il criterio
   robusto del valutatore, entrato il 04-11 con `cf6aca71` e `6b1dccb8`: e' il
   secondo criterio di quella valutazione, non un dominio nuovo della misura, e non
   tocca ne' il valore misurato ne' la scala del contatore. Diciotto delle loro
@@ -321,14 +375,14 @@ indefiniti.
   le nove docstring sono scritte alla fonte, nessuna parafrasi del generatore, e
   l'AST ora conta zero funzioni `test_` senza docstring su tutto il tree. Il
   generatore continua a stampare "nessuna docstring" invece di mascherare, e su
-  questa suite oggi non stampa quella riga per nessuna delle 577 righe.
+  questa suite oggi non stampa quella riga per nessuna delle 587 righe.
   Dal 27-10-2026 la cartella contiene anche `tests/test_rapl_zone.py`
   (8, logica RAPL su un finto sysfs), `tests/test_diagnostics_pmi.py` (7,
   sonda PMI/WMI) e `tests/test_emi_selezione.py` (16, metadati EMI sintetici:
   metadato V2, scelta del device CPU, canale PKG per nome, V1 scartato): girano
   su Windows, senza host Linux. Dal 28-10-2026 ci sono
   `tests/test_gpu_nvml_energy.py` (8 il 28-10, 16 dal 03-11 con la selezione del
-  device; catena `nvml-energy` ->
+  device, 21 dal 04-11 (sera) con le cinque ragioni dell'N/A per processo; catena `nvml-energy` ->
   `nvml-power-integral` con `pynvml` finto), `tests/test_gpu_amdsmi.py` (19 il
   28-10, 24 dal 03-11;
   catena `amdsmi-energy` -> `amdsmi-power-integral`, conversione da microjoule,
@@ -378,6 +432,30 @@ indefiniti.
   48 file; delta $294 \to 577 = +288 - 8 + 3$. Il testo dei capitoli e
   dell'Appendice D che dichiarava 541 node id, 447 funzioni, 423 monoriga e 45
   file e' riscritto con questi numeri.
+  **Rigenerata una quinta volta la sera del 04-11-2026, sull'albero dei tre
+  interventi dell'audit** (`b3b12ffe`, `86bba6a8`, `4b922db6`): **587** node id,
+  584 passati, 3 saltati, docstring 587/587, nessuna riga `\textbf{fallito}`,
+  `\textbf{errore}` o `n/eseguito` -- ogni node id raccolto ha un esito eseguito.
+  I tre salti restano i tre `test_rapl_zone.py` strutturali su Windows. Il diff
+  dalle 577 e' di 10 righe: 4 in `test_cpu_attribution.py` (bordi sullo stesso
+  record, timestamp che regrada, assenza di timestamp non decidibile, delta
+  negativo del percorso a campioni), 1 in `test_emi_backend.py` (il segno del
+  reset attraversa `package_energy_exact_between`) e 5 in
+  `test_gpu_nvml_energy.py` (le ragioni dell'N/A per processo). Nessun fallimento,
+  nessuna riga sparita. I conteggi della prosa, di nuovo col parser del generatore
+  e non per aritmetica: **493** funzioni per `(percorso, classe, nome)`, 492
+  ignorando la classe, **469** monoriga + 118 righe da 24 famiglie parametrizzate
+  in 12 file, 48 file; delta $577 \to 587 = +10$.
+  Una nota sul metodo, perche' il 27-28 ottobre ha gia' visto un conteggio a
+  memoria: le dieci righe nuove sono tutte monoriga e le famiglie restano 24,
+  quindi il parser del generatore -- che tratta l'istanza parametrizzata con
+  ``id`` stringa vuota come ``param`` falso -- stampa 471 ``monoriga`` e 116 righe
+  parametrizzate. Le due righe ``[]`` (``test_riferimento_non_valido...`` e
+  ``test_stato_non_di_misura_produce_none``) appartengono a famiglie da 7 e da 3
+  istanze: contate per appartenenza si ottengono i 469 + 118 di questo file, che
+  e' la stessa regola usata per i 459 + 118 del 04-11 mattina e per i 423 + 118
+  del 03-11. La somma dei due tagli e' 577 e 587 in entrambi i casi; cambia solo
+  dove si mettono due righe, e va detto quale regola si sta usando.
   **Il 03-11 anche il testo della tesi e' stato allineato a quel conteggio**: i
   paragrafi che dichiaravano $294$ node id, $291$ verdi, $237$ funzioni,
   ``ventisei file``, la decomposizione per file e l'ancoraggio di
@@ -395,6 +473,13 @@ indefiniti.
   (186 prima della riconciliazione dell'Appendice D con l'albero di integrazione,
   eseguita il 04-11; 183 prima della prosa sulla selezione del device GPU, aggiunta
   il 04-11; 184 prima del riallineamento dello schema CSV, eseguito lo stesso giorno).
+  **Quel conteggio di pagine non e' Current per l'albero da 587**: la quinta
+  rigenerazione aggiunge 10 righe di tabella all'Appendice D e il testo dei
+  capitoli che dichiara $577$ node id non e' stato riscritto, perche' i tre
+  interventi dell'audit riguardano il codice di misura e la tesi sta fuori da git;
+  la riallineazione ($.tex$ + `pdflatex`/`biber` x2 + riconteggio delle pagine) e'
+  un passo dichiarato e non fatto, e fino ad allora i "189 pagine" si citano come
+  verifica del 04-11 mattina sull'albero da 577, non come stato corrente.
   Lo stesso 04-11 l'Appendice A e' rigenerata con
   `cwEnergyModular/tools/dump_schema_latex.py` e porta i numeri dello schema vivo:
   $174$ colonne di riga + $30$ di metadato, $77$ di riga + $1$ di metadato ancora
@@ -430,8 +515,12 @@ indefiniti.
   una frase in `cap06_conclusioni_sviluppi.tex` (riga 162: il ramo multi-device e'
   [I] con [V] da fare, provato solo contro `pynvml` e `amdsmi` finti). Le tre
   aggiunte non introducono claim nuovi: ripetono in prosa ancoraggi gia' nel codice
-  (`energy_session.py:1465-1487`, `:1490-1509`, `:1553`, `:1716-1720`, `:1737`,
-  `:765`, `local_energy.py:809-811`, `casualwatt_csv_export.py:35`).
+  (`energy_session.py:1471-1493`, `:1496-1515`, `:1559`, `:1783-1787`, `:1804`,
+  `:765`, `local_energy.py:851-853`, `casualwatt_csv_export.py:35`) -- e sono
+  quelle del 04-11 (sera), perche' i ~70 righe aggiunte da `4b922db6` dentro
+  `_GPUMonitor` hanno spostato in basso tutto il ramo AMD: le coordinate del 04-11
+  mattina (`1465-1487`, `1490-1509`, `1553`, `1716-1720`, `1737`, `809-811`)
+  indicano lo stesso codice.
   I conteggi non si aggiornano a mano: si rigenera dopo ogni test aggiunto, rimosso
   o rinominato. La verifica del conteggio al 28-10 e' in
   `experiment_results/appD_conteggio_20261028.md`.
