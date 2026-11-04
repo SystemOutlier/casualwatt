@@ -21,6 +21,16 @@ e `CSV_COLUMNS` a **174** nomi. Il conteggio della suite e le coordinate dei
 nuovi helper GPU di `energy_session.py` sono riverificati al **03-11-2026** dopo
 la selezione del dispositivo GPU (13 test nuovi, `482 + 59 = 541`): `CSV_COLUMNS`
 resta a **174** nomi perche' la selezione passa per `notes`, non per una colonna.
+Il **04-11-2026** e' riverificato il pacchetto di ancoraggi che la tesi cita dallo
+`schema CSV` in poi (nomi e righe di `casualwatt_csv_export.py`, durate di fase,
+scorporo del giudice, enumerazione per richiesta, salto del ramo cloud, template
+di record) e la suite produce gli stessi **541** node id (`538 + 3`); sulla selezione
+GPU la docstring di `_open_gpu_monitor` ora dice cosa arriva davvero nella riga --
+`gpu_device_index` e la nota in `notes` -- perche' `device_selection` e' un
+attributo del monitor, letto dai test, e non finisce nel CSV. Nello stesso giorno
+il conteggio dei file tracciati sotto `experiment_results/` e' riverificato a
+**219** ($218$ in radice, $1$ in `codecarbon_four_way/`): il $210$ del 26-10 era
+stantio di nove file entrati fra il 28 e il 29-10.
 Se un ancoraggio non torna, il file e' stantio: va corretto, non ignorato.
 
 Fonti primarie, in ordine di autorita':
@@ -343,8 +353,23 @@ indefiniti.
   dalla cartella del modulo gli stessi $538$ e $3$ in $6{,}94$ s. Due invocazioni
   della stessa giornata avevano la stessa raccolta e lo stesso esito in $10{,}9$ s:
   la durata non e' un ancoraggio citabile, il conteggio si'.
-  Il documento compila: **184 pagine, 0 riferimenti indefiniti, 0 `Overfull \hbox`**
-  (183 prima della prosa sulla selezione del device GPU, aggiunta il 04-11).
+  Il documento compila: **186 pagine, 0 riferimenti indefiniti, 0 `Overfull \hbox`**
+  (183 prima della prosa sulla selezione del device GPU, aggiunta il 04-11; 184
+  prima del riallineamento dello schema CSV, eseguito lo stesso giorno).
+  Lo stesso 04-11 l'Appendice A e' rigenerata con
+  `cwEnergyModular/tools/dump_schema_latex.py` e porta i numeri dello schema vivo:
+  $174$ colonne di riga + $30$ di metadato, $77$ di riga + $1$ di metadato ancora
+  `nuova` rispetto al CSV di riferimento, $27$ campi `vuota`, header del dataset
+  $99$ nomi e header dei metadati $29$. Il testo dei capitoli che parlava di $113$
+  colonne \`e allineato a $174$ (cap.\,5, sezione costo in euro), e con lui gli
+  ancoraggi di `benchmark_unified.py` spostati dalla crescita del runner: durate di
+  fase `:189-190, 238-239`, conversione e scorporo del giudice `:430-456, 941-970`,
+  enumerazione per richiesta `:914-915` (con `energy_session.py:814-824`), metriche
+  derivate `:605-684` e gate `f1_triples` `:674-682`, template cloud `:515, 549`
+  (nota `:541-548`, etichetta scritta dal branch `:1267-1269, 1279`), salto del
+  ramo cloud `:1113-1115`. La correzione del template cloud ha ora anche
+  l'ancoraggio storico del commit `1f55ca90` (23-10-2026) accanto a quello di
+  riga.
   I cinque boxes che stavano nel log del 03-11 (4 in
   `capitoli/cap04_architettura_implementazione.tex` righe 125-141, i token
   `librehardwaremonitor-energy`, `nvml-power-integral`, `amdsmi-power-integral`,
@@ -392,8 +417,8 @@ indefiniti.
   release con hash pinnato, `pawnio_probe.py` confronta il contatore con EMI e
   misura il costo di osservazione A-B-A, `pawnio_priv_probe.py` misura i
   privilegi invece di dedurli).
-- `experiment_results/` — dati sperimentali e analisi, tracciati (210 file: 209 in
-  radice, 1 in `codecarbon_four_way/`). I
+- `experiment_results/` — dati sperimentali e analisi, tracciati (219 file: 218 in
+  radice, 1 in `codecarbon_four_way/`; riverificati il 04-11-2026). I
   protocolli congelati stanno qui. Un artefatto nuovo entra con il proprio commit
   e con la propria analisi. Il gruppo `pawnio_probe_20261028*` (due run di
   confronto, due A-B-A, tre token di privilegio, l'analisi) e' l'evidenza sotto
