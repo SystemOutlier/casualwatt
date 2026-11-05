@@ -23,13 +23,10 @@ def test_number_requires_unambiguous_or_marked_final_answer():
 
 
 def test_number_tolerance_is_explicit():
-    """La tolleranza numerica esiste solo se il contratto la dichiara.
+    """Il contratto puo' sostituire il default abs=1e-9, rel=1e-6 esplicitamente.
 
-    Con `absolute_tolerance = 0.001` l'errore `0.2124 - 0.212 = 0.0004` passa e
-    l'errore `0.22 - 0.212 = 0.008` no; senza tolleranza un confronto approssimato
-    sarebbe una soglia arbitraria del valutatore, non una regola del dataset. Il
-    test fissa i due lati del confronto sullo stesso riferimento, cosi' che la
-    soglia si veda applicata e non solo nominata.
+    Con absolute_tolerance=0.001 lo scarto 0.0004 passa e 0.008 no: il
+    confronto usa il massimo fra budget assoluto e relativo, non la somma.
     """
     reference = {
         "answer_type": "number",
@@ -297,3 +294,83 @@ def test_non_empty_answer_without_a_number_stays_incorrect():
     regola nuova copre l'assenza, non l'incoerenza."""
     assert evaluate("non so", {"answer_type": "number",
                                "accepted_answers": ["0.2"]}).verdict == "incorrect"
+
+
+@pytest.mark.parametrize("reference", [
+    "3 blarg", "3 J/kg", "NaN", "+inf", "1e309", "1e-9999", "1e+", True,
+])
+def test_b1_numeric_contract_rejects_unsupported_values(reference):
+    """La validazione usa lo stesso scalare dell'estrazione: nessun prefisso o unita' cancellata."""
+    result = evaluate("3", {"answer_type": "number", "accepted_answers": [reference]})
+    assert result.verdict == "indeterminate"
+    assert result.method == "invalid_reference_contract"
+
+
+@pytest.mark.parametrize("key", ["absolute_tolerance", "relative_tolerance"])
+@pytest.mark.parametrize("value", [float("nan"), float("inf"), -1, "1 J", "1e+"])
+def test_b1_numeric_tolerances_are_finite_unitless_nonnegative(key, value):
+    """Un budget malformato non deve rendere ogni risposta corretta ne' provocare eccezioni."""
+    result = evaluate("3", {"answer_type": "number", "accepted_answers": [3], key: value})
+    assert result.method == "invalid_reference_contract"
+
+
+def test_b1_robust_default_budget_is_unchanged():
+    """Per |GT|<1 resta scala=1 e max(abs,rel*scala); il bordo robusto e' inclusivo."""
+    from robust_evaluator import _numeric_match
+    reference = {"answer_type": "number", "accepted_answers": [0]}
+    at_edge = evaluate("1e-6", reference)
+    assert at_edge.verdict == "correct"
+    assert at_edge.diagnostics["absolute_tolerance"] == 1e-9
+    assert at_edge.diagnostics["relative_tolerance"] == 1e-6
+    assert evaluate("1.001e-6", reference).verdict == "incorrect"
+    assert _numeric_match(2.25, 2, 0, 0.125) is True
+    assert _numeric_match(0.00015, 0, 0.0001, 0.0001) is False
+    assert _numeric_match(float("inf"), 3, 1e-9, 1e-6) is False
+
+
+@pytest.mark.parametrize("text", [
+    "between +8.27e-2 and 2.396E-1",
+    "from .0827 to +,2396", "between 8,27E-2 and .2396",
+])
+def test_b1_interval_scientific_notation_preserves_both_bounds(text):
+    """L'esponente appartiene al limite intero: entrambi gli estremi devono coincidere."""
+    reference = {"answer_type": "interval", "lower": 0.0827, "upper": 0.2396,
+                 "absolute_tolerance": 0.00005 + 1e-12, "relative_tolerance": 0}
+    result = evaluate(text, reference)
+    assert result.verdict == "correct"
+    assert result.diagnostics["lower_match"] is True
+    assert result.diagnostics["upper_match"] is True
+    wrong_upper = text.replace("2396", "2496").replace("2.396", "2.496")
+    assert wrong_upper != text
+    assert evaluate(wrong_upper, reference).verdict == "incorrect"
+
+
+@pytest.mark.parametrize("text", [
+    "between 8.27e-2 and 2.396e-1 J", "between 8.27e-2 and 2.396e-",
+    "between 8.27e-2 and NaN", "between 8.27e-2 and 1e309",
+])
+def test_b1_interval_does_not_accept_a_partial_upper_bound(text):
+    """Un esponente incompleto, non-finito o dimensionale non e' il limite adimensionale atteso."""
+    result = evaluate(text, {"answer_type": "interval", "lower": 0.0827, "upper": 0.2396})
+    assert result.verdict != "correct"
+
+
+@pytest.mark.parametrize("task_type", ["cond_prob", "inter", "coherence", "counterfactual"])
+def test_b1_mudilab_has_explicit_zero_relative_tolerance(task_type):
+    """Il contratto MUDILAB resta meta' del passo stampato +1e-12, senza budget relativo aggiuntivo."""
+    from mudilab_adapter import _case_contract, load_case
+    case = load_case({"task_id": "B1", "task_type": task_type,
+                      "expected_probability": "0.2117494190",
+                      "expected_lower_graph": "0.0827", "expected_upper_graph": "0.2396"})
+    contract = _case_contract(case)
+    assert contract["relative_tolerance"] == 0.0
+    decimals = 3 if task_type in ("cond_prob", "inter") else 4
+    assert contract["absolute_tolerance"] == 0.5 * 10 ** -decimals + 1e-12
+    if task_type == "counterfactual":
+        assert evaluate("between .08275 and .23965", contract).verdict == "correct"
+        assert evaluate("between .082751 and .2396", contract).verdict == "incorrect"
+    else:
+        printed = ".212" if decimals == 3 else ".2117"
+        wrong = ".211" if decimals == 3 else ".2116"
+        assert evaluate(printed, contract).verdict == "correct"
+        assert evaluate(wrong, contract).verdict == "incorrect"
