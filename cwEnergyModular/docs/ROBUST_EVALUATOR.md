@@ -26,7 +26,9 @@ se una risposta è corretta.
    assumendo proprio l'indipendenza che il cluster deve correggere. Con un solo
    task distinto l'intervallo non si pubblica affatto (la dispersione sarebbe
    zero per costruzione, non per evidenza). Il confronto fra due sistemi sullo
-   stesso task resta una McNemar appaiata.
+   stesso task richiede una McNemar appaiata: **non è implementata**. Finché non
+   esiste e non ha test propri, non va descritta come disponibile né usata per
+   decidere fra due sistemi.
 
 ## Contratto di riferimento
 
@@ -79,9 +81,13 @@ Questi tipi sono usati dall'adattatore MUDILAB.
 
 ## Valutazione MUDILAB
 
-`mudilab_adapter.py` valuta separatamente etichetta, traduzione, output e
-osservazione della chiamata a `cau_inference`. La pipeline è `correct` solo
-quando tutti i livelli sono corretti e la chiamata al tool è osservata.
+`mudilab_adapter.py` valuta separatamente etichetta, traduzione, output e il
+percorso della chiamata a `cau_inference`. La pipeline è `correct` solo quando
+tutti i livelli sono corretti, la chiamata è stata eseguita con argomenti
+verificati, il testo dell'output è stato acquisito **e** l'esito è stato
+adottato con una ricevuta di forwarding (B5). Una trace che prova solo
+l'esecuzione lascia la riga `indeterminate`, anche quando il numero finale
+coincide con quello del tool.
 
 Il comando:
 
@@ -110,8 +116,12 @@ Il file JSONL di input contiene almeno:
 }
 ```
 
-L'aggregato riporta accuracy end-to-end, copertura, casi indeterminati, energia
-mediana totale, energia mediana delle risposte corrette e dati mancanti.
+L'aggregato riporta accuracy end-to-end, copertura, casi indeterminati e il
+costo energetico per risposta corretta: somma dell'energia disponibile di
+**tutti** i tentativi diviso **tutte** le corrette, con stato
+`complete|partial|unavailable`, copertura e conteggio delle esclusioni. Le
+mediane dell'energia restano diagnostiche e non sono il costo per corretta.
+Con zero corrette il rapporto è `None` con la ragione, mai zero o infinito.
 
 
 ## Limiti e interpretazione della confidenza
@@ -197,9 +207,11 @@ Restano indecidibili, e l'adapter lo dice nei `notes` invece di dedurlo:
 - ogni run registrato prima che l'harness cominciasse a scrivere `args`, inclusi
   tutti i 321 già pubblicati: per loro lo stato è `not recorded`.
 
-Un disallineamento degli argomenti è dichiarato, non punito: non cambia
-l'esito `end_to_end`, perché renderlo una colpa sarebbe un criterio di valutazione
-nuovo e andrebbe deciso sui dati, non scritto nel codice del valutatore.
+Un disallineamento degli argomenti rende la riga `incorrect` (B5): un numero
+ottenuto interrogando una query diversa da quella valutata non è il risultato
+del percorso misurato. Le trace senza argomenti registrati restano
+`not recorded` e non vengono promosse; non si deduce il payload dalla sola
+risposta.
 
 ## B1 — Estrazione numerica condivisa conservativa
 
@@ -245,7 +257,7 @@ senza numeri resta `0`. Nel robusto valgono rispettivamente `indeterminate` e
 `incorrect`. Un riferimento numerico esplicitamente dichiarato ma invalido
 produce astensione, non un errore del modello. L'auto-detect riconosce scalari
 SI e percentuali; le regole di classificazione/matching del testo non numerico
-non sono cambiate (B2 è fuori scope).
+non sono cambiate da B1: B2 le tratta nella sezione seguente.
 
 **Tolleranze invariate**, applicate alle unità canoniche:
 
@@ -261,4 +273,124 @@ non sono cambiate (B2 è fuori scope).
   restano adimensionali; le unità e la prosa subito dopo l'estremo superiore
   non fanno parte della grammatica. Entrambi i limiti devono passare lo stesso
   confronto precedente, senza variazioni alla tolleranza CF.
+
+## B2 — Confini di parola nel match testuale
+
+Il confronto di `short_text` e `free_text` non usa più la sottostringa. Prima di
+B2 `Roma` era contenuta in `Romania`, `cat` in `catalog` e `Firenze` in
+`Firenzenuova`: il primo caso approvava una risposta che non nominava la
+verità, il secondo faceva scattare un fatto proibito che la risposta non
+conteneva. Ora `_contains_phrase` (`evaluator.py`) e `_contains_fact`
+(`robust_evaluator.py`) cercano il riferimento come sequenza di parole intere,
+dopo la stessa normalizzazione applicata a entrambi i lati.
+
+La simmetria è deliberata: maiuscole, accenti e punteggiatura non decidono
+l'esito, mentre il confine fra parole sì. La punteggiatura diventa spazio, così
+un fatto in più parole (`Roma capitale`) regge anche una virgola in mezzo, e
+`RomaItalia` resta una parola diversa da `Roma Italia`. Le alternative multiple
+usano lo stesso confine e `matched` dice quale ha combaciato.
+
+Un riferimento che si normalizza a vuoto (`...`, un trattino isolato) non
+combacia con nulla: `"" in testo` sarebbe vero per ogni risposta. Nel ramo
+`short_text` del criterio robusto un contratto senza alias utilizzabili esce
+`indeterminate` con metodo `short_text_contract_missing`; nell'estrattore
+storico l'alternativa vuota semplicemente non passa.
+
+Non c'è stemming né entailment: `cane` e `cani` restano parole diverse, e la
+similarità lessicale resta secondaria. Il suo valore 1.0 per contenimento ora
+richiede parole intere; sotto resta il rapporto di `SequenceMatcher`, che è una
+somiglianza e non un riconoscimento. La normalizzazione segue la pratica di
+SQuAD (Rajpurkar et al., EMNLP 2016) per maiuscole, punteggiatura e articoli;
+l'estrattore storico rimuove anche gli articoli, il ramo robusto no, ma in
+entrambi la stessa funzione vale sui due lati. I numeri non vengono
+normalizzati, coerentemente con B1, dove `-3` e `3` restano valori distinti.
+
+## B5 — Percorso del risultato del tool
+
+Una risposta numerica corretta non prova che il numero venga dal tool, e un
+numero uguale a quello restituito non prova che il modello lo abbia adottato.
+La relazione sequenziale fra due eventi non è una relazione causale (Lanham et
+al., 2023, §2.3): la coincidenza è compatibile con un'ipotesi del modello, con
+una copia manuale o con una trace ricostruita.
+
+Il valutatore registra cinque stati distinti, esposti in `MudilabEvaluation`:
+
+```text
+tool_called            chiamata cau_inference presente nella trace
+tool_arguments_status  verified | mismatch | not recorded | unreadable
+tool_call_status       success | failed | unverified | missing
+tool_output_status     acquired | empty | not recorded
+tool_adoption_status   verified_direct_forward | unverified | mismatch | not recorded
+```
+
+`llm_tool_use` resta `not_proven` in ogni caso: il framework misura il percorso
+software, non il ragionamento del modello. L'harness orchestrato crea la
+ricevuta con `forward_tool_result` (`MUDILAB_run/tool_trace.py`) nello stesso
+passo in cui assegna il testo del tool al campo `numero`; la ricevuta dichiara
+`producer`, `mode="direct_forward"`, `call_id`, i due campi e lo SHA-256 del
+testo inoltrato. Il digest controlla l'integrità interna della trace, **non**
+l'autenticità del produttore: chi falsifica l'intera trace può falsificare
+anche la ricevuta. Per questo i record vanno acquisiti dall'harness fidato.
+
+Il verdetto end-to-end richiede tutti e cinque gli stati; una trace legacy che
+prova solo l'esecuzione resta `indeterminate` anche con il numero corretto. Un
+`args` registrato diverso dalla traduzione valutata rende la riga `incorrect`,
+e più chiamate senza `call_id` univoco non mescolano prove di chiamate diverse.
+La CLI legge anche i nomi dell'orchestratore (`etichetta`, `traduzione`,
+`numero`, `steps`, `output_provenance`) e sceglie il campo di destinazione:
+una ricevuta che punta a `numero` non viene trasferita alla spiegazione.
+
+## B7 — Identità esplicita del task
+
+L'unità statistica di un benchmark ripetuto è il task, non la riga. Per
+ricampionare i cluster serve un'identità **dichiarata**: `notes_with_task_id`
+la serializza in `notes` con il prefisso `CW_TASK_ID_V1=` e
+`record_task_id` la rilegge dal record o dal CSV, senza usare `prompt_id` come
+sostituto. Lo schema CSV resta a 174 nomi perché l'identità passa da una
+colonna già esistente.
+
+Se l'identità manca, è parziale o è conflittuale, il bootstrap a cluster non si
+calcola: `accuracy_cluster_bootstrap_95` resta `None` con la ragione in
+`cluster_bootstrap_note`. Non si generano identificativi artificiali per far
+funzionare l'intervallo: un ID inventato produrrebbe un intervallo più stretto
+fingendo l'indipendenza che il cluster deve correggere. Il Wilson a livello di
+riga resta pubblicato come diagnostica separata; le due ampiezze non misurano
+direttamente l'intra-correlazione.
+
+## B8 — Costo per risposta corretta ed ECE deprecato
+
+`ece_per_joule = acc_comp / energia` è deprecato: `acc_comp` è un indice
+descrittivo a pesi eterogenei, non un'accuratezza, e il rapporto mescolava due
+scale. La riga scrive `ece_per_joule = "N/A"` con la nota che nomina `acc_comp`
+come indice indipendente; nessun grafico o aggregato deve usarlo come misura di
+efficienza energetica.
+
+La metrica primaria di costo è operativa e dichiarata:
+
+```text
+costo per risposta corretta =
+    somma dell'energia disponibile di TUTTI i tentativi
+    / numero di TUTTE le risposte corrette
+```
+
+Il numeratore include errori, indeterminati e tentativi falliti quando la loro
+energia è valida e disponibile: l'energia spesa in una risposta sbagliata è un
+costo sostenuto, non un tentativo da cancellare. Il denominatore include anche
+le corrette senza energia disponibile, altrimenti la stima si gonfierebbe
+tenendo solo le righe misurate. Lo stato è `complete`, `partial` o
+`unavailable`; in `partial` il totale è un **subtotale disponibile**, non un
+totale completo, e la copertura è pubblicata accanto al rapporto.
+
+La mediana dell'energia delle sole corrette resta una diagnostica separata: non
+è il costo per corretta e non va presentata come tale. Con zero corrette il
+rapporto è `None` con la ragione `zero correct answers`, mai zero o infinito.
+Una riga entra nel totale solo se la validità è verificabile: flag `false`,
+finestra `counter-invalid` o `unavailable`, valore negativo o non finito
+restano visibili nelle mediane diagnostiche ma sono esclusi dal consumo, mai
+clampati. Sul CSV unificato l'assenza di `active_valid` rende la riga non
+verificabile; `energy_j` generico è accettato solo per compatibilità e la riga
+lo dichiara. La copertura resta un campo separato dall'accuratezza, come in
+HELM (§4.4 e App. C.2): un numero di accuratezza non implica che l'energia sia
+stata misurata su tutte le righe.
+
 
