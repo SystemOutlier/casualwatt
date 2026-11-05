@@ -80,6 +80,23 @@ def normalize_text(value: Any) -> str:
     return re.sub(r"\s+", " ", text).strip()
 
 
+def _contains_fact(haystack: str, needle: str) -> bool:
+    """Vero se il fatto normalizzato compare come parola o frase intera.
+
+    `haystack` e `needle` sono gia' passati per `normalize_text`, che sostituisce
+    la punteggiatura con uno spazio: il confine e' quindi fra caratteri di
+    parola, e un fatto in piu' parole mantiene il suo ordine anche quando nella
+    risposta e' spezzato da virgole. Il confronto per sottostringa contava
+    `Roma` dentro `Romania` e `cat` dentro `catalog`: la riga usciva `correct`
+    su una risposta che non nominava il fatto dichiarato. Un `needle` vuoto non
+    e' contenuto in nulla: `"" in testo` e' sempre vero, e un alias che si
+    normalizza a vuoto (`...`, un trattino isolato) approverebbe ogni risposta.
+    """
+    if not needle:
+        return False
+    return re.search(rf"\b{re.escape(needle)}\b", haystack) is not None
+
+
 def _parse_contract(reference: Any) -> Optional[dict[str, Any]]:
     if isinstance(reference, Mapping):
         return dict(reference)
@@ -265,9 +282,19 @@ def _evaluate_short_text(answer: str, contract: Mapping[str, Any]) -> Evaluation
         return _result("indeterminate", None, 0.0, "short_text_contract_missing",
                        "short_text", diagnostics={"reason": "no text reference"})
     normalized_answer = normalize_text(answer)
-    matched = tuple(item for item in accepted
-                    if re.search(rf"\b{re.escape(normalize_text(item))}\b",
-                                 normalized_answer))
+    # Un alias che si normalizza a vuoto non e' una risposta cercabile: senza
+    # l'esclusione il pattern `\b\b` combacia con il primo confine di parola e
+    # ogni risposta diventerebbe `correct`. Se NESSUN alias ha contenuto, il
+    # riferimento non e' utilizzabile e l'esito onesto e' `indeterminate`.
+    usable = [(item, normalize_text(item)) for item in accepted]
+    usable = [(item, norm) for item, norm in usable if norm]
+    if not usable:
+        return _result("indeterminate", None, 0.0, "short_text_contract_missing",
+                       "short_text",
+                       diagnostics={"reason": "accepted_answers have no normalized text",
+                                    "accepted_answers": accepted})
+    matched = tuple(item for item, norm in usable
+                    if _contains_fact(normalized_answer, norm))
     ok = bool(matched)
     return _result(
         "correct" if ok else "incorrect", 1.0 if ok else 0.0, 0.98,
@@ -287,11 +314,12 @@ def _evaluate_free_text(answer: str, contract: Mapping[str, Any]) -> EvaluationR
 
     normalized = normalize_text(answer)
     missing = tuple(item for item in required
-                    if normalize_text(item) not in normalized)
+                    if not _contains_fact(normalized, normalize_text(item)))
     found_forbidden = tuple(item for item in forbidden
-                            if normalize_text(item) in normalized)
+                            if _contains_fact(normalized, normalize_text(item)))
     negated = tuple(item for item in required
-                    if normalize_text(item) in normalized and _locally_negated(answer, item))
+                    if _contains_fact(normalized, normalize_text(item))
+                    and _locally_negated(answer, item))
     minimum = int(contract.get("minimum_required_facts", len(required)))
     present = len(required) - len(missing)
     if found_forbidden:

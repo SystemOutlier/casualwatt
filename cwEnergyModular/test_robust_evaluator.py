@@ -374,3 +374,92 @@ def test_b1_mudilab_has_explicit_zero_relative_tolerance(task_type):
         wrong = ".211" if decimals == 3 else ".2116"
         assert evaluate(printed, contract).verdict == "correct"
         assert evaluate(wrong, contract).verdict == "incorrect"
+
+
+# --------------------------------------------------------------------- B2
+# Il match testuale di `short_text` e `free_text` usa confini di parola/frase
+# sui due lati del confronto. Prima B2 il ramo `free_text` contava sottostringhe
+# (`normalize_text(item) in normalized`) e il ramo `short_text` costruiva
+# `\b\b` per un alias che si normalizza a vuoto: nel primo caso `Roma` dentro
+# `Romania` soddisfava un fatto dichiarato, nel secondo ogni risposta diventava
+# corretta. Le flessioni restano distinte: non c'e' stemming, solo punteggiatura
+# e accenti normalizzati allo stesso modo su risposta e riferimento.
+@pytest.mark.parametrize("answer,accepted", [
+    pytest.param("La Romania e' un paese.", "Roma", id="roma-romania"),
+    pytest.param("The catalog is here.", "cat", id="cat-catalog"),
+    pytest.param("Ateneo", "Atene", id="atene-ateneo"),
+])
+def test_b2_short_text_non_premia_la_sottostringa(answer, accepted):
+    """`Roma` non e' `Romania`: la parola dentro un'altra parola e' un'altra
+    parola, e la riga non deve uscire `correct` senza che il fatto ci sia."""
+    result = evaluate(answer, {"answer_type": "short_text",
+                               "accepted_answers": [accepted]})
+    assert result.verdict == "incorrect"
+    assert result.matched_answers == ()
+
+
+@pytest.mark.parametrize("answer,accepted,verdict", [
+    pytest.param("Atene.", "Atene", "correct", id="punto-risposta"),
+    pytest.param("Atene", "Atene...", "correct", id="punto-riferimento"),
+    pytest.param("La capitale e' Atene", "Atene", "correct", id="frase-positiva"),
+    pytest.param("cani", "cane", "incorrect", id="cane-cani"),
+])
+def test_b2_short_text_punteggiatura_simmetrica_flessioni_distinte(answer, accepted, verdict):
+    """La punteggiatura ai bordi e' normalizzata sui due lati, quindi non decide
+    l'esito; una flessione diversa no, perche' senza stemming `cani` non e'
+    `cane` e l'alias esplicito resta l'unico modo per dichiararla equivalente."""
+    result = evaluate(answer, {"answer_type": "short_text",
+                               "accepted_answers": [accepted]})
+    assert result.verdict == verdict
+
+
+def test_b2_free_text_conta_fatti_come_parole_intere():
+    """`Roma` dentro `Romania` non soddisfa il fatto richiesto, `Firenze` dentro
+    `Firenzenuova` non viola il fatto vietato: entrambi erano falsi positivi del
+    confronto per sottostringa, uno a favore e uno contro il modello. La virgola
+    non spezza `Roma` e `Lazio`, che restano due parole intere."""
+    reference = {
+        "answer_type": "free_text",
+        "required_facts": ["Roma", "Lazio"],
+        "forbidden_facts": ["Firenze"],
+        "minimum_required_facts": 2,
+        "fact_match_mode": "literal",
+    }
+    assert evaluate("La Romania e' nel Lazio.", reference).verdict == "incorrect"
+    assert evaluate("Roma, si trova nel Lazio.", reference).verdict == "correct"
+    assert evaluate("Roma e' nel Lazio, lontana da Firenzenuova.", reference).verdict == "correct"
+    assert evaluate("Roma e' nel Lazio e anche a Firenze.", reference).verdict == "incorrect"
+
+
+def test_b2_free_text_frase_in_piu_parole_regge_la_punteggiatura():
+    """Un fatto in due parole combacia anche quando la risposta lo separa con
+    una virgola, perche' la punteggiatura diventa spazio e non unisce ne'
+    spezza: `Roma capitale` resta la stessa frase."""
+    reference = {"answer_type": "free_text", "required_facts": ["Roma capitale"],
+                 "minimum_required_facts": 1, "fact_match_mode": "literal"}
+    assert evaluate("Roma, capitale d'Italia.", reference).verdict == "correct"
+    assert evaluate("Roma Capitale.", reference).verdict == "correct"
+
+
+def test_b2_riferimento_normalizzato_vuoto_non_approva_nulla():
+    """`...` si normalizza a stringa vuota: `"" in testo` sarebbe vero per ogni
+    risposta, quindi non puo' combaciare con nulla. Se nessun alias ha
+    contenuto il contratto non e' utilizzabile e l'esito onesto e'
+    `indeterminate`, non `correct`; un alias vuoto accanto a uno valido non
+    allarga il match.
+
+    Un fatto *richiesto* che si normalizza a vuoto non e' invece soddisfacibile
+    per costruzione (nessuna sottostringa da cercare): la riga esce `incorrect`,
+    che e' deterministico e non inventa un match. Resta un limite dichiarato del
+    contratto scritto male, non un silenzio del valutatore.
+    """
+    result = evaluate("Qualunque risposta",
+                      {"answer_type": "short_text", "accepted_answers": ["..."]})
+    assert result.verdict == "indeterminate"
+    assert result.method == "short_text_contract_missing"
+    reference = {"answer_type": "short_text", "accepted_answers": ["...", "Atene"]}
+    assert evaluate("Roma", reference).verdict == "incorrect"
+    assert evaluate("Atene.", reference).verdict == "correct"
+    degenerate = {"answer_type": "free_text", "required_facts": ["..."],
+                  "minimum_required_facts": 1, "fact_match_mode": "literal"}
+    assert evaluate("Qualunque risposta", degenerate).verdict == "incorrect"

@@ -23,6 +23,7 @@ from evaluator import (
     compare_numbers,
     normalize_text_for_comparison,
     check_short_text_containment,
+    lexical_similarity,
     evaluate_response,
 )
 
@@ -195,6 +196,102 @@ class TestCheckShortTextContainment:
         """'ATENE' contro 'Atene' e' corretto: il confronto non distingue il maiuscolo."""
         is_correct, matched = check_short_text_containment("ATENE", "Atene")
         assert is_correct is True
+
+
+class TestTextBoundariesB2:
+    """B2: il match testuale lavora su parole intere, non su sottostringhe.
+
+    La normalizzazione e' la stessa sui due lati del confronto, quindi maiuscole,
+    accenti e punteggiatura non decidono l'esito; il confine di parola invece
+    decide, perche' `Roma` dentro `Romania` e `cat` dentro `catalog` sono altre
+    parole. La punteggiatura diventa uno spazio: non spezza un fatto in piu'
+    parole ma non unisce nemmeno due parole distinte.
+    """
+
+    @pytest.mark.parametrize("risposta,verita", [
+        pytest.param("La Romania e' un paese.", "Roma", id="roma-romania"),
+        pytest.param("The catalog is here.", "cat", id="cat-catalog"),
+        pytest.param("Ateneo", "Atene", id="atene-ateneo"),
+    ])
+    def test_parola_dentro_un_altra_parola_non_e_un_match(self, risposta, verita):
+        """`Roma` non e' in `Romania`: il contenimento per sottostringa premiava
+        una risposta che non nomina la verita', quindi il confine deve reggere
+        sia sull'helper sia sul ramo short_text di `evaluate_response`."""
+        assert check_short_text_containment(risposta, verita) == (False, None)
+        res = evaluate_response(risposta, ground_truth=verita, answer_type="short_text")
+        assert res.is_correct == 0 and res.acc_comp == 0.0
+
+    @pytest.mark.parametrize("risposta,verita,atteso", [
+        pytest.param("I cani abbaiano", "cane", False, id="cane-cani"),
+        pytest.param("She is running fast", "run", False, id="run-running"),
+        pytest.param("Le citta crescono", "citta", True, id="accento-vale"),
+    ])
+    def test_flessioni_non_equivalenti_restano_distinte(self, risposta, verita, atteso):
+        """Senza stemming ne' alias nel contratto `cane` e `cani`, `run` e
+        `running` sono parole diverse: la scorciatoia a 1.0 non deve scattare
+        sul solo prefisso condiviso. `citta`/`citta` invece e' accentatura, che
+        la normalizzazione simmetrica toglie, e resta corretta: la correzione
+        B2 non introduce ne' toglie flessioni."""
+        assert check_short_text_containment(risposta, verita)[0] is atteso
+        if atteso:
+            assert lexical_similarity(risposta, verita) == 1.0
+        else:
+            assert lexical_similarity(risposta, verita) < 1.0
+
+    @pytest.mark.parametrize("risposta,verita,atteso", [
+        pytest.param("Atene.", "Atene", True, id="punto-finale"),
+        pytest.param("(Atene)", "Atene", True, id="parentesi"),
+        pytest.param("Atene", "Atene.", True, id="punto-nel-rif"),
+        pytest.param("Roma, capitale d'Italia", "Roma capitale", True,
+                     id="virgola-in-mezzo"),
+    ])
+    def test_punteggiatura_ai_bordi_non_cambia_l_esito(self, risposta, verita, atteso):
+        """La punteggiatura e' normalizzata sui due lati: `Atene.` e `Atene`
+        sono la stessa risposta, e una virgola dentro un fatto in piu' parole
+        non lo spezza. Il confine resta quello di parola."""
+        assert check_short_text_containment(risposta, verita)[0] is atteso
+
+    def test_punteggiatura_non_unisce_due_parole(self):
+        """Sostituire la punteggiatura con uno spazio evita che `Roma,Italia`
+        diventi un token unico: il fatto `Roma Italia` deve combaciare, mentre
+        `RomaItalia` e' una parola sola e non deve."""
+        assert normalize_text_for_comparison("Roma,Italia") == "roma italia"
+        assert check_short_text_containment("Roma,Italia", "Roma Italia")[0] is True
+        assert check_short_text_containment("RomaItalia", "Roma Italia")[0] is False
+
+    @pytest.mark.parametrize("risposta,atteso,matched", [
+        pytest.param("La capitale e' Atene.", True, "Atene", id="prima-alternativa"),
+        pytest.param("Athens is the capital.", True, "Athens", id="seconda-alternativa"),
+        pytest.param("Ateneo", False, None, id="nessuna-alternativa"),
+    ])
+    def test_alternative_multiple_usano_lo_stesso_confine(self, risposta, atteso, matched):
+        """Ogni alternativa e' confrontata con lo stesso confine: `Atene` passa,
+        `Athens` passa, `Ateneo` no, e `matched` dice quale alternativa ha
+        combaciato senza inventarne una."""
+        assert check_short_text_containment(risposta, "Atene|Athens") == (atteso, matched)
+
+    def test_riferimento_normalizzato_vuoto_non_combacia_con_tutto(self):
+        """`...` e `the` si normalizzano a stringa vuota: `"" in testo` sarebbe
+        vero per ogni risposta, quindi un riferimento senza contenuto non puo'
+        approvare nulla (ne' essere sostituito da un'altra alternativa)."""
+        assert check_short_text_containment("Qualunque risposta", "...") == (False, None)
+        assert check_short_text_containment("Qualunque risposta", "the") == (False, None)
+        assert check_short_text_containment("Qualunque risposta", "...|Atene") == (False, None)
+        assert check_short_text_containment("La capitale e' Atene", "...|Atene")[0] is True
+        assert lexical_similarity("Qualunque risposta", "...") == 0.0
+        res = evaluate_response("Qualunque risposta", ground_truth="?",
+                                answer_type="short_text")
+        assert res.is_correct == 0
+
+    def test_caso_positivo_continua_a_passare(self):
+        """La correzione non e' un irrigidimento: una risposta che contiene la
+        verita' come parola intera resta corretta, anche dentro una frase."""
+        assert check_short_text_containment(
+            "La capitale della Grecia e' Atene.", "Atene|Athens") == (True, "Atene")
+        res = evaluate_response("La capitale della Grecia e' Atene.",
+                                ground_truth="Atene|Athens", answer_type="short_text")
+        assert res.is_correct == 1 and res.extracted_answer == "Atene"
+        assert lexical_similarity("La capitale e' Atene.", "Atene") == 1.0
 
 
 class TestEvaluateResponseIntegration:
