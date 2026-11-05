@@ -78,6 +78,8 @@ def make_prompt_items(texts_with_gt: List[Tuple[str, Optional[str], Optional[str
         items.append(
             {
                 "id": f"{id_prefix}-{i:03d}",
+                # L'indice identifica la riga, non il task statistico.
+                "task_id": None,
                 "text": txt,
                 "ground_truth": gt_clean if gt_clean not in ("", None) else None,
                 "answer_type": ans_type_clean,
@@ -131,6 +133,7 @@ def load_prompts_from_csv(path) -> Tuple[List[Dict], str]:
         prompt_idx = _idx_of(header, PROMPT_COLUMN_CANDIDATES)
         gt_idx = _idx_of(header, GT_COLUMN_CANDIDATES)
         ans_type_idx = _idx_of(header, ANSWER_TYPE_COLUMN_CANDIDATES)
+        task_idx = _idx_of(header, ["task_id"]) if prompt_idx is not None else None
 
         has_real_header = prompt_idx is not None
         if has_real_header:
@@ -151,6 +154,19 @@ def load_prompts_from_csv(path) -> Tuple[List[Dict], str]:
             items.append((txt, gt, ans_type))
 
         out = make_prompt_items(items, source="csv", id_prefix="csv")
+        task_ids = [
+            (r[task_idx].strip() or None)
+            if task_idx is not None and task_idx < len(r) else None
+            for r in data_rows if prompt_idx < len(r) and r[prompt_idx].strip()
+        ]
+        identities = {}
+        for item, task_id in zip(out, task_ids):
+            item["task_id"] = task_id
+            if task_id is not None:
+                spec = (item["text"], item["ground_truth"], item["answer_type"])
+                if task_id in identities and identities[task_id] != spec:
+                    return [], f"task_id {task_id!r} identifica contratti diversi"
+                identities[task_id] = spec
         if not out:
             return [], "colonna prompt trovata ma tutte le celle sono vuote"
         return out, ""
@@ -263,6 +279,7 @@ def load_test_source(
             else:
                 out.append({
                     "id": it.get("id", f"cfg-{i:03d}"),
+                    "task_id": it.get("task_id"),
                     "text": it.get("text", ""),
                     "ground_truth": it.get("ground_truth"),
                     "source": "config",

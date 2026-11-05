@@ -15,6 +15,55 @@ BOOTSTRAP_SEED = 20261104
 BOOTSTRAP_RESAMPLES = 2000
 
 
+_TASK_NOTE_PREFIX = "CW_TASK_ID_V1="
+
+
+def _task_id(value: Any) -> Optional[str]:
+    """Solo identita' esplicite non vuote; nessun indice o hash sostitutivo."""
+    return value.strip() if isinstance(value, str) and value.strip() else None
+
+
+def notes_with_task_id(record: Mapping[str, Any]) -> str:
+    """Serializza l'identita' dichiarata nella colonna notes gia' esistente."""
+    notes = record.get("notes", "")
+    text = "; ".join(str(n) for n in notes) if isinstance(notes, (list, tuple)) else str(notes or "")
+    identity = _task_id(record.get("task_id"))
+    if identity is None:
+        return text
+    # Si sostituisce solo il nostro metadato, non il testo delle note originali.
+    lines = [line for line in text.splitlines() if not line.startswith(_TASK_NOTE_PREFIX)]
+    lines.append(_TASK_NOTE_PREFIX + json.dumps(identity, ensure_ascii=True))
+    return "\n".join(lines)
+
+
+def record_task_id(record: Mapping[str, Any]) -> Optional[str]:
+    """Legge il task dichiarato in memoria o nel CSV, senza usare prompt_id."""
+    direct = _task_id(record.get("task_id"))
+    recorded = []
+    for line in str(record.get("notes", "")).splitlines():
+        if line.startswith(_TASK_NOTE_PREFIX):
+            try:
+                value = _task_id(json.loads(line[len(_TASK_NOTE_PREFIX):]))
+            except (ValueError, TypeError):
+                return None
+            if value is None:
+                return None
+            recorded.append(value)
+    values = set(recorded + ([direct] if direct is not None else []))
+    return values.pop() if len(values) == 1 else None
+
+
+def record_verdict(record: Mapping[str, Any]) -> str:
+    """Compatibilita' con verdict/end_to_end e con is_correct del CSV unificato."""
+    for key in ("end_to_end", "verdict"):
+        if key in record:
+            value = str(record[key])
+            return value if value in ("correct", "incorrect") else "indeterminate"
+    value = str(record.get("is_correct", "")).strip().lower()
+    return "correct" if value in ("1", "1.0", "true") else (
+        "incorrect" if value in ("0", "0.0", "false") else "indeterminate")
+
+
 def cluster_bootstrap_interval(pairs: Iterable[tuple[int, Any]],
                                resamples: int = BOOTSTRAP_RESAMPLES,
                                seed: int = BOOTSTRAP_SEED) -> dict[str, Any]:
@@ -26,15 +75,15 @@ def cluster_bootstrap_interval(pairs: Iterable[tuple[int, Any]],
     e l'intervallo di Wilson su n righe finge un n_effective che non c'e'.
     Con un solo membro per cluster questo coincide col bootstrap sulle righe.
 
-    Non sostituisce Wilson: lo accompagna, e la differenza fra le due ampiezze
-    e' la misura dell'intra-correlazione. Per CONFRONTARE due sistemi sullo
-    stesso task resta la via dichiarata (McNemar appaiato), non questo intervallo.
+    Non sostituisce Wilson: lo accompagna. La differenza fra le ampiezze non
+    e' uno stimatore dell'intra-correlazione. McNemar appaiato e' una possibile
+    analisi successiva, NON implementata da questo modulo.
 
     Ritorna un dict con `interval` (None e `reason` quando l'unita' di cluster
     non e' registrata o non c'e' nulla da ricampionare), `n_effective_tasks`,
     `n_rows`, `n_rows_without_task`, `resamples`, `seed`.
     """
-    rows = [(int(esito), cluster) for esito, cluster in pairs]
+    rows = [(int(esito), _task_id(cluster)) for esito, cluster in pairs]
     senza_id = sum(1 for _, cluster in rows if cluster in (None, ""))
     gruppi: dict[Any, list[int]] = {}
     for esito, cluster in rows:
@@ -53,6 +102,10 @@ def cluster_bootstrap_interval(pairs: Iterable[tuple[int, Any]],
                 "reason": "task identity not recorded: a row-level bootstrap "
                           "would narrow the interval by assuming the independence "
                           "the cluster is meant to correct"}
+    if senza_id:
+        return {**base, "interval": None,
+                "reason": f"task identity missing for {senza_id} determinate row(s): "
+                          "partial cluster bootstrap would change the estimand"}
     if len(gruppi) < 2:
         return {**base, "interval": None,
                 "reason": "one distinct task: every resample reproduces the same "
@@ -109,10 +162,10 @@ def summarize_records(records: Iterable[Mapping[str, Any]],
     con lo stesso task ripetuto piu' volte l'unita' statistica non e' la riga,
     e l'intervallo a livello di task lo dice."""
     rows = list(records)
-    verdicts = Counter(str(row.get("end_to_end", row.get("verdict", ""))) for row in rows)
-    determinate = [row for row in rows if row.get("end_to_end", row.get("verdict"))
+    verdicts = Counter(str(record_verdict(row)) for row in rows)
+    determinate = [row for row in rows if record_verdict(row)
                    in ("correct", "incorrect")]
-    correct = sum(row.get("end_to_end", row.get("verdict")) == "correct"
+    correct = sum(record_verdict(row) == "correct"
                   for row in determinate)
     def finite_measurement(row: Mapping[str, Any], key: str) -> Optional[float]:
         value = row.get(key)
@@ -128,7 +181,7 @@ def summarize_records(records: Iterable[Mapping[str, Any]],
     energies = [value for _, value in energy_values if value is not None]
     correct_energies = [value for row, value in energy_values
                         if value is not None
-                        and row.get("end_to_end", row.get("verdict")) == "correct"]
+                        and record_verdict(row) == "correct"]
     durations = [value for row in rows
                  if (value := finite_measurement(row, "duration_s")) is not None]
     n_determinate = len(determinate)
@@ -146,8 +199,9 @@ def summarize_records(records: Iterable[Mapping[str, Any]],
     else:
         wilson = None
     cluster = cluster_bootstrap_interval(
-        [(1 if row.get("end_to_end", row.get("verdict")) == "correct" else 0,
-          row.get(cluster_key)) for row in determinate])
+        [(1 if record_verdict(row) == "correct" else 0,
+          record_task_id(row) if cluster_key == "task_id" else row.get(cluster_key))
+         for row in determinate])
     cluster_note = (
         f"intervallo a livello di task (unita' = {cluster_key}): "
         f"n_effective_tasks={cluster['n_effective_tasks']}, "
@@ -155,9 +209,8 @@ def summarize_records(records: Iterable[Mapping[str, Any]],
         f"righe senza id escluse dal ricampiono={cluster['n_rows_without_task']}, "
         f"ricampioni={cluster['resamples']}, seed={cluster['seed']}; "
         "Wilson e' a livello di riga e assume indipendenza, il bootstrap a "
-        "cluster no: si leggono insieme, e se il secondo e' piu' largo le righe "
-        "non erano prove indipendenti. Il confronto fra due sistemi sullo "
-        "stesso task resta una McNemar appaiata, non questo intervallo"
+        "cluster conserva le righe di ciascun task insieme. Le ampiezze non "
+        "misurano direttamente l'intra-correlazione. McNemar non implementato"
         if cluster["interval"] is not None else
         f"intervallo a livello di task non calcolabile: {cluster['reason']}"
     )
@@ -166,12 +219,13 @@ def summarize_records(records: Iterable[Mapping[str, Any]],
         "n_determinate": n_determinate,
         "accuracy_wilson_95": wilson,
         "n_effective_tasks": cluster["n_effective_tasks"],
+        "n_determinate_without_task_id": cluster["n_rows_without_task"],
         "accuracy_cluster_bootstrap_95": cluster["interval"],
         "cluster_bootstrap_note": cluster_note,
         "n_correct": correct,
-        "n_incorrect": sum(row.get("end_to_end", row.get("verdict")) == "incorrect"
+        "n_incorrect": sum(record_verdict(row) == "incorrect"
                            for row in rows),
-        "n_indeterminate": sum(row.get("end_to_end", row.get("verdict"))
+        "n_indeterminate": sum(record_verdict(row)
                                == "indeterminate" for row in rows),
         "accuracy_on_determinate": correct / len(determinate) if determinate else None,
         "coverage": len(determinate) / len(rows) if rows else None,
