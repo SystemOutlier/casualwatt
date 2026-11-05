@@ -157,10 +157,14 @@ def attach_energy(record: Mapping[str, Any], energy_j: Optional[float],
 
 
 def summarize_records(records: Iterable[Mapping[str, Any]],
-                      cluster_key: str = "task_id") -> dict[str, Any]:
-    """Aggrega i verdetti. `cluster_key` e' il campo che identifica il task:
-    con lo stesso task ripetuto piu' volte l'unita' statistica non e' la riga,
-    e l'intervallo a livello di task lo dice."""
+                      cluster_key: str = "task_id",
+                      energy_key: str = "energy_j") -> dict[str, Any]:
+    """Aggrega verdetti ed energia disponibile di TUTTI i tentativi.
+
+    Il costo per corretta e' somma energia / tutte le corrette, non la media
+    dell'energia delle sole corrette. Le mediane restano diagnostiche firmate.
+    `cluster_key` identifica il task: B7 non ammette identita' parziali nel CI.
+    """
     rows = list(records)
     verdicts = Counter(str(record_verdict(row)) for row in rows)
     determinate = [row for row in rows if record_verdict(row)
@@ -177,11 +181,61 @@ def summarize_records(records: Iterable[Mapping[str, Any]],
             return None
         return parsed if math.isfinite(parsed) else None
 
-    energy_values = [(row, finite_measurement(row, "energy_j")) for row in rows]
+    energy_values = [(row, finite_measurement(row, energy_key)) for row in rows]
+    # Diagnostica: anche negativi e valori con flag invalidante restano visibili.
     energies = [value for _, value in energy_values if value is not None]
     correct_energies = [value for row, value in energy_values
                         if value is not None
                         and record_verdict(row) == "correct"]
+    available = []
+    exclusions: Counter[str] = Counter()
+    n_missing = n_invalid = n_negative = n_unverified = n_compatibility = 0
+    for row, value in energy_values:
+        flags = {key: str(row[key]).strip().lower()
+                 for key in ("energy_valid", "active_valid") if key in row}
+        rejected = any(flag in ("false", "0", "0.0") for flag in flags.values())
+        unknown = any(flag not in ("true", "1", "1.0", "false", "0", "0.0")
+                      for flag in flags.values())
+        # Un CSV legacy non ha prova della validita' della sottrazione baseline.
+        unified = energy_key == "end_to_end_energy_j"
+        unverified = unknown or (unified and "active_valid" not in flags) or not flags
+        n_negative += int(value is not None and value < 0)
+        if row.get(energy_key) in (None, "", "N/A"):
+            n_missing += 1
+            exclusions["missing"] += 1
+            continue
+        n_unverified += int(unverified)
+        reasons = []
+        if value is None:
+            reasons.append("nonfinite_or_nonnumeric")
+        elif value < 0:
+            reasons.append("negative_not_consumed")
+        if rejected:
+            reasons.append("validity_flag_false")
+        if str(row.get("package_window_source", "")).strip().lower() in (
+                "counter-invalid", "unavailable"):
+            reasons.append("package_window_invalid_or_unavailable")
+        if unknown or (unified and unverified):
+            reasons.append("validity_unverifiable")
+        if reasons:
+            n_invalid += 1
+            exclusions.update(reasons)
+            continue
+        available.append(value)
+        n_compatibility += int(unverified)
+    total_energy = sum(available) if available else None
+    energy_status = ("unavailable" if not available else
+                     "complete" if len(available) == len(rows) else "partial")
+    energy_reason = ("no available eligible energy" if not available else
+                     "available subtotal only; incomplete energy coverage"
+                     if energy_status == "partial" else "")
+    if total_energy is not None and not math.isfinite(total_energy):
+        total_energy = None
+        energy_status = "unavailable"
+        energy_reason = "energy sum is nonfinite"
+    ratio_reason = "; ".join(reason for reason in (
+        "zero correct answers" if not correct else "", energy_reason) if reason)
+    ratio = total_energy / correct if correct and total_energy is not None else None
     durations = [value for row in rows
                  if (value := finite_measurement(row, "duration_s")) is not None]
     n_determinate = len(determinate)
@@ -233,11 +287,77 @@ def summarize_records(records: Iterable[Mapping[str, Any]],
         "median_energy_j": _median(energies),
         "median_energy_correct_j": _median(correct_energies),
         "median_duration_s": _median(durations),
-        "n_invalid_or_missing_energy": len(rows) - len(energies),
-        "missing_energy_rate": 1 - len(energies) / len(rows) if rows else None,
+        "energy_key": energy_key,
+        "total_energy_j": total_energy,
+        "energy_per_correct_j": ratio,
+        "energy_status": energy_status,
+        "energy_reason": energy_reason,
+        "energy_per_correct_status": energy_status if ratio is not None else "undefined",
+        "energy_per_correct_reason": ratio_reason,
+        "energy_coverage": len(available) / len(rows) if rows else None,
+        "n_available_energy": len(available),
+        "n_missing_energy": n_missing,
+        "n_invalid_energy": n_invalid,
+        "n_negative_energy": n_negative,
+        "n_unverified_energy_validity": n_unverified,
+        "n_compatibility_energy": n_compatibility,
+        "energy_exclusion_counts": dict(exclusions),
+        "energy_numerator": "sum of available eligible energy over ALL rows, including failures",
+        "energy_denominator": "ALL correct rows, including those without eligible energy",
+        "energy_note": (
+            "total_energy_j is an available subtotal when status=partial, not a complete total; "
+            "negative energies are preserved in diagnostic medians, excluded (not clamped) "
+            "from consumed energy. Medians use all finite values, including invalid rows. "
+            "Generic energy_j without flags is accepted for compatibility only: a finite "
+            "nonnegative number does not prove metrological validity. Unified rows without "
+            "active_valid have unverifiable validity and are excluded. Complete denotes "
+            "row coverage, not independent validation or completeness of the physical boundary."
+        ),
+        "n_invalid_or_missing_energy": n_missing + n_invalid,
+        "missing_energy_rate": 1 - len(available) / len(rows) if rows else None,
         "n_invalid_or_missing_duration": len(rows) - len(durations),
         "missing_duration_rate": 1 - len(durations) / len(rows) if rows else None,
     }
+
+
+def summarize_unified_records(records: Iterable[Mapping[str, Any]]) -> list[dict[str, Any]]:
+    """Separa run/sessione/sistema e pubblica la provenienza, senza rivalutare GT.
+
+    I metodi registrati (anche semantici legacy) NON diventano accuratezza
+    deterministica per il solo fatto di aggregare is_correct.
+    """
+    keys = ("run_id", "session_id", "provider", "model_name", "mode")
+    groups: dict[tuple, list[Mapping[str, Any]]] = {}
+    for record in records:
+        identity = tuple(record.get(key) for key in keys)
+        groups.setdefault(identity, []).append(record)
+
+    def recorded(rows, fields):
+        return {field: dict(Counter(
+            str(row.get(field)) if row.get(field) not in (None, "", "N/A")
+            else "not-recorded" for row in rows)) for field in fields}
+
+    results = []
+    for identity, rows in groups.items():
+        result = summarize_records(rows, energy_key="end_to_end_energy_j")
+        result.update(zip(keys, identity))
+        result["correctness_metadata"] = recorded(rows, (
+            "eval_method", "eval_mode", "answer_type", "acc_links_basis",
+            "judge_model", "judge_source"))
+        result["energy_metadata"] = recorded(rows, (
+            "measurement_boundary", "network_measurement_boundary",
+            "cloud_estimation_boundary", "energy_calculation_method",
+            "cpu_attribution_method", "gpu_attribution_method", "cloud_energy_method",
+            "package_window_source"))
+        result["provenance_note"] = (
+            "Correctness uses recorded verdict/is_correct and the recorded evaluation methods; "
+            "legacy semantic verdicts are not new deterministic accuracy. Energy retains the "
+            "recorded boundary and attributed CPU-time/GPU shares: it is not whole-machine "
+            "consumption or an independent validation. Failed/incomplete attempts contribute "
+            "only where energy was available; components outside the boundary are not recovered."
+        )
+        results.append(result)
+    return results
 
 
 def _median(values: list[float]) -> Optional[float]:
