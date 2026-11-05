@@ -6,6 +6,7 @@ translation, or tool invocation is invalid.
 """
 from __future__ import annotations
 
+import hashlib
 import json
 import math
 import re
@@ -121,6 +122,11 @@ class MudilabEvaluation:
     duration_s: Optional[float] = None
     notes: tuple[str, ...] = ()
     tolerance_provenance: str = ""
+    tool_called: bool = False
+    tool_arguments_status: str = "not recorded"
+    tool_output_status: str = "not recorded"
+    tool_adoption_status: str = "not recorded"
+    llm_tool_use: str = "not_proven"
 
     def to_dict(self) -> dict[str, Any]:
         return {
@@ -131,6 +137,11 @@ class MudilabEvaluation:
             "output": self.output.to_dict(),
             "tool_call_valid": self.tool_call_valid,
             "tool_call_status": self.tool_call_status,
+            "tool_called": self.tool_called,
+            "tool_arguments_status": self.tool_arguments_status,
+            "tool_output_status": self.tool_output_status,
+            "tool_adoption_status": self.tool_adoption_status,
+            "llm_tool_use": self.llm_tool_use,
             "end_to_end": self.end_to_end,
             "energy_j": self.energy_j,
             "duration_s": self.duration_s,
@@ -442,10 +453,63 @@ def evaluate_translation(case: MudilabCase, translation: Any) -> EvaluationResul
     return evaluate(translation, {"answer_type": "structured", "expected": expected})
 
 
+def _select_call(tool_calls: Any, proof: Any) -> tuple[Any, Optional[Mapping], str]:
+    """Argomenti, esito e adozione devono riferirsi alla STESSA chiamata."""
+    if isinstance(tool_calls, Mapping):
+        if "cau_inference" in tool_calls or "tool_ok" in tool_calls:
+            return tool_calls, None, ""  # contatori: nessun call-id individuale
+        entries = [tool_calls]
+    elif isinstance(tool_calls, (list, tuple)):
+        entries = tool_calls
+    else:
+        return [], None, ""
+    calls = [c for c in entries if isinstance(c, Mapping)
+             and _nome_chiamata(c) == "cau_inference"]
+    identity = proof.get("call_id") if isinstance(proof, Mapping) else None
+    if identity:
+        selected = [c for c in calls if c.get("call_id") == identity]
+        if len(selected) != 1:
+            return [], None, "receipt call_id missing or non-unique"
+        return selected, selected[0], ""
+    if len(calls) > 1:
+        return [], None, "multiple calls without an identified adopted result"
+    return calls, calls[0] if calls else None, ""
+
+
+def _adoption_status(call: Optional[Mapping], output: str, proof: Any,
+                     output_field: str) -> tuple[str, str]:
+    """Verifica una ricevuta del forwarding fidato, mai la sola uguaglianza numerica.
+
+    Il digest controlla integrita' interna, non autenticita': chi falsifica tutta
+    la trace puo' falsificare anche la ricevuta. Non prova uso cognitivo dell'LLM.
+    """
+    if proof is None:
+        return "not recorded", "no output provenance; matching numbers are not evidence of use"
+    if not isinstance(proof, Mapping) or call is None:
+        return "unverified", "no individually identified source call"
+    if (proof.get("producer") != "run_orchestrato.forward_tool_result.v1"
+            or proof.get("mode") != "direct_forward"
+            or proof.get("source_field") != "text"
+            or proof.get("destination_field") != output_field
+            or output_field != "numero"):
+        return "unverified", "no supported direct-forward trace for the scored field; LLM use not proven"
+    text = call.get("text")
+    if not isinstance(text, str) or not text.strip():
+        return "unverified", "source output not acquired"
+    if not call.get("call_id") or proof.get("call_id") != call.get("call_id"):
+        return "unverified", "source call identity not verified"
+    digest = hashlib.sha256(text.encode("utf-8")).hexdigest()
+    if proof.get("sha256") != digest or output != text:
+        return "mismatch", "recorded forwarding does not match the scored output"
+    return "verified_direct_forward", "trusted harness copied source text into numero; LLM use not proven"
+
+
 def evaluate_case(case: MudilabCase, *, label: str, translation: Any,
                   output: str, tool_calls: Any = None,
                   energy_j: Optional[float] = None,
-                  duration_s: Optional[float] = None) -> MudilabEvaluation:
+                  duration_s: Optional[float] = None,
+                  output_provenance: Any = None,
+                  output_field: str = "output") -> MudilabEvaluation:
     """Score one MUDILAB run against the case contract.
 
     ``tool_calls`` accepts the shapes the pipeline really writes -- a list of
@@ -458,18 +522,30 @@ def evaluate_case(case: MudilabCase, *, label: str, translation: Any,
     translation_result = evaluate_translation(case, translation)
     contract = _case_contract(case)
     output_result = evaluate(output, contract)
-    tool_status, tool_notes = _prova_esecuzione(tool_calls)
-    valid_call = tool_status == "success"
+    selected, call, selection_note = _select_call(tool_calls, output_provenance)
+    tool_status, tool_notes = _prova_esecuzione(selected)
+    if selection_note:
+        tool_status = "unverified"
     arg_state, arg_note = _argomenti_verificati(
-        tool_calls, translation, case.expected_label)
+        selected, translation, case.expected_label)
+    valid_call = arg_state == "verified"
+    acquired = (call is not None and any(call.get(k) not in (None, "", {})
+                                        for k in ("text", "output", "result")))
+    output_status = ("not recorded" if call is None
+                     else "acquired" if acquired else "empty")
+    adoption, adoption_note = _adoption_status(call, output, output_provenance, output_field)
+    if selection_note:
+        adoption, adoption_note = "unverified", selection_note
     stages = (label_result.verdict, translation_result.verdict, output_result.verdict)
-    if any(item == "incorrect" for item in stages) or tool_status == "failed":
+    if (any(item == "incorrect" for item in stages) or tool_status == "failed"
+            or arg_state == "mismatch" or adoption == "mismatch"):
         end_to_end = "incorrect"
-    elif any(item == "indeterminate" for item in stages) or tool_status in ("missing", "unverified"):
+    elif (any(item == "indeterminate" for item in stages) or tool_status != "success"
+          or not valid_call or not acquired or adoption != "verified_direct_forward"):
         end_to_end = "indeterminate"
     else:
         end_to_end = "correct"
-    notes = []
+    notes = [f"cau_inference adoption: {adoption} ({adoption_note})"]
     if case.task_type not in _DECIMALI_STAMPATI:
         # Il contratto ha preso la tolleranza del ramo piu' rozzo perche' questo
         # ramo non e' mai stato letto nella stampa del tool.  Va detto nella riga:
@@ -516,6 +592,10 @@ def evaluate_case(case: MudilabCase, *, label: str, translation: Any,
         label=label_result, translation=translation_result,
         output=output_result, tool_call_valid=valid_call,
         tool_call_status=tool_status,
+        tool_called=bool(call) or _prova_esecuzione(tool_calls)[0] in ("success", "failed"),
+        tool_arguments_status=arg_state,
+        tool_output_status=output_status,
+        tool_adoption_status=adoption,
         end_to_end=end_to_end, energy_j=energy_j, duration_s=duration_s,
         notes=tuple(notes),
         tolerance_provenance=str(contract.get("tolerance_provenance", "")),

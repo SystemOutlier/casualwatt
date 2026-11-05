@@ -72,12 +72,14 @@ def main() -> int:
                 raise ValueError(f"line {line_number}: unknown task_id {task_id!r}")
             result = evaluate_case(
                 case,
-                label=str(record.get("label", "")),
-                translation=record.get("translation"),
-                output=str(record.get("output", "")),
-                tool_calls=record.get("tool_calls"),
+                label=str(record.get("label", record.get("etichetta", ""))),
+                translation=record.get("translation", record.get("traduzione")),
+                output=str(record.get("output", record.get("numero", "")) or ""),
+                tool_calls=record.get("tool_calls", record.get("steps")),
                 energy_j=record.get("energy_j"),
                 duration_s=record.get("duration_s"),
+                output_provenance=record.get("output_provenance"),
+                output_field="output" if "output" in record else "numero",
             )
             results.append(result.to_dict())
 

@@ -113,6 +113,7 @@ tools = sys.modules["tools"]
 if str(HERE) not in sys.path:
     sys.path.insert(0, str(HERE))
 from etichette import ETICHETTE, etichette_nel_testo, etichetta_dal_testo  # noqa: E402
+from tool_trace import forward_tool_result  # noqa: E402
 
 # Temperatura 0 sui tre passi. Motivo misurato: a quella predefinita di Ollama
 # (0,8) il traduttore ha risposto in tre run con due dizionari diversi, e il
@@ -481,6 +482,7 @@ async def run(task: str, misura: Misura, opzioni_passi: dict | None = None,
     t1 = time.perf_counter()
     steps.append({
         "step": "cau_inference",
+        "call_id": "cau_inference:0",  # univoco dentro questo run (un solo call)
         # Gli argomenti effettivamente inviati, accanto alla risposta.  Il record
         # aveva solo il testo del tool, nel campo `text`, quindi
         # `mudilab_adapter._argomenti_verificati` non aveva niente da leggere e ogni run orchestrato usciva `not recorded`: la prova
@@ -498,6 +500,10 @@ async def run(task: str, misura: Misura, opzioni_passi: dict | None = None,
         "misura": misura.riga(t0, t1, e0, misura.bordo()),
         "text": str(numero),
     })
+    # Questa assegnazione, non una coincidenza numerica a posteriori, documenta
+    # l'adozione diretta nel campo numero. L'uso da parte dello spiegatore resta
+    # non provato anche quando il suo testo cita lo stesso valore.
+    numero, output_provenance = forward_tool_result(steps[-1])
 
     if spiegazione:
         risposta, passo = await _passo(misura, "causal_A", spiegatore.run(
@@ -527,6 +533,8 @@ async def run(task: str, misura: Misura, opzioni_passi: dict | None = None,
         "traduzione": traduzione,
         "controllo_traduzione": esito_traduzione,
         "numero": numero,
+        "output_provenance": output_provenance,
+        "llm_tool_use": "not_proven",
         "seconds_total": round(t_tot1 - t_tot0, 3),
         "misura": misura.riepilogo(),
         "totale": totale,
