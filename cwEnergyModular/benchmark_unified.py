@@ -471,6 +471,9 @@ def _basic_record(run_id, session_id, model_name, model_label, provider, mode,
         "mode": mode,
         "ollama_pid": ollama_pid if ollama_pid is not None else "",
         "prompt_id": prompt["id"],
+        # Identita' dichiarata dalla sorgente, mai derivata dall'indice di riga.
+        # Il writer la conserva nelle notes senza modificare lo schema P5.
+        "task_id": prompt.get("task_id"),
         "prompt": prompt["text"],
         # tracciabilita' sorgente test (Modalita' di Input Universale)
         "test_source": prompt.get("source", "unknown"),
@@ -773,7 +776,6 @@ def run_unified_benchmark(
         "\n"
         "Il benchmark misura il consumo energetico reale del package CPU.\n"
         "Qualsiasi attività aggiuntiva altera le misure e invalida i risultati.\n"
-        "Durata stimata: ~" + str(int(total_tasks * 15 + 120)) + " s (calibrazione + " + str(total_tasks) + " query)"
     )
     log("=" * 70)
 
@@ -804,7 +806,8 @@ def run_unified_benchmark(
         try:
             prompts_all = [
                 {"id": p.get("id", f"cfg-{i+1:03d}"), "text": p["text"],
-                 "ground_truth": p.get("ground_truth"), "source": "config"}
+                 "ground_truth": p.get("ground_truth"), "task_id": p.get("task_id"),
+                 "source": "config"}
                 for i, p in enumerate(config.load_prompts())
             ]
         except Exception:
@@ -819,6 +822,9 @@ def run_unified_benchmark(
         + (" (valutazione accuratezza -> N/A dove assente)" if n_gt < len(prompts) else "")
     )
     total_tasks = len(prompts) * (len(local_models) + len(cloud_selection))
+    # La durata dipende dai task caricati: prima del loader total_tasks non esiste.
+    log(f"Durata stimata: ~{int(total_tasks * 15 + 120)} s "
+        f"(calibrazione + {total_tasks} query)")
     done = 0
     records: List[Dict] = []
 

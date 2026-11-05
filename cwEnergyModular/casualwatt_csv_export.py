@@ -297,6 +297,9 @@ def export_results_csv(records: List[Dict], path: Path, mode: str = "a") -> int:
         writer = csv.DictWriter(fh, fieldnames=CSV_COLUMNS, extrasaction="ignore")
         for rec in records:
             row = {k: rec.get(k, "") for k in CSV_COLUMNS}
+            if rec.get("task_id") is not None:
+                from evaluation_runner import notes_with_task_id
+                row["notes"] = notes_with_task_id(rec)
             writer.writerow(row)
             written += 1
     return written
