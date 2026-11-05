@@ -23,13 +23,10 @@ def _case(task_type="cond_prob", expected_decision="",
 
 
 def test_conditional_probability_requires_all_stages():
-    """`end_to_end` e' corretto solo se reggono tutte le tappe: traduzione, esito,
-    tool eseguito.
+    """La trace legacy prova l'esecuzione, non args e adozione: manca una tappa.
 
-    Una probabilita' giusta con l'input tradotto giusto e il call verificato e' la
-    condizione completa; qualunque tappa mancante deve togliere la correttezza
-    senza dichiarare l'errore (i test successivi coprono quei casi). Qui si fissa
-    il lato positivo, che e' quello che l'aggregato conta.
+    B5 rende questa riga indeterminata senza cambiare il giudizio sul numero;
+    test_tool_provenance copre il caso positivo con forwarding registrato.
     """
     result = evaluate_case(
         _case(), label="backward_reasoning",
@@ -38,7 +35,8 @@ def test_conditional_probability_requires_all_stages():
         output="The probability is 0.2117",
         tool_calls=[{"name": "cau_inference", "success": True, "result": {"ok": True}}],
     )
-    assert result.end_to_end == "correct"
+    # Trace legacy senza ricevuta di adozione: numero corretto != percorso provato.
+    assert result.end_to_end == "indeterminate"
 
 
 def test_missing_tool_call_invalidates_end_to_end():
@@ -138,7 +136,8 @@ def test_vocabulary_non_compatibile_reads_the_english_negative():
         tool_calls=_CONTATORE_OK,
     )
     assert result.output.verdict == "correct"
-    assert result.end_to_end == "correct"
+    # Trace legacy senza ricevuta di adozione: numero corretto != percorso provato.
+    assert result.end_to_end == "indeterminate"
 
 
 def test_vocabulary_compatible_reads_the_english_positive():
@@ -154,7 +153,8 @@ def test_vocabulary_compatible_reads_the_english_positive():
         label="coherence", translation=_TRADUZIONE, output=_FRASE_POSITIVA,
         tool_calls=_CONTATORE_OK,
     )
-    assert result.end_to_end == "correct"
+    # Trace legacy senza ricevuta di adozione: numero corretto != percorso provato.
+    assert result.end_to_end == "indeterminate"
 
 
 def test_compatible_row_saying_the_negative_is_flagged():
@@ -225,8 +225,9 @@ def test_counter_dict_tool_calls_is_read_as_execution_proof():
         output="The probability is 0.2117", tool_calls=_CONTATORE_OK,
     )
     assert result.tool_call_status == "success"
-    assert result.tool_call_valid is True
-    assert result.end_to_end == "correct"
+    assert result.tool_call_valid is False  # esecuzione != argomenti verificati
+    # Trace legacy senza ricevuta di adozione: numero corretto != percorso provato.
+    assert result.end_to_end == "indeterminate"
 
 
 def test_counter_dict_with_exceptions_is_failed():
@@ -458,16 +459,15 @@ def test_recorded_arguments_are_read_through_the_tools_signature():
     )
     assert result.tool_call_status == "success"
     assert not any("cau_inference arguments" in note for note in result.notes)
-    assert result.end_to_end == "correct"
+    # Trace legacy senza ricevuta di adozione: numero corretto != percorso provato.
+    assert result.end_to_end == "indeterminate"
 
 
 def test_arguments_that_differ_from_the_scored_translation_are_declared():
-    """Query registrata diversa da quella valutata: la nota lo dice, il punteggio no.
+    """B5: args Bad contro traduzione Normal invalidano il percorso end-to-end.
 
-    `input` registato `Bad` contro una traduzione valutata `Normal` significa che
-    il numero viene da un'altra query della stessa riga.  La nota e' obbligatoria
-    per onesta' della misura; cambiare `end_to_end` sarebbe un criterio nuovo, e
-    i criteri nuovi si decidono sui dati, non nel codice del valutatore.
+    Il nuovo contratto autorizzato richiede argomenti verificati: la nota da sola
+    non deve piu' far passare un numero ottenuto interrogando un'altra query.
     """
     result = evaluate_case(
         _case(), label="backward_reasoning", translation=_TRADUZIONE,
@@ -476,7 +476,7 @@ def test_arguments_that_differ_from_the_scored_translation_are_declared():
             '{"input": {"DrivQuality": "Bad"}, "output": {"Age": "Senior"}}'))],
     )
     assert any("cau_inference arguments: mismatch" in note for note in result.notes)
-    assert result.end_to_end == "correct"
+    assert result.end_to_end == "incorrect"
 
 
 def test_arguments_sent_to_another_branch_of_the_tool_are_declared():
@@ -511,4 +511,5 @@ def test_refuso_nei_args_registrati_non_e_un_ramo_sbagliato():
                            text="The answer is between 0.0827 and 0.2396")],
     )
     assert not any("cau_inference arguments" in note for note in result.notes)
-    assert result.end_to_end == "correct"
+    # Trace legacy senza ricevuta di adozione: numero corretto != percorso provato.
+    assert result.end_to_end == "indeterminate"
