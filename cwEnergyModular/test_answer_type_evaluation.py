@@ -12,6 +12,8 @@ Casi reali:
 - short_text: verità "Atene|Athens", risposte con alternative -> corretto; "Roma" -> sbagliato
 - number con decimali: verità "21", risposta "21,0" -> corretto
 """
+import re
+
 import pytest
 from evaluator import (
     RUOLO_BINARIA,
@@ -23,6 +25,12 @@ from evaluator import (
     check_short_text_containment,
     evaluate_response,
 )
+
+
+def _id_parametro(valore):
+    """Id breve e deterministico: la colonna del verbale accetta 26 caratteri."""
+    testo = re.sub(r"\s+", "-", str(valore).strip())
+    return testo[:24].rstrip("-") or "vuoto"
 
 
 class TestDetectAnswerType:
@@ -390,7 +398,8 @@ class TestNumericB1:
         "answer: 20; final answer: 21", "final answer: 21; answer: 20",
         "risultato=20; risposta finale è 21", "answer: 21; risultato: 21",
         "Final answer: 21; risposta finale: 21.0",
-    ])
+    ], ids=["finale-dopo", "finale-prima", "finale-italiano", "concordi-breve",
+            "concordi-decimali"])
     def test_marker_priority_and_agreement(self, text):
         """Il livello finale prevale in entrambi gli ordini; ripetizioni concordi non sono ambigue."""
         from robust_evaluator import evaluate
@@ -408,7 +417,7 @@ class TestNumericB1:
         "answer: NaN", "21 blarg", "21 kg", "21 J/kg", "21 (W)",
         "21 W^2", "21% J", "21 J foo", "$21", "21e", "1,234.5",
         "21 21.0000000000001",
-    ])
+    ], ids=_id_parametro)
     def test_shared_abstention(self, text):
         """Ambiguita', non-finiti e grammatica non supportata non inventano una risposta estraibile."""
         from robust_evaluator import evaluate

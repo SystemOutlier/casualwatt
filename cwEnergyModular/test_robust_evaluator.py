@@ -331,7 +331,7 @@ def test_b1_robust_default_budget_is_unchanged():
 @pytest.mark.parametrize("text", [
     "between +8.27e-2 and 2.396E-1",
     "from .0827 to +,2396", "between 8,27E-2 and .2396",
-])
+], ids=["segni-ed-esponenti", "virgola-iniziale", "virgola-decimale"])
 def test_b1_interval_scientific_notation_preserves_both_bounds(text):
     """L'esponente appartiene al limite intero: entrambi gli estremi devono coincidere."""
     reference = {"answer_type": "interval", "lower": 0.0827, "upper": 0.2396,
@@ -348,7 +348,7 @@ def test_b1_interval_scientific_notation_preserves_both_bounds(text):
 @pytest.mark.parametrize("text", [
     "between 8.27e-2 and 2.396e-1 J", "between 8.27e-2 and 2.396e-",
     "between 8.27e-2 and NaN", "between 8.27e-2 and 1e309",
-])
+], ids=["unita", "esponente-incompleto", "nan", "overflow"])
 def test_b1_interval_does_not_accept_a_partial_upper_bound(text):
     """Un esponente incompleto, non-finito o dimensionale non e' il limite adimensionale atteso."""
     result = evaluate(text, {"answer_type": "interval", "lower": 0.0827, "upper": 0.2396})
