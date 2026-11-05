@@ -107,6 +107,25 @@ def compare_numbers(response_num: str, ground_truth_num: str,
     return relative_diff < tolerance
 
 
+def _contains_phrase(haystack: str, needle: str) -> bool:
+    """Vero se `needle` compare in `haystack` come sequenza di parole intere.
+
+    I due argomenti arrivano gia' normalizzati (minuscole, senza accenti, senza
+    punteggiatura, spazi collassati): qui resta solo il confine. Il confronto
+    per sottostringa (`alt_norm in resp_norm`) faceva passare `Roma` dentro
+    `Romania` e `cat` dentro `catalog`, cioe' dichiarava corretta una risposta
+    che non contiene la parola chiesta. La punteggiatura e' gia' diventata uno
+    spazio, quindi un fatto in piu' parole (`Roma Capitale`) continua a
+    combaciare anche quando nella risposta e' separato da virgole o parentesi.
+    Un `needle` vuoto non e' contenuto in nulla: `"" in testo` e' sempre vero,
+    e un riferimento che si normalizza a vuoto (per esempio `...`, o un
+    articolo rimosso) renderebbe corretta ogni risposta.
+    """
+    if not needle:
+        return False
+    return re.search(rf"\b{re.escape(needle)}\b", haystack) is not None
+
+
 def normalize_text_for_comparison(text: str) -> str:
     """Normalizza testo per confronto: minuscole, rimuovi accenti/punteggiatura/articoli.
     
@@ -132,9 +151,16 @@ def normalize_text_for_comparison(text: str) -> str:
 
 def check_short_text_containment(response: str, ground_truth: str) -> tuple[bool, Optional[str]]:
     """Verifica se la GT normalizzata è contenuta nella risposta normalizzata.
-    
+
     Supporta alternative separate da "|" nella GT: basta una corrispondenza.
     Ritorna (is_correct, matched_alternative).
+
+    Il contenimento e' per parole intere: `Atene` non e' contenuta in `Ateneo`
+    e `Roma` non e' contenuta in `Romania`. Un'alternativa che si normalizza a
+    stringa vuota non combacia con nulla, quindi non puo' approvare una
+    risposta qualsiasi. La normalizzazione e' la stessa sui due lati del
+    confronto (`normalize_text_for_comparison`), cosi' maiuscole, accenti e
+    punteggiatura non decidono l'esito.
     """
     if not ground_truth or not response:
         return False, None
@@ -144,7 +170,7 @@ def check_short_text_containment(response: str, ground_truth: str) -> tuple[bool
     
     for alt in alternatives:
         alt_norm = normalize_text_for_comparison(alt)
-        if alt_norm and alt_norm in resp_norm:
+        if _contains_phrase(resp_norm, alt_norm):
             return True, alt
     
     return False, None
@@ -241,12 +267,20 @@ def _is_short_answer(text: str) -> bool:
 
 
 def lexical_similarity(response_text: str, ground_truth: str) -> float:
-    """Metrica SECONDARIA: similarità lessicale [0..1] (SequenceMatcher)."""
+    """Metrica SECONDARIA: similarità lessicale [0..1] (SequenceMatcher).
+
+    Il valore 1.0 per contenimento vale solo se la verita' compare come parola o
+    frase intera: `Romania` non e' una risposta che contiene `Roma`, e il
+    vecchio `gt_n in ans_n` la premiava con 1.0 proprio per la sottostringa.
+    Quando il contenimento non regge resta il rapporto di `SequenceMatcher`,
+    che e' una somiglianza e non un riconoscimento. La normalizzazione e' la
+    stessa sui due lati (`_normalize_answer`).
+    """
     gt_n = _normalize_answer(ground_truth)
     ans_n = _normalize_answer(response_text)
     if not gt_n:
         return 0.0
-    if ans_n == gt_n or gt_n in ans_n:
+    if ans_n == gt_n or _contains_phrase(ans_n, gt_n):
         return 1.0
     return round(difflib.SequenceMatcher(None, ans_n, gt_n).ratio(), 6)
 
