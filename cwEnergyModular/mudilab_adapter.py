@@ -367,17 +367,20 @@ def _case_contract(case: MudilabCase) -> dict[str, Any]:
         return {
             "answer_type": "interval", "lower": case.expected_lower,
             "upper": case.expected_upper, "absolute_tolerance": tolerance,
+            "relative_tolerance": 0.0,
             "tolerance_provenance": provenance,
         }
     if case.task_type == "coherence":
         return {
             "answer_type": "number", "accepted_answers": [case.expected_probability],
             "absolute_tolerance": tolerance,
+            "relative_tolerance": 0.0,
             "tolerance_provenance": provenance,
         }
     return {
         "answer_type": "number", "accepted_answers": [case.expected_probability],
         "absolute_tolerance": tolerance,
+        "relative_tolerance": 0.0,
         "tolerance_provenance": provenance,
     }
 

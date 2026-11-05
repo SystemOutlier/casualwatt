@@ -63,28 +63,17 @@ _DEFAULT_THRESHOLD = SEMANTIC_THRESHOLD
 NA = None  # rappresentazione N/A nei record (il writer CSV la rende "")
 
 
+from numeric_answers import extract_numeric_answer, parse_numeric_literal
+
+
 def detect_answer_type(ground_truth: str) -> str:
-    """Rileva il tipo di risposta dalla ground truth.
-    
-    Regole:
-    - GT numerica (solo numeri, eventualmente con segno/decimali) -> "number"
-    - GT <= 6 parole -> "short_text"
-    - Altrimenti -> "free_text"
-    """
+    """GT numeriche finite (anche SI/percentuali) -> number; testo invariato."""
     if not ground_truth:
         return "free_text"
     gt = ground_truth.strip()
-    # Controlla se è numerica (interi, decimali, con segno)
-    # Supporta anche alternative separate da "|"
     alternatives = [alt.strip() for alt in gt.split("|")]
-    all_numeric = all(
-        re.fullmatch(r"[-+]?\d+(?:[.,]\d+)?", alt)
-        for alt in alternatives
-        if alt
-    )
-    if all_numeric and alternatives:
+    if all(parse_numeric_literal(alt) is not None for alt in alternatives):
         return "number"
-    # Conta parole (separatore: spazio)
     word_count = len(gt.split())
     if word_count <= 6:
         return "short_text"
@@ -92,49 +81,26 @@ def detect_answer_type(ground_truth: str) -> str:
 
 
 def extract_final_number(text: str) -> Optional[str]:
-    """Estrae il numero finale da un testo.
-    
-    Cerca pattern come "= 21", "risposta è 21", "answer: 21", "result 21".
-    Se non trova questi pattern, prende l'ultimo numero del testo.
-    Ritorna la stringa del numero (normalizzata con "." come decimale) o None.
+    """Compatibilita' dell'helper: numero univoco, con unita' canonica, o None.
+
+    Il parser B1 condiviso non usa '=' come marker ne' sceglie l'ultimo numero.
     """
-    if not text:
-        return None
-    
-    # Pattern per "dopo =/risposta/answer/result"
-    final_patterns = [
-        r"(?:=|risposta|answer|result)\s*[:=]?\s*([-+]?\d+(?:[.,]\d+)?)",
-    ]
-    for pattern in final_patterns:
-        matches = list(re.finditer(pattern, text, re.IGNORECASE))
-        if matches:
-            # Prendi l'ultimo match
-            num_str = matches[-1].group(1)
-            # Normalizza: sostituisci "," con "."
-            return num_str.replace(",", ".")
-    
-    # Fallback: trova tutti i numeri e prendi l'ultimo
-    all_numbers = re.findall(r"[-+]?\d+(?:[.,]\d+)?", text)
-    if all_numbers:
-        return all_numbers[-1].replace(",", ".")
-    
-    return None
+    result = extract_numeric_answer(text)
+    return result.quantity.text if result.quantity is not None else None
 
 
-def compare_numbers(response_num: str, ground_truth_num: str, 
+def compare_numbers(response_num: str, ground_truth_num: str,
                    tolerance: float = 1e-6) -> bool:
-    """Confronta due numeri entro tolleranza relativa.
-    
-    tolerance: tolleranza relativa (default 1e-6).
-    Ritorna True se i numeri sono uguali entro la tolleranza.
+    """Confronto storico strict: relativo <1e-6, assoluto <1e-6 per GT=0.
+
+    Le quantita' devono essere finite e dimensionalmente compatibili. La soglia
+    non cambia; percentuali e simboli SI sono convertiti prima del confronto.
     """
-    try:
-        resp_val = float(response_num)
-        gt_val = float(ground_truth_num)
-    except (ValueError, TypeError):
+    response = parse_numeric_literal(response_num)
+    expected = parse_numeric_literal(ground_truth_num)
+    if response is None or expected is None or response.dimension != expected.dimension:
         return False
-    
-    # Tolleranza relativa
+    resp_val, gt_val = float(response.value), float(expected.value)
     if gt_val == 0:
         return abs(resp_val) < tolerance
     relative_diff = abs(resp_val - gt_val) / abs(gt_val)
@@ -494,12 +460,18 @@ def evaluate_response(text: str, is_tool: bool = False,
         
         # Valutazione basata su answer_type
         if answer_type == "number":
-            # Estrai numero dalla risposta e confronta con GT
-            extracted = extract_final_number(ans_str)
+            # Il parser distingue assenza/ambiguita' da testo senza numeri.
+            extraction = extract_numeric_answer(ans_str)
+            extracted = extraction.quantity.text if extraction.quantity is not None else None
+            alternatives = [alt.strip() for alt in gt_str.split("|")]
+            valid_reference = all(parse_numeric_literal(alt) is not None for alt in alternatives)
             res.extracted_answer = extracted
-            if extracted is not None:
-                # Confronta con tutte le alternative numeriche nella GT
-                alternatives = [alt.strip() for alt in gt_str.split("|") if alt.strip()]
+            if not valid_reference:
+                res.is_correct = None
+                res.acc_comp = None
+                res.eval_method = "number_reference_invalid"
+                res.notes.append("answer_type=number: GT non numerica finita nella grammatica B1")
+            elif extracted is not None:
                 correct = any(
                     compare_numbers(extracted, alt)
                     for alt in alternatives
@@ -511,12 +483,17 @@ def evaluate_response(text: str, is_tool: bool = False,
                     f"answer_type=number: estratto '{extracted}' da risposta, "
                     f"confronto con GT '{gt_str}' -> is_correct={res.is_correct}"
                 )
-            else:
+            elif extraction.status == "no_number":
                 res.is_correct = 0
                 res.acc_comp = 0.0
                 res.eval_method = "number_extraction_failed"
                 res.notes.append("answer_type=number: nessun numero estratto dalla risposta")
-            # Per number: acc_comp = is_correct (0 o 1), niente altre componenti
+            else:
+                res.is_correct = None
+                res.acc_comp = None
+                res.eval_method = "number_extraction_indeterminate"
+                res.notes.append(f"answer_type=number: {extraction.reason}")
+            # Per number: acc_comp = is_correct (0/1/N/A), niente altre componenti
             res.causal_accuracy = res.acc_comp
             res.acc_links = res.acc_comp
             res.acc_links_basis = "exact_number_match"

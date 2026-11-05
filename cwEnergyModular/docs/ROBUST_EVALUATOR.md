@@ -201,3 +201,64 @@ Un disallineamento degli argomenti è dichiarato, non punito: non cambia
 l'esito `end_to_end`, perché renderlo una colpa sarebbe un criterio di valutazione
 nuovo e andrebbe deciso sui dati, non scritto nel codice del valutatore.
 
+## B1 — Estrazione numerica condivisa conservativa
+
+`numeric_answers.py` è ora l'unico parser numerico dei due valutatori; i loro
+criteri di confronto restano distinti. Questo aggiorna la sola estrazione,
+non il matching testuale, le funzioni di aggregazione, P1 o `load_case`.
+
+- Precedenza: `final answer` / `risposta finale`, poi `answer` / `result` /
+  `risposta` / `risultato`, poi il testo senza marker. I marker ignorano il
+  maiuscolo e ammettono `:`, `=`, `is`, `è` oppure nessun separatore.
+  `=` da solo **non** è un marker. Un segmento va dal marker al successivo:
+  tutti i segmenti al livello scelto devono essere risolvibili e concordi.
+  Un marker vuoto non permette il ripiego su un numero precedente o su un
+  marker di livello inferiore. Numeri distinti nello stesso segmento o marker
+  discordanti allo stesso livello producono astensione, mai l'ultimo numero.
+- Un unico valore ripetuto è ammesso: il confronto di unicità è esatto in
+  decimale, dopo la conversione SI, non arrotondato né soggetto alla tolleranza
+  di correttezza. Le espressioni aritmetiche non vengono calcolate: ad esempio
+  `5*5=25,25-4=21` non identifica una risposta. Per ripetizioni con segno usare
+  un delimitatore (`+3; +3`): `3 +3` è sintassi aritmetica, non una ripetizione.
+- Grammatica: segni ASCII `+`/`-` preservati, decimali con punto o virgola anche
+  senza zero iniziale (`.5`, `-,5`), esponente `e`/`E` con segno opzionale.
+  La virgola non è un separatore delle migliaia. Le percentuali sono
+  adimensionali e normalizzate dividendo per 100, anche nella GT.
+- Unità ammesse come suffisso, case-sensitive: `J`, `mJ`, `kJ` (energia),
+  `W` (potenza), `s`, `ms` (tempo). Conversioni esplicite: mJ→J e ms→s per
+  `10^-3`, kJ→J per `10^3`. L'assenza di unità è adimensionale: `3 W` non
+  corrisponde né a `3 J` né a `3`. L'unità canonica resta nella risposta
+  estratta. I suffissi sconosciuti o composti non vengono cancellati: causano
+  astensione, anche se la cifra isolata sarebbe corretta.
+- Limiti deliberati: niente calcolo simbolico, LaTeX, unità composte o tra
+  parentesi, segni Unicode, numeri in lettere o convenzioni delle migliaia.
+  Dopo un numero, la prosa va separata con punteggiatura; una parola adiacente
+  è trattata conservativamente come suffisso (salvo `and`, `or`, `e`, `o`,
+  `oppure`, separati da spazio). Non è un'analisi semantica della prosa.
+  I riferimenti sono scalari completi della stessa grammatica, non estrazioni
+  da testo libero. Valori non finiti, overflow e underflow a zero nel confronto
+  float sono rifiutati, non riparati.
+
+Nel ramo standard: assenza, ambiguità o sintassi numerica non supportata danno
+`is_correct=None`, `acc_comp=None`, `extracted_answer=None`; testo non vuoto
+senza numeri resta `0`. Nel robusto valgono rispettivamente `indeterminate` e
+`incorrect`. Un riferimento numerico esplicitamente dichiarato ma invalido
+produce astensione, non un errore del modello. L'auto-detect riconosce scalari
+SI e percentuali; le regole di classificazione/matching del testo non numerico
+non sono cambiate (B2 è fuori scope).
+
+**Tolleranze invariate**, applicate alle unità canoniche:
+
+- Standard `compare_numbers`: errore relativo **strict `< 1e-6`** rispetto
+  a `|GT|`; per GT zero, errore assoluto **`< 1e-6`**.
+- Robusto: `distance <= max(absolute, relative * max(|expected|, 1))`, con
+  default `absolute=1e-9`, `relative=1e-6`. Non si sommano i due termini;
+  il pavimento di scala a 1 resta per compatibilità, anche vicino allo zero.
+- MUDILAB: `_case_contract` esplicita `relative_tolerance=0` in tutti i rami;
+  l'assoluta derivata resta metà passo decimale stampato più `1e-12`.
+- Intervalli controfattuali: `between ... and ...` / `from ... to ...`
+  riconoscono anche segni, decimali iniziali ed esponenti interi. Gli estremi
+  restano adimensionali; le unità e la prosa subito dopo l'estremo superiore
+  non fanno parte della grammatica. Entrambi i limiti devono passare lo stesso
+  confronto precedente, senza variazioni alla tolleranza CF.
+

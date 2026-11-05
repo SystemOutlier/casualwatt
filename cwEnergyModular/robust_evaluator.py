@@ -39,16 +39,14 @@ from typing import Any, Iterable, Mapping, Optional, Sequence
 from evaluation_runner import cluster_bootstrap_interval
 
 
+from numeric_answers import NUMBER_PATTERN, extract_numeric_answer, parse_numeric_literal
+
+
 VERDICTS = ("correct", "incorrect", "indeterminate")
-_NUMBER_RE = re.compile(r"[-+]?(?:\d+(?:[.,]\d+)?|\d+[.,]\d+e[-+]?\d+)", re.I)
-_ANSWER_MARKER_RE = re.compile(
-    r"(?:final answer|answer|risposta|risultato|result)\s*[:=]\s*"
-    r"([-+]?(?:\d+(?:[.,]\d+)?|\d+[.,]\d+e[-+]?\d+))",
-    re.I,
-)
 _INTERVAL_RE = re.compile(
-    r"(?:between|from)\s+(-?(?:\d+(?:[.,]\d+)?))\s+"
-    r"(?:and|to)\s+(-?(?:\d+(?:[.,]\d+)?))",
+    rf"\b(?:between|from)\s+({NUMBER_PATTERN})\s+"
+    rf"(?:and|to)\s+({NUMBER_PATTERN})(?![\w%/^]|[.,]\d)"
+    r"(?!\s*(?:%|[^\W\d_]))",
     re.I,
 )
 
@@ -118,7 +116,7 @@ def validate_contract(reference: Any) -> list[str]:
         if isinstance(values, (str, int, float)):
             values = [values]
         kind = ("number" if isinstance(values, (list, tuple)) and values
-                and all(_to_float(v) is not None for v in values)
+                and all(parse_numeric_literal(v) is not None for v in values)
                 else "free_text")
     if kind not in _SUPPORTED_TYPES:
         return [f"unsupported answer_type: {kind or '<empty>'}"]
@@ -131,8 +129,8 @@ def validate_contract(reference: Any) -> list[str]:
             values = [values]
         if not isinstance(values, (list, tuple)) or not values:
             errors.append("accepted_answers must be a non-empty list")
-        elif kind == "number" and any(_to_float(v) is None for v in values):
-            errors.append("all numeric accepted_answers must be finite numbers")
+        elif kind == "number" and any(parse_numeric_literal(v) is None for v in values):
+            errors.append("all numeric accepted_answers must be finite quantities with supported units")
         elif kind == "short_text" and any(not _text(v) for v in values):
             errors.append("all short_text accepted_answers must be non-empty")
     if kind == "number" or kind == "interval":
@@ -181,20 +179,19 @@ def _locally_negated(text: str, fact: str) -> bool:
                 return True
     return False
 
-def _numbers(text: str) -> list[str]:
-    return _NUMBER_RE.findall(text or "")
-
-
 def _to_float(value: Any) -> Optional[float]:
-    try:
-        number = float(str(value).strip().replace(",", "."))
-    except (TypeError, ValueError, OverflowError):
+    """Scalare senza unita' per tolleranze e intervalli; mai un prefisso."""
+    if re.fullmatch(NUMBER_PATTERN, _text(value)) is None:
         return None
-    return number if math.isfinite(number) else None
+    parsed = parse_numeric_literal(value)
+    return float(parsed.value) if parsed is not None else None
 
 
 def _numeric_match(actual: float, expected: float, absolute: float,
                    relative: float) -> bool:
+    """Budget storico: <= max(abs, rel * max(|expected|, 1)), non una somma."""
+    if not all(math.isfinite(v) for v in (actual, expected, absolute, relative)):
+        return False
     distance = abs(actual - expected)
     scale = max(abs(expected), 1.0)
     return distance <= max(absolute, relative * scale)
@@ -221,54 +218,35 @@ def _evaluate_number(answer: str, contract: Mapping[str, Any]) -> EvaluationResu
         accepted = [contract.get("answer", contract.get("value"))]
     if isinstance(accepted, (str, int, float)):
         accepted = [accepted]
-    expected = [_to_float(item) for item in accepted]
-    expected = [item for item in expected if item is not None]
-    if not expected:
+    expected = [parse_numeric_literal(item) for item in accepted]
+    if not expected or any(item is None for item in expected):
         return _result("indeterminate", None, 0.0, "number_contract_missing",
-                       "number", diagnostics={"reason": "no numeric reference"})
+                       "number", diagnostics={"reason": "invalid numeric reference"})
 
-    marked = _ANSWER_MARKER_RE.findall(answer or "")
-    candidates = marked or _numbers(answer)
-    if not candidates:
-        if not _text(answer):
-            # An empty answer is not a wrong number: it is a run that produced
-            # no answer to score (the MUDILAB gate stops the run before the
-            # causal step).  Scoring it ``incorrect`` at 0.99 would merge
-            # acquisition failures into model errors and shrink the denominator
-            # of the energy-per-correct metric for the wrong reason.
-            return _result("indeterminate", None, 0.0, "number_answer_absent",
-                           "number", diagnostics={"reason": "empty answer, nothing to score"})
+    extraction = extract_numeric_answer(answer)
+    if extraction.status == "empty":
+        return _result("indeterminate", None, 0.0, "number_answer_absent",
+                       "number", diagnostics={"reason": extraction.reason})
+    if extraction.status == "no_number":
         return _result("incorrect", 0.0, 0.99, "number_no_answer",
-                       "number", diagnostics={"reason": "no numeric answer"})
-    parsed = [_to_float(item) for item in candidates]
-    parsed = [item for item in parsed if item is not None]
-    if not parsed:
-        return _result("incorrect", 0.0, 0.99, "number_parse_failed", "number")
-
-    # A marked answer is authoritative.  Without a marker, only an unambiguous
-    # final numeric candidate is accepted; this avoids rewarding an intermediate
-    # number merely because it happened to be the last token.
-    actual = parsed[-1]
-    if not marked and len(parsed) > 1:
-        unique = {round(item, 12) for item in parsed}
-        if len(unique) > 1:
-            return _result(
-                "indeterminate", None, 0.45, "number_ambiguous",
-                "number", extracted_answer=str(candidates[-1]),
-                diagnostics={"candidates": candidates},
-            )
-
-    absolute = float(contract.get("absolute_tolerance", 1e-9))
-    relative = float(contract.get("relative_tolerance", 1e-6))
-    matched = tuple(str(item) for item in expected
-                    if _numeric_match(actual, item, absolute, relative))
+                       "number", diagnostics={"reason": extraction.reason})
+    if extraction.quantity is None:
+        return _result("indeterminate", None, 0.0, "number_ambiguous",
+                       "number", diagnostics={"reason": extraction.reason})
+    actual = extraction.quantity
+    absolute = _to_float(contract.get("absolute_tolerance", 1e-9))
+    relative = _to_float(contract.get("relative_tolerance", 1e-6))
+    matched = tuple(item.text for item in expected
+                    if actual.dimension == item.dimension
+                    and _numeric_match(float(actual.value), float(item.value), absolute, relative))
     ok = bool(matched)
     return _result(
         "correct" if ok else "incorrect", 1.0 if ok else 0.0, 0.99,
-        "number_tolerance_match", "number", extracted_answer=str(actual),
+        "number_tolerance_match", "number", extracted_answer=actual.text,
         matched_answers=matched,
         diagnostics={"absolute_tolerance": absolute,
-                      "relative_tolerance": relative},
+                      "relative_tolerance": relative,
+                      "dimension": actual.dimension},
     )
 
 
@@ -431,7 +409,7 @@ def evaluate(answer: str, reference: Any, *, answer_type: str = "auto") -> Evalu
                        diagnostics={"validation_errors": validation_errors})
     if detected == "auto":
         detected = "number" if _accepted_texts(contract) and all(
-            _to_float(item) is not None for item in _accepted_texts(contract)
+            parse_numeric_literal(item) is not None for item in _accepted_texts(contract)
         ) else "free_text"
     if detected == "number":
         return _evaluate_number(_text(answer), contract)
