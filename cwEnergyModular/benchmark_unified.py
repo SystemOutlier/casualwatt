@@ -21,6 +21,7 @@ errori finiscono in log e nel campo ``notes`` dei record.
 """
 from __future__ import annotations
 
+import math
 import os
 import platform
 import threading
@@ -41,6 +42,7 @@ from energy.local_energy import CasualWattLocalEnergyProfiler, LocalEnergyResult
 from energy.network_energy import NetworkEnergyTracker
 from energy.worker_tree import worker_cpu_delta
 from evaluator import evaluate_response
+from evaluation_runner import summarize_records, summarize_unified_records
 
 APP_VERSION = "1.0.0"
 
@@ -249,7 +251,8 @@ def _ollama_infer_only(model: str, prompt: str, temperature: float,
 
 def query_cloud(provider_cfg: Dict, model: str, prompt: str, temperature: float,
                 timeout_s: float, max_tokens: int = 160,
-                estimator: Optional[CloudEnergyEstimator] = None):
+                estimator: Optional[CloudEnergyEstimator] = None,
+                attempt: Optional[Dict] = None):
     """POST chat/completions OpenAI-compatible.
 
     Ritorna (response_data, cloud_result, network_result) come da sezione 9.
@@ -259,6 +262,9 @@ def query_cloud(provider_cfg: Dict, model: str, prompt: str, temperature: float,
     sempre vuota, e lo stesso motore ricalcolava dallo stesso ingresso. Se non
     arriva (chiamate di prova), se ne crea una locale.
     """
+    # Stato per tentativo: se una fase successiva fallisce, non si perdono le
+    # componenti gia' ottenute. Non e' una stima delle componenti mancanti.
+    attempt = attempt if attempt is not None else {}
     net = NetworkEnergyTracker()
     if estimator is None:
         estimator = CloudEnergyEstimator()
@@ -338,13 +344,16 @@ def query_cloud(provider_cfg: Dict, model: str, prompt: str, temperature: float,
             "_resp_bytes": len(r.content),
             "tool_calls": tool_calls,
         }
+        attempt["resp_data"] = rd
         return rd
 
     resp_data, network_result = net.measure(_do_request)
+    attempt.update(resp_data=resp_data, network_result=network_result)
 
     # energia locale del CLIENT durante la chiamata cloud (CPU/GPU host utente)
     profiler = CasualWattLocalEnergyProfiler()
     client_local = profiler.profile_window(resp_data["_t0"], resp_data["_t1"])
+    attempt["client_local"] = client_local
 
     cloud_est = estimator.estimate(
         provider=provider_cfg["id"],
@@ -354,6 +363,7 @@ def query_cloud(provider_cfg: Dict, model: str, prompt: str, temperature: float,
         duration_s=resp_data["duration_s"],
     )
 
+    attempt["estimation"] = cloud_est
     resp_data["cloud_energy_j"] = cloud_est.energy_j if (cloud_est and cloud_est.energy_j is not None) else None
     resp_data["network_energy_j"] = network_result.energy_j
     resp_data["network_upload_bytes"] = network_result.upload_bytes
@@ -508,9 +518,9 @@ def _basic_record(run_id, session_id, model_name, model_label, provider, mode,
         "pyagrum_calls": 0,
         "llm_calls": 1,
         "retry_count": 0,
-        # default rete/cloud a zero (regola 12.1)
-        "network_energy_j": 0.0,
-        "cloud_energy_j": 0.0,
+        # Zero solo per confine locale (12.1), mai per richiesta cloud incompleta.
+        "network_energy_j": 0.0 if mode == "local" else None,
+        "cloud_energy_j": 0.0 if mode == "local" else None,
         "network_upload_bytes": 0,
         "network_download_bytes": 0,
         "network_total_bytes": 0,
@@ -560,9 +570,33 @@ def _basic_record(run_id, session_id, model_name, model_label, provider, mode,
     return rec
 
 
+def _finite_energy(value) -> Optional[float]:
+    """Solo numeri finiti, conservando il segno: assenza e NaN non sono zero."""
+    try:
+        number = float(value)
+    except (TypeError, ValueError, OverflowError):
+        return None
+    return number if math.isfinite(number) else None
+
+
+def _attributed_local_energy(local) -> Optional[float]:
+    """Stessa quota attribuita CPU+GPU; nessuna somma parziale o clamp."""
+    cpu = _finite_energy(getattr(local, "ollama_active_energy_j", None))
+    gpu = _finite_energy(getattr(local, "gpu_energy_attributed_j", None))
+    return _finite_energy(cpu + gpu) if cpu is not None and gpu is not None else None
+
+
+def _append_note(rec: Dict, note: str) -> None:
+    """Accoda note senza perdere quelle del profiler, valutatore o finalizzatore."""
+    existing = rec.get("notes", "")
+    if isinstance(existing, (list, tuple)):
+        existing = "; ".join(str(part) for part in existing)
+    rec["notes"] = f"{existing}; {note}" if existing else note
+
+
 def _finalize_energy_fields(rec: Dict, local_j: Optional[float], network_j: Optional[float],
                             cloud_j: Optional[float], evalres) -> None:
-    """Applica le regole 12.1/12.2 e i derivati ECE/EPCL.
+    """Applica le regole 12.1/12.2 e i derivati; ECE/J resta deprecated/N/A.
 
     Con valutazione saltata/N/A (regime senza ground truth) i derivati di
     accuratezza restano 'N/A': mai sostituiti con 0 o valori fittizi.
@@ -578,6 +612,10 @@ def _finalize_energy_fields(rec: Dict, local_j: Optional[float], network_j: Opti
     rete e cloud sono zero *per boundary* nella modalita' locale), e arriva
     comunque come valore esplicito del chiamante, non come fallback dell'`or`.
     """
+    local_j, network_j, cloud_j = map(_finite_energy, (local_j, network_j, cloud_j))
+    rec["ece_per_joule"] = "N/A"
+    _append_note(rec, "ece_per_joule=N/A: deprecated; acc_comp resta un indice "
+                 "descrittivo indipendente, non un numeratore di efficienza energetica")
     components = (("local_energy_j", local_j),
                   ("network_energy_j", network_j),
                   ("cloud_energy_j", cloud_j))
@@ -591,13 +629,16 @@ def _finalize_energy_fields(rec: Dict, local_j: Optional[float], network_j: Opti
         rec["end_to_end_energy_j"] = "N/A"
         new_note = (
             "end_to_end_energy_j=N/A perche' la/e componente/i "
-            f"{', '.join(missing)} non e/sono stata/e stimata/e; "
+            f"{', '.join(missing)} assente/i o non finita/e; "
             "nessun 0.0 inventato (regola: zero dichiarato, mai fallback)"
         )
         existing = rec.get("notes", "")
         rec["notes"] = f"{existing}; {new_note}" if existing else new_note
     else:
-        rec["end_to_end_energy_j"] = round(local_j + network_j + cloud_j, 9)
+        total = _finite_energy(local_j + network_j + cloud_j)
+        rec["end_to_end_energy_j"] = round(total, 9) if total is not None else "N/A"
+        if total is None:
+            _append_note(rec, "end_to_end_energy_j=N/A: somma non finita")
 
     # e2e numerico disponibile? "N/A" e' una stringa e non entra nei derivati
     e2e = rec["end_to_end_energy_j"]
@@ -615,38 +656,36 @@ def _finalize_energy_fields(rec: Dict, local_j: Optional[float], network_j: Opti
         )
         existing = rec.get("notes", "")
         rec["notes"] = f"{existing}; {note}" if existing else note
-        return
-    try:
-        out_tok = int(rec.get("output_tokens") or 0)
-    except (TypeError, ValueError):
-        out_tok = 0
-    if e2e_j is None:
-        rec["energy_per_output_token_j"] = "N/A"
     else:
-        rec["energy_per_output_token_j"] = round(e2e / out_tok, 9) if out_tok > 0 else ""
+        try:
+            out_tok = int(rec.get("output_tokens") or 0)
+        except (TypeError, ValueError, OverflowError):
+            out_tok = 0
+        if e2e_j is None:
+            rec["energy_per_output_token_j"] = "N/A"
+        else:
+            rec["energy_per_output_token_j"] = round(e2e / out_tok, 9) if out_tok > 0 else ""
 
-    # Metriche su TUTTI i token (input + output), emendazione a P5 del
-    # 28-10-2026. Stessa energia end-to-end e stesso criterio di assenza:
-    # "N/A" se l'e2e non esiste, vuoto se manca il conteggio dei token.
-    try:
-        tot_tok = int(rec.get("total_tokens") or 0)
-    except (TypeError, ValueError):
-        tot_tok = 0
-    if e2e_j is None:
-        rec["energy_per_total_token_j"] = "N/A"
-        rec["tokens_per_joule"] = "N/A"
-        rec["kwh_per_million_tokens"] = "N/A"
-    elif tot_tok > 0:
-        rec["energy_per_total_token_j"] = round(e2e_j / tot_tok, 9)
-        rec["tokens_per_joule"] = round(tot_tok / e2e_j, 9) if e2e_j > 0 else ""
-        rec["kwh_per_million_tokens"] = round(e2e_j / (3.6 * tot_tok), 12)
-    else:
-        rec["energy_per_total_token_j"] = ""
-        rec["tokens_per_joule"] = ""
-        rec["kwh_per_million_tokens"] = ""
+        # Metriche su TUTTI i token (input + output), emendazione P5 28-10-2026.
+        # N/A se manca l'e2e, vuoto se manca il conteggio dei token.
+        try:
+            tot_tok = int(rec.get("total_tokens") or 0)
+        except (TypeError, ValueError, OverflowError):
+            tot_tok = 0
+        if e2e_j is None:
+            rec["energy_per_total_token_j"] = "N/A"
+            rec["tokens_per_joule"] = "N/A"
+            rec["kwh_per_million_tokens"] = "N/A"
+        elif tot_tok > 0:
+            rec["energy_per_total_token_j"] = round(e2e_j / tot_tok, 9)
+            rec["tokens_per_joule"] = round(tot_tok / e2e_j, 9) if e2e_j > 0 else ""
+            rec["kwh_per_million_tokens"] = round(e2e_j / (3.6 * tot_tok), 12)
+        else:
+            rec["energy_per_total_token_j"] = ""
+            rec["tokens_per_joule"] = ""
+            rec["kwh_per_million_tokens"] = ""
 
     n_correct = getattr(evalres, "n_correct_links", None)
-    acc_comp = getattr(evalres, "acc_comp", None)
     is_correct = getattr(evalres, "is_correct", None)
     basis = getattr(evalres, "acc_links_basis", "") or ""
 
@@ -666,11 +705,6 @@ def _finalize_energy_fields(rec: Dict, local_j: Optional[float], network_j: Opti
         )
     else:
         rec["energy_per_correct_answer_j"] = ""  # risposta errata: non definita
-    # ECE per joule: accuratezza composita / energia end-to-end (J) — dichiarato
-    if acc_comp is None or e2e_j is None:
-        rec["ece_per_joule"] = "N/A"
-    else:
-        rec["ece_per_joule"] = round(acc_comp / e2e, 9) if e2e > 0 else ""
     # EPCL: Joule per causal link corretto (lower is better)
     if n_correct is None or e2e_j is None:
         rec["epcl_j_per_link"] = "N/A"
@@ -688,11 +722,10 @@ def _finalize_energy_fields(rec: Dict, local_j: Optional[float], network_j: Opti
     # C1: nota che dichiara quale delle due metriche derivate e' valida
     new_note = (
         "metriche derivate: energy_per_correct_answer_j=e2e se is_correct "
-        "(accuratezza binaria primaria) altrimenti N/A; epcl_j_per_link=e2e/"
-        "n_correct_links solo con triple causali F1 vs GT valide; "
-        "ece_per_joule=acc_comp/e2e dove acc_comp e' l'INDICE DESCRITTIVO a "
-        "pesi, non un'accuratezza: il suo numeratore non e' omogeneo al "
-        "numeratore delle altre due"
+        "altrimenti non definita: diagnostica per-riga, NON costo aggregato per "
+        "risposta corretta; il costo aggregato usa energia disponibile di TUTTI "
+        "i tentativi / TUTTE le corrette, con copertura dichiarata; "
+        "epcl_j_per_link=e2e/n_correct_links solo con triple causali F1 vs GT valide"
     )
     existing = rec.get("notes", "")
     rec["notes"] = f"{existing}; {new_note}" if existing else new_note
@@ -727,6 +760,97 @@ def _finalize_energy_fields(rec: Dict, local_j: Optional[float], network_j: Opti
     rec["local_emissions_gco2eq"] = (
         round(rec["local_energy_kwh"] * ci_val, 9) if local_j is not None else "N/A"
     )
+
+
+def _record_evaluation(rec: Dict, evalres) -> None:
+    """Conserva subito il verdetto reale, anche se profilo/log/export falliscono."""
+    aliases = {"cosine_similarity": "cosine_sim"}
+    for key in ("eval_mode", "eval_method", "is_correct", "causal_accuracy",
+                "explanation_quality", "cosine_similarity", "n_correct_links",
+                "acc_comp", "answer_type", "extracted_answer", "semantic_similarity",
+                "lexical_similarity", "semantic_threshold", "acc_links_basis",
+                "triples_gt", "triples_response", "triples_matched", "f1_precision",
+                "f1_recall", "judge_model", "evaluated_model", "judge_equals_evaluated",
+                "judge_source"):
+        rec[key] = _na_or(getattr(evalres, aliases.get(key, key), None))
+
+
+def _record_attempt_profile(rec: Dict, local) -> None:
+    """Salva misure e provenienza disponibili, senza inventare default numerici."""
+    if local is None:
+        return
+    for key in ("package_energy_j", "package_energy_raw_j", "active_energy_j",
+                "active_energy_raw_j", "active_valid", "baseline_energy_j", "idle_power_w",
+                "ollama_active_energy_j", "gpu_energy_attributed_j",
+                "gpu_energy_attributed_raw_j", "cpu_time_share", "cpu_time_share_raw",
+                "energy_calculation_method", "package_window_source", "idle_provenance",
+                "cpu_attribution_method", "gpu_attribution_method", "external_counter",
+                "measurement_boundary", "raw_start", "raw_end", "raw_unit", "domain"):
+        if hasattr(local, key):
+            rec[key] = _na_or(getattr(local, key))
+    for note in getattr(local, "notes", []) or []:
+        _append_note(rec, note)
+
+
+def _recover_local_attempt(rec: Dict, local, resp_data, attempt_start: float,
+                           attempt_end: float, profiler, profile_attempted: bool = False):
+    """Profilo gia' acquisito o finestra fallita, mai la durata del giudice.
+
+    I bordi CPU diretti possono mancare: si usa il profiler esistente e se ne
+    dichiara il limite, senza inventare un altro metodo di attribuzione.
+    """
+    if local is None and not profile_attempted:
+        end = resp_data.get("_t1") if resp_data is not None else attempt_end
+        if end is None or end <= attempt_start:
+            _append_note(rec, "energia tentativo=N/A: finestra pre-judge non disponibile")
+        else:
+            try:
+                local = profiler.profile_window(attempt_start, end)
+                rec.setdefault("duration_s", round(end - attempt_start, 6))
+                _append_note(rec, "profilo del tentativo incompleto fino al termine inferenza "
+                             "o all'errore; judge escluso, bordi CPU diretti non disponibili; "
+                             "quota attribuita e perimetro restano quelli del profiler")
+            except Exception as profile_exc:
+                _append_note(rec, "energia tentativo=N/A: profiling fallito: "
+                             f"{type(profile_exc).__name__}: {profile_exc}")
+    if local is None:
+        _append_note(rec, "energia tentativo=N/A: nessun profilo disponibile, nessuno zero inventato")
+    _record_attempt_profile(rec, local)
+    return _attributed_local_energy(local)
+
+
+def _failed_cloud_components(rec: Dict, attempt: Dict):
+    """Solo componenti ottenute in QUESTO tentativo, anche prima di un'eccezione."""
+    local = attempt.get("client_local")
+    net = attempt.get("network_result")
+    est = attempt.get("estimation")
+    _record_attempt_profile(rec, local)
+    if net is not None:
+        rec["network_measurement_boundary"] = net.measurement_boundary
+        for note in net.notes:
+            _append_note(rec, note)
+    if est is not None:
+        rec["cloud_energy_method"] = est.method
+        rec["cloud_estimation_boundary"] = (
+            "ecologits server-side estimate; hw-profile: " + est.hw_profile
+            + "; zone: " + est.country_code)
+        rec.update(_cloud_estimate_fields(est))
+        for note in est.notes:
+            _append_note(rec, note)
+    _append_note(rec, "tentativo cloud incompleto: non si assume richiesta mai partita; "
+                 "solo componenti acquisite, altre N/A; client=quota attribuita, "
+                 "rete/cloud nei soli perimetri registrati, non consumo intero del sistema")
+    return (_attributed_local_energy(local), getattr(net, "energy_j", None),
+            getattr(est, "energy_j", None))
+
+
+def _finalize_failed_attempt(rec: Dict, exc: Exception, evalres,
+                             local_j, network_j, cloud_j) -> None:
+    """Errore esplicito senza cancellare is_correct gia' determinato o l'energia."""
+    rec["request_error"] = f"{type(exc).__name__}: {exc}"
+    _append_note(rec, f"ERRORE richiesta {rec.get('mode', '')}: {rec['request_error']}")
+    _record_evaluation(rec, evalres)
+    _finalize_energy_fields(rec, local_j, network_j, cloud_j, evalres)
 
 
 # ---------------------------------------------------------------------------
@@ -916,6 +1040,10 @@ def run_unified_benchmark(
                 primary_pid, pr, evalres_placeholder(),
             )
             t_wall0 = time.time()
+            attempt_start = time.perf_counter()
+            resp_data = local = None
+            evalres = evalres_placeholder()
+            profile_attempted = False
             try:
                 # Albero worker ricostruito a OGNI richiesta (non solo
                 # all'avvio), con identita' (pid, create_time). Numeratore e
@@ -947,6 +1075,7 @@ def run_unified_benchmark(
                     judge_fn=_judge_via_energy_session,
                     answer_type=pr.get("answer_type", "auto"),
                 )
+                _record_evaluation(rec, evalres)
                 jw = list(getattr(_lj, "LAST_WINDOWS", []) or [])
                 # 3) UNICO profiling: finestra [t0, t_end_effettivo] con la
                 #    sottofinestra del giudice SCORPORATA esplicitamente.
@@ -954,6 +1083,7 @@ def run_unified_benchmark(
                 #    judge_energy_j e' l'energia REALE misurata del segmento
                 #    giudice (B2: integrazione sulla sua finestra, niente floor).
                 t_end_profile = jw[-1][1] if jw else resp_data["_t1"]
+                profile_attempted = True
                 local = CasualWattLocalEnergyProfiler().profile_window(
                     resp_data["_t0"], t_end_profile,
                     ollama_pids=current_ollama_pids,
@@ -1067,44 +1197,29 @@ def run_unified_benchmark(
                     cpu_time_resolution_s=_na_or(
                         getattr(local, "cpu_time_resolution_s", None)),
                 )
-                # riscrive qualita' con valutazione reale (N/A se saltata)
-                rec.update(
-                    eval_mode=evalres.eval_mode,
-                    is_correct=_na_or(evalres.is_correct),
-                    causal_accuracy=_na_or(evalres.causal_accuracy),
-                    explanation_quality=_na_or(evalres.explanation_quality),
-                    cosine_similarity=_na_or(evalres.cosine_sim),
-                    n_correct_links=_na_or(evalres.n_correct_links),
-                    acc_comp=_na_or(evalres.acc_comp),
-                    answer_type=getattr(evalres, "answer_type", "auto"),
-                    extracted_answer=_na_or(getattr(evalres, "extracted_answer", None)),
-                )
-                # regola 12.1: rete e cloud ZERO; locale = solo Ollama attiva+GPU attribuita
-                local_j = local.ollama_active_energy_j + local.gpu_energy_attributed_j
-                _finalize_energy_fields(rec, local_j, 0.0, 0.0, evalres)
+                # Regola 12.1: rete/cloud ZERO per confine; locale e' quota attribuita.
+                local_j = _attributed_local_energy(local)
                 note_parts = list(local.notes) + list(evalres.notes)
                 if resp_data.get("_tokens_note"):
                     note_parts.append(resp_data["_tokens_note"])
                 rec["notes"] = "; ".join(note_parts)
+                _finalize_energy_fields(rec, local_j, 0.0, 0.0, evalres)
                 log(
                     f"[OK local] {model} | {pr['id']} | {resp_data['duration_s']:.2f}s | "
                     f"E_ollama={local.ollama_active_energy_j:.2f} J "
                     f"(share {local.cpu_time_share:.2f}) | acc={_acc_log(evalres)}"
                 )
             except Exception as exc:
+                attempt_end = time.perf_counter()
                 summary["errors"] += 1
-                # Usa una lista per le note, poi fai join alla fine
-                note_parts = [f"ERRORE richiesta locale: {type(exc).__name__}: {exc}"]
                 rec.update(
                     timestamp_start=datetime.fromtimestamp(t_wall0, tz=timezone.utc).isoformat(timespec="seconds"),
                     timestamp_end=datetime.now(timezone.utc).isoformat(timespec="seconds"),
                 )
-                _finalize_energy_fields(rec, 0.0, 0.0, 0.0, evalres_placeholder())
-                # Unisci le note alla fine (dopo _finalize_energy_fields)
-                existing_notes = rec.get("notes", "")
-                if existing_notes:
-                    note_parts.insert(0, existing_notes)
-                rec["notes"] = "; ".join(note_parts)
+                local_j = _recover_local_attempt(
+                    rec, local, resp_data, attempt_start, attempt_end, profiler,
+                    profile_attempted=profile_attempted)
+                _finalize_failed_attempt(rec, exc, evalres, local_j, 0.0, 0.0)
                 log(f"[ERRORE local] {model} | {pr['id']} | {type(exc).__name__}: {exc}")
             records.append(rec)
             done += 1
@@ -1131,10 +1246,13 @@ def run_unified_benchmark(
                     "cloud", primary_pid, pr, evalres_placeholder(),
                 )
                 t_wall0 = time.time()
+                attempt = {}
+                resp_data = cloud_res = net_res = None
+                evalres = evalres_placeholder()
                 try:
                     resp_data, cloud_res, net_res = query_cloud(
                         pcfg, model, pr["text"], temperature, timeout_s,
-                        estimator=cloud_estimator,
+                        estimator=cloud_estimator, attempt=attempt,
                     )
                     evalres = evaluate_response(
                         resp_data["text"], is_tool=bool(resp_data.get("tool_calls")),
@@ -1304,13 +1422,26 @@ def run_unified_benchmark(
                     rec.update(
                         timestamp_start=datetime.fromtimestamp(t_wall0, tz=timezone.utc).isoformat(timespec="seconds"),
                         timestamp_end=datetime.now(timezone.utc).isoformat(timespec="seconds"),
-                        notes=f"ERRORE richiesta cloud: {type(exc).__name__}: {exc}",
                     )
-                    # In modalita' cloud la stima cloud non esiste affatto: la
-                    # richiesta non e' mai arrivata al provider. `None`, non 0.0.
-                    # (Rete e locale restano 0.0 perche' qui e' il chiamante a
-                    # dichiararli: la sessione di misura non e' partita.)
-                    _finalize_energy_fields(rec, 0.0, 0.0, None, evalres_placeholder())
+                    # Un'eccezione non prova che la richiesta non sia partita:
+                    # si conservano solo le componenti davvero acquisite in
+                    # questo tentativo; le altre restano N/A, mai 0.0.
+                    partial = attempt.get("resp_data") or {}
+                    if partial:
+                        rec.update(
+                            model_response=partial.get("text", ""),
+                            duration_s=partial.get("duration_s"),
+                            input_tokens=partial.get("prompt_tokens"),
+                            output_tokens=partial.get("completion_tokens"),
+                            total_tokens=(
+                                partial.get("prompt_tokens", 0)
+                                + partial.get("completion_tokens", 0)
+                            ) if partial.get("prompt_tokens") is not None
+                            and partial.get("completion_tokens") is not None else None,
+                            token_provenance=partial.get("token_provenance", ""),
+                        )
+                    local_j, network_j, cloud_j = _failed_cloud_components(rec, attempt)
+                    _finalize_failed_attempt(rec, exc, evalres, local_j, network_j, cloud_j)
                     log(f"[ERRORE cloud] {prov_id}/{model} | {pr['id']} | {type(exc).__name__}: {exc}")
                 records.append(rec)
                 done += 1
@@ -1369,8 +1500,21 @@ def run_unified_benchmark(
         log(f"ERRORE run metadata: {exc}")
 
     summary["records"] = len(records)
+    _attach_evaluation_summary(summary, records)
     if not was_running:
         SESSION.stop()
+    return summary
+
+
+def _attach_evaluation_summary(summary: Dict, records: List[Dict]) -> Dict:
+    """Pubblica il costo aggregato e i gruppi senza rivalutare le risposte.
+
+    Il numeratore e' l'energia disponibile di tutti i tentativi e il
+    denominatore tutte le corrette: un errore di richiesta non viene tolto
+    dal costo solo perche' non ha prodotto una risposta corretta.
+    """
+    summary["evaluation"] = summarize_records(records, energy_key="end_to_end_energy_j")
+    summary["evaluation_groups"] = summarize_unified_records(records)
     return summary
 
 

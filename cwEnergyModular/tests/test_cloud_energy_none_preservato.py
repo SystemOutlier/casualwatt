@@ -133,23 +133,23 @@ def test_percorso_completo_invariato():
     assert rec["energy_per_output_token_j"] == pytest.approx(7.0)
     assert rec["energy_per_correct_answer_j"] == pytest.approx(70.0)
     assert rec["epcl_j_per_link"] == pytest.approx(70.0 / 3.0)
-    assert rec["ece_per_joule"] == pytest.approx(0.8 / 70.0)
+    # B8: l'indice descrittivo non e' piu' un numeratore di efficienza.
+    assert rec["ece_per_joule"] == "N/A"
     assert rec["cloud_energy_kwh"] == pytest.approx(8.0 / 3_600_000.0)
 
 
-def test_nota_dei_derivati_nomina_il_numeratore_di_ece_per_joule():
-    """ece_per_joule divide per l'indice descrittivo, energy_per_correct_answer_j per
-    l'is_correct binario: la riga deve nominare entrambi, perche' con lo stesso
-    denominatore (e2e) i due numeratori non sono la stessa grandezza."""
+def test_nota_dei_derivati_dichiara_il_deprecamento_di_ece_per_joule():
+    """ece_per_joule divideva un indice a pesi per l'energia: la riga deve dire
+    che il valore e' N/A e che il costo aggregato e' un'altra grandezza."""
     rec = _rec()
     ev = _ev(acc_comp=0.8, is_correct=1, n_correct_links=3,
              acc_links_basis="f1_triples")
     bu._finalize_energy_fields(rec, 60.0, 2.0, 8.0, ev)
-    assert "ece_per_joule=acc_comp/e2e" in rec["notes"]
-    assert "INDICE DESCRITTIVO" in rec["notes"]
+    assert "ece_per_joule=N/A: deprecated" in rec["notes"]
+    assert "indice descrittivo indipendente" in rec["notes"]
     assert "energy_per_correct_answer_j=e2e se is_correct" in rec["notes"]
-    # e il valore conferma la nota: 0.8 non e' 1, benché la risposta sia corretta
-    assert rec["ece_per_joule"] == pytest.approx(0.8 / 70.0)
+    assert "NON costo aggregato" in rec["notes"]
+    assert rec["ece_per_joule"] == "N/A"
     assert rec["energy_per_correct_answer_j"] == pytest.approx(70.0)
 
 
