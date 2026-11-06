@@ -144,9 +144,15 @@ def _ollama_payload(model: str, prompt: str, temperature: float,
     return payload
 
 
-def _keep_alive_sent(payload: Dict) -> str:
-    """Cosa ha realmente ricevuto il motore: il valore, o il default Ollama."""
-    return payload.get("keep_alive") or "non inviato (default Ollama)"
+def _keep_alive_sent(payload: Dict):
+    """Cosa ha realmente ricevuto il motore: il valore, o il default Ollama.
+
+    Il test e' `is None`, non la falsita' del valore: ``keep_alive=0`` viene
+    inviato e significa 'scarica i pesi appena finita la richiesta'. Con
+    ``or`` sarebbe etichettato "non inviato", che e' l'opposto del fatto.
+    """
+    sent = payload.get("keep_alive")
+    return "non inviato (default Ollama)" if sent is None else sent
 
 
 def query_ollama(model: str, prompt: str, temperature: float, timeout_s: float,
@@ -580,10 +586,41 @@ def _finite_energy(value) -> Optional[float]:
 
 
 def _attributed_local_energy(local) -> Optional[float]:
-    """Stessa quota attribuita CPU+GPU; nessuna somma parziale o clamp."""
+    """Quota attribuita CPU+GPU, oppure ``None`` quando l'attribuzione non c'e'.
+
+    ``None`` qui non e' un degrado: e' l'assenza di una stima, e
+    ``_finalize_energy_fields`` la scrive ``"N/A"`` con la nota che nomina la
+    componente mancante. La regola sta nel docstring di quella funzione: uno
+    zero e' un costo **misurato** nullo, ``None`` e' non averlo stimato, e
+    confonderli abbassa `end_to_end_energy_j`, `energy_per_output_token_j` e
+    gli indici di efficienza come se la richiesta non fosse costata nulla.
+
+    Il caso che questa funzione non copre fino ad oggi: `ollama_active_energy_j`
+    e `gpu_energy_attributed_j` sono `float` con default ``0.0``, e
+    `energy/local_energy.py` li azzera **per convenzione** quando un gate di
+    validita' e' spento (`active_valid` per l'energia attiva,
+    `cpu_time_share_valid` per la quota). Una riga con `active` negativa, o con
+    il denominatore `d_busy` nullo, pubblicava quindi ``local_energy_j = 0.0`` e
+    ``end_to_end_energy_j = 0.0`` in modalita' locale: un numero che sembrava
+    osservato e non lo era. Da qui la lettura dei due flag, che sono colonne del
+    record e non attributi inventati.
+
+    La GPU entra con il suo numero **solo** quando il percorso di attribuzione
+    ha risposto (`gpu_available`); ``igpu-included-in-package`` e
+    ``not-applicable`` sono zeri dichiarati dal confine di misura -- la stessa
+    forma con cui rete e cloud valgono zero in locale, regola 12.1 -- e come
+    quelli restano nella somma. Una GPU osservata con la CPU non attribuita non
+    produce una somma parziale: e' meta' riga, e meta' riga non e' un
+    end-to-end.
+    """
     cpu = _finite_energy(getattr(local, "ollama_active_energy_j", None))
     gpu = _finite_energy(getattr(local, "gpu_energy_attributed_j", None))
-    return _finite_energy(cpu + gpu) if cpu is not None and gpu is not None else None
+    if cpu is None or gpu is None:
+        return None
+    if not (bool(getattr(local, "active_valid", False))
+            and bool(getattr(local, "cpu_time_share_valid", False))):
+        return None
+    return _finite_energy(cpu + gpu)
 
 
 def _append_note(rec: Dict, note: str) -> None:
