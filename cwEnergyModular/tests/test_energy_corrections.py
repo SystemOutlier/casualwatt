@@ -23,6 +23,9 @@ class FakeGpu:
         self.available = available
         self.index = 0
         self.name = "FakeGPU"
+        if available:
+            self.backend = "nvml"
+            self.get_uuid = lambda: "fake-uuid-nvml"
 
 
 class FakeSession:
@@ -36,6 +39,7 @@ class FakeSession:
         self.idle_gpu_power_w = idle_gpu_w
         self.source_method = "power-integration"
         self._gpu = FakeGpu(gpu_available)
+        self._gpu_idle_identity = self._gpu_identity() if (gpu_available and idle_gpu_w and idle_gpu_w > 0) else None
         self.p_cpu = p_cpu                  # f(t_rel) -> W
         self.ollama_rate = ollama_rate      # f(t_rel) -> cpu-s/s dell'albero Ollama
         self.busy_rate = busy_rate          # f(t_rel) -> cpu-s/s del sistema
@@ -60,6 +64,28 @@ class FakeSession:
 
     def samples_between(self, a, b):
         return [s for s in self.samples if a <= s.t <= b]
+
+    def _gpu_identity(self):
+        gpu = self._gpu
+        if not getattr(gpu, "available", False):
+            return None
+        get_uuid = getattr(gpu, "get_uuid", None)
+        if callable(get_uuid):
+            try:
+                uuid = get_uuid()
+                if uuid:
+                    return ("nvidia", "uuid", str(uuid))
+            except Exception:
+                pass
+        get_amd_uuid = getattr(gpu, "get_amd_uuid", None)
+        if callable(get_amd_uuid):
+            try:
+                uuid = get_amd_uuid()
+                if uuid:
+                    return ("amd", "uuid", str(uuid))
+            except Exception:
+                pass
+        return None
 
     def package_energy_exact_between(self, a, b, excl=None):
         """Integrale esatto di p_cpu su [a,b] meno le finestre escluse."""
@@ -146,24 +172,24 @@ def test_B2_gpu_esclude_la_finestra_del_judge():
 
 
 # ------------------------------------------- Punto 2: provenienza idle GPU
-def test_P2_idle_gpu_assente_provenance_missing_e_nota():
+def test_P2_idle_gpu_assente_provenance_identity_unavailable_e_nota():
     """100 W costanti senza idle calibrato -> tutta la scheda, dichiarata."""
     s = FakeSession(lambda t: 10.0, p_gpu=lambda t: 100.0, gpu_available=True,
                     idle_gpu_w=0.0)
     res = profile(s)
-    assert res.gpu_idle_provenance == "missing"
+    assert res.gpu_idle_provenance == "identity-unavailable"
     assert res.gpu_energy_attributed_j == pytest.approx(1000.0, rel=0.02)
-    assert any("idle GPU non calibrato" in n and "sovrastima" in n
+    assert any("baseline idle GPU non applicabile" in n and "sovrastima" in n
                for n in res.notes)
 
 
-def test_P2_idle_gpu_non_impostato_provenance_missing():
-    """Idle GPU mai impostato (None) e' 'missing' come 0,0: la nota di sovrastima c'e' in entrambi i casi."""
+def test_P2_idle_gpu_non_impostato_provenance_identity_unavailable():
+    """Idle GPU mai impostato (None) e' 'identity-unavailable' come 0,0: la nota di sovrastima c'e' in entrambi i casi."""
     s = FakeSession(lambda t: 10.0, p_gpu=lambda t: 100.0, gpu_available=True,
                     idle_gpu_w=None)
     res = profile(s)
-    assert res.gpu_idle_provenance == "missing"
-    assert any("idle GPU non calibrato" in n for n in res.notes)
+    assert res.gpu_idle_provenance == "identity-unavailable"
+    assert any("baseline idle GPU non applicabile" in n for n in res.notes)
 
 
 def test_P2_idle_gpu_calibrato_provenance_calibrated():
