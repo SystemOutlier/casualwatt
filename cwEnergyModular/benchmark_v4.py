@@ -952,6 +952,40 @@ def _clean_reps(reps: Optional[Sequence[float]]) -> List[float]:
     return out
 
 
+def _gpu_settle_note(tag: str, status: Optional[str], reason: str) -> str:
+    """Nota di riga per un termine GPU del settling non osservato (o vuota).
+
+    ``settle_idle`` compone il termine GPU solo quando il canale esiste. Gli
+    esiti ``"channel-absent"`` e ``"not-observed"`` dicono che il tempo in
+    ``settle_pre_s``/``settle_post_s`` copre il solo CPU: senza nota la riga
+    non lo direbbe, perche' lo schema di P5 e' congelato e non c'e' una
+    colonna dove scriverlo. ``None`` (nessun settling eseguito) e
+    ``"stable"`` non producono nulla.
+    """
+    if status in (None, "stable"):
+        return ""
+    det = f": {reason}" if reason else ""
+    return f"settling {tag} GPU non osservato ({status}){det}"
+
+
+def _append_gpu_settle_notes(rows: List[Dict], settle_pre_gpu: Optional[str],
+                             settle_pre_gpu_reason: str,
+                             settle_post_gpu: Optional[str],
+                             settle_post_gpu_reason: str) -> None:
+    """Accoda a ogni riga del blocco le note dei due settling GPU.
+
+    ``stable`` e ``None`` non producono testo; le note gia' presenti restano e
+    vengono separate da ``"; "``, come per le note di settling al tetto.
+    """
+    for tag, status, reason in (("pre", settle_pre_gpu, settle_pre_gpu_reason),
+                                ("post", settle_post_gpu, settle_post_gpu_reason)):
+        note = _gpu_settle_note(tag, status, reason)
+        if not note:
+            continue
+        for r in rows:
+            r["notes"] = (r.get("notes", "") + "; " if r.get("notes") else "") + note
+
+
 def block_baseline(reps_pre: Sequence[float],
                    reps_post: Optional[Sequence[float]] = None) -> Dict[str, object]:
     """Mediane, range, drift e budget base di un blocco.
@@ -1697,6 +1731,11 @@ def run_block(model: str, prompt: Dict, *, run_id: str, session_id: str,
         log(f"[BLOCK {block_id}] cooldown: {cooldown.get('reason')}")
 
     settle_pre = SESSION.settle_idle()
+    # Esito del termine GPU del settling pre: "stable", "not-observed" o
+    # "channel-absent". Lo schema di P5 e' congelato: la dichiarazione va in
+    # ``notes``, non in una colonna nuova.
+    settle_pre_gpu = getattr(SESSION, "last_settle_gpu_status", None)
+    settle_pre_gpu_reason = getattr(SESSION, "last_settle_gpu_reason", "")
     try:
         p_pre = float(SESSION.calibrate_idle())
     except Exception as exc:
@@ -1904,6 +1943,8 @@ def run_block(model: str, prompt: Dict, *, run_id: str, session_id: str,
             f"source={local.cpu_share_source}")
 
     settle_post = SESSION.settle_idle()
+    settle_post_gpu = getattr(SESSION, "last_settle_gpu_status", None)
+    settle_post_gpu_reason = getattr(SESSION, "last_settle_gpu_reason", "")
     try:
         p_post = float(SESSION.calibrate_idle())
     except Exception as exc:
@@ -2017,6 +2058,13 @@ def run_block(model: str, prompt: Dict, *, run_id: str, session_id: str,
             r["notes"] = (r.get("notes", "") + "; " if r.get("notes") else "") + (
                 "settling post al tetto (settle_post_s vuoto): stabilita' non "
                 "osservata")
+    # Termine GPU del settling: la riga dichiara se la stabilita' e' stata
+    # osservata anche sulla scheda o solo sul package. "stable" non aggiunge
+    # nulla (la riga GPU porta gia' il metodo di attribuzione); "channel-absent"
+    # e "not-observed" dicono che il tempo in settle_pre_s/settle_post_s
+    # copre il solo CPU.
+    _append_gpu_settle_notes(rows, settle_pre_gpu, settle_pre_gpu_reason,
+                             settle_post_gpu, settle_post_gpu_reason)
     # `Δt̄_W,b` non e' una colonna (P6.5:2178 la chiama "quantita' derivata: la
     # media per blocco della duration_s gia' prevista"), ma il budget di blocco
     # si ricava solo da li': senza il valore nella nota, un terzo non puo'
