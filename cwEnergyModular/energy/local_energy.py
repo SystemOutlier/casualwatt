@@ -100,6 +100,29 @@ from .energy_session import SESSION, SystemSample, is_external_counter
 @dataclass
 class LocalEnergyResult:
     duration_s: float = 0.0
+    # Durata della finestra TTFT (primo token), quando disponibile. None quando
+    # il runner non ha registrato il bordo (stream disattivato o primo token
+    # assente): in quel caso la riga non ha una separazione di fase e il campo
+    # active_energy_j e' l'unico numero disponibile.
+    ttft_s: Optional[float] = None
+    ttft_available: bool = False
+    # v4-TTFT (requisito di implementazione della v4, non congelato nel
+    # protocollo: li' P6.4 e' la simulazione Monte Carlo): QUOTE package e
+    # attiva sulle due sottofinestre, quando il bordo
+    # TTFT e' disponibile e il contatore risponde. NON sono due misure: sono la
+    # ripartizione proporzionale del valore di riga -- il package con
+    # s = e_ttft/(e_ttft+e_gen) letto sulle due sottofinestre, la baseline con
+    # la frazione di tempo monotono -- quindi la somma delle due quote e' la
+    # riga per costruzione e una delle due sub-attive puo' uscire negativa
+    # quando i due scalari non concordano. None quando la separazione non e'
+    # calcolabile (bordo mancante o fuori finestra, contatore assente su una
+    # sub, una sub negativa, somma non positiva).
+    package_energy_ttft_j: Optional[float] = None
+    package_energy_generation_j: Optional[float] = None
+    baseline_energy_ttft_j: Optional[float] = None
+    baseline_energy_generation_j: Optional[float] = None
+    active_energy_ttft_j: Optional[float] = None
+    active_energy_generation_j: Optional[float] = None
     package_energy_j: float = 0.0
     # Valore GREZZO del contatore sulla finestra, senza il clamp a zero di
     # package_energy_j. Un contatore cumulativo non produce incrementi negativi
@@ -249,6 +272,7 @@ class CasualWattLocalEnergyProfiler:
         exclude_windows: Optional[List[tuple]] = None,
         edge_start: Optional[Dict[str, object]] = None,
         edge_end: Optional[Dict[str, object]] = None,
+        edge_ttft: Optional[Dict[str, object]] = None,
         baseline_pre_w: Optional[float] = None,
         engine_tree_changed: bool = False,
         tree_born: str = "",
@@ -326,6 +350,7 @@ class CasualWattLocalEnergyProfiler:
         else:
             notes_excl = ""
 
+        # Dopo eventuale adeguamento dei bordi, aggiorna dt e dt_W_s
         res.duration_s = dt
         res.dt_W_s = round(dt, 6)
         if has_edges:
@@ -618,9 +643,121 @@ class CasualWattLocalEnergyProfiler:
         # negativi restano nel dataset e active_valid li esclude dalle
         # attribuzioni utilizzabili.
         active_raw = float(e_package) - res.baseline_energy_j
-        active = active_raw
         res.active_energy_raw_j = round(active_raw, 6)
-        res.active_energy_j = round(active, 6)
+        res.active_energy_j = round(active_raw, 6)
+
+        # ---- v4-TTFT: separazione TTFT / generazione ------------------------
+        # Quando il runner ha registrato il bordo del primo token (t_ttft), la
+        # finestra [t_start, t_end] si spezza in due sottofinestre e il valore
+        # di riga viene RIPARTITO fra le due fasi in proporzione all'energia
+        # letta sulle sottofinestre: non e' una misura delle due fasi. Senza il
+        # bordo la riga resta intera: il campo ttft_available lo dichiara, e
+        # active_energy_j e' l'unico numero disponibile. Nessuna stima del TTFT
+        # quando manca.
+        ttft_edge = edge_ttft
+        if ttft_edge is not None and ttft_edge.get("t_ttft_mono") is not None:
+            t_ttft = float(ttft_edge["t_ttft_mono"])
+            if t_start < t_ttft < t_end:
+                res.ttft_s = round(t_ttft - t_start, 6)
+                res.ttft_available = True
+                # Energia package su ciascuna sottofinestra, stessa regola del
+                # percorso unico (bordi di misura quando disponibili, altrimenti
+                # buffer). Nessuna interpolazione, nessun trapezio.
+                e_ttft = self.session.package_energy_exact_between(
+                    t_start, t_ttft,
+                    exclude_windows=[w for w in excl if w[1] <= t_ttft] or None,
+                )
+                e_gen = self.session.package_energy_exact_between(
+                    t_ttft, t_end,
+                    exclude_windows=[(max(a, t_ttft), b) for a, b in excl if b > t_ttft] or None,
+                )
+                # Deriva fra il delta dei bordi e la SOMMA GREZZA delle sub
+                # (informazione, non correzione; stessa soglia 1e-3).
+                if e_ttft is not None and e_gen is not None:
+                    pkg_sum = float(e_ttft) + float(e_gen)
+                    if (e_package is not None
+                            and abs(pkg_sum - float(e_package)) > 1e-3):
+                        notes.append(
+                            "deriva fra il delta dei bordi e la somma delle "
+                            f"sottofinestre: {float(e_package):+.6f} J contro "
+                            f"{pkg_sum:+.6f} J (stesso contatore, finestre "
+                            "parziali)"
+                        )
+
+                # Separazione per RIPARTIZIONE: le sub non sono il valore di riga,
+                # che resta quello del percorso primario. Il rapporto
+                # s = e_ttft / (e_ttft + e_gen) distribuisce e_package fra le
+                # due fasi. Se una sub e' None, negativa, o la somma non e'
+                # positiva, la separazione non e' calcolabile: i campi restano
+                # None, niente clamp, niente invenzione. La riga (package/active)
+                # non si tocca mai.
+                separabile = (
+                    e_ttft is not None and e_gen is not None
+                    and float(e_ttft) >= 0.0 and float(e_gen) >= 0.0
+                    and (float(e_ttft) + float(e_gen)) > 0.0
+                )
+                if separabile:
+                    # Baseline scalata sulle sottofinestre con la FRAZIONE di
+                    # tempo monotono: mantiene l'identita' somma delle due
+                    # sub-baseline = baseline di riga anche quando dt_W_s
+                    # (contatore) != t_end - t_start (monotono).
+                    dt = float(t_end - t_start)
+                    frac_ttft = ((t_ttft - t_start) / dt) if dt > 0.0 else 0.0
+                    res.baseline_energy_ttft_j = round(
+                        res.baseline_energy_j * frac_ttft, 6)
+                    res.baseline_energy_generation_j = round(
+                        res.baseline_energy_j - res.baseline_energy_ttft_j, 6)
+                    denom = float(e_ttft) + float(e_gen)
+                    s = float(e_ttft) / denom
+                    if e_package is not None:
+                        res.package_energy_ttft_j = round(
+                            float(e_package) * s, 6)
+                        res.package_energy_generation_j = round(
+                            float(e_package) - res.package_energy_ttft_j, 6)
+                    if res.package_energy_ttft_j is not None:
+                        res.active_energy_ttft_j = round(
+                            res.package_energy_ttft_j
+                            - res.baseline_energy_ttft_j, 6)
+                    if res.active_energy_ttft_j is not None:
+                        res.active_energy_generation_j = round(
+                            res.active_energy_j - res.active_energy_ttft_j, 6)
+                    notes.append(
+                        "separazione TTFT/generazione: ripartizione "
+                        "proporzionale del valore di riga, STIMA "
+                        "(s=e_ttft/(e_ttft+e_gen)), non misura delle due "
+                        "fasi; baseline scalata sulla frazione di tempo "
+                        f"(P_idle={res.idle_power_w:.3f} W)"
+                    )
+                else:
+                    res.package_energy_ttft_j = None
+                    res.package_energy_generation_j = None
+                    res.baseline_energy_ttft_j = None
+                    res.baseline_energy_generation_j = None
+                    res.active_energy_ttft_j = None
+                    res.active_energy_generation_j = None
+                    if e_ttft is None or e_gen is None:
+                        notes.append(
+                            "bordo TTFT registrato ma contatore non disponibile su "
+                            "una delle due sottofinestre: la separazione non e' "
+                            "calcolabile e active_energy_j e' l'unico numero "
+                            f"(e_ttft={e_ttft}, e_gen={e_gen})"
+                        )
+                    else:
+                        notes.append(
+                            "bordo TTFT registrato ma separazione non calcolabile "
+                            f"(e_ttft={float(e_ttft):+.6f} J, "
+                            f"e_gen={float(e_gen):+.6f} J): una delle due e' "
+                            "negativa o la somma non e' positiva"
+                        )
+            else:
+                notes.append(
+                    "bordo TTFT fuori della finestra "
+                    f"(t_ttft={t_ttft:.6f}, finestra [{t_start:.6f}, {t_end:.6f}]): "
+                    "separazione non calcolabile"
+                )
+        else:
+            res.ttft_available = False
+
         idle_missing = (
             res.idle_provenance is None
             or res.idle_provenance == "uncalibrated"
@@ -766,7 +903,7 @@ class CasualWattLocalEnergyProfiler:
             # D1: una riga non valida conserva il numero convenzionale ma non
             # alimenta l'attribuzione.
             res.ollama_active_energy_j = (
-                round(active * share, 6)
+                round(res.active_energy_j * share, 6)
                 if res.cpu_time_share_valid and res.active_valid else 0.0
             )
             for anomaly in anomalies:
@@ -929,11 +1066,41 @@ class CasualWattLocalEnergyProfiler:
                 method_txt = (f"{gpu_backend}-power-integral (integrated span "
                               f"{gpu_dt:.3f}s{field_txt})")
             idle_gpu_raw = getattr(self.session, "idle_gpu_power_w", None)
-            idle_gpu_w = float(idle_gpu_raw) if idle_gpu_raw else 0.0
-            # Punto 2: provenienza dell'idle GPU. Se manca (o e' 0) lo scorporo
-            # non avviene: l'energia attribuita e' la POTENZA TOTALE della
-            # scheda, quindi una sovrastima — dichiarata nel campo e nelle note.
-            res.gpu_idle_provenance = "calibrated" if idle_gpu_w > 0.0 else "missing"
+            gpu_mon = getattr(self.session, "_gpu", None)
+            calib_id = getattr(self.session, "_gpu_idle_identity", None)
+            cur_id = (self.session._gpu_identity()
+                      if hasattr(self.session, "_gpu_identity") else None)
+            # Validazione della baseline: la baseline e' utilizzabile
+            # SOLTANTO se l'identita' hardware calibrata e quella corrente
+            # sono presenti, verificabili e coincidenti, e la potenza idle e'
+            # convertibile in float, finita e strettamente positiva. In ogni
+            # caso non valido, ``idle_gpu_w`` e' forzato a 0.0 PRIMA della
+            # sottrazione, cosi' ``active_gpu_j`` non sottrae una baseline
+            # appartenente a un altro dispositivo o non valida.
+            baseline_valid = False
+            provenance = "missing"
+            if (calib_id is not None and cur_id is not None
+                    and calib_id == cur_id):
+                try:
+                    idle_w = float(idle_gpu_raw)
+                    if (idle_w == idle_w
+                            and idle_w != float("inf")
+                            and idle_w != float("-inf")
+                            and idle_w > 0.0):
+                        baseline_valid = True
+                        provenance = "calibrated"
+                    else:
+                        provenance = "invalid-baseline"
+                except (TypeError, ValueError):
+                    provenance = "invalid-baseline"
+            elif calib_id is not None and cur_id is not None:
+                provenance = "device-changed"
+            elif calib_id is None:
+                provenance = "identity-unavailable"
+            else:
+                provenance = "identity-unavailable"
+            idle_gpu_w = float(idle_gpu_raw) if baseline_valid else 0.0
+            res.gpu_idle_provenance = provenance
             # A2: NESSUNA moltiplicazione per lo share di utilizzo: la potenza
             # board riflette gia' il carico. Attribuzione whole-device:
             #     E_gpu_attr = board_j - P_idle_gpu * dt_gpu
@@ -947,7 +1114,8 @@ class CasualWattLocalEnergyProfiler:
             res.gpu_energy_attributed_raw_j = round(active_gpu_j, 6)
             res.gpu_energy_attributed_j = round(active_gpu_j, 6)
             idle_txt = ("calibrated idle" if res.gpu_idle_provenance == "calibrated"
-                        else "NO idle baseline (gpu_idle_provenance=missing)")
+                        else "NO idle baseline "
+                             f"({res.gpu_idle_provenance})")
             res.gpu_attribution_method = (
                 f"{method_txt} minus {idle_txt} over the same span; "
                 "boundary=whole-device; utilization kept as diagnostic field "
@@ -962,11 +1130,27 @@ class CasualWattLocalEnergyProfiler:
                     f"energia GPU attribuita grezza {active_gpu_j:+.3f} J < 0: "
                     "il valore firmato resta nel record"
                 )
-            if res.gpu_idle_provenance == "missing":
+            if res.gpu_idle_provenance == "calibrated":
+                pass  # baseline applicata, nessuna nota aggiuntiva
+            elif res.gpu_idle_provenance == "device-changed":
                 notes.append(
-                    "idle GPU non calibrato: energia GPU = potenza totale della "
-                    "scheda, sovrastima (eseguire 'Calibra idle' con GPU a riposo)"
-                )
+                    "baseline idle GPU non applicabile: il dispositivo "
+                    "corrente non coincide con quello calibrato "
+                    f"(calibrato={calib_id}, corrente={cur_id}). "
+                    "Nessuna sottrazione della baseline: energia GPU = potenza "
+                    "totale della scheda, sovrastima dichiarata.")
+            elif res.gpu_idle_provenance == "identity-unavailable":
+                notes.append(
+                    "baseline idle GPU non applicabile: identita' hardware non "
+                    "verificabile (calibrazione o dispositivo corrente). "
+                    "Nessuna sottrazione della baseline: energia GPU = potenza "
+                    "totale della scheda, sovrastima dichiarata.")
+            else:  # invalid-baseline
+                notes.append(
+                    "baseline idle GPU non applicabile: potenza idle non "
+                    "valida (non convertibile, non finita o non positiva). "
+                    "Nessuna sottrazione della baseline: energia GPU = potenza "
+                    "totale della scheda, sovrastima dichiarata.")
             # attribuzione per processo (opzionale, dichiarata)
             proc_fn = getattr(gpu_mon, "process_energy_j", None)
             if callable(proc_fn):
