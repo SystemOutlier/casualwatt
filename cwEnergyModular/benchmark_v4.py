@@ -42,11 +42,27 @@ blocco "mancante". Il tetto K di blocchi invalidati per batch e il seme si
 leggono DA CONFIG (o argomenti espliciti): se mancano, il runner SI RIFIUTA di
 partire. I flag di qualita' (pre_unstable, drift, ...) non sostituiscono
 nulla: restano flag.
+
+Deadline dello streaming (P1, 2026-11-05). ``infer_v4_stream`` delega la
+richiesta HTTP a ``_ollama_stream_with_aiohttp_deadline`` che esegue
+``_ollama_stream_async``: il limite e' ``aiohttp.ClientTimeout(total=...)``,
+quindi un wall-clock che comprende connessione, header, ogni chunk e l'attesa
+del chunk ``done=True``. Con ``requests``+``iter_lines`` il medesimo argomento
+era un timeout DI SOCKET per singolo chunk: uno stream che produce byte ogni
+frazione di ``timeout_s`` non veniva mai interrotto e allungava la finestra
+energetica oltre il limite dichiarato. Un deadline scaduto restituisce un
+risultato INCOMPLETO con il testo parziale ricevuto, non una richiesta che
+continua in background: ``asyncio.run`` chiude il loop e le sue task prima di
+ritornare, e il chiamante legge il bordo di fine ``e1`` solo dopo il ritorno.
+Le formule di ``local_energy.py``/``energy_session.py`` non cambiano.
 """
 from __future__ import annotations
 
 import argparse
+import asyncio
+import concurrent.futures
 import hashlib
+import json
 import math
 import os
 import platform
@@ -60,6 +76,7 @@ from datetime import datetime, timezone
 from pathlib import Path
 from typing import Callable, Dict, Iterable, List, Optional, Sequence, Tuple
 
+import aiohttp
 import requests
 
 import benchmark_unified as bu
