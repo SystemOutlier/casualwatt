@@ -1,0 +1,83 @@
+{
+  "campaign_id": "p6_6_prepilota_20261106",
+  "ollama_version": "0.33.1",
+  "model_digest": "sha256:TBD",
+  "band": null,
+  "band_in_plan_at_analysis_time": false,
+  "sources": [
+    {
+      "kind": "srum-dump",
+      "path": "experiment_results\\prep_before2.csv",
+      "sha256": "58350ffda699e84e20dff5866107bb7554341f30220a811efc420a79eb52f553",
+      "bytes": 8881222,
+      "n_buckets": 11595
+    },
+    {
+      "kind": "srum-dump",
+      "path": "experiment_results\\prep_after3.csv",
+      "sha256": "5cc7e7a6f44f72fa2e04432190ccf036c2f74712ed6715bf4d0477e22d28a1c1",
+      "bytes": 9173773,
+      "n_buckets": 12792
+    }
+  ],
+  "n_phases": 1,
+  "rows": [
+    {
+      "phase_id": "prep-r3",
+      "config_id": "prep",
+      "replica": 3,
+      "t_start_utc": "2026-11-06T14:21:42",
+      "t_end_utc": "2026-11-06T14:29:17",
+      "duration_s": 455.0,
+      "s": 0.7677959170834513,
+      "s_source": "d_ollama/d_busy",
+      "s_epi": 0.294088512,
+      "d": 0.473707405,
+      "r": 0.892201434,
+      "in_band": null,
+      "blocking": false,
+      "n_minutes": 8,
+      "n_minutes_with_tree": 8,
+      "boundary_buckets": 98,
+      "boundary_minutes": 1,
+      "window_strict": false,
+      "tree_cpu_j": 1062.248,
+      "total_cpu_j": 3612.001,
+      "tree_app_ids": "\\Device\\HarddiskVolume3\\Users\\Massimo\\AppData\\Local\\Programs\\Ollama\\lib\\ollama\\llama-server.exe|\\Device\\HarddiskVolume3\\Users\\Massimo\\AppData\\Local\\Programs\\Ollama\\ollama app.exe|\\Device\\HarddiskVolume3\\Users\\Massimo\\AppData\\Local\\Programs\\Ollama\\ollama.exe",
+      "engine_tree_changed": false,
+      "exclusion": "",
+      "flags": "bucket_di_bordo:98"
+    }
+  ],
+  "summary_by_config": {
+    "prep": {
+      "n_phases": 1,
+      "n_with_s_epi": 1,
+      "n_with_flags": 1,
+      "n_blocking": 0,
+      "n_with_verdict": 0,
+      "n_window_strict": 0,
+      "d": {
+        "n": 1,
+        "mean": 0.473707405,
+        "median": 0.473707405,
+        "min": 0.473707405,
+        "max": 0.473707405,
+        "range": 0.0
+      },
+      "r_sym": {
+        "n": 1,
+        "mean": 0.892201434,
+        "median": 0.892201434,
+        "min": 0.892201434,
+        "max": 0.892201434,
+        "range": 0.0
+      },
+      "in_band": null,
+      "replicas": [
+        3
+      ]
+    }
+  },
+  "note": "d = s - s_EPI; r = 2(s - s_EPI)/(s + s_EPI). Nessuna deviazione standard: min, mediana, max e range (P4.12)."
+}

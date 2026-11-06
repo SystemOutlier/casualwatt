@@ -1,0 +1,22 @@
+{
+  "campaign_id": "p6_6_prepilota_20261106",
+  "ollama_version": "0.33.1",
+  "model_digest": "sha256:TBD",
+  "band": null,
+  "done_reason_expected": "length",
+  "phases": [
+    {
+      "phase_id": "prep-r1",
+      "config_id": "prep",
+      "replica": 1,
+      "t_start_utc": "2026-11-06T14:18:29",
+      "t_end_utc": "2026-11-06T14:20:18",
+      "d_ollama_s": 25.53125,
+      "d_busy_s": 33.6875,
+      "s_source": "csv:direct",
+      "done_reason": "length",
+      "engine_tree_changed": false,
+      "exclusion": ""
+    }
+  ]
+}

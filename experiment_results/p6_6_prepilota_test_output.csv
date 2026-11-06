@@ -1,0 +1,2 @@
+﻿phase_id,config_id,replica,t_start_utc,t_end_utc,duration_s,s,s_source,s_epi,d,r,in_band,blocking,n_minutes,n_minutes_with_tree,boundary_buckets,boundary_minutes,window_strict,tree_cpu_j,total_cpu_j,tree_app_ids,engine_tree_changed,exclusion,flags
+prep-load-r1,prep,1,2026-10-23T11:09:15,2026-10-23T11:19:17,602.0,0.0010216825628038021,d_ollama/d_busy,,,,,True,0,0,0,0,True,0.0,0.0,,False,,"nessun_bucket,meno_di_5_bucket,denominatore_nullo,albero_a_zero"

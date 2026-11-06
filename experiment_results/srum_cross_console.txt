@@ -1,0 +1,147 @@
+Warm-up del modello (fuori misura)...
+[OK] EMI attivo.
+[OK] SRUM dump iniziale: 34156 righe, watermark 2026-10-23 10:17:00
+--- fase idle (120 s) ---
+--- fase load (600 s) ---
+--- fase idle2 (120 s) ---
+Settle 60 s per i bucket SRUM ritardati...
+{
+  "timestamp": "20261023_121718",
+  "finestra": {
+    "start": "2026-10-23T10:17:22",
+    "end": "2026-10-23T10:31:23",
+    "load": [
+      "2026-10-23T10:19:22",
+      "2026-10-23T10:29:23"
+    ]
+  },
+  "fasi": [
+    [
+      "idle",
+      120.0
+    ],
+    [
+      "load",
+      600.0
+    ],
+    [
+      "idle2",
+      120.0
+    ]
+  ],
+  "settle_s": 60.0,
+  "tokens_load": 7040,
+  "granularita": {
+    "bucket_nella_finestra": 0,
+    "delta_bucket_s": []
+  },
+  "emi_per_fase": {
+    "idle": {
+      "emi_J": {
+        "package": 2757.23,
+        "dram": 0.0,
+        "pp0": 2042.32,
+        "pp1": 40.42
+      },
+      "emi_meter_s": {
+        "package": 120.0,
+        "dram": 120.0,
+        "pp0": 120.0,
+        "pp1": 120.0
+      },
+      "emi_W": {
+        "package": 22.98,
+        "dram": 0.0,
+        "pp0": 17.02,
+        "pp1": 0.34
+      },
+      "cpu_ollama_s": 0.0,
+      "cpu_system_s": 0.0,
+      "utc_start": "2026-10-23T10:17:22",
+      "utc_end": "2026-10-23T10:19:22"
+    },
+    "load": {
+      "emi_J": {
+        "package": 16261.05,
+        "dram": 0.0,
+        "pp0": 11823.47,
+        "pp1": 147.71
+      },
+      "emi_meter_s": {
+        "package": 601.31,
+        "dram": 601.31,
+        "pp0": 601.31,
+        "pp1": 601.31
+      },
+      "emi_W": {
+        "package": 27.04,
+        "dram": 0.0,
+        "pp0": 19.66,
+        "pp1": 0.25
+      },
+      "cpu_ollama_s": 0.0,
+      "cpu_system_s": 0.0,
+      "utc_start": "2026-10-23T10:19:22",
+      "utc_end": "2026-10-23T10:29:23"
+    },
+    "idle2": {
+      "emi_J": {
+        "package": 2646.63,
+        "dram": 0.0,
+        "pp0": 1893.31,
+        "pp1": 43.75
+      },
+      "emi_meter_s": {
+        "package": 120.0,
+        "dram": 120.0,
+        "pp0": 120.0,
+        "pp1": 120.0
+      },
+      "emi_W": {
+        "package": 22.06,
+        "dram": 0.0,
+        "pp0": 15.78,
+        "pp1": 0.36
+      },
+      "cpu_ollama_s": 0.0,
+      "cpu_system_s": 0.0,
+      "utc_start": "2026-10-23T10:29:23",
+      "utc_end": "2026-10-23T10:31:23"
+    }
+  },
+  "srum_totale_finestra": {
+    "CPUEnergyConsumption": 0.0,
+    "EmiEnergyConsumption": 0.0,
+    "TotalEnergyConsumption": 0.0,
+    "TimeInMSec": 0.0
+  },
+  "srum_totale_load": {
+    "CPUEnergyConsumption": 0.0,
+    "EmiEnergyConsumption": 0.0,
+    "TotalEnergyConsumption": 0.0,
+    "TimeInMSec": 0.0
+  },
+  "srum_ollama_load": {},
+  "confronto": {
+    "EMI_pkg_load_J": 16261.05,
+    "EMI_pp0_load_J": 11823.47,
+    "EMI_incrementale_J": 2719.53,
+    "EMI_base_idle_W": 22.52,
+    "EMI_J_per_token": 0.3863,
+    "SRUM_CPU_load_raw": 0.0,
+    "SRUM_Emi_load_raw": 0.0,
+    "SRUM_Totale_load_raw": 0.0,
+    "rapporto_SRUMcpu_div_EMIpkg": 0.0,
+    "rapporto_SRUMcpu_div_EMIinc": 0.0,
+    "rapporto_SRUMemi_div_EMIpkg": 0.0,
+    "ipotesi_unita": "mJ -> rapporto atteso ~1; J -> ~1e-3; uJ -> ~1e6; il valore MISURATO decide, non la doc",
+    "SRUM_ollama_cpu_raw": 0,
+    "SRUM_ollama_share_of_cpu_load": null,
+    "cpu_time_share_ollama_misurata": null,
+    "EMI_pkg_x_cpu_share_J": null
+  },
+  "caveat": "SRUM scrive a bucket: la finestra di fase puo' essere spostata di un bucket (errori di confine ~1 granularita', dichiarata in `granularita`), e il campo per-processo e' prodotto dal modello EPI di Windows: questo esperimento confronta DUE attribuzioni (la sua e la nostra frazione di CPU-time), non ne valida una contro la verita' hardware. L'arbitro resta il delta EMI/PP0, che e' cumulativo e senza modello."
+}
+[OK] C:\Users\Massimo\Documents\CasualWatt\CWProject\experiment_results\srum_emi_cross_20261023_121718.json
+[OK] C:\Users\Massimo\Documents\CasualWatt\CWProject\experiment_results\srum_emi_cross_20261023_121718.csv
+EXIT=0

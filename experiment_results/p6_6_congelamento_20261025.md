@@ -103,7 +103,23 @@ l'esecuzione aspetta P5 (`:2589-2596`).
 Congelare oggi 2-6 significherebbe congelare un piano che la banda puo'
 invalidare, oppure scrivere soglie per riempire un vuoto. Non si fa.
 
-## 6. Dentro la configurazione e fra configurazioni
+## 7. Aggiornamento 2026-11-06: adozione Option C
+
+Il 2026-11-06 e' stata adottata l'**Option C** (pre-pilota di ripetibilita')
+per congelare la banda di concordanza. La decisione e' documentata in
+`experiment_results/p6_6_prepilota_option_c_20261106.md`.
+
+Conseguenze:
+- La banda non si congela "prima del primo run" in senso assoluto, ma dopo un
+  run di calibrazione su configurazione fissa (emendamento esplicito al
+  protocollo).
+- Il pre-pilota misura `s_EPI` senza produrre energia, su una configurazione
+  fissa, con `R` repliche e fasi >= 5 bucket.
+- `B_abs` e `B_rel` si congelano dalla misura del pre-pilota.
+- Il pre-pilota e' da eseguire (richiede autorizzazione e accesso hardware).
+
+Stato aggiornato: #70 non e' piu' "aperto senza decisione" — la decisione e'
+stata presa (Option C), ma l'esecuzione del pre-pilota e' pendente.
 
 Sono due numeri diversi e il protocollo lo dice (`:2552-2558`):
 
