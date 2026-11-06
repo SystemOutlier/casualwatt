@@ -20,7 +20,14 @@ Che cosa verifica:
   4. ``edge_spread_s`` e' il massimo dei due bordi e i timestamp EMI agli
      estremi finiscono nei campi dedicati;
   5. l'energia con contatore e' la differenza diretta (``direct-ioctl``) e la
-     baseline usa ``dt_W_s``, non la finestra Python.
+     baseline usa ``dt_W_s``, non la finestra Python;
+  6. con timestamp non crescenti (stesso record ``ts1 == ts0`` oppure registro
+     che regrada ``ts1 < ts0``) la durata NON viene da quei timestamp: cade su
+     ``python-monotonic`` e la finestra energetica va ``counter-invalid`` con
+     ``active_valid = False``, non ``exact-counter`` con 0,0 J;
+  7. in tutti e tre i rami di base temporale (``emi-counter-ts``,
+     ``python-monotonic``, ``python-window``) i due campi ``dt_W_s`` e
+     ``duration_s`` coincidono: sono la stessa finestra, dichiarata una volta.
 
 Che cosa NON verifica: la precisione dei timestamp del driver (dipende
 dall'hardware) ne' la copertura del buffer EMI (ha i suoi test).
@@ -147,6 +154,83 @@ def test_senza_contatore_dt_w_dalla_coppia_monotona():
     assert res.package_energy_j == pytest.approx(100.0)
     assert any("differenza diretta del contatore non disponibile" in n
                for n in res.notes)
+
+
+# ------------------------------------------------------------------ 6
+def test_ts_non_crescenti_dt_w_non_usa_il_contatore_e_finestra_invalida():
+    """``ts_edge1 == ts_edge0`` (stesso record) o ``ts1 < ts0`` (regrada).
+
+    In entrambi i casi la durata NON puo' venire dai timestamp del contatore:
+    ``_edge_dt_w`` rifiuta la coppia perche' la regola e' ``ts1 > ts0`` e cade
+    sulla differenza monotona, con ``edge_time_source = "python-monotonic"``.
+    La finestra energetica, invece, va invalidata: 0,0 J fra due letture dello
+    stesso record non e' "package fermo" ma "lettura non avanzata" (regola
+    ``b3b12ffe``).
+    """
+    for ts_eq in (True, False):
+        ts0, ts1 = (7_000_000, 7_000_000) if ts_eq else (8_000_000, 7_000_000)
+        e0 = _edge(50.00, 50.20, 0.02, UTC0, _counter(100.0, ts0, 1000.0))
+        e1 = _edge(50.50, 50.70, 0.03, UTC1, _counter(100.0, ts1, 1000.0))
+
+        res = _profile(e0, e1)
+
+        label = "uguali" if ts_eq else "decrementato"
+        # la durata viene dai tempi monotoni, non dai timestamp
+        assert res.dt_W_s == pytest.approx(0.5), label
+        assert res.edge_time_source == "python-monotonic", label
+        # i timestamp grezzi restano nella riga, per diagnosticare
+        assert res.emi_ts_start_100ns == ts0, label
+        assert res.emi_ts_end_100ns == ts1, label
+        # la finestra energetica e' dichiarata invalida, non degradata a 0 J
+        assert res.package_window_source == "counter-invalid", label
+        assert res.emi_edge_source == "counter-invalid", label
+        assert res.active_valid is False, label
+        assert any("non avanzato fra i bordi" in n for n in res.notes), label
+
+
+# ------------------------------------------------------------------ 7
+def test_dt_w_s_e_duration_s_coincidono_in_ogni_ramo():
+    """``dt_W_s`` e ``duration_s`` sono la stessa finestra in tutti i rami.
+
+    ``LocalEnergyResult.duration_s`` e' il campo interno della finestra che il
+    profiler ha misurato; la colonna CSV ``duration_s`` viene presa da un'altra
+    sorgente (``resp_data["duration_s"]`` del client HTTP in ``benchmark_v4``)
+    e resta il tempo di risposta, non questa finestra. Qui si verifica che,
+    qualunque sia la base temporale (``emi-counter-ts``, ``python-monotonic``,
+    ``python-window``), i due campi interni del profiler non divergano: se
+    divergessero, il ``budget_base_j`` di F.4 e la media di F.11 userebbero due
+    finestre diverse e la riga non sarebbe riconciliabile.
+    """
+    # ramo 1 — emi-counter-ts: ts crescenti, finestra 0,5 s dai timestamp
+    e0 = _edge(50.00, 50.30, 0.02, UTC0, _counter(100.0, 10_000_000, 1000.0))
+    e1 = _edge(50.45, 50.95, 0.05, UTC1, _counter(112.0, 15_000_000, 1120.0))
+    res = _profile(e0, e1)
+    assert res.edge_time_source == "emi-counter-ts"
+    assert res.duration_s == pytest.approx(res.dt_W_s)
+    assert res.duration_s == pytest.approx(0.5)
+
+    # ramo 2 — python-monotonic: timestamp assenti (PawnIO, ``ts_100ns=None``)
+    e0 = _edge(50.00, 50.10, 0.01, UTC0,
+               {"pkg_j": 100.0, "pkg_counts": 1000, "ts_100ns": None,
+                "pp1_j": None})
+    e1 = _edge(50.50, 50.70, 0.04, UTC1,
+               {"pkg_j": 112.0, "pkg_counts": 1120, "ts_100ns": None,
+                "pp1_j": None})
+    res = _profile(e0, e1)
+    assert res.edge_time_source == "python-monotonic"
+    assert res.duration_s == pytest.approx(res.dt_W_s)
+    assert res.duration_s == pytest.approx(0.5)
+
+    # ramo 3 — python-window: nessun bordo, la finestra e' quella Python
+    prof = CasualWattLocalEnergyProfiler()
+    prof.session = _Sessione()
+    res = prof.profile_window(
+        50.0, 50.7, ollama_pids=[7], direct_cpu_delta=6.0,
+        direct_busy_delta=8.0, baseline_pre_w=10.0,
+    )
+    assert res.edge_time_source == "python-window"
+    assert res.duration_s == pytest.approx(res.dt_W_s)
+    assert res.duration_s == pytest.approx(0.7)
 
 
 if __name__ == "__main__":

@@ -1556,7 +1556,7 @@ ENERGY_ROW_FIELDS: Tuple[str, ...] = (
 
 def energy_fields(local, keep_alive_sent) -> Dict[str, object]:
     """Riga energetica da ``LocalEnergyResult`` (stessi nomi della produzione)."""
-    return {
+    fields = {
         "package_energy_j": local.package_energy_j,
         "idle_power_w": local.idle_power_w,
         "baseline_energy_j": local.baseline_energy_j,
@@ -1584,6 +1584,18 @@ def energy_fields(local, keep_alive_sent) -> Dict[str, object]:
         "domain": local.domain or "",
         "sampling_interval_observed_s": bu._na_or(
             local.sampling_interval_observed_s),
+        # P6.4: separazione TTFT/generazione. Questi campi non entrano nello
+        # schema CSV (P5 congelato, 174 colonne): sono disponibili nel record
+        # per usi futuri e per l'analisi del verbale. Quando ttft_available e'
+        # False, tutti i campi TTFT sono None.
+        "_ttft_s": local.ttft_s,
+        "_ttft_available": local.ttft_available,
+        "_package_energy_ttft_j": local.package_energy_ttft_j,
+        "_package_energy_generation_j": local.package_energy_generation_j,
+        "_baseline_energy_ttft_j": local.baseline_energy_ttft_j,
+        "_baseline_energy_generation_j": local.baseline_energy_generation_j,
+        "_active_energy_ttft_j": local.active_energy_ttft_j,
+        "_active_energy_generation_j": local.active_energy_generation_j,
         "backend_version": local.backend_version or "",
         "measurement_boundary": local.measurement_boundary,
         "idle_provenance": local.idle_provenance or "",
@@ -1617,6 +1629,7 @@ def energy_fields(local, keep_alive_sent) -> Dict[str, object]:
         "emi_edge_source": local.emi_edge_source or "",
         "baseline_pre_w": bu._na_or(local.baseline_pre_w),
     }
+    return fields
 
 
 def _tokens_total(p_tok, c_tok):
@@ -1732,12 +1745,18 @@ def run_block(model: str, prompt: Dict, *, run_id: str, session_id: str,
 
         e0 = SESSION.read_measurement_edge()
         pids = [w.pid for w in e0["tree"]]
-        resp_data = infer_v4(
+        resp_data = infer_v4_stream(
             model, sent["text"], temperature, timeout_s,
             num_predict=num_predict, num_ctx=num_ctx)
         # Bordo di fine PRIMA della valutazione: la finestra energetica e'
         # quella della sola inferenza. Il giudice ha i propri bordi (D2).
         e1 = SESSION.read_measurement_edge()
+        # P6.4: bordo sul primo token, quando disponibile. Senza di esso la
+        # separazione TTFT/generazione non e' calcolabile e il profiler lo
+        # dichiara con ttft_available=False. Nessuna stima del TTFT.
+        edge_ttft = None
+        if resp_data.get("ttft_available") and resp_data.get("_t_ttft") is not None:
+            edge_ttft = SESSION.read_ttft_edge(resp_data["_t_ttft"])
         wd = worker_cpu_delta(e0["worker"], e1["worker"])
         # Il delta busy e' cumulativo e non dovrebbe mai decrescere: se lo fa,
         # il profiler vede 0 (anomalia dichiarata "d_busy=0") e il valore
@@ -1761,6 +1780,7 @@ def run_block(model: str, prompt: Dict, *, run_id: str, session_id: str,
             worker_exit_in_window=wd.worker_exit_in_window,
             edge_start=e0,
             edge_end=e1,
+            edge_ttft=edge_ttft,
             baseline_pre_w=p_pre,
             engine_tree_changed=bool(wd.lost),
             tree_born=_identity_list(wd.born),
@@ -1782,10 +1802,14 @@ def run_block(model: str, prompt: Dict, *, run_id: str, session_id: str,
             output_tokens=c_tok,
             total_tokens=_tokens_total(p_tok, c_tok),
             tokens_per_second=_tokens_rate(c_tok, resp_data["duration_s"]),
-            prefill_duration_s=round(resp_data.get("prefill_duration_s", 0.0), 6),
-            decoding_duration_s=round(resp_data.get("decoding_duration_s", 0.0), 6),
+            prefill_duration_s=(
+                round(resp_data["prefill_duration_s"], 6)
+                if resp_data.get("prefill_duration_s") is not None else None),
+            decoding_duration_s=(
+                round(resp_data["decoding_duration_s"], 6)
+                if resp_data.get("decoding_duration_s") is not None else None),
             decoding_tokens_per_second=_tokens_rate(
-                c_tok, resp_data.get("decoding_duration_s", 0.0)),
+                c_tok, resp_data.get("decoding_duration_s")),
             tool_calls=0,
         )
         rec.update(energy_fields(local, resp_data["keep_alive_sent"]))
@@ -1827,6 +1851,14 @@ def run_block(model: str, prompt: Dict, *, run_id: str, session_id: str,
         bu._finalize_energy_fields(rec, local_j, 0.0, 0.0, evalres)
 
         notes = list(local.notes) + list(evalres.notes)
+        # FASE 2: lo stream puo' chiudersi prima del chunk ``done=True``.
+        # I due campi di durata del motore non arrivano: restano ``None``
+        # nel record, NON 0.0. La nota lo dichiara: 0 sarebbe una misura.
+        if resp_data.get("stream_incomplete"):
+            notes.append(
+                "stream interrotto prima del chunk done=True: "
+                "prompt_eval_duration e eval_duration non arrivati, le due "
+                "durate del motore restano N/A nella riga (non 0,0 s)")
         # La nota di _finalize_energy_fields dichiara quali metriche derivate
         # sono N/A: non va persa sovrascrivendo il campo.
         existing_note = rec.get("notes")
