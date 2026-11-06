@@ -2665,8 +2665,11 @@ percorso energetico. Non si promuove l'attribuzione a "validata": P6.6 non entra
 La priorità non è un'altra API: è la stabilità della procedura e l'osservabilità
 delle perdite di tempo CPU.
 
-**Cosa resta aperto.** La banda numerica. Tutto il resto è fissato qui e non si
-sposta dopo i dati.
+**Cosa resta aperto.** La banda numerica: adottata l'Option C (pre-pilota di
+ripetibilita', 2026-11-06). La banda si congela dopo un run di calibrazione su
+configurazione fissa con R repliche e fasi >= 5 bucket, non prima del primo run
+in senso assoluto (emendamento esplicito al protocollo). Il pre-pilota e' da
+eseguire. Tutto il resto e' fissato qui e non si sposta dopo i dati.
 
 ---
 

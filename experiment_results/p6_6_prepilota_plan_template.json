@@ -1,0 +1,23 @@
+{
+  "campaign_id": "p6_6_prepilota_20261106",
+  "ollama_version": "TBD",
+  "model_digest": "sha256:TBD",
+  "band": null,
+  "done_reason_expected": "length",
+  "phases": [
+    {
+      "phase_id": "prep-r1",
+      "config_id": "prep",
+      "replica": 1,
+      "t_start_utc": "TBD",
+      "t_end_utc": "TBD",
+      "d_ollama_s": null,
+      "d_busy_s": null,
+      "s_source": "csv:direct",
+      "done_reason": "length",
+      "engine_tree_changed": false,
+      "exclusion": ""
+    }
+  ],
+  "_note": "Template per il pre-pilota P6.6 (Option C). Sostituire i valori TBD con i dati reali del run. Aggiungere R-1 repliche (prep-r2, ..., prep-rR) con la stessa configurazione. La banda resta null: il pre-pilota non ha ancora una banda. Dopo il pre-pilota, congelare B_abs e B_rel e scrivere la banda nel piano della prova vera."
+}

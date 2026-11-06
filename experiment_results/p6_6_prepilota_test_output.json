@@ -1,0 +1,69 @@
+{
+  "campaign_id": "p6_6_prepilota_20261106",
+  "ollama_version": "TBD",
+  "model_digest": "sha256:TBD",
+  "band": null,
+  "band_in_plan_at_analysis_time": false,
+  "sources": [
+    {
+      "kind": "srum-dump",
+      "path": "experiment_results\\srum_dump_20261023_121718_start.csv",
+      "sha256": "bbabba4db0eda19ad9e9bd3daea6ff1fd22e6f6e355ada9348938be78d9a90f3",
+      "bytes": 8352460,
+      "n_buckets": 15533
+    },
+    {
+      "kind": "srum-dump",
+      "path": "experiment_results\\srum_dump_20261023_121718_end.csv",
+      "sha256": "ba1e96661f145a634134027119f69ed579d4ab3aa5d96332d9978dd480b48f94",
+      "bytes": 7146444,
+      "n_buckets": 10225
+    }
+  ],
+  "n_phases": 1,
+  "rows": [
+    {
+      "phase_id": "prep-load-r1",
+      "config_id": "prep",
+      "replica": 1,
+      "t_start_utc": "2026-10-23T11:09:15",
+      "t_end_utc": "2026-10-23T11:19:17",
+      "duration_s": 602.0,
+      "s": 0.0010216825628038021,
+      "s_source": "d_ollama/d_busy",
+      "s_epi": null,
+      "d": null,
+      "r": null,
+      "in_band": null,
+      "blocking": true,
+      "n_minutes": 0,
+      "n_minutes_with_tree": 0,
+      "boundary_buckets": 0,
+      "boundary_minutes": 0,
+      "window_strict": true,
+      "tree_cpu_j": 0.0,
+      "total_cpu_j": 0.0,
+      "tree_app_ids": "",
+      "engine_tree_changed": false,
+      "exclusion": "",
+      "flags": "nessun_bucket,meno_di_5_bucket,denominatore_nullo,albero_a_zero"
+    }
+  ],
+  "summary_by_config": {
+    "prep": {
+      "n_phases": 1,
+      "n_with_s_epi": 0,
+      "n_with_flags": 1,
+      "n_blocking": 1,
+      "n_with_verdict": 0,
+      "n_window_strict": 1,
+      "d": null,
+      "r_sym": null,
+      "in_band": null,
+      "replicas": [
+        1
+      ]
+    }
+  },
+  "note": "d = s - s_EPI; r = 2(s - s_EPI)/(s + s_EPI). Nessuna deviazione standard: min, mediana, max e range (P4.12)."
+}

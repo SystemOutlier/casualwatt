@@ -64,6 +64,135 @@ sono **36** (erano 35, e il nuovo e' `montecarlo_protocollo_p64_probe.py`), e i 
 tracciati sotto `experiment_results/` sono **220** ($219$ in radice, $1$ in
 `codecarbon_four_way/`), perche' lo stesso commit porta la sua analisi accanto alla
 sonda. La suite resta a **608**: quel commit non aggiunge test.
+La suite e' riverificata al **05-11-2026**, dopo i test del valutatore entrati su
+`emenda-8` con `52e1d77c` e `180f8638` (id parametrizzati) e dopo i due punti GPU
+del backlog EMInote: `calibrate_gpu_idle` (`energy/energy_session.py`, che assegna
+`idle_gpu_power_w`, il campo che `energy/local_energy.py:931` legge e che nessun
+percorso di produzione riempiva) e il termine GPU condizionale di `settle_idle`
+(stessa sessione, con la dichiarazione in `notes` dal runner). La raccolta e' a
+**822** node id (`819 + 3`), **801** dei quali preesistevano a questi due punti --
+misurati su un worktree distaccato a `180f8638`, non dedotti per aritmetica. Il
+delta misurato e' **+21**: **9** in `tests/test_gpu_idle_baseline.py` e **12** in
+`tests/test_settle_idle_gpu.py`, contati eseguendo i due file. I **608** delle
+righe sopra restano storia datata al 04-11; fra il 04-11 e il 05-11 la suite e'
+cresciuta di 193 node id per i test del criterio robusto del valutatore. La
+ripartizione misurata il 05-11 e' **514** in `tests/` e **308** alla radice
+(`test_answer_type_evaluation.py` 168, `test_robust_evaluator.py` 59,
+`test_mudilab_adapter.py` 26, `test_evaluation_runner.py` 23,
+`test_validazione_valutazione.py` 22, `test_tool_provenance.py` 8,
+`test_synthetic_window.py` 2); i conteggi per file del paragrafo «I test stanno
+in due posti» restano datati al 04-11 e non si aggiornano a memoria.
+La suite e' riverificata la **notte del 05-11-2026**, dopo le quattro fasi di
+verifica e correzione chieste sul ramo `emenda-8`: FASE 1 (ramo TTFT di
+`local_energy.py` -- `active_energy_j`/`active_energy_raw_j` ricalcolati dopo
+la sovrascrittura di `package_energy_j`, sub-baseline scalata sulla FRAZIONE
+di tempo monotono cosi' che la somma delle due quota e' esattamente la
+baseline di riga, nota di deriva oltre 1e-3 J fra il delta dei bordi e la
+somma delle parti), FASE 2 (`benchmark_v4.py::infer_v4_stream` -- un chunk
+finale assente non produce piu' `prefill_duration_s = 0.0` e
+`decoding_duration_s = 0.0`, bensi' `None` con la nota `stream_incomplete`;
+il costo di una IOCTL in piu' per riga e' dichiarato nella docstring di
+`read_ttft_edge`), FASE 3 (`gui/benchmark_panel.py` -- il messaggio "nessun
+contatore GPU attivo" e' sostituito da `_gpu_idle_missing_message`, che
+distingue `gpu_mon is None` / `available=False` (nessun monitor) da
+`available=True` / `energy_counter=False` (monitor presente, contatore
+assente, la riga resta in sovrastima dichiarata con
+`gpu_idle_provenance='missing'`)). La raccolta e' a **845** node id, con
+**842 passati e 3 saltati** e **0 falliti** (eseguita alle 9,97 s dalla
+radice con `pytest cwEnergyModular -q`). Il delta sui **822** del mattino
+e' **+23**, tutti contati con `pytest --collect-only -q` e non per
+aritmetica: 2 in `tests/test_edge_window.py` (timestamp non crescenti e
+coerenza `dt_W_s`/`duration_s` nei tre rami di base temporale), 2 gia'
+presenti in `tests/test_shared_components_v4.py` (`infer_v4_stream_registra_ttft`
+e `infer_v4_stream_senza_primo_token`), **11** nel nuovo
+`tests/test_ttft_split.py` (sub positive, una sub negativa, entrambe
+negative, somma a zero, `dt_W_s != dt`, contatore assente su una sub,
+bordo fuori finestra a destra, bordo uguale a `t_start`, deriva sopra e
+sotto soglia, invarianza di `cpu_time_share`/`ollama_active_energy_j`
+fra rami con e senza TTFT), **3** in `tests/test_shared_components_v4.py`
+dalla FASE 2 (`senza_done_lascia_durate_none`,
+`done_legge_prefill_e_decode`, `prefill_zero_umelegibile_da_none`) e
+**5** nel nuovo `tests/test_gpu_skew_and_gui_message.py` (denominatore
+monotono non device-clock, timestamp fermo con delta positivo, e i tre
+messaggi GPU del pannello: nessun monitor, monitor presente senza
+contatore, monitor non disponibile). Il generatore `tools/dump_tests_latex.py`
+conferma: `node id raccolti: 845`, `Copertura delle docstring: 845 righe
+documentate su 845`, nessun `\textbf{fallito}` ne `\textbf{errore}`; i tre
+salti restano i tre di `tests/test_rapl.py:43` (lo dichiara il generatore
+nella propria sezione "Motivi dei salti"), non di `test_rapl_zone.py`. I
+conteggi del parser, sulla stessa regola delle appartenenze usata qui dal
+04-11 mattina: **610** funzioni per `(percorso, classe, nome)`, **609**
+ignorando la classe, **570** monoriga + **275** righe parametrizzate come le
+stampa il parser (`_spezza_node_id` con `prm = ""` per l'istanza `[]`), **53**
+file; **537** node id stanno in `tests/` e **308** alla radice di
+`cwEnergyModular/`. Il delta $822 \to 845 = +21 + 2$ (ventuno entrati con le
+tre fasi, due gia' presenti nel file dei componenti condivisi prima della
+FASE 2) si chiude senza ammanchi ne' righe scomparse: nessun test esistente
+e' stato rinominato o rimosso.
+Lo **schema dei metadati** e' riverificato al **06-11-2026**, dopo la chiusura del
+bug `keep_alive` sulla forma che il motore accetta davvero (il numero, non la
+stringa): `CSV_COLUMNS` resta a **174** nomi perche' lo schema P5 congelato non si
+tocca, mentre `RUN_METADATA_COLUMNS` passa da 30 a **31** con `ollama_version`
+accodata dopo `ollama_keep_alive`; le coordinate dei quattro schemi sono righe
+17-204 / 212-227 / 229-237 / 343-361. L'Appendice A rigenerata lo stesso giorno da
+`tools/dump_schema_latex.py` porta $174$ + $31$, $77$ di riga + $2$ di metadato
+`nuova`, $27$ `vuota`, header $99$ e $29$: le $174$ + $30$ e l'$1$ di metadato
+`nuova` della riga datata 04-11 restano in piedi come storia datata, non vengono
+riscritte.
+Lo stesso 06-11, dopo, quei sette numeri hanno smesso di essere scritti a mano.
+`python tools/dump_schema_latex.py --macros` stampa un file di `newcommand`
+(`nColonneRiga`, `nColonneMetadati`, `nNuoveRiga`, `nNuoveMetadati`, `nCampiVuoti`,
+`nHeaderRiga`, `nHeaderMetadati`) che `main.tex` legge in preamble con
+`\input{generated/numeri_schema}` e che cap.\,4, cap.\,5 e l'Appendice A citano come
+matematica inline; lo stesso generatore, nella stessa invocazione, produce anche la
+tabella, e i due output escono dalla medesima funzione di conteggio che etichetta le
+celle. Per questo i tre punti del corpo che dicevano $30$ contro l'$31$
+dell'appendice sono allineati senza riscrivere numeri: il commento di
+`cap04:553-558`, la prosa di `cap04:~597` e l'elenco di `cap05:112-116`. Nello
+stesso colpo l'ancoraggio `:340-354` di cap.\,4, che era stantio di tre righe anche
+prima di questa colonna, e' $343$-$361$, e la voce del verbale in cap.\,5 distingue
+ora le colonne **nel file** (`nHeaderMetadati`, $29$) da quelle **nel codice**
+($31$) e nomina le due accodate dopo l'ultimo run. Il file generato sta in
+`Tesi-latex/`, quindi fuori da git, e va rigenerato insieme alla tabella.
+Il conteggio della suite NON e' riverificato da questo intervento, e le due
+fotografie qui sotto sono dello stesso giorno con lo stesso albero sporco del
+backlog GPU: la raccolta si muove mentre si misura. All'ultima riesecuzione del
+mattino, **871** node id con **854 passati, 14 falliti e 3 saltati**; alla
+misurazione delle 12:04, **888** node id con **871 passati, 14 falliti e 3
+saltati** -- cioe' $+17$ node id entrati nel frattempo e quattro cadute in meno:
+i tre `tests/test_ttft_split.py` e `tests/test_settle_idle_gpu.py:137` che quel
+primo conteggio annoverava fra i falliti ora passano, e la loro assenza dal
+elenco e' misurata, non dedotta. Le quattordici rimaste stanno tutte sul nuovo
+contratto di identita' GPU e si dividono in tre forme, contate eseguendo i file:
+**5** sollevano `RuntimeError: calibrazione idle GPU non conservata ...
+(prima=None, dopo=None)` in `tests/test_gpu_idle_baseline.py` perche' il fake non
+dichiara l'identita' e `energy/energy_session.py` non riceve un `uuid`; **6**
+asseriscono che la baseline non e' stata sottratta (cinque `1000.0 != 800.0` fra
+`tests/test_gpu_nvml_energy.py:244`, `tests/test_gpu_amdsmi.py:325` e i due
+parametri di `A2` piu' `test_energy_corrections.py`, e un `600.0 != 480.0` di
+`B2`); **3** sono i `P2` della provenienza, che vedono `identity-unavailable`
+lì dove il test e il vocabolario detto alla GUI (FASE 3) aspettano `missing`.
+La causa del gate e' confermata: `calibrate_gpu_idle` e `_gpu_identity` esistono
+solo sull'albero sporco -- a HEAD `180f8638` il `grep` di `calibrate_gpu_idle`,
+`_gpu_identity`, `get_uuid`, `get_amd_uuid`, `get_bdf`, `identity-unavailable`
+da' **zero** colpi sotto `cwEnergyModular/energy/` -- e nessuna fixture della
+suite dichiara l'identita', quindi la calibrazione raise, `gpu_idle_provenance`
+finisce `identity-unavailable` e la riga sottrae $0$ invece dei 200 J di baseline
+(`energy/local_energy.py:1090`, con `baseline_valid` che dipende da
+`_gpu_idle_identity`). E' un cambio di contratto non propagato alle fixture, non
+un bug di calcolo, e non riguarda ne' lo streaming ne' `keep_alive`. Resta aperta
+una conseguenza di vocabolario che i tre `P2` stanno esattamente testando: con
+l'identita' illeggibile il token `missing` non e' piu' prodotto, e con esso lo
+stato legittimo "mai calibrato" -- la FASE 3 del pannello GUI e la prosa che
+distingue "nessun monitor" da "monitor senza contatore" vanno rilette quando quel
+lavoro si chiude. Gli **845** raccolti con **0 falliti** del 05-11
+restano la fotografia di un altro albero, finche' quel lavoro non e' chiuso e il
+conteggio non e' rigenerato. La tesi e' ricompilata due volte il 06-11: dopo la
+rigenerazione dell'Appendice A (`pdflatex`, `biber`, `pdflatex` x2) il log da'
+**195 pagine, 0 `Overfull \hbox`, 0 riferimenti indefiniti** -- lo stesso numero
+ancorato il 04-11 -- e dopo l'allineamento dei capitoli con le macro **196** con
+gli stessi **0** e **0**; i due `main.toc` non sono stati confrontati, quindi la
+pagina in piu' non e' localizzata e resta una misurazione, non un diff.
 Se un ancoraggio non torna, il file e' stantio: va corretto, non ignorato.
 
 Fonti primarie, in ordine di autorita':
@@ -109,8 +238,11 @@ P1 (baseline), P2 (token e terminazione), P3 (geometria e modello), P4
 (pavimento di tempo a muro) e P6.2 (obblighi del pilota), derivati, e tre
 requisiti adottati come
 vincolanti: P6.3 (audit idle), P6.4 (simulazione Monte Carlo) e P6.6 (prova di
-attribuzione ripetibile, 2026-10-25, con la banda di concordanza ancora da
-congelare prima del primo run).
+attribuzione ripetibile, 2026-10-25). Per la banda di concordanza di P6.6 e'
+stata adottata l'Option C (pre-pilota di ripetibilita', 2026-11-06): la banda
+si congela dopo un run di calibrazione su configurazione fissa con R repliche e
+fasi >= 5 bucket, non prima del primo run in senso assoluto (emendamento
+esplicito al protocollo). Il pre-pilota e' da eseguire.
 
 C'e' una sola eccezione dichiarata al congelamento: la **forma di combinazione**
 di `budget_base_w` (quadratura o somma aritmetica) e' una decisione operativa
@@ -356,7 +488,10 @@ stanno solo le regole che un agente puo' violare senza accorgersene.
 ## Comandi di verifica
 
 ```
-pytest cwEnergyModular          # 608 raccolti: 605 passati, 3 saltati (04-11, notte)
+pytest cwEnergyModular          # 845 raccolti: 842 passati, 3 saltati (notte 05-11)
+                                # albero sporco del backlog GPU, 06-11 alle 12:04:
+                                # 888 raccolti, 871 passati, 14 falliti (identita'
+                                # GPU), 3 saltati -- nota datata in testa al file
 ```
 
 **Mai `pytest` nudo dalla radice**: la raccolta viene interrotta da 6 errori in
@@ -377,6 +512,37 @@ pdflatex main && biber main && pdflatex main && pdflatex main
 bibliografia. Requisiti di compilazione: 0 overfull hbox, 0 riferimenti
 indefiniti.
 
+I numeri dello schema che il corpo della tesi cita non si scrivono piu' a mano:
+si rigenerano dalla cartella `cwEnergyModular/` **insieme** all'Appendice A, con
+
+```
+python tools/dump_schema_latex.py > ..\Tesi-latex\qoder-bozza\generated\schema_appA.tex
+python tools/dump_schema_latex.py --macros > ..\Tesi-latex\qoder-bozza\generated\numeri_schema.tex
+```
+
+`main.tex` legge il secondo file in preamble con `\input{generated/numeri_schema}`
+e capitoli e appendice usano i `newcommand` come matematica inline. Se un numero
+del corpo diverge dall'appendice la causa non e' una frase da correggere: e' che la
+seconda rigenerazione non e' stata fatta, perche' tabella e macro escono dalla
+stessa lettura dello schema.
+
+Il motore va controllato **prima** di una campagna, non dopo: dalla cartella
+`cwEnergyModular/`
+
+```
+python tools/smoke_keep_alive.py --model qwen2.5:0.5b
+```
+
+spedisce al motore reale il payload che `payload_v4` costruisce oggi, in forma
+numerica, e chiede a `infer_v4`, `infer_v4_stream` e `/api/version` se la forma e'
+ancora quella accettata -- la firma `400 time: missing unit in duration "-1"`
+di Ollama 0.33.1 e' esattamente il tipo di cosa che un aggiornamento riporta
+indietro. Esce `2` se il motore non risponde e `1` se una verifica fallisce: con
+quei codici la campagna non si lancia. Non misura energia e non scrive righe,
+quindi non produce dati da citare. `--keep-alive 0` scarica i pesi dalla memoria
+del motore al termine della chiamata: usare `-1`, il default, quando dopo il
+controllo segue un run.
+
 ---
 
 ## Struttura dei file
@@ -388,7 +554,10 @@ indefiniti.
   EMI), `energy/energy_session.py` (canali, integrazione di
   finestra, interpolazione ai bordi), `energy/local_energy.py` (campi per riga),
   `casualwatt_csv_export.py` (`CSV_COLUMNS`, righe 17-204 — 174 nomi;
-  `BLOCK_SUMMARY_COLUMNS`, 212-227; `POINT_SUMMARY_COLUMNS`, 229-237), e il
+  `BLOCK_SUMMARY_COLUMNS`, 212-227; `POINT_SUMMARY_COLUMNS`, 229-237;
+  `RUN_METADATA_COLUMNS`, 343-361 — **31** nomi dal 06-11-2026, con
+  `ollama_version` accodata dopo `ollama_keep_alive`; nessuna migrazione perche'
+  l'header dei metadati e' scritto una volta sola), e il
   runner v4 `benchmark_v4.py` (sequenza di blocco di P1.5).
 - **Il valutatore della risposta sta nello stesso modulo**: `evaluation_runner.py`
   (aggregati con intervallo di Wilson a livello di riga, bootstrap a cluster a
@@ -582,7 +751,24 @@ indefiniti.
   `cwEnergyModular/tools/dump_schema_latex.py` e porta i numeri dello schema vivo:
   $174$ colonne di riga + $30$ di metadato, $77$ di riga + $1$ di metadato ancora
   `nuova` rispetto al CSV di riferimento, $27$ campi `vuota`, header del dataset
-  $99$ nomi e header dei metadati $29$. Il testo dei capitoli che parlava di $113$
+  $99$ nomi e header dei metadati $29$. **Quei numeri sono la fotografia del
+  04-11 e sono stati riguadagnati il 06-11-2026**: lo stesso generatore, sugli
+  stessi file di riferimento (`results/semantic_evaluation_results.csv`
+  del 20-10 e `results/casualwatt_run_metadata.csv` del 19-10, che non hanno
+  migrazione), porta ora $174$ colonne di riga + $31$ di metadato, $77$ di riga +
+  $2$ di metadato ancora `nuova`, $27$ campi `vuota`, header del dataset $99$ e
+  header dei metadati $29$ — invariati questi ultimi due perche' il delta e'
+  solo una colonna accodata. Il diff fra le due rigenerazioni e' di tre righe:
+  due commenti dei conteggi e la riga `31 & ollama_version & - & nuova`, e non
+  una di piu'. La colonna entra perche' la forma di `keep_alive` che il motore
+  accetta dipende dalla sua versione: Ollama 0.33.1 risponde `400 time: missing
+  unit in duration "-1"` alla forma stringa e accetta il numero (misurato il
+  05-11-2026, e confermato il 06-11 dal percorso di produzione `payload_v4` ->
+  `infer_v4` / `infer_v4_stream`, con `/api/ps` che dice `UNTIL Forever` e
+  `CONTEXT 8192`), quindi un verbale senza versione non dice su quale forma il
+  run era valido. `CSV_COLUMNS` non si muove: lo schema P5 congelato resta a 174
+  nomi, e la colonna nuova e' di metadato, non di riga.
+  Il testo dei capitoli che parlava di $113$
   colonne \`e allineato a $174$ (cap.\,5, sezione costo in euro), e con lui gli
   ancoraggi di `benchmark_unified.py` spostati dalla crescita del runner: durate di
   fase `:189-190, 238-239`, conversione e scorporo del giudice `:430-456, 941-970`,
@@ -643,7 +829,15 @@ indefiniti.
   sonde PawnIO (`fetch_pawnio_modules.py` scarica e verifica i moduli della
   release con hash pinnato, `pawnio_probe.py` confronta il contatore con EMI e
   misura il costo di osservazione A-B-A, `pawnio_priv_probe.py` misura i
-  privilegi invece di dedurli).
+  privilegi invece di dedurli). Il decimo file della cartella,
+  `smoke_keep_alive.py`, e' **nuovo il 06-11-2026 e non ancora committato**:
+  controllo pre-campagna sulla forma di `keep_alive` contro il motore reale
+  (percorso di produzione `payload_v4` -> `infer_v4` / `infer_v4_stream`, piu'
+  `/api/version` perche' la forma accettata dipende dalla versione); parametrizzato
+  per host e modello perche' chi lo riceve non deve spostare cartelle ne' editing di
+  percorsi; esce `2` se il motore non risponde, e questo NON e' un controllo
+  superato. I nove contati restano il numero **tracciato**: il conteggio di questa
+  riga e' `git ls-files`, non un elenco a vista.
 - `experiment_results/` — dati sperimentali e analisi, tracciati (220 file: 219 in
   radice, 1 in `codecarbon_four_way/`; riverificati il 04-11-2026, dopo `244d1c2f`,
   che porta l'analisi Monte Carlo di P6.4). I
