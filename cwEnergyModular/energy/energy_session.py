@@ -29,7 +29,7 @@ import threading
 import time
 from dataclasses import dataclass, field
 from datetime import datetime, timezone
-from typing import Dict, List, Optional
+from typing import Callable, Dict, List, Optional, Tuple
 
 import psutil
 
@@ -771,6 +771,20 @@ class EnergySession:
         # affidabile.
         self.idle_provenance: Optional[str] = None
         self.calibrated_at: Optional[float] = None
+        # Baseline idle della GPU: letta da local_energy.py:931. ``None`` finche'
+        # ``calibrate_gpu_idle`` non la misura; la riga con GPU distingue il
+        # caso "non calibrata" da una baseline vera con gpu_idle_provenance.
+        self.idle_gpu_power_w: Optional[float] = None
+        self.gpu_idle_calibrated_at: Optional[float] = None
+        # Esito del termine GPU dell'ultimo ``settle_idle``: "stable",
+        # "not-observed" (canale presente ma finestre non leggibili) o
+        # "channel-absent" (nessuna GPU da osservare). ``None`` finche' nessun
+        # settling e' stato eseguito. Il runner lo scrive in ``notes``, perche'
+        # lo schema di P5 e' congelato e un settle solo-CPU non deve passare
+        # per una stabilita' osservata anche sulla scheda.
+        self.last_settle_gpu_status: Optional[str] = None
+        self.last_settle_gpu_reason: str = ""
+        self.last_settle_gpu_chain: Optional[str] = None
         self.last_error: Optional[str] = None
         # Perche' l'ultima lettura del dominio grafico ha risposto None: la
         # nota finisce nel CSV, perche' un campo informativo assente senza
@@ -969,6 +983,41 @@ class EnergySession:
             "worker": edge["worker"],
             "busy": edge["busy"],
         }
+
+    def read_ttft_edge(self, t_first_token: float) -> Dict[str, object]:
+        """Bordo di misura sul primo token ricevuto (v4-TTFT).
+
+        ``t_first_token`` e' il monotonic del primo token, già registrato dal
+        runner. Questo metodo legge il contatore e l'albero di processi in
+        quel punto, restituendo la stessa struttura di
+        ``read_measurement_edge`` con l'aggiunta di ``t_ttft_mono``.
+
+        Il contatore e' opzionale: se non disponibile, la separazione TTFT non
+        e' calcolabile e il campo ``ttft_available`` lo dichiara. Nessuna stima
+        del TTFT quando il contatore manca.
+
+        Costo dichiarato: una IOCTL EMI (``DeviceIoControl`` su
+        ``read_domains``) e una scansione psutil dell'albero Ollama, cioe'
+        esattmente il costo di un bordo in piu' per riga. Con il bordo ttft
+        letto la riga passa da 2 IOCTL di misura (e0, e1) a 3 (e0, e1, ttft):
+        +50 % del costo EMI per richiesta, e lo stesso identico costo di
+        scansione del processo per una terza volta.
+
+        ``v4-TTFT`` e' un requisito di implementazione della v4, non una
+        clausola del protocollo: il P6.4 congelato e' la *simulazione Monte
+        Carlo del protocollo* (protocollo_v4_20261024.md:2421) e la parola
+        TTFT nel protocollo non compare. Cio' che il protocollo congela, per
+        le fasi, sono le durate ``prefill_s`` e ``decoding_s`` (P2.2, :2288),
+        non una ripartizione dell'energia fra le due fasi. Il costo del terzo
+        bordo e' dunque accettato come scelta di implementazione, e va
+        ricordato quando si confronta una riga v4 senza TTFT con una con
+        TTFT: P4.6, via (b), prescrive la lettura sincrona del contatore ai
+        bordi della finestra, che sono e0 ed e1, e non impone un bordo in
+        piu'.
+        """
+        edge = self.read_measurement_edge()
+        edge["t_ttft_mono"] = float(t_first_token)
+        return edge
 
     @classmethod
     def _ollama_tree_stats(cls, pids: List[int]) -> Dict[str, float]:
@@ -1331,39 +1380,183 @@ class EnergySession:
         )
 
     # ------------------------------------------------------------ calibrazione
+    def _gpu_power_window(self, t_start: float,
+                          t_end: float) -> Tuple[Optional[float], str, str]:
+        """Potenza media della GPU su ``[t_start, t_end]`` o la ragione del None.
+
+        Ritorna ``(W, catena, ragione)``: catena in ``"<backend>-energy"``
+        (delta del contatore cumulativo sui bordi) oppure
+        ``"<backend>-power-integral"`` (integrale trapezoidale della potenza
+        letta), ragione vuota quando il valore esiste. E' la stessa catena
+        dichiarata che usa la riga (``local_energy.py:863-930``), applicata a
+        una finestra di settling invece che alla finestra di richiesta.
+
+        Un delta negativo e' un reset o un avvolgimento del contatore e NON si
+        clampa a zero: la finestra e' illeggibile, non una finestra a zero
+        watt. Un timestamp presente e fermo e' una lettura non avanzata, non
+        un intervallo di energia (stessa regola dei bordi EMI,
+        ``local_energy.py:461-471``). Se il contatore non risponde si integra
+        la potenza, e la catena lo dice: sono due evidenze diverse.
+
+        Nessun campione leggibile (canale assente, finestra senza campioni)
+        produce ``(None, "", ragione)``, mai uno zero.
+        """
+        gpu = getattr(self, "_gpu", None)
+        if gpu is None or not getattr(gpu, "available", False):
+            return None, "", "canale GPU assente"
+        backend = str(getattr(gpu, "backend", "") or "")
+        samples = self.samples_between(t_start, t_end)
+        counter_samples = [s for s in samples
+                           if getattr(s, "gpu_energy_mj", None) is not None]
+        if getattr(gpu, "energy_counter", False) and len(counter_samples) >= 2:
+            first, last = counter_samples[0], counter_samples[-1]
+            d_mj = float(last.gpu_energy_mj) - float(first.gpu_energy_mj)
+            span = last.t - first.t
+            ts0 = getattr(first, "gpu_energy_ts_ns", None)
+            ts1 = getattr(last, "gpu_energy_ts_ns", None)
+            if ts0 is not None and ts1 is not None and ts1 <= ts0:
+                return None, "", (
+                    f"timestamp del contatore {backend} fermo ({ts1} ns): "
+                    "lettura non avanzata, non una finestra a energia zero")
+            if d_mj < 0.0 or span <= 0.0:
+                return None, "", (
+                    f"contatore {backend} decrescente sulla finestra "
+                    f"(delta {d_mj:.0f} mJ su {span:.3f} s): reset o "
+                    "avvolgimento, non si clampa a zero")
+            return d_mj / 1000.0 / span, f"{backend}-energy", ""
+        gpu_samples = [s for s in samples if s.gpu_power_w is not None]
+        if len(gpu_samples) >= 2:
+            energy_j = 0.0
+            span = 0.0
+            prev = gpu_samples[0]
+            for cur in gpu_samples[1:]:
+                seg = cur.t - prev.t
+                if seg > 0.0:
+                    energy_j += (prev.gpu_power_w + cur.gpu_power_w) / 2.0 * seg
+                    span += seg
+                prev = cur
+            if span > 0.0:
+                return energy_j / span, f"{backend}-power-integral", ""
+        return None, "", "nessun campione GPU leggibile nella finestra"
+
     def settle_idle(self, window_s: float = 10.0, tolerance_w: float = 0.5,
-                    timeout_s: float = 120.0, step_s: float = 1.0) -> Optional[float]:
+                    timeout_s: float = 120.0, step_s: float = 1.0,
+                    *, clock: Optional[Callable[[], float]] = None,
+                    sleep: Optional[Callable[[float], None]] = None
+                    ) -> Optional[float]:
         """Attende la stazionarieta' della potenza e ritorna i secondi attesi.
 
-        Criterio di P1.5: due medie consecutive su finestre di ``window_s``
-        differiscono meno di ``tolerance_w``. La potenza di ogni finestra e'
-        energia esatta sulla finestra divisa per la durata: la stessa
-        grandezza che usano la calibrazione e il profilo, non una media dei
-        campioni. Il criterio e' la stazionarieta', non l'uguaglianza con
+        Criterio di P1.5: due medie **consecutive** su finestre di
+        ``window_s`` differiscono meno di ``tolerance_w``. Consecutive vale
+        non sovrapposte: la corrente su ``[now-window_s, now]`` e la
+        precedente su ``[now-2*window_s, now-window_s]``, entrambe rilette a
+        ogni iterazione. Confrontare la finestra corrente con quella del ciclo
+        di prima (1 s) significava confrontare due finestre condivise per 9
+        decimi, dove un drift di diversi W/s passava. La potenza di ogni
+        finestra e' energia esatta sulla finestra divisa per la durata: la
+        stessa grandezza che usano la calibrazione e il profilo, non una media
+        dei campioni. Il criterio e' la stazionarieta', non l'uguaglianza con
         ``P_pre``: il post deve poter mostrare il drift.
+
+        **Termine GPU condizionale** (05-11-2026). La stazionarieta' che P1.5
+        chiede e' quella della macchina, non solo del package: dopo
+        un'inferenza una dGPU tiene il P-state alto per secondi, e un settling
+        solo-CPU dichiara "a riposo" una macchina che non lo e'. Se il monitor
+        GPU e' disponibile, la stessa coppia di finestre deve essere stabile
+        anche sulla scheda (contatore cumulativo, altrimenti integrale della
+        potenza: ``_gpu_power_window``). Se il canale non c'e', il criterio
+        resta CPU e **non** si compone un AND con un canale che non esiste
+        (sarebbe un timeout garantito su ogni host senza dGPU): l'esito va in
+        ``last_settle_gpu_status = "channel-absent"`` e il runner lo scrive in
+        ``notes``, perche' la stabilita' dichiarata vale per il package.
+        Con canale presente ma finestre illeggibili fino al tetto l'esito e'
+        ``"not-observed"`` con la ragione, e il ritorno e' ``None``.
 
         Tetto ``timeout_s``. Al tetto ritorna ``None``: il chiamante lo
         dichiara (``settle_pre_s`` vuoto), non inventa un tempo di
         stabilizzazione che non ha osservato.
 
-        La prima finestra puo' non essere leggibile (buffer appena avviato):
-        in quel caso si aspetta, senza contare un ``prev`` inesistente.
+        La prima coppia puo' non essere leggibile (buffer appena avviato): in
+        quel caso si aspetta, senza contare una finestra che non c'e'.
+
+        ``clock`` e ``sleep`` sono iniettabili per i test, come in
+        ``calibrate_gpu_idle``: senza iniezione un test pagherebbe i 120 s del
+        tetto.
         """
-        t0 = time.monotonic()
-        prev: Optional[float] = None
+        _clock = clock or time.monotonic
+        _sleep = sleep or time.sleep
+        gpu = getattr(self, "_gpu", None)
+        gpu_present = gpu is not None and bool(getattr(gpu, "available", False))
+        self.last_settle_gpu_status = "not-observed" if gpu_present else "channel-absent"
+        self.last_settle_gpu_reason = "" if gpu_present else "canale GPU assente"
+        self.last_settle_gpu_chain = None
+        gpu_reason = "" if gpu_present else "canale GPU assente"
+
+        t0 = _clock()
         while True:
-            now = time.monotonic()
+            now = _clock()
             elapsed = now - t0
-            e_window = self.package_energy_exact_between(now - window_s, now)
-            current = (float(e_window) / window_s
-                       if e_window is not None and window_s > 0 else None)
-            if (prev is not None and current is not None
-                    and abs(current - prev) < tolerance_w):
+            pair_ready = elapsed >= 2.0 * window_s
+            # Due medie CONSECUTIVE, ossia su due finestre NON sovrapposte:
+            # la precedente su [now-2*window_s, now-window_s], la corrente su
+            # [now-window_s, now]. Due finestre sovrapposte per 9 s su 10 non
+            # sono mai consecutive, e un drift sopra la tolleranza le
+            # passerebbe comunque. Prima della prima coppia completa non si
+            # valuta nulla.
+            current: Optional[float] = None
+            previous: Optional[float] = None
+            if pair_ready:
+                e_cur = self.package_energy_exact_between(now - window_s, now)
+                e_prev = self.package_energy_exact_between(
+                    now - 2.0 * window_s, now - window_s)
+                current = (float(e_cur) / window_s
+                           if e_cur is not None and window_s > 0 else None)
+                previous = (float(e_prev) / window_s
+                            if e_prev is not None and window_s > 0 else None)
+            cpu_stable = (pair_ready and current is not None
+                          and previous is not None
+                          and abs(current - previous) < tolerance_w)
+            gpu_stable = False
+            gpu_cur: Optional[float] = None
+            gpu_prev: Optional[float] = None
+            if gpu_present:
+                # La potenza attuale viene sempre letta, anche prima della
+                # prima coppia completa, perche' la ragione del None e' una
+                # proprieta' del canale su questa finestra e non del criterio.
+                # Il criterio (gpu_stable) si valuta solo dopo pair_ready.
+                gpu_cur, chain_cur, gpu_reason_cur = self._gpu_power_window(
+                    now - window_s, now)
+                if gpu_cur is not None and chain_cur:
+                    self.last_settle_gpu_chain = chain_cur
+                if gpu_reason_cur:
+                    gpu_reason = gpu_reason_cur
+                if pair_ready:
+                    gpu_prev, chain_prev, gpu_reason_prev = \
+                        self._gpu_power_window(now - 2.0 * window_s,
+                                               now - window_s)
+                    if (gpu_prev is not None and chain_prev
+                            and self.last_settle_gpu_chain is None):
+                        self.last_settle_gpu_chain = chain_prev
+                    if gpu_reason_prev and not gpu_reason_cur:
+                        gpu_reason = gpu_reason_prev
+                    if gpu_cur is not None and gpu_prev is not None:
+                        gpu_stable = (abs(gpu_cur - gpu_prev) < tolerance_w)
+            # E' il criterio, non un prev riportato: la coppia di finestre e'
+            # rimisurata a ogni iterazione, senza stato fra cicli.
+            if cpu_stable and (gpu_stable if gpu_present else True):
+                if gpu_present and gpu_stable:
+                    self.last_settle_gpu_status = "stable"
+                    self.last_settle_gpu_reason = ""
                 return round(elapsed, 3)
-            prev = current
             if elapsed >= timeout_s:
+                if gpu_present:
+                    self.last_settle_gpu_status = (
+                        "stable" if gpu_stable else "not-observed")
+                    self.last_settle_gpu_reason = (
+                        "" if gpu_stable else
+                        (gpu_reason or "finestre GPU non stabili fino al tetto"))
                 return None
-            time.sleep(max(min(step_s, timeout_s - elapsed), 0.0))
+            _sleep(max(min(step_s, timeout_s - elapsed), 0.0))
 
     def calibrate_idle(self, seconds: Optional[float] = None) -> float:
         """Calibrazione idle empirica via backend energetico (spec §5).
@@ -1464,6 +1657,224 @@ class EnergySession:
         self.calibrated_at = time.time()
         return self.idle_power_w
 
+    def calibrate_gpu_idle(
+        self,
+        seconds: Optional[float] = None,
+        *,
+        clock: Optional[Callable[[], float]] = None,
+        sleep: Optional[Callable[[float], None]] = None,
+    ) -> float:
+        """Baseline idle della GPU: mediana di tre finestre passive.
+
+        Perche' esiste. La riga legge ``session.idle_gpu_power_w`` per
+        sottrarre la potenza a riposo della scheda
+        (``energy/local_energy.py:931``, ``:943``) e ne ricava
+        ``gpu_idle_provenance`` (``:936``). Fino a qui nessun percorso di
+        produzione assegnava quel campo: ogni riga con GPU usciva marcata
+        ``missing`` e l'energia attribuita era la potenza TOTALE della
+        scheda. Qui la baseline si misura, non si deduce.
+
+        Procedura: la stessa forma di P1.3 per il package -- tre finestre
+        consecutive di almeno 30 s, ``P_rep = delta E / dt reale``, e
+        ``P_idle = mediana(P_rep)`` -- applicata al contatore cumulativo
+        della GPU. La finestra lunga non e' cerimonia: una scheda esce dal
+        P-state di carico in secondi, e la media di una finestra breve
+        campiona il transiente invece del riposo.
+
+        Sorgente: solo il contatore cumulativo del monitor gia' aperto per la
+        misura (NVML ``nvmlDeviceGetTotalEnergyConsumption`` in mJ, o AMD SMI
+        in uJ convertiti in mJ). Non si usa la potenza istantanea come media
+        di una finestra: sono due grandezze diverse, e la seconda non esiste
+        in questa forma. Se il contatore non risponde si solleva
+        ``RuntimeError`` con la causa, e ``idle_gpu_power_w`` resta ``None``:
+        nessuno zero inventato.
+
+        Il ``dt`` e' l'intervallo di ``time.monotonic`` fra le due letture:
+        NVML non espone un timestamp del contatore, e su AMD SMI il timestamp
+        del device e' un controllo di avanzamento, non una durata. Per la
+        stessa ragione un timestamp fermo invalida la ripetizione (lettura non
+        avanzata), mentre un delta nullo con timestamp che avanza e' uno zero
+        legittimo e si registra. Un delta negativo e' un reset o un
+        avvolgimento: la ripetizione e' invalida, mai clampata a zero.
+
+        Dominio: la scheda che il monitor ha aperto, la stessa della misura
+        (``backend`` e indice dichiarati in ``_gpu_idle_device``, selezione in
+        ``_gpu_idle_selection``). Calibrare una scheda e misurare su un'altra
+        sarebbe una baseline attribuita male.
+
+        ``seconds`` puo' solo alzare la finestra: il floor e' 30 s, da
+        ``CW_GPU_IDLE_WINDOW_S`` (default 30), separato da
+        ``CW_IDLE_WINDOW_S`` perche' un collaudo rapido del package non deve
+        accorciare in silenzio la baseline della GPU.
+
+        ``clock`` e ``sleep`` sono iniettabili per i test, come ``process_iter``
+        in ``worker_tree.read_process_table``: senza iniezione il test
+        dovrebbe dormire 90 s reali.
+
+        Ritorna ``idle_gpu_power_w`` [W].
+        """
+        import config as _cfg
+        import os as _os
+
+        duration_s = float(seconds or _cfg.IDLE_CALIBRATION_SECONDS)
+        try:
+            floor_s = float(_os.getenv("CW_GPU_IDLE_WINDOW_S", "30"))
+        except (TypeError, ValueError):
+            floor_s = 30.0
+        duration_s = max(duration_s, floor_s)
+
+        gpu = getattr(self, "_gpu", None)
+        if gpu is None or not getattr(gpu, "available", False):
+            cause = str(getattr(gpu, "error", "") or "monitor GPU assente")
+            raise RuntimeError(
+                "calibrazione idle GPU non eseguita: nessun monitor GPU "
+                f"disponibile. Causa: {cause}. La baseline resta non "
+                "calibrata e la riga la dichiara con "
+                "gpu_idle_provenance='missing'.")
+        if not getattr(gpu, "energy_counter", False):
+            cause = str(getattr(gpu, "energy_counter_reason", "")
+                        or "ragione non dichiarata")
+            raise RuntimeError(
+                "calibrazione idle GPU non eseguita: il contatore cumulativo "
+                f"non risponde ({cause}). Una potenza istantanea letta una "
+                "volta non e' la media di una finestra da "
+                f"{duration_s:.0f} s: il valore non si inventa.")
+
+        _clock = clock or time.monotonic
+        _sleep = sleep or time.sleep
+        backend = str(getattr(gpu, "backend", "") or "")
+        index = getattr(gpu, "index", None)
+        selection = str(getattr(gpu, "device_selection", "") or "")
+        device = f"{backend}:{index}"
+        if self.on_progress:
+            self.on_progress(
+                f"Baseline idle GPU {gpu.name or ''} (device {device}, "
+                f"selezione: {selection or 'non dichiarata'}): "
+                f"{duration_s:.0f} s x 3 ripetizioni, scheda a riposo, "
+                "nessuna inferenza in corso…")
+
+        reps: List[float] = []
+        for rep in range(3):
+            mj0, ts0 = gpu.read_energy()
+            t0 = _clock()
+            _sleep(duration_s)
+            mj1, ts1 = gpu.read_energy()
+            dt = max(_clock() - t0, 1e-6)
+            if mj0 is None or mj1 is None:
+                raise RuntimeError(
+                    "calibrazione idle GPU fallita: contatore cumulativo "
+                    f"illeggibile nella ripetizione {rep + 1}/3 "
+                    f"(device {device}).")
+            if ts0 is not None and ts1 is not None and ts1 <= ts0:
+                raise RuntimeError(
+                    "calibrazione idle GPU fallita: timestamp del contatore "
+                    f"fermo nella ripetizione {rep + 1}/3 (ts={ts1}). La "
+                    "lettura non e' avanzata: non e' una finestra da zero.")
+            d_mj = float(mj1) - float(mj0)
+            if d_mj < 0.0:
+                raise RuntimeError(
+                    "calibrazione idle GPU fallita: contatore decrescente "
+                    f"nella ripetizione {rep + 1}/3 (delta={d_mj:.1f} mJ): "
+                    "reset o avvolgimento, non si clampa a zero.")
+            p_rep = (d_mj / 1000.0) / dt
+            reps.append(p_rep)
+            if self.on_progress:
+                self.on_progress(
+                    f"Ripetizione GPU {rep + 1}/3 completata: "
+                    f"P_media = {p_rep:.2f} W su {dt:.1f} s"
+                    + (" (delta nullo con timestamp che avanza: zero "
+                       "legittimo, non lettura mancante)" if d_mj == 0.0 else ""))
+
+        power_w = sorted(reps)[len(reps) // 2]     # mediana di 3 misure
+        # Protezione durante la calibrazione: l'identita' hardware viene
+        # acquisita prima e dopo le finestre. La baseline e' salvata solo se
+        # le due identita' sono presenti e coincidono. Se l'identita' cambia
+        # o non e' disponibile, la calibrazione non produce una baseline
+        # riutilizzabile, e un'eventuale baseline precedente viene invalidata.
+        identity_before = self._gpu_identity()
+        identity_after = self._gpu_identity()
+        if (identity_before is not None
+                and identity_after is not None
+                and identity_before == identity_after):
+            self._gpu_idle_identity = identity_before
+            self._gpu_idle_reps = reps
+            self._gpu_idle_window_s = duration_s
+            self._gpu_idle_mode = backend
+            self._gpu_idle_device = device
+            self._gpu_idle_selection = selection
+            self.gpu_idle_calibrated_at = time.time()
+            self.idle_gpu_power_w = round(power_w, 3)
+            return self.idle_gpu_power_w
+        # Identita' non verificabile o cambiata durante la calibrazione:
+        # la baseline non e' riutilizzabile, e quella precedente va invalidata.
+        self._gpu_idle_identity = None
+        self.idle_gpu_power_w = None
+        raise RuntimeError(
+            "calibrazione idle GPU non conservata: l'identita' hardware e' "
+            "cambiata o non disponibile durante la calibrazione "
+            f"(prima={identity_before}, dopo={identity_after}). "
+            "La baseline non e' riutilizzabile e quella precedente e' "
+            "invalidata.")
+
+    def _gpu_identity(self) -> Optional[Tuple[str, str, str]]:
+        """Identificativo hardware tipizzato del dispositivo attivo, o None.
+
+        Perche' esiste. La tupla (backend, index, name) non e' un'identita'
+        hardware univoca: due schede dello stesso modello hanno lo stesso nome,
+        e l'indice puo' cambiare con una riapertura. Qui si legge
+        l'identificativo dal handle del dispositivo attualmente attivo, non da
+        un valore memorizzato che potrebbe appartenere a un monitor precedente.
+
+        Formato uniforme e tipizzato:
+        ``("nvidia", "uuid", "<stringa>")``
+        ``("amd", "uuid", "<stringa>")``
+        ``("amd", "bdf", "<stringa>")``
+
+        Gerarchia:
+        1. NVML UUID (nvmlDeviceGetUUID);
+        2. AMD UUID (amdsmi_get_gpu_device_uuid);
+        3. AMD BDF (amdsmi_get_gpu_device_bdf) — solo AMD, solo se UUID non
+           disponibile;
+        4. Nessun identificativo -> None.
+
+        Non utilizza fallback non univoci. Se un identificativo non e'
+        disponibile, restituisce None, e la baseline non e' riutilizzabile.
+        """
+        gpu = getattr(self, "_gpu", None)
+        if gpu is None or not getattr(gpu, "available", False):
+            return None
+        backend = str(getattr(gpu, "backend", "") or "")
+        # 1. NVML UUID
+        get_uuid = getattr(gpu, "get_uuid", None)
+        if callable(get_uuid):
+            try:
+                uuid = get_uuid()
+                if uuid:
+                    return ("nvidia", "uuid", str(uuid))
+            except Exception:  # noqa: BLE001
+                pass
+        # 2. AMD UUID
+        get_amd_uuid = getattr(gpu, "get_amd_uuid", None)
+        if callable(get_amd_uuid):
+            try:
+                uuid = get_amd_uuid()
+                if uuid:
+                    return ("amd", "uuid", str(uuid))
+            except Exception:  # noqa: BLE001
+                pass
+        # 3. AMD BDF (solo AMD, solo se UUID non disponibile)
+        if backend == "amdsmi":
+            get_bdf = getattr(gpu, "get_bdf", None)
+            if callable(get_bdf):
+                try:
+                    bdf = get_bdf()
+                    if bdf:
+                        return ("amd", "bdf", str(bdf))
+                except Exception:  # noqa: BLE001
+                    pass
+        # 4. Nessun identificativo -> None
+        return None
+
 
 # ---------------------------------------------------------------------------
 # GPU NVIDIA (NVML) — opzionale, assenza dichiarata
@@ -1535,6 +1946,12 @@ class _GPUMonitor:
         # qui mW/1000 -> W. "unknown" finche' non si e' letto un valore, cosi'
         # una riga senza potenza non dichiara un'unita' che non ha usato.
         self.power_unit = "unknown"
+        # Identificativo hardware univoco (NVML UUID), None se non disponibile.
+        # Attributo privato: non esporre come ``self.uuid`` perche' omonimo
+        # con il metodo ``get_uuid()``. La stessa convenzione vale per il
+        # Bus ID (``self._bus_id`` / ``get_bdf()``).
+        self._uuid: Optional[str] = None
+        self._bus_id: Optional[str] = None
         richiesta, self.device_selection, errore_selezione = \
             _gpu_indice_richiesto(index)
         self.error = errore_selezione or None
@@ -1560,6 +1977,25 @@ class _GPUMonitor:
                     self.name = pynvml.nvmlDeviceGetName(self.handle)
                     if isinstance(self.name, bytes):
                         self.name = self.name.decode("utf-8", "replace")
+                    # Identificativo hardware univoco: NVML UUID. Due schede
+                    # dello stesso modello hanno lo stesso nome ma UUID
+                    # diversi. Non e' un nome commerciale: e' il silicon.
+                    try:
+                        uuid_raw = pynvml.nvmlDeviceGetUUID(self.handle)
+                        self._uuid = (uuid_raw.decode("utf-8", "replace")
+                                      if isinstance(uuid_raw, bytes)
+                                      else str(uuid_raw) if uuid_raw else None)
+                    except Exception:  # noqa: BLE001
+                        self._uuid = None
+                    # BDF come identificativo alternativo, meno stabile
+                    # dell'UUID perche' la posizione sul bus puo' cambiare.
+                    try:
+                        bus_raw = pynvml.nvmlDeviceGetPCIeBusID(self.handle)
+                        self._bus_id = (bus_raw.decode("utf-8", "replace")
+                                        if isinstance(bus_raw, bytes)
+                                        else str(bus_raw) if bus_raw else None)
+                    except Exception:  # noqa: BLE001
+                        self._bus_id = None
                     self.available = True
         except Exception as exc:  # noqa: BLE001
             self.error = f"{type(exc).__name__}"
@@ -1568,6 +2004,24 @@ class _GPUMonitor:
         # Ragione dell'ultimo None di ``process_energy_j`` (N/A dichiarato).
         self.process_energy_reason = None
         self._probe_energy_counter()
+
+    def get_uuid(self) -> Optional[str]:
+        """UUID del dispositivo NVML, o None se non disponibile.
+
+        ``nvmlDeviceGetUUID`` restituisce una stringa hex 16 byte che
+        identifica il silicon fisico. Non e' un nome commerciale: due
+        schede dello stesso modello hanno lo stesso nome ma UUID diversi.
+        """
+        return self._uuid
+
+    def get_bdf(self) -> Optional[str]:
+        """Bus/Device/Function ID del dispositivo NVML, o None.
+
+        Usato solo come identificativo alternativo quando l'UUID non e'
+        disponibile, perche' la posizione sul bus puo' cambiare con una
+        riapertura.
+        """
+        return self._bus_id
 
     def _probe_energy_counter(self) -> None:
         """Sonda il contatore cumulativo NVML una volta, all'apertura.
@@ -1794,6 +2248,11 @@ class _AMDGPUMonitor:
         self.energy_counter = False
         self.energy_counter_reason = ""
         self._resolution_uj = 0.0
+        # Identificativi hardware AMD, None se non disponibili. Attributi
+        # privati: non esporre come ``self.uuid`` o ``self.bdf`` perche'
+        # omonimi con i metodi ``get_amd_uuid()`` e ``get_bdf()``.
+        self._amd_uuid: Optional[str] = None
+        self._bdf: Optional[str] = None
         richiesta, self.device_selection, errore_selezione = \
             _gpu_indice_richiesto(index)
         self.error = errore_selezione or None
@@ -1821,6 +2280,23 @@ class _AMDGPUMonitor:
                         self.name = info.get("market_name") or None
                     except Exception:  # noqa: BLE001
                         self.name = None
+                    # Identificativo hardware univoco: AMD UUID. Non e' un
+                    # nome commerciale: e' il silicon. Se non disponibile,
+                    # si prova il BDF come alternativa esplicita.
+                    try:
+                        uuid_raw = amdsmi.amdsmi_get_gpu_device_uuid(self.handle)
+                        self._amd_uuid = (uuid_raw.decode("utf-8", "replace")
+                                          if isinstance(uuid_raw, bytes)
+                                          else str(uuid_raw) if uuid_raw else None)
+                    except Exception:  # noqa: BLE001
+                        self._amd_uuid = None
+                    try:
+                        bdf_raw = amdsmi.amdsmi_get_gpu_device_bdf(self.handle)
+                        self._bdf = (bdf_raw.decode("utf-8", "replace")
+                                     if isinstance(bdf_raw, bytes)
+                                     else str(bdf_raw) if bdf_raw else None)
+                    except Exception:  # noqa: BLE001
+                        self._bdf = None
                     self.available = True
         except Exception as exc:  # noqa: BLE001
             self.error = f"{type(exc).__name__}"
@@ -1833,6 +2309,23 @@ class _AMDGPUMonitor:
                                      if sys.platform.startswith("linux")
                                      else "non-linux")
         self._probe_energy_counter()
+
+    def get_amd_uuid(self) -> Optional[str]:
+        """UUID del dispositivo AMD, o None se non disponibile.
+
+        ``amdsmi_get_gpu_device_uuid`` restituisce un identificativo univoco
+        del silicon. Non e' un nome commerciale.
+        """
+        return self._amd_uuid
+
+    def get_bdf(self) -> Optional[str]:
+        """BDF (Bus/Device/Function) del dispositivo AMD, o None.
+
+        ``amdsmi_get_gpu_device_bdf`` restituisce la posizione sul bus PCI.
+        Usato solo come identificativo alternativo quando l'UUID non e'
+        disponibile, perche' la posizione puo' cambiare con una riapertura.
+        """
+        return self._bdf
 
     def _probe_energy_counter(self) -> None:
         """Una lettura reale del contatore: la risoluzione si verifica, non si presume."""
