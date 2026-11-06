@@ -1,6 +1,6 @@
 # P6.6 — Pre-pilota di ripetibilità (Option C)
 
-Data: 2026-11-06. **Stato: decisione adottata, pre-pilota da eseguire.**
+Data: 2026-11-06. **Stato: pre-pilota completato, banda congelata (B_abs=0.6, B_rel=1.1).**
 
 ## Decisione
 
@@ -74,14 +74,46 @@ emendamento esplicito al protocollo, dichiarato qui.
 ## Stato
 
 - [x] Decisione adottata (Option C)
-- [ ] Piano JSON del pre-pilota preparato
-- [ ] Runner eseguito sulla configurazione fissa
-- [ ] Dump SRUM catturati
-- [ ] `s_EPI` estratto per fase
-- [ ] Dispersione stimata
-- [ ] `B_abs` e `B_rel` congelati
-- [ ] Banda scritta nel piano della prova vera
-- [ ] Banda committata
+- [x] Piano JSON del pre-pilota preparato (prep_plan3.json, prep_plan5.json)
+- [x] Runner eseguito sulla configurazione fissa (gemma2:9b, 3 prompt, 6 run totali)
+- [x] Dump SRUM catturati (prep_before5.csv, prep_after5.csv, elevazione admin)
+- [x] `s_EPI` estratto per fase (prep_output3.json, prep_output5.json)
+- [x] Dispersione stimata (3 fasi valide: prep-r3, prep-r5, prep-r6)
+- [x] `B_abs` e `B_rel` congelati (B_abs=0.6, B_rel=1.1, margine 20%)
+- [x] Banda scritta nel piano della prova vera (prep_plan_frozen.json)
+- [x] Banda committata (prep_plan_frozen.json, 2026-11-06)
+
+## Risultati pre-pilota (2026-11-06)
+
+| fase | durata (s) | n_min | s | s_EPI | d | r | bloccata |
+|---|---|---|---|---|---|---|---|
+| prep-r3 | 455 | 8 | 0.7678 | 0.2941 | 0.4737 | 0.8922 | no |
+| prep-r5 | 446 | 6 | 0.7824 | 0.5300 | 0.2524 | 0.3847 | no |
+| prep-r6 | 463 | 7 | 0.8346 | 0.4443 | 0.3903 | 0.6104 | no |
+
+Tentativo scartato: prep-r4 (319 s, 4 minuti SRUM, `blocking=True`,
+flag `meno_di_5_bucket,bucket_di_bordo:314` in `prep_output4.json`):
+fase sotto i 5 bucket, esclusa dalla stima.
+
+Dispersione osservata (3 repliche valide): d in [0.252, 0.474], r in [0.385, 0.892].
+La variabilita e alta: conferma la necessita del pre-pilota prima di congelare la banda.
+
+## Banda congelata (2026-11-06)
+
+**B_abs = 0.6** (soglia assoluta su |d| = |s - s_EPI|)
+**B_rel = 1.1** (soglia relativa su |r| = 2*|d|/(s + s_EPI))
+
+Margine: 20% sopra il massimo osservato (max d=0.4737, max r=0.8922).
+Basi: 3 repliche valide su configurazione fissa (gemma2:9b, 3 prompt, ~7 min/fase).
+
+| statistica | d | r |
+|---|---|---|
+| min | 0.2524 | 0.3847 |
+| mediana | 0.3903 | 0.6104 |
+| max | 0.4737 | 0.8922 |
+| range | 0.2213 | 0.5075 |
+
+Piano con banda: experiment_results/prep_plan_frozen.json
 
 ## File esaminati
 
