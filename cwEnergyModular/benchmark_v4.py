@@ -97,7 +97,7 @@ APP_VERSION = bu.APP_VERSION
 
 M_REQUESTS = 3          # P3.13: m = 3 richieste per blocco
 NUM_CTX = 8192          # P2.7
-KEEP_ALIVE = "-1"       # P1.4
+KEEP_ALIVE = -1         # P1.4: intero, non "-1" (vedi payload_v4)
 TOKENS_LEVEL = "per-request"
 
 # Cooldown fra i punti (P1.5). Tre parametri su quattro sono lettera del
@@ -492,24 +492,32 @@ def build_prompt_v4(prompt: Dict, seq: int) -> Tuple[Dict, str, str]:
 # ---------------------------------------------------------------------------
 def payload_v4(model: str, prompt: str, temperature: float,
                num_predict: int, num_ctx: int = NUM_CTX,
-               keep_alive: str = KEEP_ALIVE) -> Dict:
+               keep_alive: int = KEEP_ALIVE) -> Dict:
     """Payload = costruttore condiviso + i due parametri che la v4 fissa.
 
     ``bu._ollama_payload`` resta l'unica fonte delle chiavi storiche; qui si
     aggiungono SOLO ``options.num_ctx`` (P2.7) e ``keep_alive`` (P1.4). Il
     valore realmente inviato finisce in ``keep_alive_sent``.
+
+    ``keep_alive`` e' un **numero di secondi**, non una stringa: Ollama 0.33.1
+    risponde ``400`` con l'errore ``time: missing unit in duration "-1"`` alla
+    forma ``"-1"`` (misurato il 05-11-2026 su ``127.0.0.1:11434``, e vale anche
+    per il percorso ``requests`` perche' il payload e' lo stesso). ``-1``
+    numerico e' la forma canonica del "non scadere mai" e parte in JSON come
+    numero; un valore non convertibile in intero e' un errore di chiamata, non
+    una forma accettata.
     """
     payload = bu._ollama_payload(model, prompt, temperature, num_predict)
     options = dict(payload.get("options") or {})
     options["num_ctx"] = int(num_ctx)
     payload["options"] = options
-    payload["keep_alive"] = str(keep_alive)
+    payload["keep_alive"] = int(keep_alive)
     return payload
 
 
 def infer_v4(model: str, prompt: str, temperature: float, timeout_s: float,
              num_predict: int = 160, num_ctx: int = NUM_CTX,
-             keep_alive: str = KEEP_ALIVE) -> Dict:
+             keep_alive: int = KEEP_ALIVE) -> Dict:
     """POST /api/generate con i marcatori di finestra per il profilo.
 
     Differenza deliberata da ``bu._ollama_infer_only``: qui i token NON si
@@ -1546,7 +1554,7 @@ ENERGY_ROW_FIELDS: Tuple[str, ...] = (
 )
 
 
-def energy_fields(local, keep_alive_sent: str) -> Dict[str, object]:
+def energy_fields(local, keep_alive_sent) -> Dict[str, object]:
     """Riga energetica da ``LocalEnergyResult`` (stessi nomi della produzione)."""
     return {
         "package_energy_j": local.package_energy_j,
@@ -1580,7 +1588,11 @@ def energy_fields(local, keep_alive_sent: str) -> Dict[str, object]:
         "measurement_boundary": local.measurement_boundary,
         "idle_provenance": local.idle_provenance or "",
         "package_window_source": local.package_window_source or "",
-        "keep_alive_sent": keep_alive_sent or "",
+        # il test e' `is None`, non la falsita' del valore: keep_alive=0 viene
+        # effettivamente inviato ("scarica i pesi adesso") e la riga deve
+        # riportarlo; con ``or ""`` sarebbe vuoto, cioe' indistinguibile da
+        # "non inviato" -- l'opposto di cio' che P1.4 chiede di dichiarare.
+        "keep_alive_sent": "" if keep_alive_sent is None else keep_alive_sent,
         "gpu_process_energy_j": bu._na_or(local.gpu_process_energy_j),
         "igpu_energy_j": bu._na_or(local.igpu_energy_j),
         "gpu_idle_provenance": local.gpu_idle_provenance or "",
