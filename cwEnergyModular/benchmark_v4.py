@@ -553,6 +553,250 @@ def infer_v4(model: str, prompt: str, temperature: float, timeout_s: float,
 
 
 # ---------------------------------------------------------------------------
+# Streaming Ollama con deadline globale (P1, 2026-11-05)
+# ---------------------------------------------------------------------------
+# ``ServerTimeoutError`` di aiohttp eredita sia da ``asyncio.TimeoutError`` sia
+# da ``ClientConnectionError``: per questo il ramo del timeout viene PROVATO
+# PRIMA, altrimenti un deadline scaduto verrebbe etichettato come stream
+# interrotto.
+#
+# Gli errori in ``_MID_STREAM_ERRORS`` significano "la connessione con il
+# server e' caduta": dopo gli header il testo arrivato finora e' un dato reale
+# e va conservato come risultato incompleto; prima degli header non c'e' nessun
+# dato da conservare, quindi l'errore si propaga come faceva ``requests``.
+_MID_STREAM_ERRORS = (aiohttp.ClientPayloadError, aiohttp.ClientConnectionError)
+
+# Nome del thread del pool temporaneo del wrapper: nominato perche' i test di
+# terminazione devono poter distinguere un worker di CasualWatt dal thread del
+# server finto (vincolo del test 8).
+_STREAM_THREAD_PREFIX = "cw-ollama-stream"
+
+
+def _deadline_effettivo(timeout_s: Optional[float]) -> float:
+    """Deadline wall-clock della richiesta, o errore dichiarato.
+
+    ``0``, ``None``, NaN e infinito non sono "nessun limite": sono una richiesta
+    che puo' allungare la finestra energetica a tempo indefinito, cioe'
+    esattamente il difetto che la P1 chiude. Il rifiuto e' un errore nominato,
+    non un valore di ripiego.
+    """
+    try:
+        deadline = float(timeout_s)
+    except (TypeError, ValueError):
+        raise V4MeasurementError(
+            f"timeout_s={timeout_s!r} non e' numerico: la richiesta streaming "
+            "deve avere un deadline dichiarato") from None
+    if not math.isfinite(deadline) or deadline <= 0.0:
+        raise V4MeasurementError(
+            f"timeout_s={timeout_s!r}: il deadline dello streaming deve essere "
+            "positivo e finito (0 e' indefinito, non illimitato)")
+    return deadline
+
+
+async def _ollama_stream_async(payload: Dict, deadline_s: float) -> Dict:
+    """POST /api/generate in streaming con UN solo limite: ``deadline_s``.
+
+    ``aiohttp.ClientTimeout(total=deadline_s)`` copre l'apertura della
+    connessione, l'attesa degli header, la ricezione di ogni chunk e l'attesa
+    del chunk ``done=True``. ``sock_read`` limiterebbe soltanto l'attesa fra due
+    letture e uno stream che produce byte ogni frazione del limite non si
+    fermerebbe mai: ``total`` e' il limite richiesto, non un sinonimo.
+
+    Ritorna i cinque istanti della richiesta, i chunk come li ha letti e la
+    ragione dell'interruzione. Un timeout produce un risultato INCOMPLETO con
+    il testo parziale, mai una richiesta viva in background: l'eccezione
+    attraversa i due ``async with``, quindi risposta e sessione sono chiuse
+    prima che il chiamante possa leggere il bordo di fine della finestra.
+    """
+    t_request_start = time.monotonic()
+    t_headers_received = None
+    t_ttft = None
+    t_last_chunk = None
+    fragments: List[str] = []
+    first_data: Optional[Dict] = None
+    final_data: Optional[Dict] = None
+    reason = ""
+    timeout = aiohttp.ClientTimeout(total=deadline_s)
+    try:
+        try:
+            async with aiohttp.ClientSession(timeout=timeout) as session:
+                async with session.post(config.OLLAMA_GENERATE_ENDPOINT,
+                                        json=payload) as resp:
+                    resp.raise_for_status()
+                    t_headers_received = time.monotonic()
+                    while True:
+                        line = await resp.content.readline()
+                        if not line:
+                            break
+                        t_last_chunk = time.monotonic()
+                        try:
+                            chunk = json.loads(line.decode("utf-8"))
+                        except (json.JSONDecodeError, UnicodeDecodeError):
+                            continue
+                        if not isinstance(chunk, dict):
+                            continue
+                        text = chunk.get("response")
+                        has_text = isinstance(text, str) and text != ""
+                        if has_text and t_ttft is None:
+                            # Il bordo e' il primo contenuto generato reale: un
+                            # chunk JSON senza testo non e' un token e non puo'
+                            # diventare il TTFT.
+                            t_ttft = t_last_chunk
+                            first_data = chunk
+                        if has_text and not chunk.get("done", False):
+                            fragments.append(text)
+                        if chunk.get("done", False):
+                            final_data = chunk
+                            break
+        except asyncio.TimeoutError:
+            reason = ("timeout_senza_header" if t_headers_received is None
+                      else "timeout_deadline")
+        except _MID_STREAM_ERRORS as exc:
+            if t_headers_received is None:
+                raise
+            reason = f"stream_interrotto:{type(exc).__name__}"
+    finally:
+        # Preso fuori dai due contesti: e' l'istante in cui la richiesta e la
+        # relativa pulizia sono concluse, quindi il bordo di fine che il
+        # chiamante puo' usare per chiudere la finestra energetica.
+        t_measurement_end = time.monotonic()
+    return {
+        "fragments": "".join(fragments),
+        "first_data": first_data,
+        "final_data": final_data,
+        "stream_incomplete_reason": reason,
+        "t_request_start": t_request_start,
+        "t_headers_received": t_headers_received,
+        "t_ttft": t_ttft,
+        "t_last_chunk": t_last_chunk,
+        "t_measurement_end": t_measurement_end,
+    }
+
+
+def _ollama_stream_with_aiohttp_deadline(payload: Dict,
+                                         deadline_s: float) -> Dict:
+    """Wrapper sincrono: ritorna solo a esecuzione asincrona conclusa.
+
+    ``asyncio.run`` crea il loop, esegue il coroutine, poi -- prima di ritornare
+    -- cancella e attende ogni task rimasto e chiude il loop. Non c'e' un worker
+    permanente e non c'e' un thread daemon che "dimentica" la richiesta: dopo il
+    ritorno nessuna operazione asincrona puo' ancora toccare il risultato.
+
+    Il secondo ramo copre il caso in cui un loop sia gia' in esecuzione nel
+    thread chiamante, dove ``asyncio.run`` sarebbe un errore. Lo stesso
+    coroutine gira in un loop posseduto da un thread temporaneo gestito da
+    ``with`` (non daemon, un solo worker, non riusato fra le chiamate):
+    ``future.result()`` attende il valore e l'uscita dal ``with`` unisce il
+    thread dopo la chiusura del suo loop, quindi la chiamata resta sincrona e la
+    terminazione resta effettiva.
+    """
+    try:
+        asyncio.get_running_loop()
+    except RuntimeError:
+        return asyncio.run(_ollama_stream_async(payload, deadline_s))
+    with concurrent.futures.ThreadPoolExecutor(
+            max_workers=1, thread_name_prefix=_STREAM_THREAD_PREFIX) as pool:
+        return pool.submit(asyncio.run,
+                           _ollama_stream_async(payload, deadline_s)).result()
+
+
+def infer_v4_stream(model: str, prompt: str, temperature: float, timeout_s: float,
+                    num_predict: int = 160, num_ctx: int = NUM_CTX,
+                    keep_alive: int = KEEP_ALIVE) -> Dict:
+    """POST /api/generate in streaming con i tre bordi per la separazione TTFT.
+
+    Differenza da ``infer_v4``: qui ``stream`` e' True e il primo chunk con
+    contenuto generato viene registrato come ``t_ttft``. Senza il primo token la
+    finestra TTFT non e' misurabile e il campo ``ttft_s`` resta vuoto (P2.6:
+    niente stima).
+
+    I campi di ritorno sono gli stessi di ``infer_v4`` piu' ``_t_ttft``,
+    ``ttft_s`` e ``ttft_available``. La separazione dell'energia e' compito del
+    chiamante, che ha cosi' tre bordi monotoni e la funzione
+    ``package_energy_exact_between`` gia' esistente.
+
+    ``timeout_s`` qui e' il DEADLINE WALL-CLOCK dell'intera richiesta (P1):
+    prima veniva passato a ``requests`` come timeout di socket per singolo
+    chunk, e la differenza si vede in ``_t1``, che non puo' piu' superare il
+    limite perche' il wrapper attende la conclusione effettiva dello stream.
+    """
+    payload = payload_v4(model, prompt, temperature, num_predict,
+                         num_ctx=num_ctx, keep_alive=keep_alive)
+    payload["stream"] = True
+    deadline_s = _deadline_effettivo(timeout_s)
+    wall_start = time.time()
+    res = _ollama_stream_with_aiohttp_deadline(payload, deadline_s)
+
+    final_data = res["final_data"]
+    first_data = res["first_data"]
+    incomplete = final_data is None
+    t0 = res["t_request_start"]
+    t1 = res["t_measurement_end"]
+    t_ttft = res["t_ttft"]
+
+    # ``prompt_eval_count``, ``eval_count``, ``prompt_eval_duration``,
+    # ``eval_duration`` e ``done_reason`` arrivano SOLO nel chunk ``done=True``:
+    # senza quel chunk non sono letti. Prenderli da un chunk intermedio, o
+    # metterli a zero, pubblicherebbe una statistica che il server non ha mai
+    # mandato (P1.4: il risultato incompleto non diventa "apparentemente
+    # completato").
+    stats = final_data or {}
+    p_tok = int(stats.get("prompt_eval_count") or 0)
+    c_tok = int(stats.get("eval_count") or 0)
+    tokens_valid = p_tok > 0 and c_tok > 0
+    # Testo: nativo del chunk finale quando non vuoto (Ollama riporta li' la
+    # risposta completa), altrimenti la concatenazione dei chunk parziali.
+    # Il chunk finale non viene accumulato, quindi nessuna delle due strade
+    # raddoppia il testo.
+    text = res["fragments"]
+    if not incomplete:
+        native = final_data.get("response")
+        if isinstance(native, str) and native:
+            text = native
+    ttft_s = round(t_ttft - t0, 6) if t_ttft is not None else None
+    _prefill_ns = stats.get("prompt_eval_duration") if not incomplete else None
+    _decoding_ns = stats.get("eval_duration") if not incomplete else None
+    prefill_duration_s = (float(_prefill_ns) / 1e9
+                          if _prefill_ns is not None else None)
+    decoding_duration_s = (float(_decoding_ns) / 1e9
+                           if _decoding_ns is not None else None)
+    return {
+        "text": text,
+        "prompt_tokens": p_tok if p_tok > 0 else "",
+        "completion_tokens": c_tok if c_tok > 0 else "",
+        "tokens_valid": tokens_valid,
+        "token_provenance": "native" if tokens_valid else "missing",
+        "duration_s": round(t1 - t0, 6),
+        "prefill_duration_s": prefill_duration_s,
+        "decoding_duration_s": decoding_duration_s,
+        "done_reason": stats.get("done_reason", "") or "",
+        "stream_incomplete": incomplete,
+        "stream_incomplete_reason": res["stream_incomplete_reason"],
+        "deadline_s": deadline_s,
+        # ``created_at`` arriva su ogni chunk, non solo su quello finale: qui il
+        # comportamento precedente e' conservato.
+        "raw_created_at": ((final_data or first_data or {}).get(
+            "created_at", "") or ""),
+        "tool_calls": 0,
+        "keep_alive_sent": bu._keep_alive_sent(payload),
+        "num_ctx": int(num_ctx),
+        "num_predict": int(num_predict),
+        "_t0": t0,
+        "_t_ttft": t_ttft,
+        "_t1": t1,
+        "_wall_start": wall_start,
+        # I tre istanti in piu' chiesti da P1 restano nel dict interno: la riga
+        # CSV non li' chiede e lo schema P5 e' congelato a 174 nomi.
+        "_t_request_start": t0,
+        "_t_headers_received": res["t_headers_received"],
+        "_t_last_chunk": res["t_last_chunk"],
+        "_t_measurement_end": t1,
+        "ttft_s": ttft_s,
+        "ttft_available": t_ttft is not None,
+    }
+
+
+# ---------------------------------------------------------------------------
 # Terminazione e validita' della richiesta (P2.4, P2.5)
 # ---------------------------------------------------------------------------
 # Le cinque classi sono quelle della tabella di P2.4 (protocollo:727-741):
