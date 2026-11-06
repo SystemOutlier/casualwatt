@@ -1,7 +1,7 @@
 <h1 align="center">CasualWatt Energy Benchmark: Green AI Energy Tracker</h1>
 
 <p align="center">
-  <strong>Un framework ibrido multilivello per il tracciamento energetico e la tracciabilità metrologica di LLM locali e cloud.</strong>
+  <strong>Un framework ibrido multilivello per il tracciamento energetico e la tracciabilità metrologica di LLM locali e cloud. Un framework multipiattaforma per la misurazione, l'attribuzione e la valutazione dell'efficienza energetica dei sistemi di inferenza AI, con provenienza esplicita dei dati e distinzione tra misure hardware e stime modellistiche.</strong>
 </p>
 
 <p align="center">
