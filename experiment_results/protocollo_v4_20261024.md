@@ -2668,8 +2668,9 @@ delle perdite di tempo CPU.
 **Cosa resta aperto.** La banda numerica: adottata l'Option C (pre-pilota di
 ripetibilita', 2026-11-06). La banda si congela dopo un run di calibrazione su
 configurazione fissa con R repliche e fasi >= 5 bucket, non prima del primo run
-in senso assoluto (emendamento esplicito al protocollo). Il pre-pilota e' da
-eseguire. Tutto il resto e' fissato qui e non si sposta dopo i dati.
+in senso assoluto (emendamento esplicito al protocollo). Pre-pilota completato: 3 fasi valide (prep-r3, prep-r5, prep-r6). Banda congelata: B_abs=0.6, B_rel=1.1 (margine 20%). Piano: prep_plan_frozen.json.
+
+Esecuzione P6 (2026-11-06): P6.1 aritmetica documentata. P6.2 pilota eseguito. P6.3 audit idle eseguito (seconda run con 120s assestamento): 5 finestre, range 0.86 W < 1.0 W soglia -> macchina STAZIONARIA, campagna sbloccata. P6.4 sonde Monte Carlo eseguite (5/5). P6.6 pre-pilota completato, banda congelata. Prova completa: 10 configurazioni x 3 prompt, 0 errori. Confronto CodeCarbon eseguito (0.000304 kg CO2eq). Fixture GPU allineate al contratto di identita' (UUID): 73 test GPU verdi; suite a 885 node id raccolti, 881 passati e 4 saltati (3 RAPL, 1 modulo ecologits), 0 falliti (misurato 07-11, 881+4=885). Tutto il resto e' fissato qui e non si sposta dopo i dati.
 
 ---
 
