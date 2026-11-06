@@ -181,6 +181,8 @@ class FakeGpu:
         self.energy_counter = energy_counter
         self.energy_counter_reason = ""
         self.device_note = device_note
+        self.backend = "nvml"
+        self.get_uuid = lambda: "fake-uuid-nvml"
 
 
 class FakeSession:
@@ -194,6 +196,7 @@ class FakeSession:
         self.idle_gpu_power_w = idle_gpu_w
         self.source_method = "power-integration"
         self._gpu = FakeGpu(energy_counter=energy_counter)
+        self._gpu_idle_identity = self._gpu_identity()
         self.p_cpu = lambda t: 10.0
         self.samples = []
         e = 0.0
@@ -217,6 +220,20 @@ class FakeSession:
         return 10.0 * (b - a)
 
     def read_igpu_energy_j(self, a, b, excl=None):
+        return None
+
+    def _gpu_identity(self):
+        gpu = self._gpu
+        if not getattr(gpu, "available", False):
+            return None
+        get_uuid = getattr(gpu, "get_uuid", None)
+        if callable(get_uuid):
+            try:
+                uuid = get_uuid()
+                if uuid:
+                    return ("nvidia", "uuid", str(uuid))
+            except Exception:
+                pass
         return None
 
 

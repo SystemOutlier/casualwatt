@@ -271,6 +271,7 @@ class FakeGpu:
         self.power_field = power_field
         self.power_unit = "W" if power_field else "unknown"
         self.platform_context = platform_context
+        self.get_amd_uuid = lambda: "fake-uuid-amd"
 
 
 class FakeSession:
@@ -283,6 +284,7 @@ class FakeSession:
         self.idle_gpu_power_w = idle_gpu_w
         self.source_method = "power-integration"
         self._gpu = FakeGpu(energy_counter=energy_counter)
+        self._gpu_idle_identity = self._gpu_identity()
         self.samples = []
         e = 0.0
         uj = 0.0
@@ -309,6 +311,20 @@ class FakeSession:
         return 10.0 * (b - a)
 
     def read_igpu_energy_j(self, a, b, excl=None):
+        return None
+
+    def _gpu_identity(self):
+        gpu = self._gpu
+        if not getattr(gpu, "available", False):
+            return None
+        get_amd_uuid = getattr(gpu, "get_amd_uuid", None)
+        if callable(get_amd_uuid):
+            try:
+                uuid = get_amd_uuid()
+                if uuid:
+                    return ("amd", "uuid", str(uuid))
+            except Exception:
+                pass
         return None
 
 
