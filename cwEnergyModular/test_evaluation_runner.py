@@ -322,6 +322,7 @@ def test_recupero_tentativo_locale_conserva_il_profilo_disponibile():
     import benchmark_unified as bu
     profiler = SimpleNamespace(profile_window=lambda a, b: SimpleNamespace(
         ollama_active_energy_j=3.0, gpu_energy_attributed_j=2.0,
+        active_valid=True, cpu_time_share_valid=True,
         notes=["profilo parziale"], package_energy_j=5.0))
     rec = {"notes": ""}
     value = bu._recover_local_attempt(rec, None, None, 1.0, 2.0, profiler)

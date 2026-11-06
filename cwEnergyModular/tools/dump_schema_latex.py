@@ -14,8 +14,15 @@ ancora la colonna -- cio' documenta la migrazione dell'header, non un errore.
 Nessuna unita' o definizione e' inventata qui: solo cio' che si legge nel codice
 e nei dati.
 
+Con --macros stampa invece i conteggi come comandi LaTeX (newcommand), da
+inputare nel preambolo della tesi (generated/numeri_schema.tex). I capitoli e
+l'Appendice A prendono da li' i numeri invece di trascriverli: un conteggio
+scritto a mano invecchia alla stessa identica maniera della tabella, e in due
+punti del corpo (capitoli 4 e 5) era gia' vecchio di una colonna.
+
 Uso (da cwEnergyModular/):
     python tools/dump_schema_latex.py > schema_appA.tex
+    python tools/dump_schema_latex.py --macros > numeri_schema.tex
 """
 from __future__ import annotations
 
@@ -110,21 +117,74 @@ def cella(valore):
     return _spezza(tex_escape(testo))
 
 
+def stato(colonna, header, riga):
+    """Stato della colonna nel file di riferimento: '', 'vuota' o 'nuova'.
+
+    Unica fonte del giudizio: la tabella e i conteggi delle macro passano di
+    qui, cosi' un '27 vuota' dichiarato in un capitolo non puo' essere un
+    numero diverso dai 27 che la tabella stampa.
+    """
+    if colonna not in header:
+        return "nuova"      # colonna accodata dopo l'ultima scrittura del file
+    if not riga.get(colonna):
+        return "vuota"      # presente nell'header, valore assente in riga
+    return ""
+
+
+def conteggi(colonne, header, riga):
+    """(dichiarate, nomi dell'header, nuove, vuote) per uno dei due schemi."""
+    stati = [stato(c, header, riga) for c in colonne]
+    return {
+        "dichiarate": len(colonne),
+        "header": len(header),
+        "nuove": sum(1 for s in stati if s == "nuova"),
+        "vuote": sum(1 for s in stati if s == "vuota"),
+    }
+
+
 def corpo(colonne, header, riga):
     """Righe LaTeX pronte per un ambiente longtable a 4 colonne."""
     note = []
     for i, nome in enumerate(colonne, start=1):
-        if nome not in header:
-            stato = "nuova"      # colonna accodata dopo l'ultima scrittura del file
-        elif not riga.get(nome):
-            stato = "vuota"      # presente nell'header, valore assente in riga
-        else:
-            stato = ""
         note.append(
             f"{i} & \\texttt{{{tex_escape(nome)}}} & "
-            f"\\texttt{{{cella(riga.get(nome))}}} & {stato} \\\\\n"
+            f"\\texttt{{{cella(riga.get(nome))}}} & {stato(nome, header, riga)} \\\\\n"
         )
     return note
+
+
+def macro(c_riga, c_meta, a):
+    """I conteggi come comandi LaTeX, da inputare nel preambolo.
+
+    Stesso `stato()` e stesse liste della tabella: il numero che un capitolo
+    dichiara e il numero che la tabella stampa non possono divergere per
+    costruzione. I nomi sono tipizzati per schema (riga / metadato) perche' il
+    corpo della tesi cita entrambe le cifre, e confonderle e' l'errore gia'
+    commesso sui $30$ che erano $31$.
+    """
+    righe = [
+        ("nColonneRiga", c_riga["dichiarate"],
+         "CSV_COLUMNS (casualwatt_csv_export.py:17-204)"),
+        ("nColonneMetadati", c_meta["dichiarate"],
+         "RUN_METADATA_COLUMNS (:343-361)"),
+        ("nNuoveRiga", c_riga["nuove"],
+         "di riga dichiarate nel codice e non ancora nel CSV di riferimento"),
+        ("nNuoveMetadati", c_meta["nuove"],
+         "di metadato dichiarate nel codice e non ancora nel loro CSV"),
+        ("nCampiVuoti", c_riga["vuote"] + c_meta["vuote"],
+         "header presente, valore assente nell'ultima riga dati"),
+        ("nHeaderRiga", c_riga["header"],
+         "nomi nell'header del CSV del dataset"),
+        ("nHeaderMetadati", c_meta["header"],
+         "nomi nell'header del CSV dei metadati"),
+    ]
+    print("% generato da tools/dump_schema_latex.py --macros -- non editare a mano")
+    print("% I capitoli e l'Appendice A prendono i conteggi dello schema da qui:")
+    print("% \\input{generated/numeri_schema.tex} sta nel preambolo di main.tex.")
+    print(f"% CSV di riferimento: {a.csv} e {a.meta}")
+    for nome, valore, commento in righe:
+        testo = "\\newcommand{\\%s}{%d}" % (nome, valore)
+        print("%-32s %% %s" % (testo, commento))
 
 
 def main() -> int:
@@ -142,22 +202,27 @@ def main() -> int:
                    help="CSV di riferimento da cui leggere i valori di esempio")
     p.add_argument("--meta", default="results/casualwatt_run_metadata.csv",
                    help="CSV dei metadati di run per la seconda tabella")
+    p.add_argument("--macros", action="store_true",
+                   help="stampa i conteggi come \\newcommand invece della tabella")
     a = p.parse_args()
 
     header, riga = ultima_riga(a.csv)
     header_meta, riga_meta = ultima_riga(a.meta)
-    nuove = [c for c in CSV_COLUMNS if c not in header]
-    nuove_meta = [c for c in RUN_METADATA_COLUMNS if c not in header_meta]
+    c_riga = conteggi(CSV_COLUMNS, header, riga)
+    c_meta = conteggi(RUN_METADATA_COLUMNS, header_meta, riga_meta)
+    if a.macros:
+        macro(c_riga, c_meta, a)
+        return 0
 
     intest = ("$n$ & \\textbf{colonna} & \\textbf{ultimo valore del CSV di "
               "riferimento} & \\textbf{stato} \\\\")
 
     print("% generato da tools/dump_schema_latex.py -- non editare a mano")
     print(f"% CSV di riferimento: {a.csv} (header con {len(header)} campi)")
-    print(f"% Colonne dichiarate nel codice: {len(CSV_COLUMNS)} di riga + "
-          f"{len(RUN_METADATA_COLUMNS)} metadati")
-    print(f"% Non ancora presenti in quel file: {len(nuove)} di riga, "
-          f"{len(nuove_meta)} di metadati (acodate dopo la sua ultima scrittura)")
+    print(f"% Colonne dichiarate nel codice: {c_riga['dichiarate']} di riga + "
+          f"{c_meta['dichiarate']} metadati")
+    print(f"% Non ancora presenti in quel file: {c_riga['nuove']} di riga, "
+          f"{c_meta['nuove']} di metadati (acodate dopo la sua ultima scrittura)")
     print("% Le due colonne larghe sono p{} con riga spezzata: i nomi e i valori")
     print("% reali (timestamp ISO, percorsi Windows) non stanno in una l{}.")
     print("{\\footnotesize")
