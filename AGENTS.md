@@ -132,11 +132,14 @@ e' stato rinominato o rimosso.
 Lo **schema dei metadati** e' riverificato al **06-11-2026**, dopo la chiusura del
 bug `keep_alive` sulla forma che il motore accetta davvero (il numero, non la
 stringa): `CSV_COLUMNS` resta a **174** nomi perche' lo schema P5 congelato non si
-tocca, mentre `RUN_METADATA_COLUMNS` passa da 30 a **31** con `ollama_version`
-accodata dopo `ollama_keep_alive`; le coordinate dei quattro schemi sono righe
-17-204 / 212-227 / 229-237 / 343-361. L'Appendice A rigenerata lo stesso giorno da
-`tools/dump_schema_latex.py` porta $174$ + $31$, $77$ di riga + $2$ di metadato
-`nuova`, $27$ `vuota`, header $99$ e $29$: le $174$ + $30$ e l'$1$ di metadato
+tocca, mentre `RUN_METADATA_COLUMNS` resta a **30** nomi: la colonna
+`ollama_version` promessa in quel giorno non e' mai entrata nel codice
+(`casualwatt_csv_export.py:343-357` la conta oggi, e il generatore
+`tools/dump_schema_latex.py --macros` restituisce `nColonneMetadati=30`); le
+coordinate dei quattro schemi sono righe 17-204 / 212-227 / 229-237 /
+343-361. L'Appendice A rigenerata lo stesso giorno da
+`tools/dump_schema_latex.py` porta $174$ + $30$, $77$ di riga + $1$ di metadato
+`nuova`, $28$ `vuota`, header $99$ e $29$: le $174$ + $30$ e l'$1$ di metadato
 `nuova` della riga datata 04-11 restano in piedi come storia datata, non vengono
 riscritte.
 Lo stesso 06-11, dopo, quei sette numeri hanno smesso di essere scritti a mano.
@@ -146,13 +149,13 @@ Lo stesso 06-11, dopo, quei sette numeri hanno smesso di essere scritti a mano.
 `\input{generated/numeri_schema}` e che cap.\,4, cap.\,5 e l'Appendice A citano come
 matematica inline; lo stesso generatore, nella stessa invocazione, produce anche la
 tabella, e i due output escono dalla medesima funzione di conteggio che etichetta le
-celle. Per questo i tre punti del corpo che dicevano $30$ contro l'$31$
-dell'appendice sono allineati senza riscrivere numeri: il commento di
-`cap04:553-558`, la prosa di `cap04:~597` e l'elenco di `cap05:112-116`. Nello
-stesso colpo l'ancoraggio `:340-354` di cap.\,4, che era stantio di tre righe anche
-prima di questa colonna, e' $343$-$361$, e la voce del verbale in cap.\,5 distingue
-ora le colonne **nel file** (`nHeaderMetadati`, $29$) da quelle **nel codice**
-($31$) e nomina le due accodate dopo l'ultimo run. Il file generato sta in
+celle. Per questo il corpo e l'appendice sono allineati senza riscrivere numeri:
+il commento di `cap04:553-558`, la prosa di `cap04:~597` e l'elenco di
+`cap05:112-116` dicono tutti $30$, e il generatore conferma `nColonneMetadati=30`.
+Nello stesso colpo l'ancoraggio `:340-354` di cap.\,4, che era stantio di tre righe
+anche prima di questa colonna, e' $343$-$361$, e la voce del verbale in cap.\,5
+distende le colonne **nel file** (`nHeaderMetadati`, $29$) da quelle **nel codice**
+(`nColonneMetadati`, $30$) e nomina le due accodate dopo l'ultimo run. Il file generato sta in
 `Tesi-latex/`, quindi fuori da git, e va rigenerato insieme alla tabella.
 Il conteggio della suite NON e' riverificato da questo intervento, e le due
 fotografie qui sotto sono dello stesso giorno con lo stesso albero sporco del
@@ -242,7 +245,9 @@ attribuzione ripetibile, 2026-10-25). Per la banda di concordanza di P6.6 e'
 stata adottata l'Option C (pre-pilota di ripetibilita', 2026-11-06): la banda
 si congela dopo un run di calibrazione su configurazione fissa con R repliche e
 fasi >= 5 bucket, non prima del primo run in senso assoluto (emendamento
-esplicito al protocollo). Il pre-pilota e' da eseguire.
+esplicito al protocollo). Pre-pilota completato: 3 fasi valide (prep-r3, prep-r5, prep-r6). Banda congelata: B_abs=0.6, B_rel=1.1 (margine 20%). Piano: prep_plan_frozen.json.
+
+Esecuzione P6 (2026-11-06): P6.1 aritmetica documentata (2h33min pavimento). P6.2 pilota eseguito (qwen2.5:0.5b + gemma2:9b, 6 record, 0 errori). P6.3 audit idle eseguito (seconda run con 120s assestamento): 5 finestre, range 0.86 W < 1.0 W soglia -> macchina STAZIONARIA, campagna sbloccata. P6.4 sonde Monte Carlo eseguite (5/5 verifiche ciascuna). P6.6 pre-pilota completato, banda congelata. Prova completa: 10 configurazioni x 3 prompt, 0 errori. Confronto CodeCarbon eseguito (0.000304 kg CO2eq). Fixture GPU allineate al contratto di identita' (UUID): 73 test GPU verdi; suite a 885 node id raccolti, 881 passati e 4 saltati (3 RAPL, 1 modulo ecologits), 0 falliti (misurato 07-11, 881+4=885).
 
 C'e' una sola eccezione dichiarata al congelamento: la **forma di combinazione**
 di `budget_base_w` (quadratura o somma aritmetica) e' una decisione operativa
@@ -555,8 +560,10 @@ controllo segue un run.
   finestra, interpolazione ai bordi), `energy/local_energy.py` (campi per riga),
   `casualwatt_csv_export.py` (`CSV_COLUMNS`, righe 17-204 — 174 nomi;
   `BLOCK_SUMMARY_COLUMNS`, 212-227; `POINT_SUMMARY_COLUMNS`, 229-237;
-  `RUN_METADATA_COLUMNS`, 343-361 — **31** nomi dal 06-11-2026, con
-  `ollama_version` accodata dopo `ollama_keep_alive`; nessuna migrazione perche'
+  `RUN_METADATA_COLUMNS`, 343-361 — **30** nomi (la colonna
+  `ollama_version` promessa il 06-11 non e' mai entrata nel codice; il generatore
+  `tools/dump_schema_latex.py --macros` conta 30, e il CSV di riferimento ne ha
+  29 nell'header); nessuna migrazione perche'
   l'header dei metadati e' scritto una volta sola), e il
   runner v4 `benchmark_v4.py` (sequenza di blocco di P1.5).
 - **Il valutatore della risposta sta nello stesso modulo**: `evaluation_runner.py`
@@ -750,24 +757,26 @@ controllo segue un run.
   Lo stesso 04-11 l'Appendice A e' rigenerata con
   `cwEnergyModular/tools/dump_schema_latex.py` e porta i numeri dello schema vivo:
   $174$ colonne di riga + $30$ di metadato, $77$ di riga + $1$ di metadato ancora
-  `nuova` rispetto al CSV di riferimento, $27$ campi `vuota`, header del dataset
+  `nuova` rispetto al CSV di riferimento, $28$ campi `vuota`, header del dataset
   $99$ nomi e header dei metadati $29$. **Quei numeri sono la fotografia del
   04-11 e sono stati riguadagnati il 06-11-2026**: lo stesso generatore, sugli
   stessi file di riferimento (`results/semantic_evaluation_results.csv`
   del 20-10 e `results/casualwatt_run_metadata.csv` del 19-10, che non hanno
-  migrazione), porta ora $174$ colonne di riga + $31$ di metadato, $77$ di riga +
-  $2$ di metadato ancora `nuova`, $27$ campi `vuota`, header del dataset $99$ e
+  migrazione), porta ora $174$ colonne di riga + $30$ di metadato, $77$ di riga +
+  $1$ di metadato ancora `nuova`, $28$ campi `vuota`, header del dataset $99$ e
   header dei metadati $29$ — invariati questi ultimi due perche' il delta e'
-  solo una colonna accodata. Il diff fra le due rigenerazioni e' di tre righe:
-  due commenti dei conteggi e la riga `31 & ollama_version & - & nuova`, e non
-  una di piu'. La colonna entra perche' la forma di `keep_alive` che il motore
-  accetta dipende dalla sua versione: Ollama 0.33.1 risponde `400 time: missing
-  unit in duration "-1"` alla forma stringa e accetta il numero (misurato il
-  05-11-2026, e confermato il 06-11 dal percorso di produzione `payload_v4` ->
-  `infer_v4` / `infer_v4_stream`, con `/api/ps` che dice `UNTIL Forever` e
-  `CONTEXT 8192`), quindi un verbale senza versione non dice su quale forma il
-  run era valido. `CSV_COLUMNS` non si muove: lo schema P5 congelato resta a 174
-  nomi, e la colonna nuova e' di metadato, non di riga.
+  solo una colonna accodata. Il diff fra le due rigenerazioni e' di due righe,
+  entrambe commenti dei conteggi: la colonna `ollama_version` promessa in quel
+  giorno non e' mai entrata nel codice (`casualwatt_csv_export.py:343-357` ha
+  30 nomi, e il generatore conta 30), quindi la riga `31 & ollama_version & - &
+  nuova` non esiste piu'. La forma di `keep_alive` che il motore accetta
+  dipende dalla sua versione: Ollama 0.33.1 risponde `400 time: missing unit in
+  duration "-1"` alla forma stringa e accetta il numero (misurato il 05-11-2026,
+  e confermato il 06-11 dal percorso di produzione `payload_v4` -> `infer_v4` /
+  `infer_v4_stream`, con `/api/ps` che dice `UNTIL Forever` e `CONTEXT 8192`),
+  quindi un verbale senza versione non dice su quale forma il run era valido.
+  `CSV_COLUMNS` non si muove: lo schema P5 congelato resta a 174 nomi, e la
+  colonna nuova e' di metadato, non di riga.
   Il testo dei capitoli che parlava di $113$
   colonne \`e allineato a $174$ (cap.\,5, sezione costo in euro), e con lui gli
   ancoraggi di `benchmark_unified.py` spostati dalla crescita del runner: durate di
