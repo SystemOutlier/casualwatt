@@ -161,7 +161,7 @@ def test_payload_v4_e_produzione_piu_due_parametri(monkeypatch):
     made = v4.payload_v4("llama", "testo", 0.2, 16)
 
     assert called, "il payload v4 deve partire dal costruttore di produzione"
-    assert made["keep_alive"] == "-1"
+    assert made["keep_alive"] == -1
     assert made["options"]["num_ctx"] == 8192
     strip = {k: val for k, val in made.items() if k != "keep_alive"}
     strip["options"] = {k: val for k, val in strip["options"].items()
@@ -188,7 +188,7 @@ def test_infer_v4_non_stima_i_token(monkeypatch):
     assert out["prompt_tokens"] == ""
     assert out["completion_tokens"] == ""
     assert out["tokens_valid"] is False
-    assert sent["keep_alive"] == "-1"
+    assert sent["keep_alive"] == -1
     assert sent["options"]["num_ctx"] == 8192
 
     def _post_con_conteggi(url, json=None, timeout=None):
