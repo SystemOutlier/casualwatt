@@ -1,0 +1,1737 @@
+==============================================================================
+DIFF INTEGRALE DEL LAVORO P1 - deadline dello streaming Ollama
+File: cwEnergyModular/benchmark_v4.py, cwEnergyModular/tests/
+test_stream_timeout.py, cwEnergyModular/requirements.txt
+==============================================================================
+
+comandi esatti che producono i diff di questo file:
+  git diff -U3 -- cwEnergyModular/benchmark_v4.py
+  git diff -U3 -- cwEnergyModular/requirements.txt
+  git diff --no-index -- /dev/null
+      cwEnergyModular/tests/test_stream_timeout.py
+
+ATTENZIONE - l'albero di lavoro NON contiene solo P1. benchmark_v4.py
+porta quattro fili di lavoro distinti. La sezione 1 e' una SELEZIONE per
+revisione, non un diff applicabile: ogni hunk e' riportato verbatim.
+La sezione 3 riporta il diff completo dello stesso file, nulla e' perso.
+
+Attribuzione degli hunk di benchmark_v4.py (ordine di comparsa, 0-17):
+  0  P1         docstring della deadline + import asyncio/concurrent/
+                futures/json
+  1  P1         import aiohttp
+  2  keep_alive KEEP_ALIVE = "-1" -> -1 (intero)
+  3  keep_alive payload_v4 e infer_v4: firma int, int(keep_alive),
+                l'errore 400 misurato sul motore
+  4  P1         blocco streaming: _MID_STREAM_ERRORS,
+                _STREAM_THREAD_PREFIX, _deadline_effettivo,
+                _ollama_stream_async,
+                _ollama_stream_with_aiohttp_deadline, infer_v4_stream
+  5  altro      _gpu_settle_note / _append_gpu_settle_notes (GPU)
+  6  keep_alive energy_fields: firmatura del parametro
+  7  MISTO      campi TTFT privati P6.4 (altro) + keep_alive_sent con
+                test `is None` (keep_alive)
+  8  altro      `return fields`, conseguenza dei campi TTFT
+  9  altro      settle_pre_gpu (GPU)
+ 10  P1+altro   infer_v4 -> infer_v4_stream (P1) + lettura edge_ttft
+                (TTFT, altro)
+ 11  altro      edge_ttft= nella chiamata di profilo (TTFT)
+ 12  altro      prefill/decoding None, _tokens_rate (FASE 2, 05-11)
+ 13  altro      nota stream_incomplete (FASE 2, 05-11)
+ 14  altro      settle_post_gpu (GPU)
+ 15  altro      chiamata _append_gpu_settle_notes (GPU)
+ 16  keep_alive ollama_versioni nel verbale di run
+ 17  keep_alive chiave "ollama_version" nei metadati
+
+CONTENUTO
+  1. P1-only: benchmark_v4.py hunk 0, 1, 4, 10
+  2. requirements.txt (la riga aiohttp dichiarata da P1)
+  3. benchmark_v4.py: diff COMPLETO dell'albero di lavoro (18 hunk)
+  4. tests/test_stream_timeout.py come file nuovo (non tracciato)
+
+branch: emenda-8
+HEAD (base del diff): 180f86389f3d316ae443f22e180f997b5ace18f8
+
+##############################################################################
+# 1. P1-only: benchmark_v4.py, hunk 0, 1, 4, 10
+##############################################################################
+
+diff --git a/cwEnergyModular/benchmark_v4.py b/cwEnergyModular/benchmark_v4.py
+index 9a40f876..b710be5d 100644
+--- a/cwEnergyModular/benchmark_v4.py
++++ b/cwEnergyModular/benchmark_v4.py
+@@ -42,11 +42,27 @@ blocco "mancante". Il tetto K di blocchi invalidati per batch e il seme si
+ leggono DA CONFIG (o argomenti espliciti): se mancano, il runner SI RIFIUTA di
+ partire. I flag di qualita' (pre_unstable, drift, ...) non sostituiscono
+ nulla: restano flag.
++
++Deadline dello streaming (P1, 2026-11-05). ``infer_v4_stream`` delega la
++richiesta HTTP a ``_ollama_stream_with_aiohttp_deadline`` che esegue
++``_ollama_stream_async``: il limite e' ``aiohttp.ClientTimeout(total=...)``,
++quindi un wall-clock che comprende connessione, header, ogni chunk e l'attesa
++del chunk ``done=True``. Con ``requests``+``iter_lines`` il medesimo argomento
++era un timeout DI SOCKET per singolo chunk: uno stream che produce byte ogni
++frazione di ``timeout_s`` non veniva mai interrotto e allungava la finestra
++energetica oltre il limite dichiarato. Un deadline scaduto restituisce un
++risultato INCOMPLETO con il testo parziale ricevuto, non una richiesta che
++continua in background: ``asyncio.run`` chiude il loop e le sue task prima di
++ritornare, e il chiamante legge il bordo di fine ``e1`` solo dopo il ritorno.
++Le formule di ``local_energy.py``/``energy_session.py`` non cambiano.
+ """
+ from __future__ import annotations
+ 
+ import argparse
++import asyncio
++import concurrent.futures
+ import hashlib
++import json
+ import math
+ import os
+ import platform
+@@ -60,6 +76,7 @@ from datetime import datetime, timezone
+ from pathlib import Path
+ from typing import Callable, Dict, Iterable, List, Optional, Sequence, Tuple
+ 
++import aiohttp
+ import requests
+ 
+ import benchmark_unified as bu
+@@ -535,6 +560,250 @@ def infer_v4(model: str, prompt: str, temperature: float, timeout_s: float,
+     }
+ 
+ 
++# ---------------------------------------------------------------------------
++# Streaming Ollama con deadline globale (P1, 2026-11-05)
++# ---------------------------------------------------------------------------
++# ``ServerTimeoutError`` di aiohttp eredita sia da ``asyncio.TimeoutError`` sia
++# da ``ClientConnectionError``: per questo il ramo del timeout viene PROVATO
++# PRIMA, altrimenti un deadline scaduto verrebbe etichettato come stream
++# interrotto.
++#
++# Gli errori in ``_MID_STREAM_ERRORS`` significano "la connessione con il
++# server e' caduta": dopo gli header il testo arrivato finora e' un dato reale
++# e va conservato come risultato incompleto; prima degli header non c'e' nessun
++# dato da conservare, quindi l'errore si propaga come faceva ``requests``.
++_MID_STREAM_ERRORS = (aiohttp.ClientPayloadError, aiohttp.ClientConnectionError)
++
++# Nome del thread del pool temporaneo del wrapper: nominato perche' i test di
++# terminazione devono poter distinguere un worker di CasualWatt dal thread del
++# server finto (vincolo del test 8).
++_STREAM_THREAD_PREFIX = "cw-ollama-stream"
++
++
++def _deadline_effettivo(timeout_s: Optional[float]) -> float:
++    """Deadline wall-clock della richiesta, o errore dichiarato.
++
++    ``0``, ``None``, NaN e infinito non sono "nessun limite": sono una richiesta
++    che puo' allungare la finestra energetica a tempo indefinito, cioe'
++    esattamente il difetto che la P1 chiude. Il rifiuto e' un errore nominato,
++    non un valore di ripiego.
++    """
++    try:
++        deadline = float(timeout_s)
++    except (TypeError, ValueError):
++        raise V4MeasurementError(
++            f"timeout_s={timeout_s!r} non e' numerico: la richiesta streaming "
++            "deve avere un deadline dichiarato") from None
++    if not math.isfinite(deadline) or deadline <= 0.0:
++        raise V4MeasurementError(
++            f"timeout_s={timeout_s!r}: il deadline dello streaming deve essere "
++            "positivo e finito (0 e' indefinito, non illimitato)")
++    return deadline
++
++
++async def _ollama_stream_async(payload: Dict, deadline_s: float) -> Dict:
++    """POST /api/generate in streaming con UN solo limite: ``deadline_s``.
++
++    ``aiohttp.ClientTimeout(total=deadline_s)`` copre l'apertura della
++    connessione, l'attesa degli header, la ricezione di ogni chunk e l'attesa
++    del chunk ``done=True``. ``sock_read`` limiterebbe soltanto l'attesa fra due
++    letture e uno stream che produce byte ogni frazione del limite non si
++    fermerebbe mai: ``total`` e' il limite richiesto, non un sinonimo.
++
++    Ritorna i cinque istanti della richiesta, i chunk come li ha letti e la
++    ragione dell'interruzione. Un timeout produce un risultato INCOMPLETO con
++    il testo parziale, mai una richiesta viva in background: l'eccezione
++    attraversa i due ``async with``, quindi risposta e sessione sono chiuse
++    prima che il chiamante possa leggere il bordo di fine della finestra.
++    """
++    t_request_start = time.monotonic()
++    t_headers_received = None
++    t_ttft = None
++    t_last_chunk = None
++    fragments: List[str] = []
++    first_data: Optional[Dict] = None
++    final_data: Optional[Dict] = None
++    reason = ""
++    timeout = aiohttp.ClientTimeout(total=deadline_s)
++    try:
++        try:
++            async with aiohttp.ClientSession(timeout=timeout) as session:
++                async with session.post(config.OLLAMA_GENERATE_ENDPOINT,
++                                        json=payload) as resp:
++                    resp.raise_for_status()
++                    t_headers_received = time.monotonic()
++                    while True:
++                        line = await resp.content.readline()
++                        if not line:
++                            break
++                        t_last_chunk = time.monotonic()
++                        try:
++                            chunk = json.loads(line.decode("utf-8"))
++                        except (json.JSONDecodeError, UnicodeDecodeError):
++                            continue
++                        if not isinstance(chunk, dict):
++                            continue
++                        text = chunk.get("response")
++                        has_text = isinstance(text, str) and text != ""
++                        if has_text and t_ttft is None:
++                            # Il bordo e' il primo contenuto generato reale: un
++                            # chunk JSON senza testo non e' un token e non puo'
++                            # diventare il TTFT.
++                            t_ttft = t_last_chunk
++                            first_data = chunk
++                        if has_text and not chunk.get("done", False):
++                            fragments.append(text)
++                        if chunk.get("done", False):
++                            final_data = chunk
++                            break
++        except asyncio.TimeoutError:
++            reason = ("timeout_senza_header" if t_headers_received is None
++                      else "timeout_deadline")
++        except _MID_STREAM_ERRORS as exc:
++            if t_headers_received is None:
++                raise
++            reason = f"stream_interrotto:{type(exc).__name__}"
++    finally:
++        # Preso fuori dai due contesti: e' l'istante in cui la richiesta e la
++        # relativa pulizia sono concluse, quindi il bordo di fine che il
++        # chiamante puo' usare per chiudere la finestra energetica.
++        t_measurement_end = time.monotonic()
++    return {
++        "fragments": "".join(fragments),
++        "first_data": first_data,
++        "final_data": final_data,
++        "stream_incomplete_reason": reason,
++        "t_request_start": t_request_start,
++        "t_headers_received": t_headers_received,
++        "t_ttft": t_ttft,
++        "t_last_chunk": t_last_chunk,
++        "t_measurement_end": t_measurement_end,
++    }
++
++
++def _ollama_stream_with_aiohttp_deadline(payload: Dict,
++                                         deadline_s: float) -> Dict:
++    """Wrapper sincrono: ritorna solo a esecuzione asincrona conclusa.
++
++    ``asyncio.run`` crea il loop, esegue il coroutine, poi -- prima di ritornare
++    -- cancella e attende ogni task rimasto e chiude il loop. Non c'e' un worker
++    permanente e non c'e' un thread daemon che "dimentica" la richiesta: dopo il
++    ritorno nessuna operazione asincrona puo' ancora toccare il risultato.
++
++    Il secondo ramo copre il caso in cui un loop sia gia' in esecuzione nel
++    thread chiamante, dove ``asyncio.run`` sarebbe un errore. Lo stesso
++    coroutine gira in un loop posseduto da un thread temporaneo gestito da
++    ``with`` (non daemon, un solo worker, non riusato fra le chiamate):
++    ``future.result()`` attende il valore e l'uscita dal ``with`` unisce il
++    thread dopo la chiusura del suo loop, quindi la chiamata resta sincrona e la
++    terminazione resta effettiva.
++    """
++    try:
++        asyncio.get_running_loop()
++    except RuntimeError:
++        return asyncio.run(_ollama_stream_async(payload, deadline_s))
++    with concurrent.futures.ThreadPoolExecutor(
++            max_workers=1, thread_name_prefix=_STREAM_THREAD_PREFIX) as pool:
++        return pool.submit(asyncio.run,
++                           _ollama_stream_async(payload, deadline_s)).result()
++
++
++def infer_v4_stream(model: str, prompt: str, temperature: float, timeout_s: float,
++                    num_predict: int = 160, num_ctx: int = NUM_CTX,
++                    keep_alive: int = KEEP_ALIVE) -> Dict:
++    """POST /api/generate in streaming con i tre bordi per la separazione TTFT.
++
++    Differenza da ``infer_v4``: qui ``stream`` e' True e il primo chunk con
++    contenuto generato viene registrato come ``t_ttft``. Senza il primo token la
++    finestra TTFT non e' misurabile e il campo ``ttft_s`` resta vuoto (P2.6:
++    niente stima).
++
++    I campi di ritorno sono gli stessi di ``infer_v4`` piu' ``_t_ttft``,
++    ``ttft_s`` e ``ttft_available``. La separazione dell'energia e' compito del
++    chiamante, che ha cosi' tre bordi monotoni e la funzione
++    ``package_energy_exact_between`` gia' esistente.
++
++    ``timeout_s`` qui e' il DEADLINE WALL-CLOCK dell'intera richiesta (P1):
++    prima veniva passato a ``requests`` come timeout di socket per singolo
++    chunk, e la differenza si vede in ``_t1``, che non puo' piu' superare il
++    limite perche' il wrapper attende la conclusione effettiva dello stream.
++    """
++    payload = payload_v4(model, prompt, temperature, num_predict,
++                         num_ctx=num_ctx, keep_alive=keep_alive)
++    payload["stream"] = True
++    deadline_s = _deadline_effettivo(timeout_s)
++    wall_start = time.time()
++    res = _ollama_stream_with_aiohttp_deadline(payload, deadline_s)
++
++    final_data = res["final_data"]
++    first_data = res["first_data"]
++    incomplete = final_data is None
++    t0 = res["t_request_start"]
++    t1 = res["t_measurement_end"]
++    t_ttft = res["t_ttft"]
++
++    # ``prompt_eval_count``, ``eval_count``, ``prompt_eval_duration``,
++    # ``eval_duration`` e ``done_reason`` arrivano SOLO nel chunk ``done=True``:
++    # senza quel chunk non sono letti. Prenderli da un chunk intermedio, o
++    # metterli a zero, pubblicherebbe una statistica che il server non ha mai
++    # mandato (P1.4: il risultato incompleto non diventa "apparentemente
++    # completato").
++    stats = final_data or {}
++    p_tok = int(stats.get("prompt_eval_count") or 0)
++    c_tok = int(stats.get("eval_count") or 0)
++    tokens_valid = p_tok > 0 and c_tok > 0
++    # Testo: nativo del chunk finale quando non vuoto (Ollama riporta li' la
++    # risposta completa), altrimenti la concatenazione dei chunk parziali.
++    # Il chunk finale non viene accumulato, quindi nessuna delle due strade
++    # raddoppia il testo.
++    text = res["fragments"]
++    if not incomplete:
++        native = final_data.get("response")
++        if isinstance(native, str) and native:
++            text = native
++    ttft_s = round(t_ttft - t0, 6) if t_ttft is not None else None
++    _prefill_ns = stats.get("prompt_eval_duration") if not incomplete else None
++    _decoding_ns = stats.get("eval_duration") if not incomplete else None
++    prefill_duration_s = (float(_prefill_ns) / 1e9
++                          if _prefill_ns is not None else None)
++    decoding_duration_s = (float(_decoding_ns) / 1e9
++                           if _decoding_ns is not None else None)
++    return {
++        "text": text,
++        "prompt_tokens": p_tok if p_tok > 0 else "",
++        "completion_tokens": c_tok if c_tok > 0 else "",
++        "tokens_valid": tokens_valid,
++        "token_provenance": "native" if tokens_valid else "missing",
++        "duration_s": round(t1 - t0, 6),
++        "prefill_duration_s": prefill_duration_s,
++        "decoding_duration_s": decoding_duration_s,
++        "done_reason": stats.get("done_reason", "") or "",
++        "stream_incomplete": incomplete,
++        "stream_incomplete_reason": res["stream_incomplete_reason"],
++        "deadline_s": deadline_s,
++        # ``created_at`` arriva su ogni chunk, non solo su quello finale: qui il
++        # comportamento precedente e' conservato.
++        "raw_created_at": ((final_data or first_data or {}).get(
++            "created_at", "") or ""),
++        "tool_calls": 0,
++        "keep_alive_sent": bu._keep_alive_sent(payload),
++        "num_ctx": int(num_ctx),
++        "num_predict": int(num_predict),
++        "_t0": t0,
++        "_t_ttft": t_ttft,
++        "_t1": t1,
++        "_wall_start": wall_start,
++        # I tre istanti in piu' chiesti da P1 restano nel dict interno: la riga
++        # CSV non li' chiede e lo schema P5 e' congelato a 174 nomi.
++        "_t_request_start": t0,
++        "_t_headers_received": res["t_headers_received"],
++        "_t_last_chunk": res["t_last_chunk"],
++        "_t_measurement_end": t1,
++        "ttft_s": ttft_s,
++        "ttft_available": t_ttft is not None,
++    }
++
++
+ # ---------------------------------------------------------------------------
+ # Terminazione e validita' della richiesta (P2.4, P2.5)
+ # ---------------------------------------------------------------------------
+@@ -1459,12 +1784,18 @@ def run_block(model: str, prompt: Dict, *, run_id: str, session_id: str,
+ 
+         e0 = SESSION.read_measurement_edge()
+         pids = [w.pid for w in e0["tree"]]
+-        resp_data = infer_v4(
++        resp_data = infer_v4_stream(
+             model, sent["text"], temperature, timeout_s,
+             num_predict=num_predict, num_ctx=num_ctx)
+         # Bordo di fine PRIMA della valutazione: la finestra energetica e'
+         # quella della sola inferenza. Il giudice ha i propri bordi (D2).
+         e1 = SESSION.read_measurement_edge()
++        # P6.4: bordo sul primo token, quando disponibile. Senza di esso la
++        # separazione TTFT/generazione non e' calcolabile e il profiler lo
++        # dichiara con ttft_available=False. Nessuna stima del TTFT.
++        edge_ttft = None
++        if resp_data.get("ttft_available") and resp_data.get("_t_ttft") is not None:
++            edge_ttft = SESSION.read_ttft_edge(resp_data["_t_ttft"])
+         wd = worker_cpu_delta(e0["worker"], e1["worker"])
+         # Il delta busy e' cumulativo e non dovrebbe mai decrescere: se lo fa,
+         # il profiler vede 0 (anomalia dichiarata "d_busy=0") e il valore
+
+##############################################################################
+# 2. requirements.txt - la riga dichiarata da P1
+##############################################################################
+
+diff --git a/cwEnergyModular/requirements.txt b/cwEnergyModular/requirements.txt
+index ecc560aa..a0de4fc6 100644
+--- a/cwEnergyModular/requirements.txt
++++ b/cwEnergyModular/requirements.txt
+@@ -3,6 +3,7 @@
+ 
+ # --- Nucleo (obbligatorio) ---
+ requests>=2.31          # API Ollama locale + provider cloud (Groq/OpenRouter/Google/OpenAI/Anthropic)
++aiohttp>=3.9            # streaming Ollama con deadline globale (P1, benchmark_v4::infer_v4_stream)
+ psutil>=5.9             # PID/albero processi Ollama, CPU time share, contatori NIC
+ pandas>=2.0             # risultati CSV
+ rich>=13.0              # dashboard/testi formattati
+
+##############################################################################
+# 3. benchmark_v4.py - diff COMPLETO dell'albero di lavoro (18 hunk)
+##############################################################################
+
+diff --git a/cwEnergyModular/benchmark_v4.py b/cwEnergyModular/benchmark_v4.py
+index 9a40f876..b710be5d 100644
+--- a/cwEnergyModular/benchmark_v4.py
++++ b/cwEnergyModular/benchmark_v4.py
+@@ -42,11 +42,27 @@ blocco "mancante". Il tetto K di blocchi invalidati per batch e il seme si
+ leggono DA CONFIG (o argomenti espliciti): se mancano, il runner SI RIFIUTA di
+ partire. I flag di qualita' (pre_unstable, drift, ...) non sostituiscono
+ nulla: restano flag.
++
++Deadline dello streaming (P1, 2026-11-05). ``infer_v4_stream`` delega la
++richiesta HTTP a ``_ollama_stream_with_aiohttp_deadline`` che esegue
++``_ollama_stream_async``: il limite e' ``aiohttp.ClientTimeout(total=...)``,
++quindi un wall-clock che comprende connessione, header, ogni chunk e l'attesa
++del chunk ``done=True``. Con ``requests``+``iter_lines`` il medesimo argomento
++era un timeout DI SOCKET per singolo chunk: uno stream che produce byte ogni
++frazione di ``timeout_s`` non veniva mai interrotto e allungava la finestra
++energetica oltre il limite dichiarato. Un deadline scaduto restituisce un
++risultato INCOMPLETO con il testo parziale ricevuto, non una richiesta che
++continua in background: ``asyncio.run`` chiude il loop e le sue task prima di
++ritornare, e il chiamante legge il bordo di fine ``e1`` solo dopo il ritorno.
++Le formule di ``local_energy.py``/``energy_session.py`` non cambiano.
+ """
+ from __future__ import annotations
+ 
+ import argparse
++import asyncio
++import concurrent.futures
+ import hashlib
++import json
+ import math
+ import os
+ import platform
+@@ -60,6 +76,7 @@ from datetime import datetime, timezone
+ from pathlib import Path
+ from typing import Callable, Dict, Iterable, List, Optional, Sequence, Tuple
+ 
++import aiohttp
+ import requests
+ 
+ import benchmark_unified as bu
+@@ -80,7 +97,7 @@ APP_VERSION = bu.APP_VERSION
+ 
+ M_REQUESTS = 3          # P3.13: m = 3 richieste per blocco
+ NUM_CTX = 8192          # P2.7
+-KEEP_ALIVE = "-1"       # P1.4
++KEEP_ALIVE = -1         # P1.4: intero, non "-1" (vedi payload_v4)
+ TOKENS_LEVEL = "per-request"
+ 
+ # Cooldown fra i punti (P1.5). Tre parametri su quattro sono lettera del
+@@ -475,24 +492,32 @@ def build_prompt_v4(prompt: Dict, seq: int) -> Tuple[Dict, str, str]:
+ # ---------------------------------------------------------------------------
+ def payload_v4(model: str, prompt: str, temperature: float,
+                num_predict: int, num_ctx: int = NUM_CTX,
+-               keep_alive: str = KEEP_ALIVE) -> Dict:
++               keep_alive: int = KEEP_ALIVE) -> Dict:
+     """Payload = costruttore condiviso + i due parametri che la v4 fissa.
+ 
+     ``bu._ollama_payload`` resta l'unica fonte delle chiavi storiche; qui si
+     aggiungono SOLO ``options.num_ctx`` (P2.7) e ``keep_alive`` (P1.4). Il
+     valore realmente inviato finisce in ``keep_alive_sent``.
++
++    ``keep_alive`` e' un **numero di secondi**, non una stringa: Ollama 0.33.1
++    risponde ``400`` con l'errore ``time: missing unit in duration "-1"`` alla
++    forma ``"-1"`` (misurato il 05-11-2026 su ``127.0.0.1:11434``, e vale anche
++    per il percorso ``requests`` perche' il payload e' lo stesso). ``-1``
++    numerico e' la forma canonica del "non scadere mai" e parte in JSON come
++    numero; un valore non convertibile in intero e' un errore di chiamata, non
++    una forma accettata.
+     """
+     payload = bu._ollama_payload(model, prompt, temperature, num_predict)
+     options = dict(payload.get("options") or {})
+     options["num_ctx"] = int(num_ctx)
+     payload["options"] = options
+-    payload["keep_alive"] = str(keep_alive)
++    payload["keep_alive"] = int(keep_alive)
+     return payload
+ 
+ 
+ def infer_v4(model: str, prompt: str, temperature: float, timeout_s: float,
+              num_predict: int = 160, num_ctx: int = NUM_CTX,
+-             keep_alive: str = KEEP_ALIVE) -> Dict:
++             keep_alive: int = KEEP_ALIVE) -> Dict:
+     """POST /api/generate con i marcatori di finestra per il profilo.
+ 
+     Differenza deliberata da ``bu._ollama_infer_only``: qui i token NON si
+@@ -535,6 +560,250 @@ def infer_v4(model: str, prompt: str, temperature: float, timeout_s: float,
+     }
+ 
+ 
++# ---------------------------------------------------------------------------
++# Streaming Ollama con deadline globale (P1, 2026-11-05)
++# ---------------------------------------------------------------------------
++# ``ServerTimeoutError`` di aiohttp eredita sia da ``asyncio.TimeoutError`` sia
++# da ``ClientConnectionError``: per questo il ramo del timeout viene PROVATO
++# PRIMA, altrimenti un deadline scaduto verrebbe etichettato come stream
++# interrotto.
++#
++# Gli errori in ``_MID_STREAM_ERRORS`` significano "la connessione con il
++# server e' caduta": dopo gli header il testo arrivato finora e' un dato reale
++# e va conservato come risultato incompleto; prima degli header non c'e' nessun
++# dato da conservare, quindi l'errore si propaga come faceva ``requests``.
++_MID_STREAM_ERRORS = (aiohttp.ClientPayloadError, aiohttp.ClientConnectionError)
++
++# Nome del thread del pool temporaneo del wrapper: nominato perche' i test di
++# terminazione devono poter distinguere un worker di CasualWatt dal thread del
++# server finto (vincolo del test 8).
++_STREAM_THREAD_PREFIX = "cw-ollama-stream"
++
++
++def _deadline_effettivo(timeout_s: Optional[float]) -> float:
++    """Deadline wall-clock della richiesta, o errore dichiarato.
++
++    ``0``, ``None``, NaN e infinito non sono "nessun limite": sono una richiesta
++    che puo' allungare la finestra energetica a tempo indefinito, cioe'
++    esattamente il difetto che la P1 chiude. Il rifiuto e' un errore nominato,
++    non un valore di ripiego.
++    """
++    try:
++        deadline = float(timeout_s)
++    except (TypeError, ValueError):
++        raise V4MeasurementError(
++            f"timeout_s={timeout_s!r} non e' numerico: la richiesta streaming "
++            "deve avere un deadline dichiarato") from None
++    if not math.isfinite(deadline) or deadline <= 0.0:
++        raise V4MeasurementError(
++            f"timeout_s={timeout_s!r}: il deadline dello streaming deve essere "
++            "positivo e finito (0 e' indefinito, non illimitato)")
++    return deadline
++
++
++async def _ollama_stream_async(payload: Dict, deadline_s: float) -> Dict:
++    """POST /api/generate in streaming con UN solo limite: ``deadline_s``.
++
++    ``aiohttp.ClientTimeout(total=deadline_s)`` copre l'apertura della
++    connessione, l'attesa degli header, la ricezione di ogni chunk e l'attesa
++    del chunk ``done=True``. ``sock_read`` limiterebbe soltanto l'attesa fra due
++    letture e uno stream che produce byte ogni frazione del limite non si
++    fermerebbe mai: ``total`` e' il limite richiesto, non un sinonimo.
++
++    Ritorna i cinque istanti della richiesta, i chunk come li ha letti e la
++    ragione dell'interruzione. Un timeout produce un risultato INCOMPLETO con
++    il testo parziale, mai una richiesta viva in background: l'eccezione
++    attraversa i due ``async with``, quindi risposta e sessione sono chiuse
++    prima che il chiamante possa leggere il bordo di fine della finestra.
++    """
++    t_request_start = time.monotonic()
++    t_headers_received = None
++    t_ttft = None
++    t_last_chunk = None
++    fragments: List[str] = []
++    first_data: Optional[Dict] = None
++    final_data: Optional[Dict] = None
++    reason = ""
++    timeout = aiohttp.ClientTimeout(total=deadline_s)
++    try:
++        try:
++            async with aiohttp.ClientSession(timeout=timeout) as session:
++                async with session.post(config.OLLAMA_GENERATE_ENDPOINT,
++                                        json=payload) as resp:
++                    resp.raise_for_status()
++                    t_headers_received = time.monotonic()
++                    while True:
++                        line = await resp.content.readline()
++                        if not line:
++                            break
++                        t_last_chunk = time.monotonic()
++                        try:
++                            chunk = json.loads(line.decode("utf-8"))
++                        except (json.JSONDecodeError, UnicodeDecodeError):
++                            continue
++                        if not isinstance(chunk, dict):
++                            continue
++                        text = chunk.get("response")
++                        has_text = isinstance(text, str) and text != ""
++                        if has_text and t_ttft is None:
++                            # Il bordo e' il primo contenuto generato reale: un
++                            # chunk JSON senza testo non e' un token e non puo'
++                            # diventare il TTFT.
++                            t_ttft = t_last_chunk
++                            first_data = chunk
++                        if has_text and not chunk.get("done", False):
++                            fragments.append(text)
++                        if chunk.get("done", False):
++                            final_data = chunk
++                            break
++        except asyncio.TimeoutError:
++            reason = ("timeout_senza_header" if t_headers_received is None
++                      else "timeout_deadline")
++        except _MID_STREAM_ERRORS as exc:
++            if t_headers_received is None:
++                raise
++            reason = f"stream_interrotto:{type(exc).__name__}"
++    finally:
++        # Preso fuori dai due contesti: e' l'istante in cui la richiesta e la
++        # relativa pulizia sono concluse, quindi il bordo di fine che il
++        # chiamante puo' usare per chiudere la finestra energetica.
++        t_measurement_end = time.monotonic()
++    return {
++        "fragments": "".join(fragments),
++        "first_data": first_data,
++        "final_data": final_data,
++        "stream_incomplete_reason": reason,
++        "t_request_start": t_request_start,
++        "t_headers_received": t_headers_received,
++        "t_ttft": t_ttft,
++        "t_last_chunk": t_last_chunk,
++        "t_measurement_end": t_measurement_end,
++    }
++
++
++def _ollama_stream_with_aiohttp_deadline(payload: Dict,
++                                         deadline_s: float) -> Dict:
++    """Wrapper sincrono: ritorna solo a esecuzione asincrona conclusa.
++
++    ``asyncio.run`` crea il loop, esegue il coroutine, poi -- prima di ritornare
++    -- cancella e attende ogni task rimasto e chiude il loop. Non c'e' un worker
++    permanente e non c'e' un thread daemon che "dimentica" la richiesta: dopo il
++    ritorno nessuna operazione asincrona puo' ancora toccare il risultato.
++
++    Il secondo ramo copre il caso in cui un loop sia gia' in esecuzione nel
++    thread chiamante, dove ``asyncio.run`` sarebbe un errore. Lo stesso
++    coroutine gira in un loop posseduto da un thread temporaneo gestito da
++    ``with`` (non daemon, un solo worker, non riusato fra le chiamate):
++    ``future.result()`` attende il valore e l'uscita dal ``with`` unisce il
++    thread dopo la chiusura del suo loop, quindi la chiamata resta sincrona e la
++    terminazione resta effettiva.
++    """
++    try:
++        asyncio.get_running_loop()
++    except RuntimeError:
++        return asyncio.run(_ollama_stream_async(payload, deadline_s))
++    with concurrent.futures.ThreadPoolExecutor(
++            max_workers=1, thread_name_prefix=_STREAM_THREAD_PREFIX) as pool:
++        return pool.submit(asyncio.run,
++                           _ollama_stream_async(payload, deadline_s)).result()
++
++
++def infer_v4_stream(model: str, prompt: str, temperature: float, timeout_s: float,
++                    num_predict: int = 160, num_ctx: int = NUM_CTX,
++                    keep_alive: int = KEEP_ALIVE) -> Dict:
++    """POST /api/generate in streaming con i tre bordi per la separazione TTFT.
++
++    Differenza da ``infer_v4``: qui ``stream`` e' True e il primo chunk con
++    contenuto generato viene registrato come ``t_ttft``. Senza il primo token la
++    finestra TTFT non e' misurabile e il campo ``ttft_s`` resta vuoto (P2.6:
++    niente stima).
++
++    I campi di ritorno sono gli stessi di ``infer_v4`` piu' ``_t_ttft``,
++    ``ttft_s`` e ``ttft_available``. La separazione dell'energia e' compito del
++    chiamante, che ha cosi' tre bordi monotoni e la funzione
++    ``package_energy_exact_between`` gia' esistente.
++
++    ``timeout_s`` qui e' il DEADLINE WALL-CLOCK dell'intera richiesta (P1):
++    prima veniva passato a ``requests`` come timeout di socket per singolo
++    chunk, e la differenza si vede in ``_t1``, che non puo' piu' superare il
++    limite perche' il wrapper attende la conclusione effettiva dello stream.
++    """
++    payload = payload_v4(model, prompt, temperature, num_predict,
++                         num_ctx=num_ctx, keep_alive=keep_alive)
++    payload["stream"] = True
++    deadline_s = _deadline_effettivo(timeout_s)
++    wall_start = time.time()
++    res = _ollama_stream_with_aiohttp_deadline(payload, deadline_s)
++
++    final_data = res["final_data"]
++    first_data = res["first_data"]
++    incomplete = final_data is None
++    t0 = res["t_request_start"]
++    t1 = res["t_measurement_end"]
++    t_ttft = res["t_ttft"]
++
++    # ``prompt_eval_count``, ``eval_count``, ``prompt_eval_duration``,
++    # ``eval_duration`` e ``done_reason`` arrivano SOLO nel chunk ``done=True``:
++    # senza quel chunk non sono letti. Prenderli da un chunk intermedio, o
++    # metterli a zero, pubblicherebbe una statistica che il server non ha mai
++    # mandato (P1.4: il risultato incompleto non diventa "apparentemente
++    # completato").
++    stats = final_data or {}
++    p_tok = int(stats.get("prompt_eval_count") or 0)
++    c_tok = int(stats.get("eval_count") or 0)
++    tokens_valid = p_tok > 0 and c_tok > 0
++    # Testo: nativo del chunk finale quando non vuoto (Ollama riporta li' la
++    # risposta completa), altrimenti la concatenazione dei chunk parziali.
++    # Il chunk finale non viene accumulato, quindi nessuna delle due strade
++    # raddoppia il testo.
++    text = res["fragments"]
++    if not incomplete:
++        native = final_data.get("response")
++        if isinstance(native, str) and native:
++            text = native
++    ttft_s = round(t_ttft - t0, 6) if t_ttft is not None else None
++    _prefill_ns = stats.get("prompt_eval_duration") if not incomplete else None
++    _decoding_ns = stats.get("eval_duration") if not incomplete else None
++    prefill_duration_s = (float(_prefill_ns) / 1e9
++                          if _prefill_ns is not None else None)
++    decoding_duration_s = (float(_decoding_ns) / 1e9
++                           if _decoding_ns is not None else None)
++    return {
++        "text": text,
++        "prompt_tokens": p_tok if p_tok > 0 else "",
++        "completion_tokens": c_tok if c_tok > 0 else "",
++        "tokens_valid": tokens_valid,
++        "token_provenance": "native" if tokens_valid else "missing",
++        "duration_s": round(t1 - t0, 6),
++        "prefill_duration_s": prefill_duration_s,
++        "decoding_duration_s": decoding_duration_s,
++        "done_reason": stats.get("done_reason", "") or "",
++        "stream_incomplete": incomplete,
++        "stream_incomplete_reason": res["stream_incomplete_reason"],
++        "deadline_s": deadline_s,
++        # ``created_at`` arriva su ogni chunk, non solo su quello finale: qui il
++        # comportamento precedente e' conservato.
++        "raw_created_at": ((final_data or first_data or {}).get(
++            "created_at", "") or ""),
++        "tool_calls": 0,
++        "keep_alive_sent": bu._keep_alive_sent(payload),
++        "num_ctx": int(num_ctx),
++        "num_predict": int(num_predict),
++        "_t0": t0,
++        "_t_ttft": t_ttft,
++        "_t1": t1,
++        "_wall_start": wall_start,
++        # I tre istanti in piu' chiesti da P1 restano nel dict interno: la riga
++        # CSV non li' chiede e lo schema P5 e' congelato a 174 nomi.
++        "_t_request_start": t0,
++        "_t_headers_received": res["t_headers_received"],
++        "_t_last_chunk": res["t_last_chunk"],
++        "_t_measurement_end": t1,
++        "ttft_s": ttft_s,
++        "ttft_available": t_ttft is not None,
++    }
++
++
+ # ---------------------------------------------------------------------------
+ # Terminazione e validita' della richiesta (P2.4, P2.5)
+ # ---------------------------------------------------------------------------
+@@ -683,6 +952,40 @@ def _clean_reps(reps: Optional[Sequence[float]]) -> List[float]:
+     return out
+ 
+ 
++def _gpu_settle_note(tag: str, status: Optional[str], reason: str) -> str:
++    """Nota di riga per un termine GPU del settling non osservato (o vuota).
++
++    ``settle_idle`` compone il termine GPU solo quando il canale esiste. Gli
++    esiti ``"channel-absent"`` e ``"not-observed"`` dicono che il tempo in
++    ``settle_pre_s``/``settle_post_s`` copre il solo CPU: senza nota la riga
++    non lo direbbe, perche' lo schema di P5 e' congelato e non c'e' una
++    colonna dove scriverlo. ``None`` (nessun settling eseguito) e
++    ``"stable"`` non producono nulla.
++    """
++    if status in (None, "stable"):
++        return ""
++    det = f": {reason}" if reason else ""
++    return f"settling {tag} GPU non osservato ({status}){det}"
++
++
++def _append_gpu_settle_notes(rows: List[Dict], settle_pre_gpu: Optional[str],
++                             settle_pre_gpu_reason: str,
++                             settle_post_gpu: Optional[str],
++                             settle_post_gpu_reason: str) -> None:
++    """Accoda a ogni riga del blocco le note dei due settling GPU.
++
++    ``stable`` e ``None`` non producono testo; le note gia' presenti restano e
++    vengono separate da ``"; "``, come per le note di settling al tetto.
++    """
++    for tag, status, reason in (("pre", settle_pre_gpu, settle_pre_gpu_reason),
++                                ("post", settle_post_gpu, settle_post_gpu_reason)):
++        note = _gpu_settle_note(tag, status, reason)
++        if not note:
++            continue
++        for r in rows:
++            r["notes"] = (r.get("notes", "") + "; " if r.get("notes") else "") + note
++
++
+ def block_baseline(reps_pre: Sequence[float],
+                    reps_post: Optional[Sequence[float]] = None) -> Dict[str, object]:
+     """Mediane, range, drift e budget base di un blocco.
+@@ -1285,9 +1588,9 @@ ENERGY_ROW_FIELDS: Tuple[str, ...] = (
+ )
+ 
+ 
+-def energy_fields(local, keep_alive_sent: str) -> Dict[str, object]:
++def energy_fields(local, keep_alive_sent) -> Dict[str, object]:
+     """Riga energetica da ``LocalEnergyResult`` (stessi nomi della produzione)."""
+-    return {
++    fields = {
+         "package_energy_j": local.package_energy_j,
+         "idle_power_w": local.idle_power_w,
+         "baseline_energy_j": local.baseline_energy_j,
+@@ -1315,11 +1618,27 @@ def energy_fields(local, keep_alive_sent: str) -> Dict[str, object]:
+         "domain": local.domain or "",
+         "sampling_interval_observed_s": bu._na_or(
+             local.sampling_interval_observed_s),
++        # P6.4: separazione TTFT/generazione. Questi campi non entrano nello
++        # schema CSV (P5 congelato, 174 colonne): sono disponibili nel record
++        # per usi futuri e per l'analisi del verbale. Quando ttft_available e'
++        # False, tutti i campi TTFT sono None.
++        "_ttft_s": local.ttft_s,
++        "_ttft_available": local.ttft_available,
++        "_package_energy_ttft_j": local.package_energy_ttft_j,
++        "_package_energy_generation_j": local.package_energy_generation_j,
++        "_baseline_energy_ttft_j": local.baseline_energy_ttft_j,
++        "_baseline_energy_generation_j": local.baseline_energy_generation_j,
++        "_active_energy_ttft_j": local.active_energy_ttft_j,
++        "_active_energy_generation_j": local.active_energy_generation_j,
+         "backend_version": local.backend_version or "",
+         "measurement_boundary": local.measurement_boundary,
+         "idle_provenance": local.idle_provenance or "",
+         "package_window_source": local.package_window_source or "",
+-        "keep_alive_sent": keep_alive_sent or "",
++        # il test e' `is None`, non la falsita' del valore: keep_alive=0 viene
++        # effettivamente inviato ("scarica i pesi adesso") e la riga deve
++        # riportarlo; con ``or ""`` sarebbe vuoto, cioe' indistinguibile da
++        # "non inviato" -- l'opposto di cio' che P1.4 chiede di dichiarare.
++        "keep_alive_sent": "" if keep_alive_sent is None else keep_alive_sent,
+         "gpu_process_energy_j": bu._na_or(local.gpu_process_energy_j),
+         "igpu_energy_j": bu._na_or(local.igpu_energy_j),
+         "gpu_idle_provenance": local.gpu_idle_provenance or "",
+@@ -1344,6 +1663,7 @@ def energy_fields(local, keep_alive_sent: str) -> Dict[str, object]:
+         "emi_edge_source": local.emi_edge_source or "",
+         "baseline_pre_w": bu._na_or(local.baseline_pre_w),
+     }
++    return fields
+ 
+ 
+ def _tokens_total(p_tok, c_tok):
+@@ -1411,6 +1731,11 @@ def run_block(model: str, prompt: Dict, *, run_id: str, session_id: str,
+         log(f"[BLOCK {block_id}] cooldown: {cooldown.get('reason')}")
+ 
+     settle_pre = SESSION.settle_idle()
++    # Esito del termine GPU del settling pre: "stable", "not-observed" o
++    # "channel-absent". Lo schema di P5 e' congelato: la dichiarazione va in
++    # ``notes``, non in una colonna nuova.
++    settle_pre_gpu = getattr(SESSION, "last_settle_gpu_status", None)
++    settle_pre_gpu_reason = getattr(SESSION, "last_settle_gpu_reason", "")
+     try:
+         p_pre = float(SESSION.calibrate_idle())
+     except Exception as exc:
+@@ -1459,12 +1784,18 @@ def run_block(model: str, prompt: Dict, *, run_id: str, session_id: str,
+ 
+         e0 = SESSION.read_measurement_edge()
+         pids = [w.pid for w in e0["tree"]]
+-        resp_data = infer_v4(
++        resp_data = infer_v4_stream(
+             model, sent["text"], temperature, timeout_s,
+             num_predict=num_predict, num_ctx=num_ctx)
+         # Bordo di fine PRIMA della valutazione: la finestra energetica e'
+         # quella della sola inferenza. Il giudice ha i propri bordi (D2).
+         e1 = SESSION.read_measurement_edge()
++        # P6.4: bordo sul primo token, quando disponibile. Senza di esso la
++        # separazione TTFT/generazione non e' calcolabile e il profiler lo
++        # dichiara con ttft_available=False. Nessuna stima del TTFT.
++        edge_ttft = None
++        if resp_data.get("ttft_available") and resp_data.get("_t_ttft") is not None:
++            edge_ttft = SESSION.read_ttft_edge(resp_data["_t_ttft"])
+         wd = worker_cpu_delta(e0["worker"], e1["worker"])
+         # Il delta busy e' cumulativo e non dovrebbe mai decrescere: se lo fa,
+         # il profiler vede 0 (anomalia dichiarata "d_busy=0") e il valore
+@@ -1488,6 +1819,7 @@ def run_block(model: str, prompt: Dict, *, run_id: str, session_id: str,
+             worker_exit_in_window=wd.worker_exit_in_window,
+             edge_start=e0,
+             edge_end=e1,
++            edge_ttft=edge_ttft,
+             baseline_pre_w=p_pre,
+             engine_tree_changed=bool(wd.lost),
+             tree_born=_identity_list(wd.born),
+@@ -1509,10 +1841,14 @@ def run_block(model: str, prompt: Dict, *, run_id: str, session_id: str,
+             output_tokens=c_tok,
+             total_tokens=_tokens_total(p_tok, c_tok),
+             tokens_per_second=_tokens_rate(c_tok, resp_data["duration_s"]),
+-            prefill_duration_s=round(resp_data.get("prefill_duration_s", 0.0), 6),
+-            decoding_duration_s=round(resp_data.get("decoding_duration_s", 0.0), 6),
++            prefill_duration_s=(
++                round(resp_data["prefill_duration_s"], 6)
++                if resp_data.get("prefill_duration_s") is not None else None),
++            decoding_duration_s=(
++                round(resp_data["decoding_duration_s"], 6)
++                if resp_data.get("decoding_duration_s") is not None else None),
+             decoding_tokens_per_second=_tokens_rate(
+-                c_tok, resp_data.get("decoding_duration_s", 0.0)),
++                c_tok, resp_data.get("decoding_duration_s")),
+             tool_calls=0,
+         )
+         rec.update(energy_fields(local, resp_data["keep_alive_sent"]))
+@@ -1554,6 +1890,14 @@ def run_block(model: str, prompt: Dict, *, run_id: str, session_id: str,
+         bu._finalize_energy_fields(rec, local_j, 0.0, 0.0, evalres)
+ 
+         notes = list(local.notes) + list(evalres.notes)
++        # FASE 2: lo stream pu' chiudersi prima del chunk ``done=True``.
++        # I due campi di durata del motore non arrivano: restano ``None``
++        # nel record, NON 0.0. La nota lo dichiara: 0 sarebbe una misura.
++        if resp_data.get("stream_incomplete"):
++            notes.append(
++                "stream interrotto prima del chunk done=True: "
++                "prompt_eval_duration e eval_duration non arrivati, le due "
++                "durate del motore restano N/A nella riga (non 0,0 s)")
+         # La nota di _finalize_energy_fields dichiara quali metriche derivate
+         # sono N/A: non va persa sovrascrivendo il campo.
+         existing_note = rec.get("notes")
+@@ -1599,6 +1943,8 @@ def run_block(model: str, prompt: Dict, *, run_id: str, session_id: str,
+             f"source={local.cpu_share_source}")
+ 
+     settle_post = SESSION.settle_idle()
++    settle_post_gpu = getattr(SESSION, "last_settle_gpu_status", None)
++    settle_post_gpu_reason = getattr(SESSION, "last_settle_gpu_reason", "")
+     try:
+         p_post = float(SESSION.calibrate_idle())
+     except Exception as exc:
+@@ -1712,6 +2058,13 @@ def run_block(model: str, prompt: Dict, *, run_id: str, session_id: str,
+             r["notes"] = (r.get("notes", "") + "; " if r.get("notes") else "") + (
+                 "settling post al tetto (settle_post_s vuoto): stabilita' non "
+                 "osservata")
++    # Termine GPU del settling: la riga dichiara se la stabilita' e' stata
++    # osservata anche sulla scheda o solo sul package. "stable" non aggiunge
++    # nulla (la riga GPU porta gia' il metodo di attribuzione); "channel-absent"
++    # e "not-observed" dicono che il tempo in settle_pre_s/settle_post_s
++    # copre il solo CPU.
++    _append_gpu_settle_notes(rows, settle_pre_gpu, settle_pre_gpu_reason,
++                             settle_post_gpu, settle_post_gpu_reason)
+     # `Δt̄_W,b` non e' una colonna (P6.5:2178 la chiama "quantita' derivata: la
+     # media per blocco della duration_s gia' prevista"), ma il budget di blocco
+     # si ricava solo da li': senza il valore nella nota, un terzo non puo'
+@@ -2125,6 +2478,13 @@ def run_v4_benchmark(
+         notes.append(stopped_by_k)
+     else:
+         notes.append("completed")
++    # La versione del motore e' un campo del verbale perche' il comportamento
++    # che si sta misurando dipende da lei: 0.33.1 rifiuta la forma stringa
++    # "-1" di keep_alive e accetta il numero, quindi senza versione un run non
++    # e' replicabile e non dice su quale forma fosse valido. "" dichiara che
++    # /api/version non ha risposto (stessa regola di _ollama_runtime_info:
++    # nessun valore di ripiego).
++    ollama_versioni = sorted({str(v) for (v, _digest) in runtime.values() if v})
+     meta = {
+         "run_id": run_id,
+         "started_at": started_wall.isoformat(timespec="seconds"),
+@@ -2158,6 +2518,7 @@ def run_v4_benchmark(
+         "results_csv": str(results_path),
+         "notes": "; ".join(notes),
+         "ollama_keep_alive": KEEP_ALIVE,
++        "ollama_version": ";".join(ollama_versioni),
+     }
+     try:
+         write_run_metadata(meta, config.CSV_RUN_METADATA_PATH)
+
+##############################################################################
+# 4. tests/test_stream_timeout.py - file nuovo non tracciato
+##############################################################################
+
+SEZIONE 4 RIGENERATA il 06-11-2026 alle 11:56, su richiesta, perche'
+dopo le 11:42 questo file di test ha ricevuto quattro modifiche: tre
+ancoraggi file:riga (1773-1780 e 1609-1616 -> 1785-1792, il punto dove
+run_block legge e0/e1 in benchmark_v4.py) e la nota TOLLERANZA_PULIZIA_S
+riverificata con dodici chiamate a deadline 0,3 s (eccesso 0,0132-0,0297
+s, zero thread residui). Le sezioni 1-3 NON sono state rigenerate: sono
+ancora valide perche' HEAD e' 180f86389f3d316ae443f22e180f997b5ace18f8 e
+i blob correnti coincidono con quelli registrati qui sopra
+(benchmark_v4.py 9a40f876->b710be5d, requirements.txt ecc560aa->a0de4fc6).
+
+diff --git a/cwEnergyModular/tests/test_stream_timeout.py b/cwEnergyModular/tests/test_stream_timeout.py
+new file mode 100644
+index 00000000..c15f56e7
+--- /dev/null
++++ b/cwEnergyModular/tests/test_stream_timeout.py
+@@ -0,0 +1,782 @@
++# -*- coding: utf-8 -*-
++"""
++tests/test_stream_timeout.py — P1: il deadline dello streaming e' globale.
++
++Perche' esiste. ``infer_v4_stream`` usava ``requests`` + ``iter_lines()``:
++``timeout_s`` li' era un timeout di socket PER SINGOLO chunk, quindi uno stream
++che produce byte ogni frazione del limite non veniva mai interrotto e la
++finestra energetica che il chiamante costruisce attorno alla funzione poteva
++crescere oltre il limite dichiarato. L'antesistema non e' committato -- la
++funzione di streaming nasce nel worktree sporco, non in ``HEAD`` -- quindi
++questa descrizione e' l'unica traccia del percorso sostituito: nessun numero di
++riga la ancora. Il percorso nuovo gira su
++``aiohttp.ClientTimeout(total=...)`` e su ``asyncio.run``: il limite e' un
++wall-clock dell'intera richiesta e, alla scadenza, la richiesta viene chiusa
++DAVVERO prima che la funzione ritorni.
++
++Che cosa verifica:
++  1. il testo e' l'accumulo dei chunk ricevuti, senza duplicazione quando il
++     chunk ``done=True`` riporta la risposta completa (regola dichiarata in
++     ``infer_v4_stream``);
++  2. un risultato incompleto resta incompleto: flag, ragione, testo parziale,
++     e nessuna statistica inventata (token e durate del motore stanno solo nel
++     chunk finale);
++  3. il deadline e' effettivo nei tre stadi in cui puo' scattare: connessione
++     mai conclusa, connessione aperta senza header, header ricevuti e corpo
++     fermo, corpo che produce chunk all'infinito; un errore di stato HTTP
++     invece si propaga e non aspetta il deadline;
++  4. al ritorno non esiste nessuna operazione asincrona viva: niente thread di
++     CasualWatt, nessun loop aperto, nessuna sessione ``ClientSession`` aperta,
++     e la connessione lato server risulta chiusa dal client;
++  5. i bordi tornati sono monotoni e ``_t1`` e' l'istante dopo la pulizia,
++     perche' e' li' che ``run_block`` legge il bordo di fine ``e1``
++     (``benchmark_v4.py:1785-1792``);
++  6. una richiesta successiva non eredita nulla da una precedente fallita.
++
++Che cosa NON verifica: che il numero di energia di una riga sia corretto (le
++formule stanno in ``energy/local_energy.py`` e non sono toccate dalla P1); che
++il blocco completo si apra e chiuda come in campagna (sequenza P1.5 coperta da
++``tests/test_baseline_ordine_v4.py`` con un finto ``infer_v4_stream``). Qui il
++server e' sempre un socket locale: nessun test chiede Ollama installato e
++nessuno apre connessioni esterne.
++"""
++import asyncio
++import copy
++import json
++import socket
++import sys
++import threading
++import time
++from pathlib import Path
++
++sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
++
++import pytest  # noqa: E402
++
++import benchmark_v4 as v4  # noqa: E402
++import config  # noqa: E402
++
++# Tolleranza di pulizia dopo il deadline. NON e' una soglia di protocollo: e'
++# il margine che ammettiamo fra la scadenza del ``total`` e il ritorno della
++# funzione, cioe' chiusura risposta + sessione + cancellazione task + chiusura
++# loop. Misurata su questa macchina il 05-11-2026: dodici run (tre per
++# modalita' fra endless, silent, headers_only, no_accept) con deadline 0,3 s
++# danno un eccesso fra 0,009 s e 0,028 s, con zero thread residui. Verifica
++# ripetuta la stessa notte con dodici richieste ``endless`` a deadline 0,40 s:
++# eccesso fra 0,001 s e 0,0264 s, ``stream_incomplete`` True con ragione
++# ``timeout_deadline`` su tutte e dodici e nessun thread di CasualWatt
++# superstite. Riverificata il 06-11-2026 con lo stesso disegno del 05-11 (tre
++# run per modalita' fra endless, silent, headers_only, no_accept, deadline
++# 0,3 s): eccesso fra 0,0132 s e 0,0297 s, ragione ``timeout_deadline`` o
++# ``timeout_senza_header`` su tutte e dodici, zero thread residui a ogni
++# chiamata. Il massimo letto e' sopra i 0,028 s del 05-11, quindi il Bound
++# storico non era un tetto: 1,0 s resta ~34 volte il peggior valore fra le due
++# misurazioni. 1,0 s e' dichiarato per il carico della macchina, non una misura
++# pubblicata.
++TOLLERANZA_PULIZIA_S = 1.0
++
++# Prefissi dei thread che il MODULO di test crea: vanno esclusi dal conteggio
++# dei worker residui perche' il vincolo P1 riguarda CasualWatt, non il server
++# finto (il server usa thread daemon e non possiede nessuna richiesta).
++_SERVER_THREAD_PREFIXES = ("cw-test-server",)
++
++
++
++
++def _chunk_line(text, done=False, **extra):
++    """Una riga NDJSON in fondo al file, come la manda /api/generate."""
++    obj = {"model": "cw-test", "response": text, "done": bool(done)}
++    obj.update(extra)
++    return (json.dumps(obj) + "\n").encode("utf-8")
++
++
++def _done_line(full_text, **extra):
++    """Chunk finale: Ollama riporta qui la risposta completa e i contatori."""
++    stats = {"prompt_eval_count": 10, "eval_count": 5,
++             "prompt_eval_duration": 20000000,
++             "eval_duration": 500000000,
++             "done_reason": "stop",
++             "created_at": "2026-11-05T00:00:00.000Z"}
++    stats.update(extra)
++    return _chunk_line(full_text, done=True, **stats)
++
++
++class _FakeOllama:
++    """Server HTTP/1.1 a un solo socket: comanda header, corpo e cadenza.
++
++    Modalita': ``no_accept`` (listen senza accept, la fase HTTP non si
++    conclude), ``silent`` (accept e nessun byte scritto), ``headers_only``
++    (header scritti e corpo fermo), ``lines`` (le righe date a un intervallo,
++    poi ``hold_after_lines`` o chiusura), ``endless`` (righe a intervallo
++    fisso fino allo stop).
++
++    Registra tre cose che i test usano come evidenza: gli istanti in cui ha
++    accettato e in cui il client ha chiuso la connessione, e l'errore di
++    scrittura che dimostra che dopo la chiusura dal client non puo' piu'
++    arrivare nessun chunk. La richiesta HTTP viene letta SINCRONAMENTE prima di
++    rispondere, con ``request_ready`` che segnala il momento in cui il payload
++    e' intero: le asserzioni su "cosa e' arrivato al server" non dipendono
++    quindi dallo scheduler. I thread del server sono daemon: sono il banco di
++    prova, non un worker di CasualWatt, e vengono uniti allo shutdown.
++    """
++
++    def __init__(self, mode="lines", lines=(), interval_s=0.0,
++                 hold_after_lines=True, pre_headers_delay_s=0.0,
++                 end_text="z", status_code=200):
++        self.mode = mode
++        self.lines = list(lines)
++        self.interval_s = interval_s
++        self.hold_after_lines = hold_after_lines
++        self.pre_headers_delay_s = pre_headers_delay_s
++        self.end_text = end_text
++        self.status_code = status_code
++        self._listen = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
++        self._listen.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
++        self._listen.bind(("127.0.0.1", 0))
++        # Backlog sempre attivo, anche in ``no_accept``: serve perche' il
++        # kernel concluda l'handshake TCP e la richiesta resti in attesa della
++        # risposta HTTP, invece di essere rifiutata.
++        self._listen.listen(5)
++        self.port = self._listen.getsockname()[1]
++        self.url = f"http://127.0.0.1:{self.port}/api/generate"
++        self.accepted = threading.Event()
++        self.request_ready = threading.Event()
++        self.payload = None
++        self.client_closed_at = None
++        self.write_error = None
++        self.request_bytes = b""
++        self.n_requests = 0
++        self._stop = threading.Event()
++        self._conn = None
++        self._threads = []
++
++    # -- ciclo del server -------------------------------------------------
++    def start(self):
++        t = threading.Thread(target=self._run, name="cw-test-server",
++                             daemon=True)
++        self._threads.append(t)
++        t.start()
++        return self
++
++    def _run(self):
++        if self.mode == "no_accept":
++            # Il backlog del kernel conclude l'handshake TCP; nessuna risposta
++            # HTTP arriva mai, perche' la connessione non viene accettata.
++            self._wait_or_stop()
++            return
++        try:
++            conn, _ = self._listen.accept()
++        except OSError:
++            return
++        self._conn = conn
++        self.accepted.set()
++        self.n_requests = 1
++        conn.settimeout(10.0)
++        if not self._leggi_richiesta(conn):
++            return
++        osservatore = threading.Thread(target=self._osserva_chiusura,
++                                       args=(conn,),
++                                       name="cw-test-server-read", daemon=True)
++        self._threads.append(osservatore)
++        osservatore.start()
++        if self.mode == "silent":
++            self._wait_or_stop()
++            return
++        if self.pre_headers_delay_s:
++            if self._stop.wait(self.pre_headers_delay_s):
++                return
++        try:
++            conn.sendall(self._response_headers())
++        except OSError as exc:
++            self.write_error = type(exc).__name__
++            return
++        if self.status_code != 200:
++            # Nessuna risposta da leggere: il client deve accorgersi dello
++            # stato e chiudere, non mettere insieme un risultato incompleto.
++            self._chiudi_connessione()
++            return
++        if self.mode == "headers_only":
++            self._wait_or_stop()
++            return
++        if self.mode == "endless":
++            i = 0
++            while not self._stop.is_set():
++                if self._stop.wait(self.interval_s):
++                    break
++                i += 1
++                if not self._scrivi(_chunk_line(f"{self.end_text}{i}")):
++                    break
++            return
++        # modalita' "lines"
++        if self.lines:
++            for line in self.lines:
++                if not self._scrivi(line):
++                    return
++                if self.interval_s and self._stop.wait(self.interval_s):
++                    return
++        if self.hold_after_lines:
++            self._wait_or_stop()
++        else:
++            # EOF: il corpo finisce senza done=True, come un server che chiude.
++            self._chiudi_connessione()
++
++    def _response_headers(self):
++        motivo = b"OK" if self.status_code == 200 else b"Internal Server Error"
++        return (b"HTTP/1.1 " + str(self.status_code).encode() + b" " + motivo +
++                b"\r\nContent-Type: application/x-ndjson\r\n\r\n")
++
++    def _scrivi(self, data):
++        try:
++            self._conn.sendall(data)
++            return True
++        except OSError as exc:
++            self.write_error = type(exc).__name__
++            return False
++
++    def _leggi_richiesta(self, conn) -> bool:
++        """Intestazione + corpo fino a ``Content-Length``, poi ``request_ready``.
++
++        Ritorna False se il client non completa la richiesta: in quel caso il
++        server non risponde e il test si accorge che ``request_ready`` non e'
++        mai stato messo, invece di leggere un payload a meta'.
++        """
++        testa = b""
++        while b"\r\n\r\n" not in testa:
++            try:
++                dato = conn.recv(4096)
++            except OSError:
++                return False
++            if not dato:
++                return False
++            testa += dato
++        pre, _, corpo = testa.partition(b"\r\n\r\n")
++        lunghezza = 0
++        for riga in pre.split(b"\r\n"):
++            nome, _, valore = riga.partition(b":")
++            if nome.strip().lower() == b"content-length":
++                try:
++                    lunghezza = int(valore.strip() or 0)
++                except ValueError:
++                    lunghezza = 0
++        while len(corpo) < lunghezza:
++            try:
++                dato = conn.recv(4096)
++            except OSError:
++                break
++            if not dato:
++                break
++            corpo += dato
++        self.request_bytes = pre + b"\r\n\r\n" + corpo
++        try:
++            self.payload = json.loads(corpo.decode("utf-8"))
++        except (json.JSONDecodeError, UnicodeDecodeError):
++            self.payload = {}
++        self.request_ready.set()
++        return True
++
++    def _osserva_chiusura(self, conn):
++        """Resta in ascolto del FIN: l'unico segnale lato server della fine.
++
++        L'istante registrato e' quando NOI leggiamo la chiusura, quindi arriva
++        DOPO la chiusura reale del client: i test lo usano come limite
++        superiore, mai come ordine causale.
++        """
++        while True:
++            try:
++                dato = conn.recv(4096)
++            except OSError:
++                break
++            if not dato:
++                break
++        self.client_closed_at = time.monotonic()
++
++    def _wait_or_stop(self):
++        self._stop.wait(30.0)
++
++    # -- teardown ---------------------------------------------------------
++    def _chiudi_connessione(self):
++        try:
++            if self._conn is not None:
++                self._conn.shutdown(socket.SHUT_RDWR)
++        except OSError:
++            pass
++        finally:
++            try:
++                if self._conn is not None:
++                    self._conn.close()
++            except OSError:
++                pass
++
++    def shutdown(self):
++        self._stop.set()
++        try:
++            self._listen.close()
++        except OSError:
++            pass
++        self._chiudi_connessione()
++        for t in self._threads:
++            t.join(timeout=5.0)
++
++
++@pytest.fixture
++def fake_ollama(monkeypatch):
++    """Crea i server locali e punta l'endpoint della v4 su di loro."""
++    made = []
++
++    def _make(**kwargs):
++        srv = _FakeOllama(**kwargs).start()
++        made.append(srv)
++        monkeypatch.setattr(config, "OLLAMA_GENERATE_ENDPOINT", srv.url)
++        return srv
++
++    yield _make
++    for srv in made:
++        srv.shutdown()
++
++
++def _threads_cwatt():
++    """Thread vivi che NON sono del banco di prova."""
++    return [t for t in threading.enumerate()
++            if not any(t.name.startswith(p) for p in _SERVER_THREAD_PREFIXES)]
++
++
++def _loop_attivo():
++    try:
++        return asyncio.get_running_loop()
++    except RuntimeError:
++        return None
++
++
++# ------------------------------------------------------------------ 1, 2, 13
++def test_accumulo_tutti_i_chunk(fake_ollama):
++    """P1.4: il testo e' l'accumulo dei chunk, non la riga JSON contata.
++
++    Tre chunk "abc", "def", "ghi" e il finale con la risposta completa: il
++    testo restituito deve essere "abcdefghi" una volta sola. Se il conteggio
++    dei token derivasse dai chunk, o se il finale venisse accumulato sopra i
++    parziali, qui il testo si allungherebbe o si duplicherebbe.
++    """
++    srv = fake_ollama(mode="lines", lines=[
++        _chunk_line("abc"), _chunk_line("def"), _chunk_line("ghi"),
++        _done_line("abcdefghi"),
++    ], hold_after_lines=False)
++
++    out = v4.infer_v4_stream("cw-test", "p", 0.0, 5.0)
++
++    assert out["text"] == "abcdefghi"
++    assert out["stream_incomplete"] is False
++    assert "ghi" in out["text"] and out["text"].count("abc") == 1
++
++
++def test_normale_completamento(fake_ollama):
++    """P1.4: con done=True entro il deadline i valori nativi restano nativi."""
++    srv = fake_ollama(mode="lines", lines=[
++        _chunk_line("C"), _chunk_line("iao"), _done_line("Ciao"),
++    ], hold_after_lines=False)
++
++    out = v4.infer_v4_stream("cw-test", "p", 0.0, 5.0)
++
++    assert out["stream_incomplete"] is False
++    assert out["stream_incomplete_reason"] == ""
++    assert out["text"] == "Ciao"
++    assert out["prompt_tokens"] == 10
++    assert out["completion_tokens"] == 5
++    assert out["tokens_valid"] is True
++    assert out["token_provenance"] == "native"
++    assert out["done_reason"] == "stop"
++
++
++def test_timeout_non_attivato_se_stream_conclude_normale(fake_ollama):
++    """P1.4: una richiesta regolare prima del deadline non e' incompleta.
++
++    Il deadline non deve diventare un flag di fallimento: qui scatta a 5 s e
++    la risposta arriva in frazioni di secondo, perche' un timeout che marca
++    tutto falsamente invaliderebbe ogni riga buona della campagna.
++    """
++    srv = fake_ollama(mode="lines", lines=[_done_line("ok")],
++                      hold_after_lines=False)
++    t0 = time.monotonic()
++    out = v4.infer_v4_stream("cw-test", "p", 0.0, 5.0)
++    elapsed = time.monotonic() - t0
++
++    assert out["stream_incomplete"] is False
++    assert elapsed < 5.0
++    assert out["duration_s"] < 5.0
++
++
++# ------------------------------------------------------- 3, 7, 16 (parziale)
++def test_stream_interrotto_prima_di_done(fake_ollama):
++    """P1.4: EOF senza done=True conserva il parziale e non inventa nulla."""
++    srv = fake_ollama(mode="lines",
++                      lines=[_chunk_line("ab"), _chunk_line("cd")],
++                      hold_after_lines=False)
++
++    out = v4.infer_v4_stream("cw-test", "p", 0.0, 5.0)
++
++    assert out["stream_incomplete"] is True
++    assert out["text"] == "abcd"
++    assert out["prompt_tokens"] == ""
++    assert out["completion_tokens"] == ""
++    assert out["tokens_valid"] is False
++    assert out["token_provenance"] == "missing"
++
++
++def test_testo_parziale_contiene_tutti_i_chunk(fake_ollama):
++    """P1.4: dopo il timeout il testo ha ogni chunk ricevuto, non il primo.
++
++    Con l'implementazione vecchia (``data = final_data or first_data``) qui
++    sarebbe rimasto solo "ab": la perdita dei chunk successivi e' il difetto
++    che il vincolo "conserva tutto il testo parziale" chiude.
++    """
++    srv = fake_ollama(mode="lines",
++                      lines=[_chunk_line("ab"), _chunk_line("cd"),
++                             _chunk_line("ef")],
++                      interval_s=0.05, hold_after_lines=True)
++
++    out = v4.infer_v4_stream("cw-test", "p", 0.0, 0.3)
++
++    assert out["stream_incomplete"] is True
++    assert out["text"] == "abcdef"
++
++
++def test_stream_incompleto_senza_statistiche_finali(fake_ollama):
++    """P1.4: senza il chunk finale le durate del motore restano assenti.
++
++    ``prompt_eval_duration`` e ``eval_duration`` stanno SOLO nel done=True:
++    ``0.0`` qui sarebbe un tempo zero pubblicato al posto di un dato mai
++    arrivato, e i token nativi idem.
++    """
++    srv = fake_ollama(mode="lines",
++                      lines=[_chunk_line("x"), _chunk_line("y")],
++                      hold_after_lines=False)
++
++    out = v4.infer_v4_stream("cw-test", "p", 0.0, 5.0)
++
++    assert out["stream_incomplete"] is True
++    assert out["prefill_duration_s"] is None
++    assert out["decoding_duration_s"] is None
++    assert out["prompt_tokens"] == ""
++    assert out["completion_tokens"] == ""
++    assert out["done_reason"] == ""
++
++
++# ------------------------------------------------- 4, 5, 6, 14 (timeout veri)
++def test_chunk_continui_piu_frequenti_del_timeout(fake_ollama):
++    """P1.2: chunk continui NON rinnozano il limite: total e' wall-clock.
++
++    Questo e' il caso che ``requests``+``iter_lines`` non chiudevano mai: un
++    chunk ogni 20 ms aggiorna un timeout di socket, ma ``ClientTimeout(total``
++    scade comunque. Si misura il ritorno entro deadline + tolleranza di
++    pulizia documentata, e si verifica che non resti nessun task o worker.
++    """
++    srv = fake_ollama(mode="endless", interval_s=0.02)
++    deadline = 0.4
++    prima = {t.name for t in _threads_cwatt()}
++    t0 = time.monotonic()
++    out = v4.infer_v4_stream("cw-test", "p", 0.0, deadline)
++    elapsed = time.monotonic() - t0
++
++    assert deadline <= elapsed <= deadline + TOLLERANZA_PULIZIA_S
++    assert out["stream_incomplete"] is True
++    assert out["stream_incomplete_reason"] == "timeout_deadline"
++    assert out["deadline_s"] == deadline
++    assert out["duration_s"] <= deadline + TOLLERANZA_PULIZIA_S
++    assert {t.name for t in _threads_cwatt()} == prima
++    assert _loop_attivo() is None
++
++
++def test_server_senza_header(fake_ollama):
++    """P1.2: connessione accettata e nessun byte scritto = timeout, non blocco.
++
++    Il client deve terminare da solo: un server muto non puo' tenere aperta
++    una finestra energetica. ``t_headers_received`` assente e ``ttft_s`` vuoto
++    dicono che nessun contenuto e' stato ricevuto, quindi la riga non avra'
++    alcuna statistica da interpretare.
++    """
++    srv = fake_ollama(mode="silent")
++    deadline = 0.4
++    t0 = time.monotonic()
++    out = v4.infer_v4_stream("cw-test", "p", 0.0, deadline)
++    elapsed = time.monotonic() - t0
++
++    assert srv.accepted.is_set()
++    assert deadline <= elapsed <= deadline + TOLLERANZA_PULIZIA_S
++    assert out["stream_incomplete"] is True
++    assert out["stream_incomplete_reason"] == "timeout_senza_header"
++    assert out["_t_headers_received"] is None
++    assert out["ttft_s"] is None
++    assert out["text"] == ""
++
++
++def test_server_blocca_dopo_header(fake_ollama):
++    """P1.2: header arrivati e corpo fermo = timeout con gli header letti.
++
++    La ragione diversa da ``test_server_senza_header`` e' il punto: la
++    distinzione fra "nessuna risposta" e "risposta senza contenuti" finisce
++    nella riga, perche' il TTFT non e' la stessa cosa in due casi.
++    """
++    srv = fake_ollama(mode="headers_only")
++    deadline = 0.4
++    t0 = time.monotonic()
++    out = v4.infer_v4_stream("cw-test", "p", 0.0, deadline)
++    elapsed = time.monotonic() - t0
++
++    assert deadline <= elapsed <= deadline + TOLLERANZA_PULIZIA_S
++    assert out["stream_incomplete"] is True
++    assert out["stream_incomplete_reason"] == "timeout_deadline"
++    assert out["_t_headers_received"] is not None
++    assert out["_t_last_chunk"] is None
++    assert out["ttft_available"] is False
++
++
++def test_timeout_durante_connessione(fake_ollama):
++    """P1.2: se la fase HTTP non si conclude, il limite vale lo stesso.
++
++    Il server resta in ``listen`` senza accettare: il kernel conclude l'handshake
++    e il client scrive, ma gli header non arrivano mai. Il timeout scatta
++    sull'attesa della risposta e la pulizia avviene comunque, con una sessione
++    creata e chiusa e nessun thread residuo.
++    """
++    srv = fake_ollama(mode="no_accept")
++    deadline = 0.4
++    prima = {t.name for t in _threads_cwatt()}
++    t0 = time.monotonic()
++    out = v4.infer_v4_stream("cw-test", "p", 0.0, deadline)
++    elapsed = time.monotonic() - t0
++
++    assert not srv.accepted.is_set()
++    assert deadline <= elapsed <= deadline + TOLLERANZA_PULIZIA_S
++    assert out["stream_incomplete"] is True
++    assert out["stream_incomplete_reason"] == "timeout_senza_header"
++    assert {t.name for t in _threads_cwatt()} == prima
++    assert _loop_attivo() is None
++
++
++# ------------------------------ 8, 9, 10, 11, 15 + errore HTTP (residui)
++def test_errore_http_non_diventa_risultato_incompleto(fake_ollama):
++    """P1.5: un 5xx e' una richiesta fallita, non una misura parziale.
++
++    Il vincolo sulla chiusura della finestra riguarda anche l'errore HTTP: la
++    risposta arriva con stato 500 e nessun corpo. La produzione vecchia usava
++    ``resp.raise_for_status()`` di ``requests`` e propagava ``HTTPError``; il
++    percorso nuovo propaga ``ClientResponseError`` di ``aiohttp`` -- e' l'unico
++    cambio di tipo del pacchetto P1, dichiarato qui perche' il comportamento
++    che conta e' identico: nessuna riga pubblicata, nessun risultato, nessuna
++    attesa del deadline, e nessuna sessione lasciata aperta.
++    """
++    srv = fake_ollama(mode="lines", lines=[], status_code=500)
++    t0 = time.monotonic()
++
++    with pytest.raises(v4.aiohttp.ClientResponseError):
++        v4.infer_v4_stream("cw-test", "p", 0.0, 5.0)
++
++    assert time.monotonic() - t0 < 5.0
++    assert srv.accepted.is_set()
++    assert _loop_attivo() is None
++    assert not any(t.name.startswith(v4._STREAM_THREAD_PREFIX)
++                   for t in _threads_cwatt())
++
++
++def test_nessun_worker_dopo_la_restituzione(fake_ollama):
++    """P1.2: al ritorno non esiste nessun worker o task di CasualWatt.
++
++    Si confrontano i thread vivi prima e dopo, ESCLUSI quelli del banco di
++    prova (prefisso ``cw-test-server``): il vincolo riguarda i thread che il
++    programma crea, non il server finto. Si verifica anche che il thread
++    chiamante non abbia un loop in esecuzione, perche' un loop aperto dopo il
++    ritorno significherebbe operazioni asincrone ancora vive.
++    """
++    srv = fake_ollama(mode="endless", interval_s=0.05)
++    prima = sorted(t.name for t in _threads_cwatt())
++
++    out = v4.infer_v4_stream("cw-test", "p", 0.0, 0.3)
++    dopo = sorted(t.name for t in _threads_cwatt())
++
++    assert out["stream_incomplete"] is True
++    assert dopo == prima
++    assert not any(n.startswith(v4._STREAM_THREAD_PREFIX) for n in dopo)
++    assert _loop_attivo() is None
++
++
++def test_nessuna_modifica_dopo_la_restituzione(fake_ollama):
++    """P1.2: il risultato restituito non e' piu' modificabile da nessuno.
++
++    Dopo il ritorno si aspetta oltre il deadline e si riconfronta con una
++    copia: se esistesse un task vivo, il timeout avrebbe potuto cambiare il
++    testo o il flag dopo la consegna. L'errore di scrittura del server e'
++    l'evidenza indipendente che la richiesta HTTP era gia' morta.
++    """
++    srv = fake_ollama(mode="endless", interval_s=0.05)
++    deadline = 0.3
++    out = v4.infer_v4_stream("cw-test", "p", 0.0, deadline)
++    snapshot = copy.deepcopy(out)
++    time.sleep(2.0 * deadline + 0.2)
++
++    assert out == snapshot
++    assert out["stream_incomplete"] is True
++    assert srv.write_error is not None
++
++
++def test_finestra_energetica_chiusa(fake_ollama):
++    """P1.5: il bordo di fine si puo' leggere solo a stream chiuso.
++
++    ``run_block`` legge ``e0`` prima e ``e1`` dopo la chiamata
++    (``benchmark_v4.py:1785-1792``) e passa ``_t0``/``_t1`` al profilo: se la
++    funzione ritornasse con lo stream vivo, ``e1`` sarebbe precoce. Qui si
++    reproduce la sequenza del chiamante con i tempi a muro e si pretende che
++    il server abbia visto la chiusura del client PRIMA di ``e1`` (piu' la
++    tolleranza di osservazione), che i bordi siano monotoni, e che ``_t1`` sia
++    l'istante della pulizia e non della ricezione.
++    """
++    srv = fake_ollama(mode="endless", interval_s=0.05)
++    deadline = 0.3
++
++    t_e0 = time.monotonic()
++    out = v4.infer_v4_stream("cw-test", "p", 0.0, deadline)
++    t_e1 = time.monotonic()
++
++    assert out["_t_request_start"] <= out["_t_headers_received"]
++    assert out["_t_headers_received"] <= out["_t_last_chunk"]
++    assert out["_t_last_chunk"] <= out["_t_measurement_end"] == out["_t1"]
++    # La finestra del chiamante CONTIENE la richiesta: ``e0`` e' letto prima di
++    # entrare nel coroutine e ``e1`` dopo che il wrapper ha finito, perche'
++    # ``run_block`` sta fuori dalla funzione (``benchmark_v4.py:1785-1792``).
++    assert t_e0 <= out["_t_request_start"]
++    assert out["_t_measurement_end"] <= t_e1
++    assert srv.client_closed_at is not None
++    assert srv.client_closed_at <= t_e1 + TOLLERANZA_PULIZIA_S
++    assert out["stream_incomplete"] is True
++
++
++def test_richiesta_successiva_senza_interferenze(fake_ollama):
++    """P1: un timeout non avvelena la chiamata dopo.
++
++    La seconda richiesta usa un server NUOVO con done=True: se il wrapper
++    lasciasse un loop o una sessione in corso, la seconda chiamata erediterebbe
++    lo stato della prima e il risultato non sarebbe piu' riproducibile.
++    """
++    srv1 = fake_ollama(mode="endless", interval_s=0.05)
++    out1 = v4.infer_v4_stream("cw-test", "primo", 0.0, 0.3)
++    assert out1["stream_incomplete"] is True
++
++    srv2 = fake_ollama(mode="lines", lines=[_chunk_line("ki"),
++                                           _done_line("kiwi")],
++                       hold_after_lines=False)
++    out2 = v4.infer_v4_stream("cw-test", "secondo", 0.0, 5.0)
++
++    assert out2["stream_incomplete"] is False
++    assert out2["text"] == "kiwi"
++    assert out2["completion_tokens"] == 5
++    assert srv2.accepted.is_set()
++
++
++def test_timeout_non_contamina_richiesta_successiva(fake_ollama, monkeypatch):
++    """P1.2: niente dati, sessioni o stato riutilizzati fra le chiamate.
++
++    Le due chiamate usano prompt diversi e server diversi: si pretende che
++    ogni ``ClientSession`` creata sia un oggetto distinto e gia' chiuso al
++    ritorno, che il secondo server legga il proprio payload e non quello
++    precedente, e che il secondo risultato non contenga nessuna parte del testo
++    parziale della prima. Il conteggio delle sessioni e' l'unica prova che non
++    esiste una sessione di modulo riusata fra le richieste.
++    """
++    created = []
++    real_session = v4.aiohttp.ClientSession
++
++    def _traccia(**kwargs):
++        sess = real_session(**kwargs)
++        created.append(sess)
++        return sess
++
++    monkeypatch.setattr(v4.aiohttp, "ClientSession", _traccia)
++
++    srv1 = fake_ollama(mode="endless", interval_s=0.05)
++    out1 = v4.infer_v4_stream("cw-test", "PARZIALE1", 0.0, 0.3)
++    srv2 = fake_ollama(mode="lines", lines=[_done_line("PULITO2")],
++                       hold_after_lines=False)
++    out2 = v4.infer_v4_stream("cw-test", "PULITO2", 0.0, 5.0)
++
++    assert out1["stream_incomplete"] is True
++    assert out2["stream_incomplete"] is False
++    assert "PARZIALE1" not in out2["text"]
++    assert len(created) == 2
++    assert created[0] is not created[1]
++    assert all(sess.closed for sess in created)
++    # Il payload intero e' un evento, non una speranza sullo scheduler.
++    assert srv2.request_ready.wait(5.0)
++    assert srv1.request_ready.wait(5.0)
++    assert srv2.payload["prompt"] == "PULITO2"
++    assert srv1.payload["prompt"] == "PARZIALE1"
++    assert srv2.payload["stream"] is True
++    assert "PARZIALE1" not in srv2.request_bytes.decode("utf-8", "replace")
++
++
++# ------------------------------------------------------------------ 12
++def test_ttft_e_token_nativi(fake_ollama):
++    """P1.3: il TTFT parte dall'invio, non dagli header; i token sono nativi.
++
++    Il server ritarda gli header di 0,20 s prima di scrivere qualsiasi cosa:
++    se la latenza partisse dagli header, ``ttft_s`` sarebbe piu' piccolo del
++    ritardo e il confine fra "tempo di risposta HTTP" e TTFT si perderebbe. Il
++    vincolo chiede che ``t_request_start`` sia preso prima dell'invio, e qui
++    lo si misura.
++    """
++    delay = 0.20
++    srv = fake_ollama(mode="lines", lines=[_chunk_line("C"),
++                                          _chunk_line("iao"),
++                                          _done_line("Ciao")],
++                      hold_after_lines=False, pre_headers_delay_s=delay)
++
++    out = v4.infer_v4_stream("cw-test", "p", 0.0, 5.0)
++
++    assert out["ttft_available"] is True
++    assert out["ttft_s"] >= delay
++    assert out["duration_s"] >= out["ttft_s"]
++    assert out["_t_ttft"] is not None and out["_t_ttft"] >= out["_t_headers_received"]
++    assert out["prompt_tokens"] == 10
++    assert out["completion_tokens"] == 5
++    assert out["prefill_duration_s"] == pytest.approx(0.02)
++    assert out["decoding_duration_s"] == pytest.approx(0.5)
++
++
++# ---------------------------------------------------------- extra dichiarati
++def test_deadline_non_positivo_e_rifiutato(fake_ollama):
++    """P1.2: ``timeout_s`` 0 o assente non e' "nessun limite".
++
++    Con 0 il vecchio percorso avrebbe potuto girare per sempre (o con un
++    comportamento dipendente da ``requests``); qui il rifiuto e' un errore
++    nominato prima di aprire la connessione, cosi' nessuna finestra energetica
++    viene aperta su una richiesta senza limite.
++    """
++    srv = fake_ollama(mode="endless", interval_s=0.05)
++
++    for cattivo in (0, -1, None, float("inf"), float("nan"), "x"):
++        with pytest.raises(v4.V4MeasurementError):
++            v4.infer_v4_stream("cw-test", "p", 0.0, cattivo)
++
++    assert not srv.accepted.is_set()
++
++
++def test_wrapper_in_loop_gia_attivo(fake_ollama):
++    """P1.2: il wrapper funziona anche dentro un loop in esecuzione.
++
++    ``asyncio.run`` da un thread con un loop attivo solleva RuntimeError: il
++    ramo con il pool temporaneo serve li'. Si esegue il wrapper dentro un
++    loop reale e si pretendera' il risultato e l'assenza di thread residui.
++    """
++    srv = fake_ollama(mode="endless", interval_s=0.05)
++    prima = sorted(t.name for t in _threads_cwatt())
++
++    async def _dentro_il_loop():
++        # Chiamata sincrona dentro un coroutine: e' esattamente il caso in cui
++        # il wrapper deve creare il loop altrove invece di riusare questo.
++        return v4._ollama_stream_with_aiohttp_deadline(
++            {"model": "cw-test", "prompt": "p", "stream": True}, 0.3)
++
++    res = asyncio.run(_dentro_il_loop())
++    dopo = sorted(t.name for t in _threads_cwatt())
++
++    assert srv.accepted.is_set()
++    assert res["final_data"] is None
++    assert res["stream_incomplete_reason"] == "timeout_deadline"
++    assert dopo == prima

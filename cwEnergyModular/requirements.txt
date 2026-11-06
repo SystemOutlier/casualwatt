@@ -3,6 +3,7 @@
 
 # --- Nucleo (obbligatorio) ---
 requests>=2.31          # API Ollama locale + provider cloud (Groq/OpenRouter/Google/OpenAI/Anthropic)
+aiohttp>=3.9            # streaming Ollama con deadline globale (P1, benchmark_v4::infer_v4_stream)
 psutil>=5.9             # PID/albero processi Ollama, CPU time share, contatori NIC
 pandas>=2.0             # risultati CSV
 rich>=13.0              # dashboard/testi formattati
