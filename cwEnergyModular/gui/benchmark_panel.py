@@ -25,6 +25,36 @@ from tkinter import ttk
 from typing import List, Optional, Tuple
 
 
+def _gpu_idle_missing_message(gpu_mon) -> str:
+    """Messaggio di baseline GPU non calibrabile, distinto per causa.
+
+    Perche' esiste. Fino ad ora il ramo "altrimenti" dopo la calibrazione
+    stampava sempre la stessa riga: "Nessun contatore GPU attivo: baseline
+    GPU non applicabile su questa macchina". Sono pero' due fatti diversi:
+    (a) nessun monitor GPU rilevato, (b) monitor presente ma contatore
+    cumulativo assente. Il caso (b) e' quello che lascia la riga in
+    sovrastima dichiarata -- ``gpu_idle_provenance='missing'`` -- e va detto
+    con il nome del device, perche' la potenza istantanea del backend NVML o
+    AMD SMI puo' dare un integrale di finestra ma non una baseline a
+    mediana di tre finestre da 30 s.
+    """
+    if gpu_mon is not None and getattr(gpu_mon, "available", False):
+        name = getattr(gpu_mon, "name", "") or "nome n/d"
+        return (
+            f"GPU rilevata ({name}) senza contatore cumulativo: "
+            "``calibrate_gpu_idle`` non e' calcolabile, "
+            "``idle_gpu_power_w`` resta ``None`` e la riga uscira' con "
+            "``gpu_idle_provenance='missing'``. Il ramo NVML/amdsmi con "
+            "potenza istantanea puo' dare un integrale di finestra, non "
+            "una baseline a mediana di tre finestre."
+        )
+    return (
+        "Nessun monitor GPU attivo: baseline GPU non applicabile su "
+        "questa macchina (la riga non porta energia GPU, quindi "
+        "nessuna sovrastima)."
+    )
+
+
 class BenchmarkPanel(ttk.Frame):
     """Pannello 'Esecuzione benchmark' + Log, con sotto-pannelli regolabili.
 
@@ -582,7 +612,8 @@ class BenchmarkPanel(ttk.Frame):
                     "log",
                     "Calibrazione idle EMPIRICA: NON generare carico sul PC… "
                     "(durata prevista: ~92 s = stabilizzazione + 3 finestre "
-                    "da 30 s; progressivo sotto)",
+                    "da 30 s; altri ~92 s se c'e' una GPU da calibrare; "
+                    "progressivo sotto)",
                 ))
                 pw = SESSION.calibrate_idle()
                 # FIX: il campo 'Potenza idle calibrata (W)' non si aggiornava
@@ -614,6 +645,43 @@ class BenchmarkPanel(ttk.Frame):
                     f"(mediana di 3 ripetizioni; contatore: "
                     f"{SESSION.source_method}){det}{camp_txt} — campo GUI aggiornato",
                 ))
+                # Baseline idle della GPU: la riga la legge
+                # (energy/local_energy.py:931, :943) e senza questa chiamata
+                # usciva sempre con gpu_idle_provenance='missing', cioe' con la
+                # potenza TOTALE della scheda attribuita al modello. Si
+                # calibra solo se il contatore cumulativo risponde: la potenza
+                # istantanea non e' la media di una finestra (vedi
+                # calibrate_gpu_idle).
+                gpu_mon = getattr(SESSION, "_gpu", None)
+                if (gpu_mon is not None
+                        and getattr(gpu_mon, "available", False)
+                        and getattr(gpu_mon, "energy_counter", False)):
+                    self._q.put((
+                        "log",
+                        "Baseline idle GPU: 3 finestre da 30 s con la scheda "
+                        "a riposo (durata prevista: ~92 s in piu')…",
+                    ))
+                    try:
+                        gpu_w = SESSION.calibrate_gpu_idle()
+                        self._q.put((
+                            "log",
+                            f"P_idle GPU = {gpu_w:.2f} W (contatore: "
+                            f"{getattr(gpu_mon, 'backend', '')}; device "
+                            f"{getattr(SESSION, '_gpu_idle_device', '')}) — "
+                            "la riga sottrarra' questa baseline",
+                        ))
+                    except Exception as g_exc:  # noqa: BLE001
+                        # La CPU e' gia' calibrata: un guasto GPU non la
+                        # invalida. La riga resta dichiaratamente in sovrastima.
+                        self._q.put((
+                            "log",
+                            f"Baseline idle GPU non ottenuta: {g_exc}. Le "
+                            "righe GPU usciranno con "
+                            "gpu_idle_provenance='missing' (sovrastima "
+                            "dichiarata).",
+                        ))
+                else:
+                    self._q.put(("log", _gpu_idle_missing_message(gpu_mon)))
             except Exception as exc:
                 self._q.put(("log", f"Calibrazione fallita: {exc}"))
                 # niente fallimento silenzioso: se il contatore non legge i
