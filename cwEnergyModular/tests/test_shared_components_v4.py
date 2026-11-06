@@ -28,7 +28,10 @@ Che cosa verifica:
 Che cosa NON verifica: che i due runner producano numeri uguali (le sequenze
 sono diverse per disegno: la v4 aggiunge settling e baseline di blocco).
 """
+import json
+import socket
 import sys
+import threading
 from pathlib import Path
 from types import SimpleNamespace
 
@@ -72,8 +75,8 @@ class _Sessione:
     def samples_between(self, a, b):
         return [s for s in self.samples if a <= s.t <= b]
 
-    def package_energy_exact_between(self, a, b, excl=None):
-        return 50.0
+    def package_energy_exact_between(self, a, b, excl=None, exclude_windows=None):
+        return 25.0
 
 
 def _edge(t, cpu_mid, j, ts, worker_cpu, busy):
@@ -201,6 +204,203 @@ def test_infer_v4_non_stima_i_token(monkeypatch):
     assert out["prompt_tokens"] == 12
     assert out["completion_tokens"] == 5
     assert out["tokens_valid"] is True
+
+
+# ------------------------------------------------------------------ 7, 8
+class _RispostaNDJSON:
+    """Socket HTTP/1.1 one-shot: header, le righe NDJSON date, poi EOF.
+
+    Dopo la P1 lo streaming della v4 gira su ``aiohttp`` con il deadline
+    globale, e il punto di osservazione non puo' piu' essere la funzione
+    ``requests.post`` di modulo: dev'essere una risposta HTTP reale, perche'
+    e' li' che il limite agisce. Le righe sono gli stessi byte dei fake di
+    prima, percio' le cinque asserzioni dei test non cambiano contenuto.
+    """
+
+    def __init__(self, lines):
+        self.lines = list(lines)
+        self.payload = None
+        self._listen = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+        self._listen.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
+        self._listen.bind(("127.0.0.1", 0))
+        self._listen.listen(1)
+        self.url = f"http://127.0.0.1:{self._listen.getsockname()[1]}/api/generate"
+        self._thread = None
+
+    def start(self):
+        self._thread = threading.Thread(target=self._run,
+                                        name="cw-test-ndjson", daemon=True)
+        self._thread.start()
+        return self
+
+    def _run(self):
+        try:
+            conn, _ = self._listen.accept()
+        except OSError:
+            return
+        with conn:
+            conn.settimeout(10.0)
+            testa = b""
+            while b"\r\n\r\n" not in testa:
+                try:
+                    dato = conn.recv(4096)
+                except OSError:
+                    return
+                if not dato:
+                    return
+                testa += dato
+            pre, _, corpo = testa.partition(b"\r\n\r\n")
+            lunghezza = 0
+            for riga in pre.split(b"\r\n"):
+                nome, _, valore = riga.partition(b":")
+                if nome.strip().lower() == b"content-length":
+                    lunghezza = int(valore.strip() or 0)
+            while len(corpo) < lunghezza:
+                try:
+                    dato = conn.recv(4096)
+                except OSError:
+                    break
+                if not dato:
+                    break
+                corpo += dato
+            try:
+                self.payload = json.loads(corpo.decode("utf-8"))
+            except (json.JSONDecodeError, UnicodeDecodeError, ValueError):
+                self.payload = {}
+            try:
+                conn.sendall(b"HTTP/1.1 200 OK\r\n"
+                             b"Content-Type: application/x-ndjson\r\n\r\n")
+                for riga in self.lines:
+                    # NDJSON: un oggetto per riga. I fake precedenti passavano
+                    # gia' gli oggetti separati a ``iter_lines``; qui il
+                    # delimitatore e' obbligatorio perche' il client legge a
+                    # righe dal socket.
+                    conn.sendall(riga if riga.endswith(b"\n") else riga + b"\n")
+            except OSError:
+                # Il client ha gia' ricevuto o e' andato: nessuna asserzione
+                # dipende da questo, il test cade sull'esito della chiamata.
+                pass
+
+    def shutdown(self):
+        try:
+            self._listen.close()
+        except OSError:
+            pass
+        if self._thread is not None:
+            self._thread.join(timeout=5.0)
+
+
+@pytest.fixture
+def ndjson(monkeypatch):
+    """Serve le righe date sull'endpoint Ollama e richiude il socket."""
+    aperti = []
+
+    def _serve(lines):
+        srv = _RispostaNDJSON(lines).start()
+        aperti.append(srv)
+        monkeypatch.setattr(v4.config, "OLLAMA_GENERATE_ENDPOINT", srv.url)
+        return srv
+
+    yield _serve
+    for srv in aperti:
+        srv.shutdown()
+
+
+def test_infer_v4_stream_registra_ttft(ndjson):
+    """v4-TTFT: con stream=True il primo token ricevuto e' il bordo ttft."""
+    srv = ndjson([
+        b'{"model":"llama","response":"C","done":false}',
+        b'{"model":"llama","response":"iao","done":false}',
+        b'{"model":"llama","response":"iao","done":true,'
+        b'"prompt_eval_count":10,"eval_count":5,'
+        b'"prompt_eval_duration":20000000,"eval_duration":500000000,'
+        b'"done_reason":"stop"}',
+    ])
+
+    out = v4.infer_v4_stream("llama", "testo", 0.2, 5.0)
+
+    assert srv.payload["stream"] is True
+    assert out["ttft_available"] is True
+    assert out["ttft_s"] is not None
+    assert out["ttft_s"] >= 0.0
+    assert out["prompt_tokens"] == 10
+    assert out["completion_tokens"] == 5
+    assert out["tokens_valid"] is True
+    assert out["done_reason"] == "stop"
+
+
+def test_infer_v4_stream_senza_primo_token(ndjson):
+    """v4-TTFT: stream vuoto -> ttft non disponibile, niente stima."""
+    ndjson([])
+
+    out = v4.infer_v4_stream("llama", "testo", 0.2, 5.0)
+
+    assert out["ttft_available"] is False
+    assert out["ttft_s"] is None
+    assert out["prompt_tokens"] == ""
+    assert out["completion_tokens"] == ""
+    assert out["tokens_valid"] is False
+
+
+def test_infer_v4_stream_senza_done_lascia_durate_none(ndjson):
+    """FASE 2: chunk finale assente => durate del motore NON calcolabili.
+
+    Il primo token arriva (ttft disponibile) e lo stream si chiude prima del
+    chunk ``done=True``. ``prompt_eval_duration`` e ``eval_duration`` stanno
+    SOLO nel chunk finale: qui non arrivano, e la produzione non deve
+    pubblicare ``0.0`` -- un valore che somiglia ad una misura ma non lo e'.
+    Il record ritorna ``None`` per entrambi i campi e il flag
+    ``stream_incomplete`` dichiara la ragione.
+    """
+    ndjson([
+        b'{"model":"llama","response":"C","done":false}',
+        b'{"model":"llama","response":"iao","done":false}',
+    ])
+
+    out = v4.infer_v4_stream("llama", "testo", 0.2, 5.0)
+
+    assert out["ttft_available"] is True
+    assert out["stream_incomplete"] is True
+    assert out["prefill_duration_s"] is None
+    assert out["decoding_duration_s"] is None
+
+
+def test_infer_v4_stream_done_legge_prefill_e_decode(ndjson):
+    """FASE 2: con chunk ``done=True`` le durate arrivano, in secondi."""
+    ndjson([
+        b'{"model":"llama","response":"C","done":false}',
+        b'{"model":"llama","response":"iao","done":true,'
+        b'"prompt_eval_count":10,"eval_count":5,'
+        b'"prompt_eval_duration":20000000,"eval_duration":500000000,'
+        b'"done_reason":"stop"}',
+    ])
+
+    out = v4.infer_v4_stream("llama", "testo", 0.2, 5.0)
+
+    assert out["stream_incomplete"] is False
+    assert out["prefill_duration_s"] == 0.02
+    assert out["decoding_duration_s"] == 0.5
+
+
+def test_infer_v4_stream_prefill_zero_umelegibile_da_none(ndjson):
+    """FASE 2: un prefill reale a 0 s non e' un dato mancante.
+
+    ``prompt_eval_duration=0`` nel chunk finale e' una misura legittima (prompt
+    vuoto o cache); deve restare ``0.0`` nella riga, non diventare ``None``.
+    La distinzione e' ``final_data`` presente, non il valore numerico.
+    """
+    ndjson([
+        b'{"model":"llama","response":"x","done":true,'
+        b'"prompt_eval_count":0,"eval_count":1,'
+        b'"prompt_eval_duration":0,"eval_duration":1000000,'
+        b'"done_reason":"stop"}',
+    ])
+
+    out = v4.infer_v4_stream("llama", "testo", 0.2, 5.0)
+
+    assert out["stream_incomplete"] is False
+    assert out["prefill_duration_s"] == 0.0
+    assert out["decoding_duration_s"] == 0.001
 
 
 # ------------------------------------------------------------------ 5, 6
