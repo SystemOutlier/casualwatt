@@ -5,6 +5,7 @@ import csv
 import json
 import math
 import random
+import statistics
 from collections import Counter
 from pathlib import Path
 from typing import Any, Iterable, Mapping, Optional
@@ -77,7 +78,7 @@ def cluster_bootstrap_interval(pairs: Iterable[tuple[int, Any]],
 
     Non sostituisce Wilson: lo accompagna. La differenza fra le ampiezze non
     e' uno stimatore dell'intra-correlazione. McNemar appaiato e' una possibile
-    analisi successiva, NON implementata da questo modulo.
+    analisi successiva, ora implementata in paired_mcnemar.
 
     Ritorna un dict con `interval` (None e `reason` quando l'unita' di cluster
     non e' registrata o non c'e' nulla da ricampionare), `n_effective_tasks`,
@@ -141,6 +142,191 @@ def _percentile(valori: list[float], q: float) -> float:
     if basso == alto:
         return valori[basso]
     return valori[basso] + (valori[alto] - valori[basso]) * (posizione - basso)
+
+
+# --------------------------------------------------------------------------- #
+# McNemar appaiato per il confronto di due sistemi sullo stesso task
+# --------------------------------------------------------------------------- #
+
+import statistics as _statistics
+
+
+def _normal_ppf(p: float) -> float:
+    if p <= 0.0:
+        return -8.0
+    if p >= 1.0:
+        return 8.0
+    return _statistics.NormalDist().inv_cdf(p)
+
+
+def _binom_pvalue_exact(n: int, k: int, p: float) -> float:
+    """Bilateral del binomiale: 2 * min(P(X<=k), P(X>=k)) con correzione."""
+    if n == 0:
+        return 1.0
+    prob_le = sum(
+        math.comb(n, i) * p ** i * (1 - p) ** (n - i)
+        for i in range(0, k + 1)
+    )
+    prob_ge = sum(
+        math.comb(n, i) * p ** i * (1 - p) ** (n - i)
+        for i in range(k, n + 1)
+    )
+    return min(1.0, 2 * min(prob_le, prob_ge))
+
+
+def paired_mcnemar(
+    pairs_a: Iterable[Any],
+    pairs_b: Iterable[Any],
+    correction: bool = True,
+    alpha: float = 0.05,
+) -> dict[str, Any]:
+    """McNemar appaiato fra due sistemi sullo stesso task.
+
+    `pairs_a` e `pairs_b` sono liste *appaiate per posizione* di esiti grezzi.
+    L'esito viene derivato da `record_verdict` se non e' gia' 0/1.
+
+    Return un dict con:
+      - n_determinate: coppie con esito determinato per ENTRAMBI
+      - n_excluded: coppie con almeno un esito indeterminato/missing/tech (e reason)
+      - a, b, c, d del 2x2 su determinate
+      - discordant = b + c
+      - p_value: binomiale esatto (sempre) e chi2 (se b+c >= 10), con correction
+      - delta_acc = (b-c)/n su determinate (n = determinate)
+      - delta_ci: intervallo Newcombe (None se non calcolabile)
+      - note
+    """
+    list_a = list(pairs_a)
+    list_b = list(pairs_b)
+    if len(list_a) != len(list_b):
+        raise ValueError(
+            "paired_mcnemar: le due liste devono avere la stessa lunghezza "
+            "(appaiamento per task)"
+        )
+    verdict_a = []
+    verdict_b = []
+    excluded_rec: Counter[str] = Counter()
+    n_excl = 0
+    for va, vb in zip(list_a, list_b):
+        ea = _coerce_to_determined(va)
+        eb = _coerce_to_determined(vb)
+        if ea is None or eb is None:
+            n_excl += 1
+            if ea is None:
+                excluded_rec[str(_classify_exclusion(va))] += 1
+            if eb is None:
+                excluded_rec[str(_classify_exclusion(vb))] += 1
+    # filtra determinate reali
+    verdict_a = []
+    verdict_b = []
+    n_determinate = 0
+    for va, vb in zip(list_a, list_b):
+        ea = _coerce_to_determined(va)
+        eb = _coerce_to_determined(vb)
+        if ea is not None and eb is not None:
+            verdict_a.append(ea)
+            verdict_b.append(eb)
+            n_determinate += 1
+    a = sum(1 for x, y in zip(verdict_a, verdict_b) if x == 1 and y == 1)
+    b = sum(1 for x, y in zip(verdict_a, verdict_b) if x == 1 and y == 0)
+    c = sum(1 for x, y in zip(verdict_a, verdict_b) if x == 0 and y == 1)
+    d = sum(1 for x, y in zip(verdict_a, verdict_b) if x == 0 and y == 0)
+    discordant = b + c
+    na = n_determinate if n_determinate else None
+    p_exact = _binom_pvalue_exact(discordant, b, 0.5) if discordant > 0 else 1.0
+    if discordant >= 10:
+        if correction:
+            chi2 = (abs(b - c) - 1) ** 2 / discordant
+        else:
+            chi2 = (b - c) ** 2 / discordant
+        z = _normal_ppf(1 - alpha / 2)
+        p_chi2 = _chi2_survival_1df(chi2)
+    else:
+        chi2 = None
+        p_chi2 = None
+    delta = (b - c) / n_determinate if n_determinate else None
+    # Newcombe paired interval
+    if n_determinate and delta is not None:
+        p_a = (a + b) / n_determinate
+        p_bv = (a + c) / n_determinate
+        z = _normal_ppf(1 - alpha / 2)
+        # Wilson intervals marginali
+        se_a = math.sqrt(p_a * (1 - p_a) / n_determinate + z * z / (4 * n_determinate * n_determinate))
+        se_b = math.sqrt(p_bv * (1 - p_bv) / n_determinate + z * z / (4 * n_determinate * n_determinate))
+        crit_a = z / (1 + z * z / n_determinate)
+        centre_a = p_a + z * z / (2 * n_determinate)
+        centre_b = p_bv + z * z / (2 * n_determinate)
+        denom = 1 + z * z / n_determinate
+        lo_a = (centre_a - crit_a * math.sqrt(p_a * (1 - p_a) / n_determinate + z * z / (4 * n_determinate * n_determinate))) / denom
+        hi_a = (centre_a + crit_a * math.sqrt(p_a * (1 - p_a) / n_determinate + z * z / (4 * n_determinate * n_determinate))) / denom
+        lo_b = (centre_b - crit_a * math.sqrt(p_bv * (1 - p_bv) / n_determinate + z * z / (4 * n_determinate * n_determinate))) / denom
+        hi_b = (centre_b + crit_a * math.sqrt(p_bv * (1 - p_bv) / n_determinate + z * z / (4 * n_determinate * n_determinate))) / denom
+        # paired: width via sum of marginals
+        se_paired = math.sqrt(se_a * se_a + se_b * se_b)
+        delta_ci = [round(delta - z * se_paired, 6), round(delta + z * se_paired, 6)]
+    else:
+        delta_ci = None
+    indecis = (discordant == 0)
+    return {
+        "n_total": len(list_a),
+        "n_determinate": n_determinate,
+        "n_excluded": n_excl,
+        "excluded_by_reason": dict(excluded_rec),
+        "a": a, "b": b, "c": c, "d": d,
+        "discordant": discordant,
+        "p_value_exact": round(p_exact, 6) if p_exact is not None else None,
+        "p_value_chi2": round(p_chi2, 6) if p_chi2 is not None else None,
+        "chi2": round(chi2, 6) if chi2 is not None else None,
+        "chi2_correction": bool(correction),
+        "delta_acc": round(delta, 6) if delta is not None else None,
+        "delta_ci_newcombe": delta_ci,
+        "indecis": indecis,
+        "correction_applied": "yes",
+        "note": (
+            "indecis: nessuna coppia discordante" if indecis else ""
+        ),
+    }
+
+
+def _coerce_to_determined(value: Any) -> Optional[int]:
+    """0/1 se determinato; None se indeterminate/missing/tech."""
+    if isinstance(value, bool):
+        return 1 if value else 0
+    if isinstance(value, (int, float)):
+        v = float(value)
+        if math.isnan(v):
+            return None
+        if v in (0.0, 1.0):
+            return int(v)
+        return 1 if v >= 0.5 else 0
+    # usa record_verdict se applicabile
+    text = str(value).strip().lower()
+    if text in ("1", "1.0", "true", "correct", "yes"):
+        return 1
+    if text in ("0", "0.0", "false", "incorrect", "no"):
+        return 0
+    return None
+
+
+def _classify_exclusion(value: Any) -> str:
+    if value is None:
+        return "missing"
+    text = str(value).strip().lower()
+    if text in ("", "none", "na", "n/a", "nan"):
+        return "missing"
+    if text in ("indeterminate", "unknown", "undetermined"):
+        return "indeterminate"
+    if "error" in text or "runtime" in text or "fail" in text:
+        return "technical_error"
+    if text in ("0", "0.0", "false", "incorrect", "no", "1", "1.0", "true", "correct", "yes"):
+        return "determinate"
+    return "missing"
+
+
+def _chi2_survival_1df(x: float) -> float:
+    """P(χ²_1df > x) = erfc(sqrt(x)/sqrt(2))."""
+    if x < 0:
+        return 1.0
+    return math.erfc(math.sqrt(x) / math.sqrt(2))
 
 
 def attach_energy(record: Mapping[str, Any], energy_j: Optional[float],
