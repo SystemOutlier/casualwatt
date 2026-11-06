@@ -121,6 +121,8 @@ def test_ogni_campo_scritto_dalla_v4_esiste_nello_schema():
 
     local = le.LocalEnergyResult()
     for col in v4.energy_fields(local, ""):
+        if col.startswith("_"):
+            continue  # chiavi private (es. _ttft_*), tolte prima dell'export
         assert col in cx.CSV_COLUMNS, f"campo di energy_fields fuori schema: {col}"
 
     for col in v4.judge_fields(None, [], 10.0):
@@ -448,6 +450,10 @@ def test_un_blocco_offline_passa_dai_componenti_di_produzione(monkeypatch):
     edges = iter([
         _edge(50.0, 50.1, 100.0, 10_000_000, 10.0, 100.0),
         _edge(52.0, 52.3, 150.0, 30_000_000, 12.0, 108.0),
+        # terzo bordo per read_ttft_edge (v4-TTFT): stesso contatore di e0,
+        # con t_ttft_mono già aggiunto da read_ttft_edge
+        dict(_edge(50.0, 50.1, 100.0, 10_000_000, 10.0, 100.0),
+             t_ttft_mono=50.35),
     ])
     monkeypatch.setattr(es.SESSION, "read_measurement_edge", lambda **k: next(edges))
 
@@ -456,10 +462,12 @@ def test_un_blocco_offline_passa_dai_componenti_di_produzione(monkeypatch):
         "tokens_valid": True, "duration_s": 1.6,
         "prefill_duration_s": 0.2, "decoding_duration_s": 1.4,
         "done_reason": "stop", "raw_created_at": "", "tool_calls": 0,
-        "keep_alive_sent": "-1", "num_ctx": 8192, "num_predict": 160,
+        "keep_alive_sent": -1, "num_ctx": 8192, "num_predict": 160,
         "_t0": 50.2, "_t1": 51.8, "_wall_start": 1.0,
+        # v4-TTFT: stessi campi di infer_v4_stream, con ttft disponibile
+        "_t_ttft": 50.35, "ttft_s": 0.15, "ttft_available": True,
     }
-    monkeypatch.setattr(v4, "infer_v4", lambda *a, **k: dict(resp))
+    monkeypatch.setattr(v4, "infer_v4_stream", lambda *a, **k: dict(resp))
 
     seen = {}
 
@@ -496,7 +504,11 @@ def test_un_blocco_offline_passa_dai_componenti_di_produzione(monkeypatch):
         "R1", "S1", "llama", "llama", "ollama", "local", None,
         prompt, _evalres()))
     added = set(row) - prod_keys
-    dropped = sorted(k for k in added if k not in cx.CSV_COLUMNS)
+    # I campi privati (prefissati da _) non entrano nello schema CSV per
+    # disegno: sono dati di verbale per v4-TTFT e l'export li scarta. Non sono una
+    # divergenza dallo schema congelato.
+    dropped = sorted(k for k in added
+                     if not k.startswith("_") and k not in cx.CSV_COLUMNS)
     assert dropped == [], f"campi aggiunti dalla v4 e fuori schema: {dropped}"
 
     # 6) chiavi stabili uguali in riga e riepilogo

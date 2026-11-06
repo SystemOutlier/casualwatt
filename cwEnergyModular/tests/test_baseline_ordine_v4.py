@@ -93,7 +93,7 @@ class _Sessione:
     def samples_between(self, a, b):
         return [s for s in self.samples if a <= s.t <= b]
 
-    def package_energy_exact_between(self, a, b, excl=None):
+    def package_energy_exact_between(self, a, b, excl=None, exclude_windows=None):
         return 50.0
 
 
@@ -130,12 +130,22 @@ def _prepara_blocco(monkeypatch, durate):
     bordi = []
     for i, d in enumerate(durate):
         a = T0 + 4.0 * i
+        # e0 -- prima read_measurement_edge della richiesta (benchmark_v4:1785)
         bordi.append(_edge(a, 100.0 + 10.0 * i, 1_000_000 + int(a * 10_000_000)))
         # la finestra del bordo e' durata + 10 s: +10 in avanti
         dt_bordo = float(d) + 10.0 if isinstance(d, (int, float)) and \
             math.isfinite(d) else 11.0
+        # e1 -- seconda read_measurement_edge della richiesta (benchmark_v4:1792)
         bordi.append(_edge(a + dt_bordo, 150.0 + 10.0 * i,
                            1_000_000 + int((a + dt_bordo) * 10_000_000)))
+        # v4-TTFT: terzo bordo, consumato da read_ttft_edge (benchmark_v4:1798).
+        # La sua struct e' quella di una `read_measurement_edge` in piu', come
+        # nella produzione (``energy/energy_session.py:1009``); il campo
+        # ``t_ttft_mono`` lo aggiunge ``read_ttft_edge`` dall'argomento, non
+        # dalla lista. Collocato a meta' fra e0 e e1 perche' il primo token
+        # arriva dentro la finestra della richiesta.
+        bordi.append(_edge(a + 0.15, 100.0 + 10.0 * i,
+                           1_000_000 + int((a + 0.15) * 10_000_000)))
 
     class _SessioneRunner:
         """Sessione che registra l'ordine e serve le terne pre/post al momento
@@ -175,7 +185,22 @@ def _prepara_blocco(monkeypatch, durate):
 
         def read_measurement_edge(self, **k):
             ordine.append("bordo")
-            return next(self._it)
+            edge = next(self._it)
+            self._last_edge = edge
+            return edge
+
+        def read_ttft_edge(self, t_first_token):
+            # Il runner chiama read_ttft_edge DOPO la seconda
+            # read_measurement_edge (benchmark_v4.py:1598,1604), quindi
+            # consuma il terzo bordo della terna. Il campo ``t_ttft_mono``
+            # viene dall'argomento, come nella produzione
+            # (``energy/energy_session.py:999-1001``), senza toccare
+            # ``_last_edge``: chi lo legge deve vedere il bordo dell'ultima
+            # ``read_measurement_edge``, non un bordo sintetico.
+            ordine.append("bordo")
+            edge = dict(next(self._it))
+            edge["t_ttft_mono"] = float(t_first_token)
+            return edge
 
     fake = _SessioneRunner()
     monkeypatch.setattr(v4, "SESSION", fake)
@@ -186,13 +211,16 @@ def _prepara_blocco(monkeypatch, durate):
             "tokens_valid": True, "duration_s": d,
             "prefill_duration_s": 0.2, "decoding_duration_s": 1.0,
             "done_reason": "stop", "raw_created_at": "", "tool_calls": 0,
-            "keep_alive_sent": "-1", "num_ctx": 8192, "num_predict": 160,
+            "keep_alive_sent": -1, "num_ctx": 8192, "num_predict": 160,
             "_t0": T0 + 4.0 * i + 0.2, "_t1": T0 + 4.0 * i + 1.2,
             "_wall_start": 1.0,
+            # v4-TTFT: stessi campi di infer_v4_stream, con ttft disponibile
+            "_t_ttft": T0 + 4.0 * i + 0.35, "ttft_s": 0.15,
+            "ttft_available": True,
         }
         for i, d in enumerate(durate)
     ])
-    monkeypatch.setattr(v4, "infer_v4", lambda *a, **k: dict(next(risposte)))
+    monkeypatch.setattr(v4, "infer_v4_stream", lambda *a, **k: dict(next(risposte)))
     monkeypatch.setattr(v4, "evaluate_response",
                         lambda *a, **k: bu.evalres_placeholder())
 
@@ -220,9 +248,11 @@ def test_l_ordine_del_blocco_e_quello_di_p15(monkeypatch):
     due sole calibrazioni, e nessuna lettura di bordo prima della pre."""
     _rows, _summary, ordine = _blocco(monkeypatch, [1.0, 2.0, 3.0])
 
-    assert ordine == ["settle", "calib"] + ["bordo", "bordo"] * 3 \
+    # v4-TTFT: tre bordi per richiesta (e0, ttft, e1), non due
+    assert ordine == ["settle", "calib"] + ["bordo", "bordo", "bordo"] * 3 \
         + ["settle", "calib"]
     assert ordine.count("calib") == 2
+    assert ordine.count("bordo") == 9  # 3 richieste x 3 bordi
 
 
 def test_le_repliche_pre_e_post_non_si_scambiano(monkeypatch):
