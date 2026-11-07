@@ -290,9 +290,12 @@ coppia rietichettata, alimentano `evaluate_gate` e danno `pass` con
 `bias_w = 0,1 W` contro la soglia 0,223607 W -- se un nome di campo divergesse
 (`control_e_net_j`, `control_dt_w_s`, `pre_range_w`, `dP`, `budget_base_w`) il
 gate si dichiarerebbe non eseguibile **dopo** aver misurato le sei coppie. La
-suite e' a **977** node id raccolti, **974 passati** e **4 saltati** (3 RAPL, 1
-modulo ecologits), 0 falliti; eseguita 978 perche' lo skip di modulo non
-compare in `--collect-only`. **Il gate non e' stato eseguito**, e non per un
+suite e' a **993** node id raccolti, **990 passati** e **4 saltati** (3 RAPL, 1
+modulo ecologits), 0 falliti; eseguita 994 perche' lo skip di modulo non
+compare in `--collect-only`. I **977** con **974 passati** sono la fotografia
+precedente, prima dei **16** node id dello stato macchina di P1.4 (15 in
+`tests/test_machine_state_p14.py`, 1 in `test_controllo_p44_v4.py`).
+**Il gate non e' stato eseguito**, e non per un
 difetto di codice: P4.4 requisito 5 vuole `dt_nominal_s` fissato prima della
 campagna, e le durate delle richieste del pilota P6.2 sono state sovrascritte
 dai run successivi (righe sopra); le 8 durate sopravvissute in
@@ -301,6 +304,30 @@ righe, prompt `c-001`) -- mediana 0,4102935 s, tre volte 1,2308805 s -- sono
 esecuzioni di blocco di un altro run del 06-11 sera, non il pilota che il
 requisito nomina. Il numero c'e', la sua provenienza no, e una durata inventata
 sarebbe un disegno diverso da quello congelato scoperto solo dopo i dati.
+
+Conformita' dei metodi sul percorso di misura (07-11-2026, notte). Un audit
+contro P1.3, P1.4 e P1.5 ha trovato fedeli la calibrazione (tre repliche,
+mediana) e il settling (due finestre consecutive non sovrapposte, tetto
+120 s), e **assente P1.4**: il runner non verificava la residenza del modello,
+non faceva i due warm-up, non dichiarava GUI, alimentazione, piano energetico,
+top-5 e `background_load`. `cwEnergyModular/machine_state.py` li implementa
+(residenza su `/api/ps` con `keep_alive=-1` intero e rilettura dopo il
+caricamento, due warm-up a `(512,128)` con i conteggi del motore e non una
+stima, top-5 senza il pid 0 che su Windows e' il tempo inattivo, CPU totale su
+3 s, batteria e `powercfg`), e `run_v4_benchmark` lo chiama prima del primo
+blocco, per modello prima dei suoi blocchi e dopo l'ultimo; le quantita' senza
+colonna finiscono in `notes` e lo schema P5 non si muove. GUI aperta e host a
+batteria **fermano** il run; `background_load` e' un flag. Sulla stessa riga
+`run_block` passa la finestra congelata di 30 s a `calibrate_idle` in pre e
+post: la sessione prende il massimo fra argomento e `CW_IDLE_WINDOW_S`, quindi
+il knob puo' allungare e non accorciare la baseline di protocollo. Sonda in
+sola lettura su questo host, nessuna misura: piano `Bilanciato`, batteria
+assente, GUI LHM non in esecuzione, `qwen2.5:0.5b` residente con scadenza
+2319; nei tre secondi di osservazione la CPU totale e' restata sopra il 5%
+(`5,4; 5,5; 7,2`) perche' girava `CompatTelRunner.exe` all'84%, quindi la
+macchina **ora** e' carica e un run partirebbe con `background_load=True`.
+La suite e' verde (`990` passati, `4` saltati), e nessuna campagna e' stata
+avviata.
 
 Eccezione dichiarata al congelamento, ora **chiusa** da Emenda 8 (2026-10-26):
 la **forma di combinazione** di `budget_base_w` e' la **quadratura**
@@ -551,10 +578,12 @@ stanno solo le regole che un agente puo' violare senza accorgersene.
 ## Comandi di verifica
 
 ```
-pytest cwEnergyModular          # 977 raccolti: 974 passati, 4 saltati, 0 falliti
-                                # (07-11 notte; eseguito 978 per lo skip di
-                                # modulo, che non compare in --collect-only)
-                                # storia datata: 976 raccolti / 973 passati (07-11
+pytest cwEnergyModular          # 993 raccolti: 990 passati, 4 saltati, 0 falliti
+                                # (07-11 notte, dopo P1.4; eseguito 994 per lo
+                                # skip di modulo, che non compare in
+                                # --collect-only)
+                                # storia datata: 977 raccolti / 974 passati (07-11
+                                # notte, prima dello stato macchina P1.4); 976 raccolti / 973 passati (07-11
                                 # notte, prima del test di contratto); 943 raccolti / 940 passati
                                 # (07-11 sera); 906 raccolti / 903 passati
                                 # (07-11, dopo P6.5); 845 raccolti (notte 05-11);
@@ -628,7 +657,11 @@ controllo segue un run.
   `tools/dump_schema_latex.py --macros` conta 30, e il CSV di riferimento ne ha
   29 nell'header); nessuna migrazione perche'
   l'header dei metadati e' scritto una volta sola), e il
-  runner v4 `benchmark_v4.py` (sequenza di blocco di P1.5). Il risolutore della
+  runner v4 `benchmark_v4.py` (sequenza di blocco di P1.5). Accanto al runner,
+  `machine_state.py` porta gli obblighi di stato macchina di P1.4 (residenza su
+  `/api/ps`, warm-up, top-5 e CPU totale, alimentazione, GUI LHM): e' codice
+  del percorso di misura, non un modulo di analisi, e non tocca lo schema.
+  Il risolutore della
   superficie predittiva sta a parte, sul lato analisi (P6.5, 2026-11-07):
   `surface_fit.py` aggrega i blocchi con F.7, standardizza i predittori e risolve
   F.9 con QR/SVD, restituendo β in unità P3.3; non è chiamato dal runner di
@@ -698,7 +731,11 @@ controllo segue un run.
   tre punti di P4.4 e P4.5, stampa `Copertura delle docstring: 969 righe
   documentate su 977`, e le scoperte sono le stesse otto di
   `tests/test_paired_mcnemar.py`: i punti nuovi portano la loro docstring e
-  non spostano il debito.
+  non spostano il debito. Lo stesso generatore, rilanciato dopo lo stato
+  macchina di P1.4, stampa `993` node id e `Copertura delle docstring: 985
+  righe documentate su 993`: le sedici righe entrate hanno tutte la loro
+  docstring e restano le stesse otto scoperte, quindi il debito e' aperto
+  negli stessi termini.
   Dal 27-10-2026 la cartella contiene anche `tests/test_rapl_zone.py`
   (8, logica RAPL su un finto sysfs), `tests/test_diagnostics_pmi.py` (7,
   sonda PMI/WMI) e `tests/test_emi_selezione.py` (16, metadati EMI sintetici:
