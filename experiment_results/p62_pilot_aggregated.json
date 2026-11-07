@@ -1,0 +1,572 @@
+{
+  "schema": "cw.p62_pilot_aggregated/1",
+  "generated_at_utc": "2026-11-07T14:59:52+00:00",
+  "generator": "cwEnergyModular/tools/aggregate_p62_pilot.py",
+  "purpose": "prime terne reali di baseline_pre_w del pilota: half_range_pre_w (P1.7) e u_within,b (denominatore del primo rho, P6.4)",
+  "sources": {
+    "block_summary": {
+      "path": "C:\\Users\\Massimo\\Documents\\CasualWatt\\CWProject\\cwEnergyModular\\results\\casualwatt_v4_block_summary.csv",
+      "sha256": "0914d09d51b074c2ebe9148c89e01523658a2dbbcc4278d215c939ce897e3a2b",
+      "bytes": 2363,
+      "n_rows": 8,
+      "n_columns": 36
+    },
+    "results": {
+      "path": "C:\\Users\\Massimo\\Documents\\CasualWatt\\CWProject\\cwEnergyModular\\results\\casualwatt_v4_results.csv",
+      "sha256": "9116100446abb373169e4cd5af8e11ecc85fb68683b20509b81e975b35d1ece3",
+      "bytes": 37282,
+      "n_rows": 8,
+      "n_columns": 174
+    }
+  },
+  "requested_source": {
+    "path": "C:\\Users\\Massimo\\Documents\\CasualWatt\\CWProject\\experiment_results\\prep_after6.csv",
+    "exists": true,
+    "sha256": "c463b4d414b4632f23369e3fb9d31002de24d37360a4c02080de02b60b8f9cd8",
+    "bytes": 10068453,
+    "n_rows": 40775,
+    "n_columns": 26,
+    "has_baseline_pre_w": false,
+    "verdict": "dump SRUM grezzo: nessuna colonna di baseline, le terne non ci sono",
+    "header": [
+      "AppId",
+      "UserId",
+      "TimeStamp",
+      "OnBattery",
+      "ScreenOn",
+      "BatterySaverActive",
+      "LowPowerEpochActive",
+      "Foreground",
+      "InteractivityState",
+      "Container",
+      "Committed",
+      "TimeInMSec",
+      "MeasuredBitmap",
+      "EnergyLoss",
+      "CPUEnergyConsumption",
+      "SocEnergyConsumption",
+      "DisplayEnergyConsumption",
+      "DiskEnergyConsumption",
+      "NetworkEnergyConsumption",
+      "MBBEnergyConsumption",
+      "NPUEnergyConsumption",
+      "OtherEnergyConsumption",
+      "EmiEnergyConsumption",
+      "CPUEnergyConsumptionWorkOnBehalf",
+      "CPUEnergyConsumptionAttributed",
+      "TotalEnergyConsumption"
+    ]
+  },
+  "blocks": [
+    {
+      "block_id": "qwen2.5-0.5b__c-001__b01",
+      "n_executions": 8,
+      "n_valid": 8,
+      "num_predict_observed": [
+        32,
+        128,
+        256
+      ],
+      "half_range_pre_w": [
+        1.0666444999999998,
+        0.30266450000000056,
+        2.256709,
+        0.6614250000000004,
+        0.7845750000000002,
+        0.8443990000000001,
+        0.9067015000000005,
+        0.8858535000000005
+      ],
+      "distribution_half_range_pre_w": {
+        "n": 8,
+        "min": 0.30266450000000056,
+        "median": 0.8651262500000003,
+        "max": 2.256709,
+        "range": 1.9540444999999993,
+        "mean": 0.9636215000000002
+      },
+      "u_within_b": null,
+      "u_within_reason": "nessuna esecuzione con m >= 2: il semi-range entro blocco non e' calcolabile dai dati presenti",
+      "executions": [
+        {
+          "block_id": "qwen2.5-0.5b__c-001__b01",
+          "batch_id": "a807d465870b",
+          "num_predict": 32,
+          "pre_windows_w": [
+            12.971015,
+            14.992915,
+            12.859626
+          ],
+          "half_range_pre_w": 1.0666444999999998,
+          "u_within_b": null,
+          "u_within_reason": "m=1: il semi-range di una sola richiesta e' zero per costruzione, non e' evidenza (F.9 richiede m repliche nel blocco)",
+          "m": 1,
+          "n_result_rows_matched": 1,
+          "excluded": "",
+          "pre_range_w": 2.1332889999999995,
+          "baseline_pre_w": 12.971015,
+          "half_drift_w": 1.374731,
+          "budget_base_w": 1.740004543597875,
+          "checks": [
+            {
+              "column": "baseline_pre_w",
+              "calculated": 12.971015,
+              "runner": 12.971015,
+              "delta": 0.0,
+              "ok": true
+            },
+            {
+              "column": "pre_range_w",
+              "calculated": 2.1332889999999995,
+              "runner": 2.13329,
+              "delta": -1.0000000005838672e-06,
+              "ok": true
+            },
+            {
+              "column": "half_range_pre_w",
+              "calculated": 1.0666444999999998,
+              "runner": 1.066645,
+              "delta": -5.000000002919336e-07,
+              "ok": true
+            },
+            {
+              "column": "budget_base_w",
+              "calculated": 1.740004543597875,
+              "runner": 1.740005,
+              "delta": -4.564021249819916e-07,
+              "ok": true
+            }
+          ],
+          "checks_ok": true,
+          "active_energy_raw_j": [
+            15.764433
+          ]
+        },
+        {
+          "block_id": "qwen2.5-0.5b__c-001__b01",
+          "batch_id": "444fbf61724c",
+          "num_predict": 32,
+          "pre_windows_w": [
+            13.925861,
+            14.002177,
+            14.53119
+          ],
+          "half_range_pre_w": 0.30266450000000056,
+          "u_within_b": null,
+          "u_within_reason": "m=1: il semi-range di una sola richiesta e' zero per costruzione, non e' evidenza (F.9 richiede m repliche nel blocco)",
+          "m": 1,
+          "n_result_rows_matched": 1,
+          "excluded": "",
+          "pre_range_w": 0.6053290000000011,
+          "baseline_pre_w": 14.002177,
+          "half_drift_w": 0.101195,
+          "budget_base_w": 0.3191335575981478,
+          "checks": [
+            {
+              "column": "baseline_pre_w",
+              "calculated": 14.002177,
+              "runner": 14.002177,
+              "delta": 0.0,
+              "ok": true
+            },
+            {
+              "column": "pre_range_w",
+              "calculated": 0.6053290000000011,
+              "runner": 0.605328,
+              "delta": 1.0000000011389787e-06,
+              "ok": true
+            },
+            {
+              "column": "half_range_pre_w",
+              "calculated": 0.30266450000000056,
+              "runner": 0.302664,
+              "delta": 5.000000005694893e-07,
+              "ok": true
+            },
+            {
+              "column": "budget_base_w",
+              "calculated": 0.3191335575981478,
+              "runner": 0.319133,
+              "delta": 5.575981478211922e-07,
+              "ok": true
+            }
+          ],
+          "checks_ok": true,
+          "active_energy_raw_j": [
+            7.314047
+          ]
+        },
+        {
+          "block_id": "qwen2.5-0.5b__c-001__b01",
+          "batch_id": "2e05d50ef10a",
+          "num_predict": 32,
+          "pre_windows_w": [
+            13.933842,
+            14.509743,
+            9.996325
+          ],
+          "half_range_pre_w": 2.256709,
+          "u_within_b": null,
+          "u_within_reason": "m=1: il semi-range di una sola richiesta e' zero per costruzione, non e' evidenza (F.9 richiede m repliche nel blocco)",
+          "m": 1,
+          "n_result_rows_matched": 1,
+          "excluded": "",
+          "pre_range_w": 4.513418,
+          "baseline_pre_w": 13.933842,
+          "half_drift_w": 1.058827,
+          "budget_base_w": 2.492759540471162,
+          "checks": [
+            {
+              "column": "baseline_pre_w",
+              "calculated": 13.933842,
+              "runner": 13.933842,
+              "delta": 0.0,
+              "ok": true
+            },
+            {
+              "column": "pre_range_w",
+              "calculated": 4.513418,
+              "runner": 4.513419,
+              "delta": -1.000000000139778e-06,
+              "ok": true
+            },
+            {
+              "column": "half_range_pre_w",
+              "calculated": 2.256709,
+              "runner": 2.256709,
+              "delta": 0.0,
+              "ok": true
+            },
+            {
+              "column": "budget_base_w",
+              "calculated": 2.492759540471162,
+              "runner": 2.49276,
+              "delta": -4.5952883809263767e-07,
+              "ok": true
+            }
+          ],
+          "checks_ok": true,
+          "active_energy_raw_j": [
+            7.022259
+          ]
+        },
+        {
+          "block_id": "qwen2.5-0.5b__c-001__b01",
+          "batch_id": "116fb2a7e1a2",
+          "num_predict": 128,
+          "pre_windows_w": [
+            12.157806,
+            11.491751,
+            10.834956
+          ],
+          "half_range_pre_w": 0.6614250000000004,
+          "u_within_b": null,
+          "u_within_reason": "m=1: il semi-range di una sola richiesta e' zero per costruzione, non e' evidenza (F.9 richiede m repliche nel blocco)",
+          "m": 1,
+          "n_result_rows_matched": 1,
+          "excluded": "",
+          "pre_range_w": 1.3228500000000007,
+          "baseline_pre_w": 11.491751,
+          "half_drift_w": 0.408498,
+          "budget_base_w": 0.777401856589628,
+          "checks": [
+            {
+              "column": "baseline_pre_w",
+              "calculated": 11.491751,
+              "runner": 11.491751,
+              "delta": 0.0,
+              "ok": true
+            },
+            {
+              "column": "pre_range_w",
+              "calculated": 1.3228500000000007,
+              "runner": 1.322849,
+              "delta": 1.0000000008059118e-06,
+              "ok": true
+            },
+            {
+              "column": "half_range_pre_w",
+              "calculated": 0.6614250000000004,
+              "runner": 0.661425,
+              "delta": 3.3306690738754696e-16,
+              "ok": true
+            },
+            {
+              "column": "budget_base_w",
+              "calculated": 0.777401856589628,
+              "runner": 0.777402,
+              "delta": -1.434103720221458e-07,
+              "ok": true
+            }
+          ],
+          "checks_ok": true,
+          "active_energy_raw_j": [
+            7.169769
+          ]
+        },
+        {
+          "block_id": "qwen2.5-0.5b__c-001__b01",
+          "batch_id": "aa9cdcdadfb2",
+          "num_predict": 128,
+          "pre_windows_w": [
+            12.780827,
+            12.472161,
+            14.041311
+          ],
+          "half_range_pre_w": 0.7845750000000002,
+          "u_within_b": null,
+          "u_within_reason": "m=1: il semi-range di una sola richiesta e' zero per costruzione, non e' evidenza (F.9 richiede m repliche nel blocco)",
+          "m": 1,
+          "n_result_rows_matched": 1,
+          "excluded": "",
+          "pre_range_w": 1.5691500000000005,
+          "baseline_pre_w": 12.780827,
+          "half_drift_w": 1.447872,
+          "budget_base_w": 1.6467820921448595,
+          "checks": [
+            {
+              "column": "baseline_pre_w",
+              "calculated": 12.780827,
+              "runner": 12.780827,
+              "delta": 0.0,
+              "ok": true
+            },
+            {
+              "column": "pre_range_w",
+              "calculated": 1.5691500000000005,
+              "runner": 1.569149,
+              "delta": 1.0000000005838672e-06,
+              "ok": true
+            },
+            {
+              "column": "half_range_pre_w",
+              "calculated": 0.7845750000000002,
+              "runner": 0.784575,
+              "delta": 2.220446049250313e-16,
+              "ok": true
+            },
+            {
+              "column": "budget_base_w",
+              "calculated": 1.6467820921448595,
+              "runner": 1.646782,
+              "delta": 9.214485952036e-08,
+              "ok": true
+            }
+          ],
+          "checks_ok": true,
+          "active_energy_raw_j": [
+            5.789349
+          ]
+        },
+        {
+          "block_id": "qwen2.5-0.5b__c-001__b01",
+          "batch_id": "e4ccc1299ed0",
+          "num_predict": 128,
+          "pre_windows_w": [
+            11.203833,
+            9.515035,
+            10.641118
+          ],
+          "half_range_pre_w": 0.8443990000000001,
+          "u_within_b": null,
+          "u_within_reason": "m=1: il semi-range di una sola richiesta e' zero per costruzione, non e' evidenza (F.9 richiede m repliche nel blocco)",
+          "m": 1,
+          "n_result_rows_matched": 1,
+          "excluded": "",
+          "pre_range_w": 1.6887980000000002,
+          "baseline_pre_w": 10.641118,
+          "half_drift_w": 0.551605,
+          "budget_base_w": 1.0086018774650383,
+          "checks": [
+            {
+              "column": "baseline_pre_w",
+              "calculated": 10.641118,
+              "runner": 10.641118,
+              "delta": 0.0,
+              "ok": true
+            },
+            {
+              "column": "pre_range_w",
+              "calculated": 1.6887980000000002,
+              "runner": 1.688798,
+              "delta": 2.220446049250313e-16,
+              "ok": true
+            },
+            {
+              "column": "half_range_pre_w",
+              "calculated": 0.8443990000000001,
+              "runner": 0.844399,
+              "delta": 1.1102230246251565e-16,
+              "ok": true
+            },
+            {
+              "column": "budget_base_w",
+              "calculated": 1.0086018774650383,
+              "runner": 1.008602,
+              "delta": -1.2253496173286749e-07,
+              "ok": true
+            }
+          ],
+          "checks_ok": true,
+          "active_energy_raw_j": [
+            6.338578
+          ]
+        },
+        {
+          "block_id": "qwen2.5-0.5b__c-001__b01",
+          "batch_id": "3b4294842ba2",
+          "num_predict": 256,
+          "pre_windows_w": [
+            9.214388,
+            10.345546,
+            8.532143
+          ],
+          "half_range_pre_w": 0.9067015000000005,
+          "u_within_b": null,
+          "u_within_reason": "m=1: il semi-range di una sola richiesta e' zero per costruzione, non e' evidenza (F.9 richiede m repliche nel blocco)",
+          "m": 1,
+          "n_result_rows_matched": 1,
+          "excluded": "",
+          "pre_range_w": 1.813403000000001,
+          "baseline_pre_w": 9.214388,
+          "half_drift_w": 0.052198,
+          "budget_base_w": 0.9082027534126127,
+          "checks": [
+            {
+              "column": "baseline_pre_w",
+              "calculated": 9.214388,
+              "runner": 9.214388,
+              "delta": 0.0,
+              "ok": true
+            },
+            {
+              "column": "pre_range_w",
+              "calculated": 1.813403000000001,
+              "runner": 1.813403,
+              "delta": 8.881784197001252e-16,
+              "ok": true
+            },
+            {
+              "column": "half_range_pre_w",
+              "calculated": 0.9067015000000005,
+              "runner": 0.906702,
+              "delta": -4.999999995147775e-07,
+              "ok": true
+            },
+            {
+              "column": "budget_base_w",
+              "calculated": 0.9082027534126127,
+              "runner": 0.908203,
+              "delta": -2.465873872870006e-07,
+              "ok": true
+            }
+          ],
+          "checks_ok": true,
+          "active_energy_raw_j": [
+            5.937432
+          ]
+        },
+        {
+          "block_id": "qwen2.5-0.5b__c-001__b01",
+          "batch_id": "92d93d89af76",
+          "num_predict": 256,
+          "pre_windows_w": [
+            8.545606,
+            8.724488,
+            10.317313
+          ],
+          "half_range_pre_w": 0.8858535000000005,
+          "u_within_b": null,
+          "u_within_reason": "m=1: il semi-range di una sola richiesta e' zero per costruzione, non e' evidenza (F.9 richiede m repliche nel blocco)",
+          "m": 1,
+          "n_result_rows_matched": 1,
+          "excluded": "",
+          "pre_range_w": 1.771707000000001,
+          "baseline_pre_w": 8.724488,
+          "half_drift_w": 3.338617,
+          "budget_base_w": 3.454142425574147,
+          "checks": [
+            {
+              "column": "baseline_pre_w",
+              "calculated": 8.724488,
+              "runner": 8.724488,
+              "delta": 0.0,
+              "ok": true
+            },
+            {
+              "column": "pre_range_w",
+              "calculated": 1.771707000000001,
+              "runner": 1.771706,
+              "delta": 1.0000000010279564e-06,
+              "ok": true
+            },
+            {
+              "column": "half_range_pre_w",
+              "calculated": 0.8858535000000005,
+              "runner": 0.885853,
+              "delta": 5.000000005139782e-07,
+              "ok": true
+            },
+            {
+              "column": "budget_base_w",
+              "calculated": 3.454142425574147,
+              "runner": 3.454142,
+              "delta": 4.255741470338137e-07,
+              "ok": true
+            }
+          ],
+          "checks_ok": true,
+          "active_energy_raw_j": [
+            6.103102
+          ]
+        }
+      ]
+    }
+  ],
+  "n_blocks": 1,
+  "n_executions": 8,
+  "n_excluded": 0,
+  "n_result_rows_senza_blocco": 0,
+  "result_batch_ids_senza_blocco": [],
+  "distribution_half_range_pre_w": {
+    "n": 8,
+    "min": 0.30266450000000056,
+    "median": 0.8651262500000003,
+    "max": 2.256709,
+    "range": 1.9540444999999993,
+    "mean": 0.9636215000000002
+  },
+  "distribution_half_drift_w": {
+    "n": 8,
+    "min": 0.052198,
+    "median": 0.8052159999999999,
+    "max": 3.338617,
+    "range": 3.286419,
+    "mean": 1.041692875
+  },
+  "distribution_budget_base_w": {
+    "n": 8,
+    "min": 0.3191335575981478,
+    "median": 1.3276919848049489,
+    "max": 3.454142425574147,
+    "range": 3.135008867975999,
+    "mean": 1.5433785808566838
+  },
+  "u_within_b": {
+    "values": [],
+    "distribution": null,
+    "computed": false,
+    "reason_if_empty": "nessun blocco con m >= 2 richieste: u_within,b = semi-range(E_act,i) richiede almeno due richieste nella stessa esecuzione di blocco, e il pilota ha n_inferenze = 1"
+  },
+  "within_config_dispersion": {
+    "available": false,
+    "reason": "le esecuzioni presenti vengono da invocazioni separate del runner e differiscono per num_predict (32/128/256): non sono repliche di una configurazione dichiarata, quindi non stimano la dispersione entro configurazione richiesta da P6.6"
+  },
+  "limitations": [
+    "half_range_pre_w descrive il pilota (una configurazione, un prompt, otto esecuzioni): e' una descrizione, non una decisione sulla forma di budget_base_w (P2.9: il pilota descrive, non decide)",
+    "u_within,b e' nullo per costruzione: si misura su m >= 2 richieste nello stesso blocco, e il pilota ha m = 1",
+    "la colonna di riga pre_windows_w e' vuota nel CSV del runner: la terna esiste solo nel riepilogo di blocco",
+    "i dump SRUM del pre-pilota P6.6 (prep_after*.csv) non contengono terne di baseline e non vengono usati qui",
+    "nessuna deviazione standard: a n = 3 non si stima una varianza (P4.12), e la stessa regola si applica alle distribuzioni sopra"
+  ]
+}
