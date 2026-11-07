@@ -59,6 +59,7 @@ import benchmark_v4 as v4  # noqa: E402
 import energy.local_energy as le  # noqa: E402
 from casualwatt_csv_export import (  # noqa: E402
     BLOCK_SUMMARY_COLUMNS, export_summary_csv)
+from control_gate import evaluate_gate  # noqa: E402
 from energy.worker_tree import WorkerProc  # noqa: E402
 
 T0 = 100.0
@@ -355,3 +356,31 @@ def test_il_riepilogo_del_controllo_entra_nello_schema_p5(monkeypatch,
     assert riga["r_A"] == "" and riga["r_B"] == ""
     assert float(riga["budget_base_j"]) == pytest.approx(
         summary["budget_base_j"])
+
+
+# ---------------------------------------------------------------------------
+# 9. il contratto fra il riepilogo del runner e il gate di F.12
+# ---------------------------------------------------------------------------
+def test_sei_controlli_del_runner_alimentano_il_gate(monkeypatch):
+    """Il gate legge il riepilogo del runner per nome di campo: se uno dei nomi
+    divergesse (`control_e_net_j`, `control_dt_w_s`, `pre_range_w`, `dP`,
+    `budget_base_w`), il gate si dichiarerebbe non eseguibile e il run andrebbe
+    perso dopo la misura. Le sei copie passano per `run_block` vero e solo
+    l'identita' di coppia e' rietichettata; con lo stesso scarto su ogni
+    controllo il bias vale 1,0 J / 10 s = 0,1 W contro una soglia di
+    0,223607 W."""
+    summaries = []
+    for i in range(6):
+        _rows, summary, _fake = _blocco(monkeypatch, _bordi(10.0, 101.0))
+        summary["block_id"] = f"gate__p{i}__c{i}"
+        summary["pair_id"] = f"pair-{i}"
+        summaries.append(summary)
+
+    result = evaluate_gate(summaries, n_pairs=6)
+
+    assert result.controls_usable_n == 6
+    assert result.executable is True
+    assert all(c.block_pass for c in result.controls)
+    assert result.bias_w == pytest.approx(0.1)
+    assert result.bias_threshold_w == pytest.approx(BW)
+    assert result.status == "pass"
