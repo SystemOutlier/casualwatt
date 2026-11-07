@@ -44,6 +44,7 @@ Che cosa NON verifica: il criterio aggregato di F.12 (`bias_w`, quorum,
 gate, non del blocco: qui si verifica che il blocco produca tutti gli ingressi
 che quel criterio legge.
 """
+import csv
 import math
 import sys
 from pathlib import Path
@@ -56,6 +57,8 @@ import pytest  # noqa: E402
 import benchmark_unified as bu  # noqa: E402
 import benchmark_v4 as v4  # noqa: E402
 import energy.local_energy as le  # noqa: E402
+from casualwatt_csv_export import (  # noqa: E402
+    BLOCK_SUMMARY_COLUMNS, export_summary_csv)
 from energy.worker_tree import WorkerProc  # noqa: E402
 
 T0 = 100.0
@@ -324,3 +327,31 @@ def test_il_nominale_non_entra_nella_sottrazione(monkeypatch):
 
     assert base["control_e_net_j"] == pytest.approx(lungo["control_e_net_j"])
     assert base["control_dt_w_s"] == pytest.approx(lungo["control_dt_w_s"])
+
+
+# ---------------------------------------------------------------------------
+# 8. il riepilogo entra nello schema P5 senza allargarlo
+# ---------------------------------------------------------------------------
+def test_il_riepilogo_del_controllo_entra_nello_schema_p5(monkeypatch,
+                                                          tmp_path):
+    """Lo schema P5 e' congelato (34 colonne di blocco) e le quantita' della
+    finestra passiva non hanno una colonna: se l'esportazione le scrivesse,
+    allargherebbe lo schema; se perdesse `block_kind`, il controllo non
+    sarebbe distinguibile da un blocco di carico nel file consegnato."""
+    _rows, summary, _fake = _blocco(monkeypatch, _bordi(10.0, 101.0))
+    percorso = tmp_path / "block_summary.csv"
+
+    assert export_summary_csv([summary], percorso, BLOCK_SUMMARY_COLUMNS,
+                              mode="a") == 1
+
+    with open(percorso, newline="", encoding="utf-8-sig") as fh:
+        righe = list(csv.DictReader(fh))
+
+    assert list(righe[0]) == BLOCK_SUMMARY_COLUMNS
+    assert not any(nome.startswith("control_") for nome in righe[0])
+    riga = righe[0]
+    assert riga["block_kind"] == "control"
+    assert riga["pair_id"] == "pair-1"
+    assert riga["r_A"] == "" and riga["r_B"] == ""
+    assert float(riga["budget_base_j"]) == pytest.approx(
+        summary["budget_base_j"])
