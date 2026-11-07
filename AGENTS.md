@@ -284,19 +284,23 @@ node id stanno in `tests/test_control_gate_p45.py`. Il secondo punto fissa che
 il riepilogo del controllo entra nello schema P5 **senza allargarlo**: le
 quantita' `control_*` non hanno una colonna, `BLOCK_SUMMARY_COLUMNS` resta a 34
 nomi e `block_kind`/`pair_id` identificano il blocco nel file consegnato
-(`tests/test_controllo_p44_v4.py`, ora 15 node id). La suite e' a **976** node
-id raccolti, **973 passati** e **4 saltati** (3 RAPL, 1 modulo ecologits), 0
-falliti; eseguita 977 perche' lo skip di modulo non compare in
-`--collect-only`. **Il gate non e' stato eseguito**, e non per un difetto di
-codice: P4.4 requisito 5 vuole `dt_nominal_s` fissato prima della campagna, e
-le durate delle richieste del pilota P6.2 sono state sovrascritte dai run
-successivi (righe sopra); le 8 durate sopravvissute in
+(`tests/test_controllo_p44_v4.py`). Il terzo chiude il contratto fra i due
+moduli: sei blocchi passati per `run_block` vero, con la sola identita' di
+coppia rietichettata, alimentano `evaluate_gate` e danno `pass` con
+`bias_w = 0,1 W` contro la soglia 0,223607 W -- se un nome di campo divergesse
+(`control_e_net_j`, `control_dt_w_s`, `pre_range_w`, `dP`, `budget_base_w`) il
+gate si dichiarerebbe non eseguibile **dopo** aver misurato le sei coppie. La
+suite e' a **977** node id raccolti, **974 passati** e **4 saltati** (3 RAPL, 1
+modulo ecologits), 0 falliti; eseguita 978 perche' lo skip di modulo non
+compare in `--collect-only`. **Il gate non e' stato eseguito**, e non per un
+difetto di codice: P4.4 requisito 5 vuole `dt_nominal_s` fissato prima della
+campagna, e le durate delle richieste del pilota P6.2 sono state sovrascritte
+dai run successivi (righe sopra); le 8 durate sopravvissute in
 `cwEnergyModular/results/casualwatt_v4_results.csv` (file ignorato da git, 8
 righe, prompt `c-001`) -- mediana 0,4102935 s, tre volte 1,2308805 s -- sono
-esecuzioni di blocco di un altro run del 06-11
-sera, non il pilota che il requisito nomina. Il numero c'e', la sua provenienza
-no, e una durata inventata sarebbe un disegno diverso da quello congelato
-scoperto solo dopo i dati.
+esecuzioni di blocco di un altro run del 06-11 sera, non il pilota che il
+requisito nomina. Il numero c'e', la sua provenienza no, e una durata inventata
+sarebbe un disegno diverso da quello congelato scoperto solo dopo i dati.
 
 Eccezione dichiarata al congelamento, ora **chiusa** da Emenda 8 (2026-10-26):
 la **forma di combinazione** di `budget_base_w` e' la **quadratura**
@@ -547,10 +551,11 @@ stanno solo le regole che un agente puo' violare senza accorgersene.
 ## Comandi di verifica
 
 ```
-pytest cwEnergyModular          # 976 raccolti: 973 passati, 4 saltati, 0 falliti
-                                # (07-11 notte; eseguito 977 per lo skip di
+pytest cwEnergyModular          # 977 raccolti: 974 passati, 4 saltati, 0 falliti
+                                # (07-11 notte; eseguito 978 per lo skip di
                                 # modulo, che non compare in --collect-only)
-                                # storia datata: 943 raccolti / 940 passati
+                                # storia datata: 976 raccolti / 973 passati (07-11
+                                # notte, prima del test di contratto); 943 raccolti / 940 passati
                                 # (07-11 sera); 906 raccolti / 903 passati
                                 # (07-11, dopo P6.5); 845 raccolti (notte 05-11);
                                 # 888 raccolti, 871 passati, 14 falliti (identita'
@@ -689,10 +694,10 @@ controllo segue un run.
   restano storia datata; il debito e' aperto da un commit precedente a questo
   allineamento, non e' stato creato qui, e si chiude in un punto suo -- non
   allungando i test di oggi ne' correggendo la riga per far tornare il conteggio.
-  La rigenerazione della notte del 07-11-2026, sui 976 node id che includono i
-  due punti di P4.4 e P4.5, stampa `Copertura delle docstring: 968 righe
-  documentate su 976`, e le scoperte sono le stesse otto di
-  `tests/test_paired_mcnemar.py`: i due punti nuovi portano la loro docstring e
+  La rigenerazione della notte del 07-11-2026, sui 977 node id che includono i
+  tre punti di P4.4 e P4.5, stampa `Copertura delle docstring: 969 righe
+  documentate su 977`, e le scoperte sono le stesse otto di
+  `tests/test_paired_mcnemar.py`: i punti nuovi portano la loro docstring e
   non spostano il debito.
   Dal 27-10-2026 la cartella contiene anche `tests/test_rapl_zone.py`
   (8, logica RAPL su un finto sysfs), `tests/test_diagnostics_pmi.py` (7,
