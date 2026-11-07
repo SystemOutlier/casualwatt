@@ -247,13 +247,18 @@ si congela dopo un run di calibrazione su configurazione fissa con R repliche e
 fasi >= 5 bucket, non prima del primo run in senso assoluto (emendamento
 esplicito al protocollo). Pre-pilota completato: 3 fasi valide (prep-r3, prep-r5, prep-r6). Banda congelata: B_abs=0.6, B_rel=1.1 (margine 20%). Piano: prep_plan_frozen.json.
 
-Esecuzione P6 (2026-11-06): P6.1 aritmetica documentata (2h33min pavimento). P6.2 pilota eseguito (qwen2.5:0.5b + gemma2:9b, 6 record, 0 errori). P6.3 audit idle eseguito (seconda run con 120s assestamento): 5 finestre, range 0.86 W < 1.0 W soglia -> macchina STAZIONARIA, campagna sbloccata. P6.4 sonde Monte Carlo eseguite (5/5 verifiche ciascuna). P6.6 pre-pilota completato, banda congelata. Prova completa: 10 configurazioni x 3 prompt, 0 errori. Confronto CodeCarbon eseguito (0.000304 kg CO2eq). Fixture GPU allineate al contratto di identita' (UUID): 73 test GPU verdi; suite a 885 node id raccolti, 881 passati e 4 saltati (3 RAPL, 1 modulo ecologits), 0 falliti (misurato 07-11, 881+4=885).
+Esecuzione P6 (2026-11-06): P6.1 aritmetica documentata (2h33min pavimento). P6.2 pilota eseguito (qwen2.5:0.5b + gemma2:9b, 6 record, 0 errori). P6.3 audit idle eseguito (seconda run con 120s assestamento): 5 finestre, range 0.86 W < 1.0 W soglia -> macchina STAZIONARIA, campagna sbloccata. P6.4 sonde Monte Carlo eseguite (5/5 verifiche ciascuna). P6.6 pre-pilota completato, banda congelata. Prova completa: 10 configurazioni x 3 prompt, 0 errori. Confronto CodeCarbon eseguito (0.000304 kg CO2eq). Fixture GPU allineate al contratto di identita' (UUID): 73 test GPU verdi; suite a **906** node id raccolti, **903 passati** e **4 saltati** (3 RAPL, 1 modulo ecologits), 0 falliti (misurato 07-11 dopo P6.5; il totale eseguito e' 907 perche' lo skip di modulo non compare in `--collect-only`). P6.5 (risolutore QR/SVD della superficie predittiva) e' **chiuso sul lato analisi il 2026-11-07**: `cwEnergyModular/surface_fit.py` implementa F.7/F.9 con QR sul disegno standardizzato e β in unità P3.3, con 14 node id in `tests/test_surface_fit.py`; la riga di P5 fa fede sulla collocazione (analisi, non runner) e la sonda storica di P6.4 resta sulle equazioni normali per non spostare i propri artefatti, come dichiarato nel protocollo.
 
-C'e' una sola eccezione dichiarata al congelamento: la **forma di combinazione**
-di `budget_base_w` (quadratura o somma aritmetica) e' una decisione operativa
-provvisoria, rinviata ai dati del pilota P2.9 e da chiudere **prima** della
-campagna principale (protocollo P1.7, P1.13). La formula non si tocca nel
-frattempo.
+Eccezione dichiarata al congelamento, ora **chiusa** da Emenda 8 (2026-10-26):
+la **forma di combinazione** di `budget_base_w` e' la **quadratura**
+(`hypot` di `half_range_pre_w` e `half_drift_w`, `energy/benchmark_v4.py::block_baseline`),
+adottato come covarianza/semi-ampiezze combinate, non come limite massimo
+garantito — e **non** la somma aritmetica. L'impegno verso la campagna principale
+era rinviato ai dati del pilota P2.9; il pilota e' eseguito (0,000304 kg CO2eq
+confronto CodeCarbon) e la forma e' congelata; blocco della formula non si tocca
+nel frattempo. La sola apertura metodologica che resta e' la loro
+interpretazione come proxy di incertezza standard, non un incertezza assoluta
+(P1.7, P1.13).
 
 **Il codice sorgente di produzione e' sbloccato dal congelamento di P5**
 (2026-10-26): la v4 si implementa contro il protocollo congelato, non contro la
@@ -493,10 +498,12 @@ stanno solo le regole che un agente puo' violare senza accorgersene.
 ## Comandi di verifica
 
 ```
-pytest cwEnergyModular          # 845 raccolti: 842 passati, 3 saltati (notte 05-11)
-                                # albero sporco del backlog GPU, 06-11 alle 12:04:
+pytest cwEnergyModular          # 906 raccolti: 903 passati, 4 saltati, 0 falliti
+                                # (07-11, dopo P6.5; eseguito 907 per lo skip di
+                                # modulo, che non compare in --collect-only)
+                                # storia datata: 845 raccolti (notte 05-11);
                                 # 888 raccolti, 871 passati, 14 falliti (identita'
-                                # GPU), 3 saltati -- nota datata in testa al file
+                                # GPU), 3 saltati (albero sporco, 06-11 alle 12:04)
 ```
 
 **Mai `pytest` nudo dalla radice**: la raccolta viene interrotta da 6 errori in
@@ -565,7 +572,11 @@ controllo segue un run.
   `tools/dump_schema_latex.py --macros` conta 30, e il CSV di riferimento ne ha
   29 nell'header); nessuna migrazione perche'
   l'header dei metadati e' scritto una volta sola), e il
-  runner v4 `benchmark_v4.py` (sequenza di blocco di P1.5).
+  runner v4 `benchmark_v4.py` (sequenza di blocco di P1.5). Il risolutore della
+  superficie predittiva sta a parte, sul lato analisi (P6.5, 2026-11-07):
+  `surface_fit.py` aggrega i blocchi con F.7, standardizza i predittori e risolve
+  F.9 con QR/SVD, restituendo β in unità P3.3; non è chiamato dal runner di
+  misura e non tocca lo schema CSV.
 - **Il valutatore della risposta sta nello stesso modulo**: `evaluation_runner.py`
   (aggregati con intervallo di Wilson a livello di riga, bootstrap a cluster a
   livello di task, rifiuto dei valori non finiti),

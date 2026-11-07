@@ -2522,6 +2522,32 @@ resta all'analisi.
   solve, 1,05-5,35 sui 24 casi con almeno 10,30 corrette — "circa cinque cifre"
   era il caso con β interi, un limite non una proprietà. P5 prescriva QR o SVD su
   predittori centrati e scalati, mai equazioni normali; β in unità P3.3 con inversa.
+  **Chiusura del risolutore (2026-11-07).** Quei due requisiti hanno un
+  produttore: `cwEnergyModular/surface_fit.py`, funzione `fit_surface`, che
+  aggrega i blocchi con F.7 (`x12_b` media dei prodotti), standardizza le sole
+  colonne non costanti con z-score a deviazione di popolazione (`ddof = 0`,
+  intercetta intatta), risolve i minimi quadrati pesati di F.9 con QR su
+  `sqrt(w_b)·Z` — `X'WX` non viene mai formata — e riporta `β` nelle unità di
+  P3.3 con l'inversa `β_j = β_z,j/σ_j`, `β_0 = β_z,0 − Σ_j β_j μ_j`. Il rango è
+  letto dall'SVD del disegno pesato: sotto 4 parametri solleva un errore che
+  nomina i valori singolari invece di regolarizzare, e un `budget_fit_b = 0` usa
+  peso 1 marcando il blocco (P3.8). I numeri congelati di questo bullet sono
+  riprodotti dal modulo, non ricalcolati a mano: condizione grezza
+  1,0226770148e5, standardizzata 3,7610191189, rango 4 su 33 blocchi; evidenza in
+  `cwEnergyModular/tests/test_surface_fit.py` (14 node id, 2026-11-07).
+  **Prevalenza della riga di P5.** Il testo di questo bullet dice "P5 prescriva",
+  ma la riga di P5 nella tabella di testa (`:15`) assegna esplicitamente
+  all'analisi "il risolutore QR/SVD che P6.5 prescrive": fa fede la riga di P5,
+  perché il risolutore non è un campo da salvare né un passo del runner di
+  misura. Per questo vive in `cwEnergyModular/surface_fit.py` e non in
+  `benchmark_v4.py`, e nessuna lettura di questo bullet va intesa come richiesta
+  di modifica allo schema CSV, che resta a 174 nomi.
+  **P6.4 non si rifitta.** `montecarlo_protocollo_p64_probe.py::fit_wls` continua
+  a risolvere le equazioni normali sul disegno grezzo: è la sonda storica di
+  P6.4, con artefatti già pubblicati, e rifitarla sposterebbe numeri di quella
+  fase senza aggiungere informazione a questa. Da P6.5 in avanti il riferimento
+  è il risolutore QR/SVD; la difformità è dichiarata, non aggirata. Nessuna
+  formula, soglia, disegno o schema CSV cambia in questa chiusura.
 - **Nome del campo del settling post.** P6.1 chiede la durata reale di entrambi i
   settling; `settle_pre_s` è già previsto da P1.5, quello del post non ha nome.
 - **Collocazione dei campi per punto.** `err_rel`, `intervallo_conf`,
