@@ -154,6 +154,7 @@ def plan_payload() -> Dict:
 
 
 def cmd_plan(model: str) -> int:
+    ARCHIVE_DIR.mkdir(parents=True, exist_ok=True)
     RESULTS_DIR.mkdir(parents=True, exist_ok=True)
     _scrittura_atomica(ARCHIVE_DIR / PLAN_NAME, plan_payload())
     plan = plan_payload()
