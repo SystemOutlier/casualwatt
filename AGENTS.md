@@ -270,6 +270,34 @@ datata `C = 10`, `R = 3`, con la regola (la terna di P4.12 vuole tre
 osservazioni) e il numero dichiarato (errore proxy 0,0639 = 10,6% di `B_abs`,
 banda larga 9,4 errori proxy).
 
+Criterio del gate e blocco di controllo (07-11-2026, notte). Il blocco di
+controllo di P4.4 e' nel runner da `1be804bb3` (`control_wait_s`,
+`_run_control_window`, `run_block(..., control=True)`); la notte del 07-11
+entrano i due pezzi mancanti, come commit separati. `cwEnergyModular/control_gate.py`
+applica F.12 come modulo di sola analisi, con lo stesso registro di
+`surface_fit.py` e `geometry.py`: filtro assoluto `pre_range_w <= 1,0 W` e
+`|dP| <= 1,0 W`, verdetto per blocco su `budget_base_j`, `bias_w` come rapporto
+delle somme sui soli controlli utilizzabili, quorum `ceil(2/3 * n_coppie)` e
+`chain_status = bias_declared` sotto quorum; non calcola `u_bias,b` (chiede la
+campagna principale) e non promuove nessuna riga a `validated`. I suoi **18**
+node id stanno in `tests/test_control_gate_p45.py`. Il secondo punto fissa che
+il riepilogo del controllo entra nello schema P5 **senza allargarlo**: le
+quantita' `control_*` non hanno una colonna, `BLOCK_SUMMARY_COLUMNS` resta a 34
+nomi e `block_kind`/`pair_id` identificano il blocco nel file consegnato
+(`tests/test_controllo_p44_v4.py`, ora 15 node id). La suite e' a **976** node
+id raccolti, **973 passati** e **4 saltati** (3 RAPL, 1 modulo ecologits), 0
+falliti; eseguita 977 perche' lo skip di modulo non compare in
+`--collect-only`. **Il gate non e' stato eseguito**, e non per un difetto di
+codice: P4.4 requisito 5 vuole `dt_nominal_s` fissato prima della campagna, e
+le durate delle richieste del pilota P6.2 sono state sovrascritte dai run
+successivi (righe sopra); le 8 durate sopravvissute in
+`cwEnergyModular/results/casualwatt_v4_results.csv` (file ignorato da git, 8
+righe, prompt `c-001`) -- mediana 0,4102935 s, tre volte 1,2308805 s -- sono
+esecuzioni di blocco di un altro run del 06-11
+sera, non il pilota che il requisito nomina. Il numero c'e', la sua provenienza
+no, e una durata inventata sarebbe un disegno diverso da quello congelato
+scoperto solo dopo i dati.
+
 Eccezione dichiarata al congelamento, ora **chiusa** da Emenda 8 (2026-10-26):
 la **forma di combinazione** di `budget_base_w` e' la **quadratura**
 (`hypot` di `half_range_pre_w` e `half_drift_w`, `energy/benchmark_v4.py::block_baseline`),
@@ -519,10 +547,11 @@ stanno solo le regole che un agente puo' violare senza accorgersene.
 ## Comandi di verifica
 
 ```
-pytest cwEnergyModular          # 943 raccolti: 940 passati, 4 saltati, 0 falliti
-                                # (07-11 sera; eseguito 944 per lo skip di
+pytest cwEnergyModular          # 976 raccolti: 973 passati, 4 saltati, 0 falliti
+                                # (07-11 notte; eseguito 977 per lo skip di
                                 # modulo, che non compare in --collect-only)
-                                # storia datata: 906 raccolti / 903 passati
+                                # storia datata: 943 raccolti / 940 passati
+                                # (07-11 sera); 906 raccolti / 903 passati
                                 # (07-11, dopo P6.5); 845 raccolti (notte 05-11);
                                 # 888 raccolti, 871 passati, 14 falliti (identita'
                                 # GPU), 3 saltati (albero sporco, 06-11 alle 12:04)
@@ -604,7 +633,10 @@ controllo segue un run.
   conservativa dei due inviluppi) e `s_epi_phase.py` (l'harness di P6.6,
   promosso dalla radice con `git mv`), che legge finestra di fase e
   `settle_pre_s`/`settle_post_s` dalle colonne del runner v4 invece che dai
-  bucket SRUM. Nessuno dei due è chiamato dal percorso di misura.
+  bucket SRUM. Un terzo modulo di sola analisi entra la notte del 07-11-2026:
+  `control_gate.py` (il criterio F.12 del gate load-versus-control, P4.5), che
+  legge i riepiloghi di blocco che il runner scrive e restituisce l'esito del
+  gate; non esegue misura. Nessuno dei tre è chiamato dal percorso di misura.
 - **Il valutatore della risposta sta nello stesso modulo**: `evaluation_runner.py`
   (aggregati con intervallo di Wilson a livello di riga, bootstrap a cluster a
   livello di task, rifiuto dei valori non finiti),
@@ -646,8 +678,8 @@ controllo segue un run.
   generatore continua a stampare "nessuna docstring" invece di mascherare, e su
   questa suite oggi non stampa quella riga per nessuna delle 608 righe.
   **La fotografia al 07-11-2026 (sera) non e' piu' quella**: l'Appendice D
-  rigenerata su 943 node id stampa `Copertura delle docstring: 935 righe
-  documentate su 943`, e le otto scoperte stanno tutte in
+  rigenerata su 943 node id stampava `Copertura delle docstring: 935 righe
+  documentate su 943`, e le otto scoperte stavano tutte in
   `tests/test_paired_mcnemar.py`, entrato con `c33a7846c`: `test_basic_table_counts`,
   `test_indecis_when_no_discordant`, `test_small_discordant_uses_exact`,
   `test_large_discordant_computes_chi2`, `test_indeterminate_excluded_and_counted`,
@@ -657,6 +689,11 @@ controllo segue un run.
   restano storia datata; il debito e' aperto da un commit precedente a questo
   allineamento, non e' stato creato qui, e si chiude in un punto suo -- non
   allungando i test di oggi ne' correggendo la riga per far tornare il conteggio.
+  La rigenerazione della notte del 07-11-2026, sui 976 node id che includono i
+  due punti di P4.4 e P4.5, stampa `Copertura delle docstring: 968 righe
+  documentate su 976`, e le scoperte sono le stesse otto di
+  `tests/test_paired_mcnemar.py`: i due punti nuovi portano la loro docstring e
+  non spostano il debito.
   Dal 27-10-2026 la cartella contiene anche `tests/test_rapl_zone.py`
   (8, logica RAPL su un finto sysfs), `tests/test_diagnostics_pmi.py` (7,
   sonda PMI/WMI) e `tests/test_emi_selezione.py` (16, metadati EMI sintetici:
