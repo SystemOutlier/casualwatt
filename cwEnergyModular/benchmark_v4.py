@@ -1678,6 +1678,101 @@ def _tokens_rate(value, duration):
     return ""
 
 
+def control_wait_s(dt_nominal_s) -> float:
+    """Durata nominale di un blocco di controllo, validata prima del run.
+
+    P4.4 requisito 5: la durata si fissa PRIMA della campagna. Un valore
+    assente, non numerico o non positivo non ha un default: partire con una
+    durata scelta a posteriori sarebbe un disegno diverso da quello congelato,
+    e il gate non saprebbe contro cosa ha misurato.
+    """
+    try:
+        nominale = float(dt_nominal_s)
+    except (TypeError, ValueError):
+        raise ValueError(
+            "blocco di controllo senza dt_nominal_s numerico: la durata si "
+            "fissa PRIMA della campagna (P4.4 requisito 5)") from None
+    if not math.isfinite(nominale) or nominale <= 0.0:
+        raise ValueError(
+            f"dt_nominal_s non positivo ({dt_nominal_s!r}): un blocco di "
+            "controllo di durata nulla non sottrae nulla")
+    return nominale
+
+
+def _run_control_window(*, block_id: str, durata_s: float, profiler,
+                        p_pre: float,
+                        stop_event: Optional[threading.Event] = None,
+                        log: Optional[Callable[[str], None]] = None
+                        ) -> Dict[str, object]:
+    """Finestra passiva di un blocco di controllo P4.4 (requisiti 5 e 8).
+
+    Il blocco di controllo e' identico al blocco di carico per struttura,
+    stato macchina e durata, ma non invia richieste: al posto delle ``m``
+    inferenze attende ``dt_nominal_s`` secondi, fissati PRIMA della campagna.
+    I due bordi sono letti con la stessa ``read_measurement_edge`` della
+    produzione, quindi l'energia e' la differenza diretta del contatore fra i
+    bordi e ``Δt_W`` e' la durata della finestra del contatore.
+
+    ``E_net,control = E_pkg_gross − P_pre · Δt_W`` e' ``active_energy_j`` dello
+    stesso ``profile_window`` che produce le righe di richiesta: stessa
+    sottrazione, segno conservato, nessun troncamento, e ``P_pre`` del blocco
+    come unica baseline applicata. Lo scarto fra nominale e misurato non crea
+    bias perche' la sottrazione usa il ``Δt_W`` della finestra, non il
+    nominale (P4.4 requisito 5).
+
+    Ritorna le quantita' che non hanno colonna nello schema P5 congelato:
+    chi calcola il gate di F.12 le legge da qui. ``package_window_source``
+    distingue una finestra ``exact-counter`` da un fallback dichiarato: un
+    controllo con la finestra degradata non e' una misura e chi legge deve
+    poterlo vedere senza indovinarlo dalle note.
+    """
+    nominale = float(durata_s)
+    log = log or (lambda _m: None)
+
+    e0 = SESSION.read_measurement_edge()
+    try:
+        t0 = float(e0.get("t_counter_mono"))
+    except (TypeError, ValueError):
+        t0 = time.monotonic()
+    pids = [w.pid for w in e0["tree"]]
+    while True:
+        if stop_event is not None and stop_event.is_set():
+            raise _Cancelled(f"stop richiesto durante {block_id} (controllo)")
+        resto = nominale - (time.monotonic() - t0)
+        if resto <= 0.0:
+            break
+        time.sleep(min(resto, 0.5))
+    e1 = SESSION.read_measurement_edge()
+    t1 = time.monotonic()
+
+    local = profiler.profile_window(
+        t0, t1, ollama_pids=pids, edge_start=e0, edge_end=e1,
+        baseline_pre_w=p_pre)
+    log(f"[CONTROLLO {block_id}] attesa {nominale:.3f} s: "
+        f"E_pkg={local.package_energy_j} J dt_W={local.dt_W_s} s "
+        f"E_net={local.active_energy_j} J "
+        f"source={local.package_window_source}")
+    return {
+        "wait_nominal_s": round(nominale, 6),
+        "wait_elapsed_s": round(t1 - t0, 6),
+        "dt_W_s": local.dt_W_s,
+        "package_energy_j": local.package_energy_j,
+        "package_energy_raw_j": local.package_energy_raw_j,
+        "baseline_energy_j": local.baseline_energy_j,
+        "active_energy_j": local.active_energy_j,
+        # False e' l'esito ATTESO di un controllo con E_net negativo (drift,
+        # non guasto): chi calcola il gate non lo usa come filtro, lo
+        # dichiara. Il criterio di F.12 e' |E_net| contro budget_base_j.
+        "active_valid": local.active_valid,
+        "idle_power_w": local.idle_power_w,
+        "package_window_source": local.package_window_source,
+        "emi_edge_source": local.emi_edge_source,
+        "sampling_interval_observed_s": local.sampling_interval_observed_s,
+        "notes": list(local.notes),
+        "ollama_pids": pids,
+    }
+
+
 # ---------------------------------------------------------------------------
 # Un blocco: settling, P_pre, m richieste, settling, P_post
 # ---------------------------------------------------------------------------
@@ -1694,6 +1789,7 @@ def run_block(model: str, prompt: Dict, *, run_id: str, session_id: str,
               stop_event: Optional[threading.Event] = None,
               cooldown: Optional[Dict[str, object]] = None,
               block_attempt: int = 1, replaced_block_id: str = "",
+              control: bool = False,
               on_log: Optional[Callable[[str], None]] = None
               ) -> Tuple[List[Dict], Dict[str, object]]:
     """Esegue un blocco P1.5 e ritorna (righe, riepilogo di blocco).
@@ -1711,6 +1807,19 @@ def run_block(model: str, prompt: Dict, *, run_id: str, session_id: str,
     organizza i punti decide il riferimento, il blocco lo dichiara. Da qui il
     flag ``cooldown_timeout`` e le note di riga.
 
+    P4.4 (``control=True``): il blocco non invia richieste. Al posto delle
+    ``m`` inferenze c'e' una finestra passiva di ``dt_nominal_s`` secondi,
+    letta con la stessa coppia di bordi del blocco di carico;
+    ``E_net,control = E_pkg_gross − P_pre · Δt_W`` esce dallo stesso
+    ``profile_window`` di produzione, con il segno conservato. La struttura di
+    baseline 3 pre + 3 post resta identica, perche' e' cio' che rende
+    calcolabili ``pre_range_w``, ``dP``, ``budget_base_w`` e
+    ``budget_base_j`` su un controllo (P4.5). Il blocco non produce righe di
+    richiesta, e ``r_A``/``r_B`` restano vuote per costruzione: hanno al
+    denominatore l'energia delle richieste valide, che qui non esiste. Le
+    quantita' della finestra non hanno colonna nello schema P5 e stanno nel
+    riepilogo con il prefisso ``control_``.
+
     Emenda 8 (P1.6): ``block_attempt`` vale ``1`` per il blocco in piano e
     ``2`` per il sostituto, e ``replaced_block_id`` e' l'id del blocco
     invalidato che il sostituto rimpiazza (vuota per il blocco in piano). Le
@@ -1725,6 +1834,10 @@ def run_block(model: str, prompt: Dict, *, run_id: str, session_id: str,
     """
     if m < 1:
         raise ValueError("m deve essere >= 1")
+    # P4.4 requisito 5: la durata del controllo si valida PRIMA di toccare la
+    # sessione. Un run partito con una durata inventata la scoprirebbe solo
+    # sui dati, quando il disegno non e' piu' quello congelato.
+    durata_controllo = control_wait_s(dt_nominal_s) if control else 0.0
     log = on_log or (lambda _m: None)
     cd_flag = cooldown_timeout_flag(cooldown)
     if cooldown and cooldown.get("ran"):
@@ -1775,7 +1888,17 @@ def run_block(model: str, prompt: Dict, *, run_id: str, session_id: str,
         f"reps={[round(r, 3) for r in reps_pre]} settle={settle_pre}")
 
     rows: List[Dict] = []
-    for i in range(m):
+    control_rec: Dict[str, object] = {}
+    if control:
+        # P4.4 requisiti 5 e 8: nessuna richiesta, una finestra passiva della
+        # durata fissata prima della campagna. `richieste` vuoto e' la sola
+        # differenza con il blocco di carico: pre, post e baseline sono le
+        # stesse, perche' il criterio di P4.5 ne ha bisogno.
+        control_rec = _run_control_window(
+            block_id=block_id, durata_s=durata_controllo,
+            profiler=profiler, p_pre=p_pre, stop_event=stop_event, log=log)
+    richieste = range(0) if control else range(m)
+    for i in richieste:
         if stop_event is not None and stop_event.is_set():
             raise _Cancelled(f"stop richiesto durante {block_id}")
         sent, nonce, sha = build_prompt_v4(prompt, nonce_seq + i)
@@ -1973,8 +2096,19 @@ def run_block(model: str, prompt: Dict, *, run_id: str, session_id: str,
     # Δt̄_W,b: MEDIA aritmetica delle durate del blocco (F.11), sul campo
     # duration_s dichiarato dal quinto emendamento. Non e' la mediana delle
     # Δt_W: le due letture danno numeri diversi e il protocollo ne scrive una
-    # sola.
-    mean_dt, mean_dt_motivo = block_mean_duration_s(rows, m)
+    # sola. Su un blocco di controllo non ci sono richieste: la durata del
+    # blocco e' la sola finestra passiva misurata, e `budget_base_j,c` di
+    # P4.5 e' quello stesso prodotto.
+    if control:
+        mean_dt = control_rec.get("dt_W_s", "")
+        if mean_dt in ("", None):
+            mean_dt = ""
+            mean_dt_motivo = ("finestra di controllo senza Δt_W: il contatore "
+                              "non ha espresso una durata")
+        else:
+            mean_dt_motivo = ""
+    else:
+        mean_dt, mean_dt_motivo = block_mean_duration_s(rows, m)
     bw = base.get("budget_base_w", "")
     for r in rows:
         r["baseline_post_w"] = base["baseline_post_w"]
@@ -1999,12 +2133,20 @@ def run_block(model: str, prompt: Dict, *, run_id: str, session_id: str,
         r["settle_pre_s"] = "" if settle_pre is None else settle_pre
         r["settle_post_s"] = "" if settle_post is None else settle_post
 
-    negatives = sum(
-        1 for r in rows
-        if (isinstance(r.get("active_energy_raw_j"), (int, float))
-            and float(r["active_energy_raw_j"]) < 0.0)
-        or (isinstance(r.get("package_energy_raw_j"), (int, float))
-            and float(r["package_energy_raw_j"]) < 0.0))
+    if control:
+        # Nessuna riga: il segno da sorvegliare e' quello della finestra
+        # unica. Un E_net negativo e' l'esito atteso del controllo (drift),
+        # non un guasto: il flag segue il GREZZO del package, come le righe.
+        raw_pkg = control_rec.get("package_energy_raw_j")
+        negatives = 1 if (isinstance(raw_pkg, (int, float))
+                          and float(raw_pkg) < 0.0) else 0
+    else:
+        negatives = sum(
+            1 for r in rows
+            if (isinstance(r.get("active_energy_raw_j"), (int, float))
+                and float(r["active_energy_raw_j"]) < 0.0)
+            or (isinstance(r.get("package_energy_raw_j"), (int, float))
+                and float(r["package_energy_raw_j"]) < 0.0))
     summary: Dict[str, object] = {
         "batch_id": batch_id,
         "point_id": point_id,
@@ -2040,6 +2182,10 @@ def run_block(model: str, prompt: Dict, *, run_id: str, session_id: str,
         "negative_increment": "true" if negatives else "false",
         # Sostituzioni di P3.12: non gestite qui.
         "design_deviation": "", "design_deviation_count": "",
+        # `r_A`/`r_B` restano vuote anche sul controllo, e non per un calcolo
+        # mancante: il denominatore e' l'energia delle richieste valide e su un
+        # blocco senza richieste non esiste (P4.4 requisito 7, emendamento del
+        # 2026-10-24). Il gate di P4.5 non le usa.
         "r_A": "", "r_B": "",
         # Emenda 8 (P1.6): in coda, stesso ordine delle righe grezze. Un
         # riepilogo che arriva fin qui e' di un blocco completo: tentativo e
@@ -2048,16 +2194,21 @@ def run_block(model: str, prompt: Dict, *, run_id: str, session_id: str,
         "invalid_reason": "",
         "replaced_block_id": replaced_block_id,
     }
+    def _nota_block(testo: str) -> None:
+        """Nota di blocco: su ogni riga, e sul controllo (che non ha righe)
+        nella lista che il riepilogo porta con se'."""
+        for r in rows:
+            r["notes"] = ((r.get("notes", "") + "; ") if r.get("notes")
+                          else "") + testo
+        if control:
+            control_rec["notes"].append(testo)
+
     if settle_pre is None:
-        for r in rows:
-            r["notes"] = (r.get("notes", "") + "; " if r.get("notes") else "") + (
-                "settling pre al tetto (settle_pre_s vuoto): stabilita' non "
-                "osservata, non un tempo inventato")
+        _nota_block("settling pre al tetto (settle_pre_s vuoto): stabilita' "
+                    "non osservata, non un tempo inventato")
     if settle_post is None:
-        for r in rows:
-            r["notes"] = (r.get("notes", "") + "; " if r.get("notes") else "") + (
-                "settling post al tetto (settle_post_s vuoto): stabilita' non "
-                "osservata")
+        _nota_block("settling post al tetto (settle_post_s vuoto): stabilita' "
+                    "non osservata")
     # Termine GPU del settling: la riga dichiara se la stabilita' e' stata
     # osservata anche sulla scheda o solo sul package. "stable" non aggiunge
     # nulla (la riga GPU porta gia' il metodo di attribuzione); "channel-absent"
@@ -2065,20 +2216,30 @@ def run_block(model: str, prompt: Dict, *, run_id: str, session_id: str,
     # copre il solo CPU.
     _append_gpu_settle_notes(rows, settle_pre_gpu, settle_pre_gpu_reason,
                              settle_post_gpu, settle_post_gpu_reason)
+    if control:
+        for tag, status, reason in (
+                ("pre", settle_pre_gpu, settle_pre_gpu_reason),
+                ("post", settle_post_gpu, settle_post_gpu_reason)):
+            nota_gpu = _gpu_settle_note(tag, status, reason)
+            if nota_gpu:
+                control_rec["notes"].append(nota_gpu)
     # `Δt̄_W,b` non e' una colonna (P6.5:2178 la chiama "quantita' derivata: la
     # media per blocco della duration_s gia' prevista"), ma il budget di blocco
     # si ricava solo da li': senza il valore nella nota, un terzo non puo'
     # rifare il prodotto `budget_base_w x Δt̄_W,b` che legge in block_summary.
     if mean_dt == "":
         dt_note = f"budget_base_j di blocco non calcolabile: {mean_dt_motivo}"
+    elif control:
+        dt_note = (
+            "budget_base_j di blocco = budget_base_w x Δt_W,control (P4.4 "
+            f"requisiti 7-8); Δt_W,control={mean_dt} s, finestra unica "
+            "passiva del blocco, non una media su richieste")
     else:
         dt_note = (
             "budget_base_j di blocco = budget_base_w x Δt̄_W,b (F.11); "
             f"Δt̄_W,b={mean_dt} s, media aritmetica di {m} duration_s di "
             "richiesta (non la mediana)")
-    for r in rows:
-        r["notes"] = ((r.get("notes", "") + "; ") if r.get("notes")
-                      else "") + dt_note
+    _nota_block(dt_note)
     if cooldown and cooldown.get("ran"):
         cd_note = (
             "cooldown P1.5: " + str(cooldown.get("reason")) +
@@ -2086,15 +2247,30 @@ def run_block(model: str, prompt: Dict, *, run_id: str, session_id: str,
             f"waited_s={cooldown.get('waited_s')}, "
             f"campioni={cooldown.get('samples')}, "
             f"letture mancanti={cooldown.get('missing_reads')}]")
-        for r in rows:
-            r["notes"] = ((r.get("notes", "") + "; ") if r.get("notes")
-                          else "") + cd_note
+        _nota_block(cd_note)
     if base["pre_range_w"] != "" and float(base["pre_range_w"]) > 1.0:
-        for r in rows:
-            r["notes"] = (r.get("notes", "") + "; " if r.get("notes") else "") + (
-                f"pre_range_w={base['pre_range_w']} W > 1,0 W: pre_unstable "
-                "true (P1.6); il flag non invalida da solo il blocco, entra in "
-                "half_range_pre_w")
+        _nota_block(
+            f"pre_range_w={base['pre_range_w']} W > 1,0 W: pre_unstable "
+            "true (P1.6); il flag non invalida da solo il blocco, entra in "
+            "half_range_pre_w")
+    if control:
+        # Le quantita' della finestra passiva non hanno colonna nello schema
+        # P5 congelato: il riepilogo le porta con il prefisso `control_` e il
+        # gate di F.12 le legge da qui. `r_A`/`r_B` restano vuote (sopra).
+        summary.update(
+            control_wait_nominal_s=control_rec["wait_nominal_s"],
+            control_wait_elapsed_s=control_rec["wait_elapsed_s"],
+            control_dt_w_s=control_rec["dt_W_s"],
+            control_e_pkg_gross_j=control_rec["package_energy_j"],
+            control_e_baseline_j=control_rec["baseline_energy_j"],
+            control_e_net_j=control_rec["active_energy_j"],
+            control_active_valid=control_rec["active_valid"],
+            control_package_window_source=control_rec["package_window_source"],
+            control_emi_edge_source=control_rec["emi_edge_source"],
+            control_sampling_interval_observed_s=control_rec[
+                "sampling_interval_observed_s"],
+            control_notes="; ".join(n for n in control_rec["notes"] if n),
+        )
     log(f"[BLOCK {block_id}] P_post={p_post:.3f} W dP={base['dP']} "
         f"pre_range={base['pre_range_w']} budget={base['budget_base_w']} W")
     return rows, summary
