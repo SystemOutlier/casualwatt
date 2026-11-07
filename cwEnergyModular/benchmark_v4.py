@@ -2463,6 +2463,7 @@ def run_v4_benchmark(
     block_summary_path: Optional[Path] = None,
     max_invalidated_blocks: Optional[int] = None,
     substitution_seed: Optional[str] = None,
+    initial_last_pre_w: Optional[float] = None,
 ) -> Dict:
     """Esegue la campagna v4 (blocchi P1.5) e scrive righe + riepiloghi.
 
@@ -2491,6 +2492,14 @@ def run_v4_benchmark(
     viene dopo il cooldown). Qui si usa quindi l'ultima ``baseline_pre_w``
     completata. Il primo punto del run non ha cooldown perche' non ha
     riferimento: la cella ``cooldown_timeout`` resta vuota, non "false".
+
+    ``initial_last_pre_w`` (default ``None``) e' il seed della variabile locale
+    ``last_pre_w`` prima del ciclo, usato per agganciare il cooldown di un
+    blocco di controllo al ``P_pre`` del blocco di carico della stessa coppia
+    quando i due blocchi stanno in invocazioni diverse (campagna di gate di
+    P4.4). Con il default il comportamento e' identico alla versione senza
+    l'argomento: nessuna soglia, seed, struttura di blocco o schema CSV
+    cambia. Il valore e' propagato cosi' com'e', non ricalcolato.
 
     Emenda 8 (P1.6) -- sostituzione del blocco invalidato. I piani dei blocchi
     (modello x punto x k) diventano una LISTA PIATTA eseguita con un cursore,
@@ -2568,7 +2577,8 @@ def run_v4_benchmark(
     errors = 0
     nonce_seq = 0
     # Riferimento del cooldown (P1.5): l'ultima baseline_pre_w completata.
-    last_pre_w: Optional[float] = None
+    # initial_last_pre_w=nessun argomento -> identico al comportamento storico.
+    last_pre_w: Optional[float] = initial_last_pre_w
     cooldown_log: List[str] = []
     runtime: Dict[str, Tuple[str, str]] = {
         model: ("", "") for model in models}
