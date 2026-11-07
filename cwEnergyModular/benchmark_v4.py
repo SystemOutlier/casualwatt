@@ -82,6 +82,7 @@ import requests
 import benchmark_unified as bu
 import config
 import llm_judge as _lj
+import machine_state as ms
 from casualwatt_csv_export import (
     BLOCK_SUMMARY_COLUMNS,
     export_results_csv,
@@ -99,6 +100,13 @@ M_REQUESTS = 3          # P3.13: m = 3 richieste per blocco
 NUM_CTX = 8192          # P2.7
 KEEP_ALIVE = -1         # P1.4: intero, non "-1" (vedi payload_v4)
 TOKENS_LEVEL = "per-request"
+
+# Finestra di baseline di P1.3/P1.5: "tre finestre consecutive da 30 s".
+# Si passa il numero congelato alla sessione invece di lasciare che la durata
+# venga da ``config.IDLE_CALIBRATION_SECONDS`` (10 s) o dal knob d'ambiente
+# ``CW_IDLE_WINDOW_S``: ``calibrate_idle`` prende il massimo fra i due, quindi
+# il knob puo' solo ALLUNGARE la finestra, mai accorciarla sotto il protocollo.
+IDLE_WINDOW_S = 30.0
 
 # Cooldown fra i punti (P1.5). Tre parametri su quattro sono lettera del
 # protocollo congelato (protocollo_v4_20261024.md:210-212): "la media a 10 s
@@ -1850,7 +1858,7 @@ def run_block(model: str, prompt: Dict, *, run_id: str, session_id: str,
     settle_pre_gpu = getattr(SESSION, "last_settle_gpu_status", None)
     settle_pre_gpu_reason = getattr(SESSION, "last_settle_gpu_reason", "")
     try:
-        p_pre = float(SESSION.calibrate_idle())
+        p_pre = float(SESSION.calibrate_idle(IDLE_WINDOW_S))
     except Exception as exc:
         token = classify_calibration_exception(exc)
         msg = (f"calibrazione pre fallita per {point_id}/{block_id}: "
@@ -2069,7 +2077,7 @@ def run_block(model: str, prompt: Dict, *, run_id: str, session_id: str,
     settle_post_gpu = getattr(SESSION, "last_settle_gpu_status", None)
     settle_post_gpu_reason = getattr(SESSION, "last_settle_gpu_reason", "")
     try:
-        p_post = float(SESSION.calibrate_idle())
+        p_post = float(SESSION.calibrate_idle(IDLE_WINDOW_S))
     except Exception as exc:
         token = classify_calibration_exception(exc)
         msg = (f"calibrazione post fallita per {point_id}/{block_id}: "
@@ -2304,6 +2312,101 @@ def _ollama_runtime_info(model: str) -> Tuple[str, str]:
     return version, digest
 
 
+def _format_top_processes(rows: Sequence[Dict]) -> str:
+    if not rows:
+        return "nessuno"
+    return ", ".join(
+        f"{r.get('name', '')}({r.get('pid', 0)})={r.get('cpu_pct', 0):g}%"
+        for r in rows)
+
+
+def _format_power(state: Dict) -> str:
+    parts = []
+    plan = str(state.get("plan") or "").strip()
+    parts.append(f"piano={plan or '-'}")
+    if state.get("battery") == "present":
+        parts.append(
+            f"batteria={state.get('battery_percent')}% "
+            f"alimentatore={'collegato' if state.get('power_plugged') else 'scollegato'}")
+    else:
+        parts.append("batteria=assente")
+    return "; ".join(parts)
+
+
+def prepare_machine_state(
+        *, on_log: Optional[Callable[[str], None]] = None) -> Dict[str, object]:
+    """P1.4, stato PRIMA del primo blocco: GUI LHM chiusa, alimentazione,
+    piano energetico, top-5 processi, CPU totale su 3 s e ``background_load``.
+
+    Tutto quello che qui puo' fermare il run ferma il run: GUI aperta, host a
+    batteria. ``background_load`` no: e' un flag da dichiarare (P1.4), e la
+    sua conseguenza sta nella lettura del dato, non nel silenzio del runner.
+    """
+    log = on_log or (lambda _m: None)
+    lhm = ms.require_lhm_closed()
+    power = ms.require_ac_power()
+    top = ms.sample_top_processes()
+    samples = ms.total_cpu_samples()
+    state: Dict[str, object] = {
+        "lhm_processes": lhm,
+        "power": power,
+        "top_processes": top,
+        "cpu_samples_pct": samples,
+        "background_load": ms.background_load_from_samples(samples),
+        "sampler_interval_s": ms.sampler_cadence(SESSION),
+    }
+    log(f"[P1.4] GUI LHM assente; {_format_power(power)}; "
+        f"top-5: {_format_top_processes(top)}; "
+        f"CPU totale={samples} % "
+        f"background_load={state['background_load']}")
+    return state
+
+
+def prepare_model_state(
+        model: str, *, num_ctx: int = NUM_CTX,
+        on_log: Optional[Callable[[str], None]] = None) -> Dict[str, object]:
+    """P1.4, stato del modello PRIMA dei suoi blocchi: residenza verificata
+    su ``/api/ps`` con ``keep_alive=-1`` e due warm-up a ``(512,128)``
+    scartati.
+
+    Il warm-up e' per modello e sta qui, non a inizio run, perche' il piano
+    e' ordinato per modello: il caricamento di un secondo modello puo'
+    scacciare il primo, e uno stato "residente" misurato un'ora prima non
+    direbbe nulla sui blocchi che seguono.
+    """
+    log = on_log or (lambda _m: None)
+    residency = ms.ensure_resident(
+        model, api_url=config.OLLAMA_API_URL, num_ctx=num_ctx)
+    warmups = ms.warmup(model, api_url=config.OLLAMA_API_URL,
+                        num_ctx=num_ctx)
+    log(f"[P1.4] {model}: {residency['action']} "
+        f"(expires_at={residency['expires_at'] or '-'}), "
+        f"{len(warmups)} warm-up scartati "
+        f"(prompt_eval={[w['prompt_eval_count'] for w in warmups]}, "
+        f"eval={[w['eval_count'] for w in warmups]})")
+    return {"residency": residency, "warmups": warmups}
+
+
+def probe_machine_state_after(
+        *, on_log: Optional[Callable[[str], None]] = None) -> Dict[str, object]:
+    """P1.4, stato DOPO l'ultimo blocco: top-5 processi e CPU totale con lo
+    stesso criterio del pre. Un ``background_load`` comparso a fine run e'
+    informativo (la campagna e' gia' scritta) ma va dichiarato lo stesso: una
+    macchina che si e' caricata durante la misura e' un fatto del run."""
+    log = on_log or (lambda _m: None)
+    top = ms.sample_top_processes()
+    samples = ms.total_cpu_samples()
+    state: Dict[str, object] = {
+        "top_processes": top,
+        "cpu_samples_pct": samples,
+        "background_load": ms.background_load_from_samples(samples),
+    }
+    log(f"[P1.4] dopo: top-5: {_format_top_processes(top)}; "
+        f"CPU totale={samples} % "
+        f"background_load={state['background_load']}")
+    return state
+
+
 def run_v4_benchmark(
     local_models: Sequence[str],
     prompts: Sequence[Dict],
@@ -2386,6 +2489,17 @@ def run_v4_benchmark(
     (pre_unstable, ``pre_range_w`` alto, drift) resta un FLAG sul blocco
     completo, e un errore non-tecnico (backend assente, HTTP, incongruenza
     dell'interfaccia) ferma il run come prima.
+
+    Stato macchina (P1.4, ``:218-228``). Prima del primo blocco il runner
+    verifica che la GUI di LibreHardwareMonitor sia chiusa, che l'host sia
+    alimentato dalla rete e registra piano energetico, top-5 processi, CPU
+    totale su 3 s e ``background_load``; per ogni modello, prima dei suoi
+    blocchi, verifica la residenza su ``/api/ps`` con ``keep_alive=-1`` e
+    esegue due warm-up a ``(512,128)`` scartati; a fine run ripete top-5 e
+    CPU totale. Nessuna di queste quantita' ha una colonna nello schema P5
+    congelato e tutte finiscono in ``notes``. GUI aperta o host a batteria
+    fermano il run; ``background_load`` e' un flag dichiarato, non un
+    silenzio.
     """
     log = on_log or (lambda _m: None)
     models = list(local_models or [])
@@ -2421,6 +2535,12 @@ def run_v4_benchmark(
     cooldown_log: List[str] = []
     runtime: Dict[str, Tuple[str, str]] = {
         model: ("", "") for model in models}
+    # P1.4: stato macchina prima/dopo e preparazione per modello. Stanno fuori
+    # dal piano perche' non sono blocchi e non producono righe.
+    machine_before: Dict[str, object] = {}
+    machine_after: Dict[str, object] = {}
+    machine_error = ""
+    model_states: Dict[str, Dict[str, object]] = {}
     summary = {
         "run_id": run_id, "session_id": session_id, "batch_id": batch,
         "records": 0, "blocks": 0, "errors": 0, "cancelled": False,
@@ -2459,6 +2579,7 @@ def run_v4_benchmark(
         log(f"Sorgente energia package CPU: {SESSION.source_method}")
         log("Risoluzione osservata dei cpu_times: "
             + (f"{cpu_res:.4f} s" if cpu_res else "non misurabile"))
+        machine_before = prepare_machine_state(on_log=log)
 
         idx = 0
         while idx < len(plan):
@@ -2470,6 +2591,8 @@ def run_v4_benchmark(
                 version, digest = _ollama_runtime_info(model)
                 runtime[model] = (version, digest)
                 runtime_done.add(model)
+                model_states[model] = prepare_model_state(
+                    model, num_ctx=num_ctx, on_log=log)
             point_id = str(entry["point_id"])
             k = int(entry["k"])
             attempt = int(entry["attempt"])
@@ -2587,6 +2710,15 @@ def run_v4_benchmark(
             summary["records"] = rows_written
             summary["blocks"] = blocks_written
             idx += 1
+
+        # P1.4: stato dopo l'ultimo blocco. L'errore qui non invalida la
+        # campagna (le righe sono gia' scritte); resta dichiarato.
+        try:
+            machine_after = probe_machine_state_after(on_log=log)
+        except Exception as exc:  # noqa: BLE001 - il run e' gia' avvenuto
+            machine_error = f"{type(exc).__name__}: {exc}"
+            log(f"[AVVISO] stato macchina finale non rilevato: "
+                f"{machine_error}")
     except _Cancelled as exc:
         summary["cancelled"] = True
         log(f"[ANNULLATO] {exc}")
@@ -2615,8 +2747,9 @@ def run_v4_benchmark(
         # quale modello ha prodotto il punteggio.
         f"block_summary_csv={block_summary_path}",
         f"judge_model={_lj.judge_model_name()}",
-        "baseline: per blocco (baseline_pre_w/post e repliche nelle righe e "
-        "in block_summary.csv)",
+        "baseline P1.3/P1.5: per blocco, tre finestre consecutive da "
+        f"{IDLE_WINDOW_S:.0f} s per il pre e tre per il post; repliche e "
+        "baseline nelle righe e in block_summary.csv",
         # Criterio e riferimenti del cooldown, perche' la sola colonna
         # cooldown_timeout non dice contro quale P_pre si era controllato.
         f"cooldown P1.5: media {COOLDOWN_WINDOW_S:.0f} s entro "
@@ -2625,6 +2758,44 @@ def run_v4_benchmark(
         "riferimento = baseline_pre_w dell'ultimo blocco completato; "
         "primo punto del run senza cooldown",
     ]
+    # P1.4: lo stato macchina non ha colonne (schema P5 congelato) e va in
+    # ``notes``. Se il run non e' arrivato al primo blocco le voci mancano:
+    # si dichiara "non rilevato", non si inventa lo stato.
+    if machine_before:
+        power = machine_before.get("power")
+        notes.append(
+            "P1.4 stato iniziale: GUI LibreHardwareMonitor assente; "
+            + _format_power(power if isinstance(power, dict) else {})
+            + f"; sampler={machine_before.get('sampler_interval_s')} s")
+        notes.append(
+            "P1.4 top-5 prima: "
+            + _format_top_processes(
+                machine_before.get("top_processes") or []))
+        notes.append(
+            f"P1.4 CPU totale prima={machine_before.get('cpu_samples_pct')} % "
+            f"background_load={machine_before.get('background_load')}")
+    else:
+        notes.append("P1.4 stato iniziale: non rilevato")
+    for model, state in model_states.items():
+        residency = state.get("residency") or {}
+        warmups = state.get("warmups") or []
+        counts = ", ".join(
+            f"#{w.get('repeat')} prompt_eval={w.get('prompt_eval_count')} "
+            f"eval={w.get('eval_count')}" for w in warmups)
+        notes.append(
+            f"P1.4 {model}: residente={residency.get('action')} "
+            f"expires_at={residency.get('expires_at') or '-'}; "
+            f"warm-up (512,128) scartati: {counts or 'nessuno'}")
+    if machine_after:
+        notes.append(
+            "P1.4 top-5 dopo: "
+            + _format_top_processes(
+                machine_after.get("top_processes") or []))
+        notes.append(
+            f"P1.4 CPU totale dopo={machine_after.get('cpu_samples_pct')} % "
+            f"background_load={machine_after.get('background_load')}")
+    elif machine_error:
+        notes.append(f"P1.4 stato finale non rilevato: {machine_error}")
     if cooldown_log:
         notes.append("cooldown: " + " | ".join(cooldown_log))
     else:

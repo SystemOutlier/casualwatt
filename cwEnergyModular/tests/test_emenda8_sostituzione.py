@@ -130,6 +130,22 @@ def _stub_runner(monkeypatch, run_block_impl, *, k="2", seed="seme-di-prova",
     monkeypatch.setattr(v4, "cooldown_to_baseline", fake_cooldown)
     monkeypatch.setattr(v4, "SESSION", _RunSession())
     monkeypatch.setattr(v4, "_ollama_runtime_info", lambda model: ("v", "d"))
+    # P1.4: lo stato macchina e' provato nel suo file; qui il run e' senza
+    # hardware ne' motore e i tre punti di ingresso vanno neutralizzati.
+    monkeypatch.setattr(
+        v4, "prepare_machine_state",
+        lambda **kw: {"power": {}, "top_processes": [],
+                      "cpu_samples_pct": [], "background_load": False,
+                      "sampler_interval_s": 0.5})
+    monkeypatch.setattr(
+        v4, "prepare_model_state",
+        lambda model, **kw: {"residency": {"action": "already-resident",
+                                           "expires_at": ""},
+                             "warmups": []})
+    monkeypatch.setattr(
+        v4, "probe_machine_state_after",
+        lambda **kw: {"top_processes": [], "cpu_samples_pct": [],
+                      "background_load": False})
     monkeypatch.setattr(bu, "_ecologits_version", lambda: "")
     monkeypatch.setattr(
         v4.CasualWattLocalEnergyProfiler, "probe_cpu_time_resolution",
