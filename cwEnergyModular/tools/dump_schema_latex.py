@@ -40,6 +40,12 @@ if MODULE_DIR not in sys.path:
 from casualwatt_csv_export import CSV_COLUMNS, RUN_METADATA_COLUMNS  # noqa: E402
 
 MAX_CELL = 30
+# Un hash esadecimale non ha separatori: _spezza() non puo' offrirgli punti di
+# capo e in una colonna p{} sfonda il testo. 16 cifre esadecimali (64 bit)
+# stanno larghe nella colonna da 0,40\textwidth a 10pt; 29 la sfondavano di
+# 8,67pt.
+MAX_HASH = 16
+_HEX = re.compile(r"[0-9A-Fa-f]+")
 
 _SOSTITUZIONI = {
     "\\": "\\textbackslash{}", "{": "\\{", "}": "\\}", "$": "\\$",
@@ -105,13 +111,17 @@ def cella(valore):
 
     L'ordine conta: si escape prima di accorciare, perche' il marcatore di
     troncamento e' una sequenza LaTeX e finirla dentro tex_escape() la
-    trasformerebbe in 'backslash-ldots'.
+    trasformerebbe in 'backslash-ldots'. Un hash esadecimale si tronca a
+    MAX_HASH e non a MAX_CELL: senza separatori resta un token unico, e il
+    limite dei 29 caratteri lo faceva sfondare la colonna.
     """
     if valore is None or valore == "":
         return "-"
     # un a capo dentro una cella spezzerebbe la riga del longtable: le note
     # multiple sono separate da ';', quindi la sostituzione e' innocua
     testo = str(valore).replace("\r\n", " ").replace("\n", " ").replace("\r", " ")
+    if _HEX.fullmatch(testo) and len(testo) > MAX_HASH:
+        return _spezza(tex_escape(testo[:MAX_HASH])) + "\\ldots"
     if len(testo) > MAX_CELL:
         return _spezza(tex_escape(testo[:MAX_CELL - 1])) + "\\ldots"
     return _spezza(tex_escape(testo))
