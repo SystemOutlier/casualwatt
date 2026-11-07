@@ -1,0 +1,104 @@
+{
+  "pilot": "P2.9",
+  "declared_at": "2026-11-07T20:19:09+00:00",
+  "model": "qwen2.5:0.5b",
+  "temperature": 0.2,
+  "timeout_s": 60.0,
+  "num_ctx": 8192,
+  "order_seed": "p29:A1,A2,A3,Bi,Bn,C",
+  "emenda8": {
+    "max_invalidated_blocks": 1,
+    "substitution_seed": "p29-<label>"
+  },
+  "source_documents": [
+    "experiment_results/protocollo_v4_20261024.md:841-856 (P2.9)",
+    "experiment_results/protocollo_v4_20261024.md:2382-2393 (P6.2)",
+    "experiment_results/protocollo_v4_20261024.md:1481-1486 (P4.4 requisito 5, dt_nominal_s)"
+  ],
+  "checks": {
+    "A": "A1 e A2: done_reason=length, termination_class=cap_reached, output_tokens == num_predict; A3: done_reason=stop, termination_class=eos (non eos_at_cap)",
+    "B": "descrittiva: mediana e media di input_tokens e prefill_duration_s per braccio, scarto relativo; nessuna soglia, nessuna decisione su P2.8",
+    "C": "input_tokens presente; input_tokens+output_tokens <= 8192; nessun context_boundary; input_tokens >= parole del testo spedito; rapporto token/parola contro il warm-up (512,128) della stessa invocazione entro 10%"
+  },
+  "dt_nominal_rule": "3 x mediana di duration_s su TUTTE le righe valide del pilota (A, B, C); le mediane per braccio sono diagnostica dichiarata e non sono la regola",
+  "blocks": [
+    {
+      "label": "A1",
+      "arm": "A",
+      "prompt_id": "p29-a1",
+      "m": 1,
+      "num_predict": 32,
+      "num_ctx": 8192,
+      "use_nonce": true,
+      "text": "Elenca trenta capitali europee, una per riga, formato 'capitale - nazione', senza introduzione ne' commento.",
+      "text_sha256": "ff9f267321ba2b8e98b27e6daf3a701049c9d9a01c9facabd9e9df143fbc12b9",
+      "words": 15
+    },
+    {
+      "label": "A2",
+      "arm": "A",
+      "prompt_id": "p29-a2",
+      "m": 1,
+      "num_predict": 32,
+      "num_ctx": 8192,
+      "use_nonce": true,
+      "text": "Scrivi in lettere i numeri da uno a cinquanta, uno per riga, senza altro testo.",
+      "text_sha256": "04a6f38aa20a2b62828d3b776301fb0f05baa613b8330ebfe47336486f643f92",
+      "words": 15
+    },
+    {
+      "label": "A3",
+      "arm": "A",
+      "prompt_id": "p29-a3",
+      "m": 1,
+      "num_predict": 32,
+      "num_ctx": 8192,
+      "use_nonce": true,
+      "text": "Quanto fa due piu' due? Rispondi solo con la cifra, senza spiegazioni.",
+      "text_sha256": "fc286f0053c6d6500653afe1835f7f98a79b64f2832d94f032a50ed2cf56ec4a",
+      "words": 12
+    },
+    {
+      "label": "Bi",
+      "arm": "B",
+      "prompt_id": "p29-b-id",
+      "m": 3,
+      "num_predict": 1,
+      "num_ctx": 8192,
+      "use_nonce": false,
+      "text": "Il blocco misura l'energia della richiesta e sottrae la baseline calibrata sulle tre finestre che lo precedono. Il blocco misura l'energia della richiesta e sottrae la baseline calibrata sulle tre finestre che lo precedono. Il blocco misura l'energia della richiesta e sottrae la baseline calibrata sulle tre finestre che lo precedono. Il blocco misura l'energia della richiesta e sottrae la baseline calibrata sulle tre finestre che lo precedono. Il blocco misura l'energia della richiesta e sottrae la baseline calibrata sulle tre finestre che lo precedono. Il blocco misura l'energia della richiesta e sottrae la baseline calibrata sulle tre finestre che lo precedono. Il blocco misura l'energia della richiesta e sottrae la baseline calibrata sulle tre finestre che lo precedono. Il blocco misura l'energia della richiesta e sottrae la baseline calibrata sulle tre finestre che lo precedono.\nRispondi con una sola parola: pronto.",
+      "text_sha256": "71d6db74972b2fdca297ec394a17449db864658a88258166518aba562262aeb1",
+      "words": 142
+    },
+    {
+      "label": "Bn",
+      "arm": "B",
+      "prompt_id": "p29-b-nonce",
+      "m": 3,
+      "num_predict": 1,
+      "num_ctx": 8192,
+      "use_nonce": true,
+      "text": "Il blocco misura l'energia della richiesta e sottrae la baseline calibrata sulle tre finestre che lo precedono. Il blocco misura l'energia della richiesta e sottrae la baseline calibrata sulle tre finestre che lo precedono. Il blocco misura l'energia della richiesta e sottrae la baseline calibrata sulle tre finestre che lo precedono. Il blocco misura l'energia della richiesta e sottrae la baseline calibrata sulle tre finestre che lo precedono. Il blocco misura l'energia della richiesta e sottrae la baseline calibrata sulle tre finestre che lo precedono. Il blocco misura l'energia della richiesta e sottrae la baseline calibrata sulle tre finestre che lo precedono. Il blocco misura l'energia della richiesta e sottrae la baseline calibrata sulle tre finestre che lo precedono. Il blocco misura l'energia della richiesta e sottrae la baseline calibrata sulle tre finestre che lo precedono.\nRispondi con una sola parola: pronto.",
+      "text_sha256": "71d6db74972b2fdca297ec394a17449db864658a88258166518aba562262aeb1",
+      "words": 142
+    },
+    {
+      "label": "C",
+      "arm": "C",
+      "prompt_id": "p29-c",
+      "m": 1,
+      "num_predict": 32,
+      "num_ctx": 8192,
+      "use_nonce": true,
+      "text": "CasualWatt misura l'energia di una inferenza locale leggendo il contatore del package della CPU. CasualWatt misura l'energia di una inferenza locale leggendo il contatore del package della CPU. CasualWatt misura l'energia di una inferenza locale leggendo il contatore del package della CPU. CasualWatt misura l'energia di una inferenza locale leggendo il contatore del package della CPU. CasualWatt misura l'energia di una inferenza locale leggendo il contatore del package della CPU. CasualWatt misura l'energia di una inferenza locale leggendo il contatore del package della CPU. CasualWatt misura l'energia di una inferenza locale leggendo il contatore del package della CPU. CasualWatt misura l'energia di una inferenza locale leggendo il contatore del package della CPU. CasualWatt misura l'energia di una inferenza locale leggendo il contatore del package della CPU. CasualWatt misura l'energia di una inferenza locale leggendo il contatore del package della CPU. CasualWatt misura l'energia di una inferenza locale leggendo il contatore del package della CPU. CasualWatt misura l'energia di una inferenza locale leggendo il contatore del package della CPU. CasualWatt misura l'energia di una inferenza locale leggendo il contatore del package della CPU. CasualWatt misura l'energia di una inferenza locale leggendo il contatore del package della CPU. CasualWatt misura l'energia di una inferenza locale leggendo il contatore del package della CPU. CasualWatt misura l'energia di una inferenza locale leggendo il contatore del package della CPU. CasualWatt misura l'energia di una inferenza locale leggendo il contatore del package della CPU. CasualWatt misura l'energia di una inferenza locale leggendo il contatore del package della CPU. CasualWatt misura l'energia di una inferenza locale leggendo il contatore del package della CPU. CasualWatt misura l'energia di una inferenza locale leggendo il contatore del package della CPU. CasualWatt misura l'energia di una inferenza locale leggendo il contatore del package della CPU. CasualWatt misura l'energia di una inferenza locale leggendo il contatore del package della CPU. CasualWatt misura l'energia di una inferenza locale leggendo il contatore del package della CPU. CasualWatt misura l'energia di una inferenza locale leggendo il contatore del package della CPU. CasualWatt misura l'energia di una inferenza locale leggendo il contatore del package della CPU. CasualWatt misura l'energia di una inferenza locale leggendo il contatore del package della CPU. CasualWatt misura l'energia di una inferenza locale leggendo il contatore del package della CPU. CasualWatt misura l'energia di una inferenza locale leggendo il contatore del package della CPU. CasualWatt misura l'energia di una inferenza locale leggendo il contatore del package della CPU. CasualWatt misura l'energia di una inferenza locale leggendo il contatore del package della CPU. CasualWatt misura l'energia di una inferenza locale leggendo il contatore del package della CPU. CasualWatt misura l'energia di una inferenza locale leggendo il contatore del package della CPU. CasualWatt misura l'energia di una inferenza locale leggendo il contatore del package della CPU. CasualWatt misura l'energia di una inferenza locale leggendo il contatore del package della CPU. CasualWatt misura l'energia di una inferenza locale leggendo il contatore del package della CPU. CasualWatt misura l'energia di una inferenza locale leggendo il contatore del package della CPU. CasualWatt misura l'energia di una inferenza locale leggendo il contatore del package della CPU.\nRispondi con una sola parola: pronto.",
+      "text_sha256": "25b610af186679b0f4eba71f65363c27c14106833c5c4a9bc74005469279d64d",
+      "words": 524
+    }
+  ],
+  "outputs": {
+    "results_csv": "C:\\Users\\Massimo\\Documents\\CasualWatt\\CWProject\\cwEnergyModular\\results\\p29_pilot_20261107\\casualwatt_v4_results_p29.csv",
+    "block_summary_csv": "C:\\Users\\Massimo\\Documents\\CasualWatt\\CWProject\\cwEnergyModular\\results\\p29_pilot_20261107\\casualwatt_v4_block_summary_p29.csv",
+    "archive_dir": "C:\\Users\\Massimo\\Documents\\CasualWatt\\CWProject\\experiment_results\\p29_pilot_20261107"
+  },
+  "git_head": "48820a220b707b4ad6668316c0f5d296de856c5b"
+}
