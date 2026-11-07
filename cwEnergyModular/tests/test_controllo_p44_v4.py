@@ -124,6 +124,7 @@ def _prepara(monkeypatch, bordi, *, durata_nominale="0.02"):
         def __init__(self):
             self.calib = 0
             self.ordine = []
+            self.finestre = []
             self._it = iter(bordi)
 
         def start(self):
@@ -139,6 +140,7 @@ def _prepara(monkeypatch, bordi, *, durata_nominale="0.02"):
         def calibrate_idle(self, *a, **k):
             self.calib += 1
             self.ordine.append("calib")
+            self.finestre.append(a[0] if a else k.get("seconds"))
             return 10.0 if self.calib == 1 else 10.4
 
         @property
@@ -224,6 +226,19 @@ def test_controllo_mantiene_la_sequenza_pre_bordi_post(monkeypatch):
     assert summary["dP"] == pytest.approx(0.4)
     assert summary["pre_range_w"] == pytest.approx(0.2)
     assert summary["budget_base_w"] == pytest.approx(BW)
+
+
+def test_le_due_baseline_chiedono_la_finestra_di_protocollo(monkeypatch):
+    """P1.3/P1.5: tre finestre consecutive da 30 s, pre e post. La sessione
+    riceve il numero congelato invece di ``config.IDLE_CALIBRATION_SECONDS``
+    (10 s) o del knob d'ambiente ``CW_IDLE_WINDOW_S``: un ambiente con la
+    finestra corta non deve poter ridurre la baseline di protocollo, e
+    ``calibrate_idle`` prende il massimo, quindi il requisito resta
+    allungabile ma non accorciabile."""
+    _rows, _summary, fake = _blocco(monkeypatch, _bordi(10.0, 101.0))
+
+    assert fake.finestre == [v4.IDLE_WINDOW_S, v4.IDLE_WINDOW_S]
+    assert v4.IDLE_WINDOW_S == 30.0
 
 
 # ---------------------------------------------------------------------------
