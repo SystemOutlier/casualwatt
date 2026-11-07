@@ -107,6 +107,31 @@ Le regole di scarto, in ordine:
   riga con l'evidenza davvero mancante. Output:
   `harness/risultati/diagnosi_coherence_20261103.txt`.
 
+  `stato-alias` **spento di default**, acceso da `valida(..., stati_alias="prosa")`
+                 o `stati_alias="prosa+unita"`: il confronto fra lo stato scritto in
+                 prosa e l'etichetta del `.bif` passa per una tabella di sinonimi
+                 generata **dalle etichette stesse**, non scritta a mano, con le
+                 collisioni scartate per-voce. E' l'unica regola che fra quelle contate
+                 aggiunge righe corrette: `harness/risultati/replay_regole_nuove_20261102.txt`
+                 porta le corrette da 77 a **91 su 240** (+14, zero perse, 74
+                 normalizzazioni, 0 collisioni sulle 27 variabili della rete reale), e
+                 `harness/risultati/replay_regola_unita_20261103.txt` porta il conto a
+                 **92** con la variante che toglie anche `miles` (+1: INT24 in una sola
+                 ripetizione, 77 normalizzazioni). Resta spento perche' il prezzo non
+                 e' nel saldo ma nella classe di esito: dodici righe passano da
+                 `rifiutata` a `numero` (COH24, INT16, INT19, INT27) -- errori veri di
+                 **variabile** che il confronto letterale fermava per un motivo che non
+                 c'entrava. Con la regola spenta quei dodici restano rifiuti dichiarati;
+                 accesa, diventano risposte sbagliate che passano per risposte. Il
+                 confine della regola e' misurato e non e' un buco dell'implementazione:
+                 i 26 valori che la tabella non scioglie sono tre famiglie, e due
+                 (l'elenco degli stati copiato nel campo del valore, e i booleani scritti
+                 come frase) **non** hanno una normalizzazione onesta -- scegliere quale
+                 stato tenere significherebbe inventarselo.
+                 Registro di riga: `esito["stato_alias"]` porta il nome,
+                 `esito["normalizzazioni"]` le chiamate risolte dalla tabella e
+                 `esito["non_risolti"]` quelle che non l'hanno trovata.
+
 Nessun fallback silenzioso, e nessuna scelta al posto del modello. Se restano due
 evidenze dove il ramo ne vuole una sola (`tools_corretto.py:327`) la riga viene
 rifiutata con il motivo, non risolta tenendone una a caso: una scelta inventata
@@ -333,7 +358,12 @@ def _chiavi_ammesse(dati: dict) -> bool:
 # prose che restano non risolte, e sposta anche 12 righe da `rifiutata` a `numero` --
 # errori veri di variabile che il confronto letterale fermava per motivo diverso.
 # Per questo la ricerca dell'etichetta si puo' sostituire dall'esterno, come
-# `_citazione_valida`: la variante si misura, non si adotta.
+# `_citazione_valida`: la variante si misura, non si adotta. La sostituzione e'
+# rimasta l'unico modo di accenderla fino al 03-11, e aveva un difetto di
+# provenienza: il regime del replay montava la tabella per name-shadowing, quindi il
+# numero di 91 era contato su una funzione che nel modulo non esisteva. Ora la
+# normalizzazione sta qui, dietro il kwarg `stati_alias` di `valida`, e il replay
+# accende quella: la riga e il suo numero vengono dalla stessa implementazione.
 #
 # Ritorna l'etichetta e non un booleano, perche' il tool riceve la stringa: accettare
 # `HundredThou` passando al grafo `hundred thousand dollars` vorrebbe dire spostare il
@@ -341,11 +371,143 @@ def _chiavi_ammesse(dati: dict) -> bool:
 def stato_del_grafo(valore: str, variabile: str, stati: list):
     """L'etichetta del grafo che il valore scritto indica, o None.
 
-    Default: uguaglianza esatta, il protocollo del 02-11. Una variante che normalizza
-    la prosa passa da qui, e sostituisce dall'esterno per il tempo del replay
-    (`replay_traduzione.py --regole stati-alias`): non si adotta con questo default.
+    Default: uguaglianza esatta, il protocollo del 02-11. La normalizzazione in
+    prosa e' un'alternativa **dichiarata** da chi chiama (kwarg `stati_alias` di
+    `valida`), non un comportamento di questa funzione; la sostituzione dall'esterno
+    resta ammessa come cucitura di test, non come via di adozione.
     """
     return valore if valore in stati else None
+
+
+# -- la normalizzazione in prosa, dietro il kwarg `stati_alias ---------------------------
+#
+# Le due pulizie sono due regimi diversi e hanno due numeri diversi, e per questo
+# restano separate: `prosa` e' quella pubblicata il 02-11 (74 normalizzazioni, 91
+# corrette su 240), `prosa+unita` e' il candidato del 03-11 nato dall'elenco dei 26
+# valori non risolti (77 normalizzazioni, 92 corrette, +1 e zero perse -- e l'+1 e'
+# una riga sola, INT24 nella sola ripetizione r1). Il confine di entrambe e' una
+# **lista chiusa** di parole: `dollars|dollar|usd` per la prima, piu' `miles|mile`
+# per la seconda perche' `Mileage` e' l'unica variabile del grafo la cui unita' non
+# sia una moneta. Non e' "togli l'ultima parola" e non e' un vocabolario di unita'
+# generico: le parole sono quelle che compaiono davvero nei 26 valori non risolti.
+PAROLE_VALUTA = ("dollars", "dollar", "usd")
+PAROLE_UNITA = PAROLE_VALUTA + ("miles", "mile")
+ESPANSIONI = {"thou": "thousand"}
+
+
+def _forma_prosa(etichetta: str) -> str:
+    """La prosa che un'etichetta del grafo scrive di se' stessa, in forma-canone.
+
+    `HundredThou` -> `hundred thousand`: il CamelCase spezza e `Thou` e'
+    l'abbreviazione che il `.bif` della relatrice usa per `Thousand`. L'espansione e'
+    una tabella di una sola righe perche' quella e' l'unica abbreviazione che
+    compare nelle etichette della rete reale -- contato, non assunto: le altre si
+    spezzano in parole intere (`True`, `Current`, `Older`, `SubStandard`).
+    """
+    spezzato = re.findall(r"[A-Z]{2,}(?![a-z])|[A-Z][a-z0-9]*|[a-z0-9]+", str(etichetta))
+    return " ".join(ESPANSIONI.get(w.lower(), w.lower()) for w in spezzato)
+
+
+def _togli_parenime(valore: str, parenime: tuple) -> str:
+    """La lessicalizzazione del valore scritto, senza le parole di unita'."""
+    return " ".join(w for w in _norm(valore).split() if w not in parenime)
+
+
+def _pulisci_prosa(valore: str) -> str:
+    """La pulizia pubblicata il 02-11: via la sola moneta."""
+    return _togli_parenime(valore, PAROLE_VALUTA)
+
+
+def _pulisci_prosa_con_unita(valore: str) -> str:
+    """La pulizia del candidato del 03-11: la moneta e l'unita' di `Mileage`."""
+    return _togli_parenime(valore, PAROLE_UNITA)
+
+
+NORMALIZZAZIONI_STATO = {
+    "prosa": _pulisci_prosa,
+    "prosa+unita": _pulisci_prosa_con_unita,
+}
+
+
+def _scelta_normalizzazione(valore) -> str:
+    """Il nome della normalizzazione da applicare, validato; '' per nessuna.
+
+    Come `_regole_cerenza`: un nome scritto male **solleva**, non degrada al default.
+    Un regime con un refuso darebbe il numero della normalizzazione che si credeva di
+    misurare, e qui quel numero e' la ragione per cui la regola e' ancora spenta.
+    """
+    if valore is None or valore is False or valore == "":
+        return ""
+    if valore is True:
+        return "prosa"
+    nome = str(valore).strip().lower()
+    if nome not in NORMALIZZAZIONI_STATO:
+        raise ValueError(f"normalizzazione di stato sconosciuta: {nome!r}; "
+                         f"valide: {sorted(NORMALIZZAZIONI_STATO)}")
+    return nome
+
+
+def alias_di(stati: list) -> tuple:
+    """({prosa: etichetta}, [(prosa, [etichette collisionanti])]) per una variabile.
+
+    Il secondo valore e' l'iniettivita' **verificata**, non assunta: se due etichette
+    della stessa variabile scrivono la stessa prosa, la voce viene tolta dalla
+    tabella. Una normalizzazione ambigua non e' una normalizzazione -- scegliere una
+    delle due significa inventarsi lo stato, che e' esattamente cio' che il gate
+    esiste per impedire. Lo scarto e' per-voce e non per-tabella: una collisione sui
+    `Thou` non toglie la voce `Million`, che buona lo e'.
+    """
+    righe = {}
+    for s in stati:
+        righe.setdefault(_forma_prosa(s), []).append(s)
+    tabella, collisioni = {}, []
+    for prosa, etichette in righe.items():
+        if len(etichette) > 1:
+            collisioni.append((prosa, etichette))
+        else:
+            tabella[prosa] = etichette[0]
+    return tabella, collisioni
+
+
+# Cache delle tabelle: chiave (variabile, tuple(stati), normalizzazione). La sola
+# variabile non basta -- le righe perturbate del benchmark girano su reti diverse e
+# una tabella unica sarebbe la tabella della rete sbagliata -- e non basta nemmeno
+# (variabile, stati) perche' le due pulizie producono tabelle diverse.
+_ALIAS = {}
+
+
+def cerca_stato_alias(valore: str, variabile: str, stati: list, normalizzazione: str):
+    """L'etichetta che la tabella degli alias associa alla prosa, o None."""
+    chiave = (variabile, tuple(stati), normalizzazione)
+    entrata = _ALIAS.get(chiave)
+    if entrata is None:
+        entrata = alias_di(stati)
+        _ALIAS[chiave] = entrata
+    return entrata[0].get(NORMALIZZAZIONI_STATO[normalizzazione](valore))
+
+
+def collisioni_alias() -> list:
+    """Le collisioni di tabella su tutte le chiavi costruite finora.
+
+    Non un dettaglio di stampa: l'iniettivita' e' il prerequisito perche' la
+    normalizzazione non sia una scelta, e il conto del replay la stampa perche' una
+    collisione ignorata sarebbe un rifiuto trasformato in un'invenzione.
+    """
+    return [collisioni for (_chiave, (_tabella, collisioni)) in _ALIAS.items()
+            if collisioni]
+
+
+def stato_con_alias(valore: str, variabile: str, stati: list, normalizzazione: str):
+    """L'etichetta del grafo: uguaglianza esatta prima, tabella degli alias poi.
+
+    L'ordine non e' una pigrizia: una prosa che collide con un'etichetta reale non
+    deve mai avere precedenza sull'etichetta scritta alla lettera. Con
+    `normalizzazione` vuota e' `stato_del_grafo`, cioe' il protocollo del 02-11.
+    """
+    etichetta = stato_del_grafo(valore, variabile, stati)
+    if etichetta is not None or not normalizzazione:
+        return etichetta
+    return cerca_stato_alias(valore, variabile, stati, normalizzazione)
 
 
 # -- l'ancoraggio del target alla domanda -------------------------------------------------
@@ -529,7 +691,8 @@ def ancoraggio_target(variabile: str, valore: str, query_norm: str, cit=None,
 
 
 def valida(grezzo: str, etichetta: str, query: str, path_rete: str | None = None,
-           citazione_output=True, target_nella_domanda=False, coerenza=""):
+           citazione_output=True, target_nella_domanda=False, coerenza="",
+           stati_alias=""):
     """(traduzione per il tool, esito) oppure (None, esito con `motivo`).
 
     `esito` esce sempre compilato, anche quando la riga viene rifiutata: la riga
@@ -559,14 +722,53 @@ def valida(grezzo: str, etichetta: str, query: str, path_rete: str | None = None
     guasti diversi e vanno contate separate prima di essere scelte insieme; il nome
     sta scritto nell'esito come quello della citazione, perche' due run con regole
     diverse non sono lo stesso protocollo.
+
+    `stati_alias` accende la normalizzazione in prosa del confronto di stato (vedi
+    `stato_con_alias` e `NORMALIZZAZIONI_STATO`): `""` (default) e' l'uguaglianza
+    esatta del protocollo del 02-11, `"prosa"` e' il regime che il replay ha contato
+    a 91 corrette su 240 (+14, zero perse), `"prosa+unita"` e' il candidato del 03-11
+    a 92. Vuole un **nome** e non un booleano perche' le due pulizie hanno numeri
+    diversi e una lista chiusa di parole diversa: un booleano direbbe "normalizza"
+    senza dire con quali parole. Un nome che non sta in `NORMALIZZAZIONI_STATO`
+    solleva, come un nome di regola di coerenza scritto male. Anche questa e' spenta
+    di default: il conto offline non e' un metodo adottato, e qui la differenza non e'
+    solo il punteggio -- e' anche la classe di errore, perche' dodici righe passano da
+    `rifiutata` a `numero`. L'esito dichiara la scelta con il nome, perche' una riga
+    verificata con la tabella degli alias non e' una riga verificata come le altre.
     """
     import tools  # _parse_features delle copie: virgolette tipografiche e via dicendo
     regole_cerenza = _regole_cerenza(coerenza)
+    normalizzazione = _scelta_normalizzazione(stati_alias)
     esito = {"regole": list(LE_REGOLE), "scartate": [], "motivo": "",
              "etichetta": etichetta, "evidenze": None, "target": None,
              "stati_normalizzati": {},
              "citazione_output": _nome_regola(citazione_output),
              "coerenza": list(regole_cerenza)}
+    if normalizzazione:
+        esito["regole"] = esito["regole"] + ["stato-alias"]
+        esito["stato_alias"] = normalizzazione
+        # Il conto per **chiamata**, non per variabile: `stati_normalizzati` e' keyed
+        # on variable e una riga che normalizza `OtherCarCost` due volte (in `input`
+        # e in `output`, il caso INT24) la dichiara una volta sola. Il numero delle
+        # normalizzazioni pubblicate il 02-11 (74, e 77 con le unita') e' il numero
+        # delle chiamate, e senza questa lista non e' rigenerabile dal JSON della riga.
+        esito["normalizzazioni"] = []
+        esito["non_risolti"] = []
+
+    def cerca_etichetta(valore, variabile, stati):
+        """L'etichetta del grafo per il valore scritto, con il conto di contorno.
+
+        Un'unica via per `output` e per ogni `input`, perche' il metro di confronto
+        non puo' cambiare fra le due metà della stessa riga: e' la ragione per cui la
+        sostituzione stava su `stato_del_grafo` e non su un ramo di `valida`.
+        """
+        etichetta = stato_con_alias(valore, variabile, stati, normalizzazione)
+        if normalizzazione:
+            if etichetta is None:
+                esito["non_risolti"].append([variabile, str(valore)])
+            elif etichetta != valore:
+                esito["normalizzazioni"].append([variabile, str(valore), etichetta])
+        return etichetta
 
     try:
         dati = tools._parse_features(grezzo)
@@ -597,10 +799,12 @@ def valida(grezzo: str, etichetta: str, query: str, path_rete: str | None = None
     if str(out_v).strip().lower() == NESSUNA_EVIDENZA:
         esito["motivo"] = "output: lo stato e' 'Not necessary', la domanda non ha target"
         return None, esito
-    etichetta_out = stato_del_grafo(out_v, out, voc[out])
+    etichetta_out = cerca_etichetta(out_v, out, voc[out])
     if etichetta_out is None:
-        esito["motivo"] = (f"output: {out_v!r} non e' uno stato di {out}; "
-                           f"stati: {voc[out]}")
+        esito["motivo"] = (f"output: {out_v!r} non e' uno stato di {out}"
+                           + (f" e non ha alias in tabella (`{normalizzazione}`)"
+                              if normalizzazione else "")
+                           + f"; stati: {voc[out]}")
         return None, esito
     if etichetta_out != out_v:
         # la normalizzazione c'e' stata: si dichiara, perche' il dizionario che il
@@ -667,10 +871,13 @@ def valida(grezzo: str, etichetta: str, query: str, path_rete: str | None = None
         if str(valore).strip().lower() == NESSUNA_EVIDENZA:
             scarta("nessuna-evidenza", "il valore dichiara che la variabile non c'entra")
             continue
-        etichetta_v = stato_del_grafo(valore, nome, voc[nome])
+        etichetta_v = cerca_etichetta(valore, nome, voc[nome])
         if etichetta_v is None:
             scarta("vocabolario",
-                   f"{valore!r} non e' uno stato di {nome}; stati: {voc[nome]}")
+                   f"{valore!r} non e' uno stato di {nome}"
+                   + (f" e non ha alias in tabella (`{normalizzazione}`)"
+                      if normalizzazione else "")
+                   + f"; stati: {voc[nome]}")
             continue
         if etichetta_v != valore:
             esito["stati_normalizzati"][nome] = {"scritto": valore,
@@ -745,17 +952,22 @@ class Traduttore:
     Lo stesso vale per `target_nella_domanda`, che accende l'ancoraggio del target
     controfattuale ed e' spento di default. `coerenza` e' la stringa dei nomi delle
     regole opzionali del ramo `coherence` (vedi `valida`), e sta spenta (`""`) quanto
-    quella: nessuna delle tre fa parte del protocollo con cui sono presi i joule del
-    02-11, e accenderle perche' "non possono fare danni" vorrebbe dire chiamare lo
-    stesso run due metodi diversi.
+    quella. `stati_alias` e' il nome della normalizzazione in prosa del confronto di
+    stato (`""` = uguaglianza esatta, il protocollo del 02-11; `prosa`, `prosa+unita`
+    i due regimi contati su replay): e' sull'oggetto e non sulla chiamata perche' la
+    normalizzazione cambia cosa arriva al tool, quindi cambia il metodo di una riga
+    intera e il JSON deve poterlo dire. Nessuna di queste quattro opzioni fa parte
+    del protocollo con cui sono presi i joule del 02-11, e accenderle perche' "non
+    possono fare danni" vorrebbe dire chiamare lo stesso run due metodi diversi.
     """
 
     def __init__(self, cliente, citazione_output=True, target_nella_domanda=False,
-                 coerenza=""):
+                 coerenza="", stati_alias=""):
         self._cliente = cliente
         self._citazione_output = citazione_output
         self._target_nella_domanda = target_nella_domanda
         self._coerenza = coerenza
+        self._stati_alias = stati_alias
         self._agenti = {}
 
     def agente(self, path_rete: str | None):
@@ -774,7 +986,8 @@ class Traduttore:
         return valida(grezzo, etichetta, query, path_rete,
                       citazione_output=self._citazione_output,
                       target_nella_domanda=self._target_nella_domanda,
-                      coerenza=self._coerenza)
+                      coerenza=self._coerenza,
+                      stati_alias=self._stati_alias)
 
 
 # ---------------------------------------------------------------------------
@@ -814,6 +1027,11 @@ def _casi():
     q_coh = ("Is it coherent that the medical cost is one thousand dollars given "
              "that the car is an older model and that the repair cost for this car "
              "is one thousand dollars?")
+    # La domanda di INT24, copiata da `benchmark/benchmark.csv`: e' l'unica riga che il
+    # candidato con le unita' sposta, quindi serve un testo suo e non uno inventato.
+    q_int24 = ("What is the probability that the repair cost for the other car is ten "
+               "thousand dollars if we intervene to make it so that the mileage is "
+               "fifty thousand miles?")
     return [
         ("forma buona",
          '{"input": {"DrivQuality": "Normal"}, "output": {"Age": "Senior"},'
@@ -1066,6 +1284,94 @@ def _casi():
          "coherence", q_coh,
          ("eccezione", "regola di coerenza sconosciuta"),
          {"coerenza": "target,clausole,aggiuntiva"}),
+
+        # -- la normalizzazione in prosa del confronto di stato (spenta di default) -----
+        #
+        # Tre coppie sullo stesso testo, come per le due regole sopra: il primo membro
+        # fissa cosa fa il protocollo con cui sono presi i joule del 02-11 (il rifiuto
+        # dichiarato), il secondo cosa fa la regola accesa. I testi non sono inventati:
+        # la prima coppia e' la forma di INT32 dell'held-out (`PropCost` scritta in
+        # prosa di valuta), la seconda e' INT24 r1 riga per riga (grezzo da
+        # `risultati_misura/b_composta/20261102_191401/INT24_r1.json`, query dalla riga
+        # INT24 di `benchmark.csv`) ed e' la coppia che separa le due pulizie.
+        ("stato in prosa di valuta, regola spenta: la riga si ferma (default invariato)",
+         '{"input": {"Age": "Senior"}, "output": {"PropCost": "ten thousand dollars"},'
+         ' "citazioni": {"Age": "the driver is senior",'
+         ' "PropCost": "the property damage cost is ten thousand dollars"}}',
+         "intervention",
+         ("What is the probability that the property damage cost is ten thousand "
+          "dollars if we intervene to make it so that the driver is senior?"),
+         ("no", "non e' uno stato di PropCost"),
+         {"citazione_output": False}),
+
+        ("stato in prosa di valuta, `prosa` accesa: passa, e al tool va l'etichetta",
+         '{"input": {"Age": "Senior"}, "output": {"PropCost": "ten thousand dollars"},'
+         ' "citazioni": {"Age": "the driver is senior",'
+         ' "PropCost": "the property damage cost is ten thousand dollars"}}',
+         # Il punto che il 02-11 ha dovuto scoprire per la strada lunga: la riga si
+         # salva solo se il dizionario che parte per il tool porta `TenThou` e non la
+         # prosa, perche' `tools_corretto.py:368-388` sulla prosa non trova l'etichetta
+         # e stampa l'intera distribuzione invece della probabilita' chiesta.
+         "intervention",
+         ("What is the probability that the property damage cost is ten thousand "
+          "dollars if we intervene to make it so that the driver is senior?"),
+         ("ok", {"input": {"Age": "Senior"}, "output": {"PropCost": "TenThou"}}),
+         {"citazione_output": False, "stati_alias": "prosa"}),
+
+        ("la stessa coppia con la parola di unita': `Mileage` in prosa",
+         '{"input": {"OtherCarCost": "ten thousand dollars", "Mileage": "fifty '
+         'thousand miles"}, "output": {"OtherCarCost": "ten thousand dollars"}, '
+         '"citazioni": {"OtherCarCost": "ten thousand dollars", '
+         '"Mileage": "fifty thousand miles"}}',
+         # INT24 r1. Con `prosa` la riga si ferma lo stesso, ma non sul target: la
+         # disgiunzione toglie `OtherCarCost` dall'`input` perche' e' anche l'output,
+         # e l'unica evidenza che resta e' `Mileage`, che la pulizia senza unita' non
+         # scioglie. Il motivo resta la cardinalita' dell'evidenza.
+         "intervention", q_int24,
+         ("no", "servono almeno 1 evidenza"),
+         {"citazione_output": False, "stati_alias": "prosa"}),
+
+        ("`prosa+unita` accesa: l'unita' di `Mileage` si scioglie e la riga passa",
+         '{"input": {"OtherCarCost": "ten thousand dollars", "Mileage": "fifty '
+         'thousand miles"}, "output": {"OtherCarCost": "ten thousand dollars"}, '
+         '"citazioni": {"OtherCarCost": "ten thousand dollars", '
+         '"Mileage": "fifty thousand miles"}}',
+         # Il +1 del replay del 03-11, in una riga: il ramo vive o muore su questo
+         # stato, perche' l'evidenza superstit della disgiunzione e' proprio `Mileage`.
+         # Lo scarto di `OtherCarCost` va atteso, non lasciato passare: la riga passa
+         # *perche' la disgiunzione* ha tolto il target dall'`input`, e una rimozione
+         # che non si dichiara e' il difetto che questa variante combate.
+         "intervention", q_int24,
+         ("ok", {"input": {"Mileage": "FiftyThou"},
+                 "output": {"OtherCarCost": "TenThou"}},
+          [("OtherCarCost", "disgiunzione")]),
+         {"citazione_output": False, "stati_alias": "prosa+unita"}),
+
+        ("la lista chiusa delle parole e' il confine: l'elenco copiato non si risolve",
+         '{"input": {"HomeBase": "Rural"}, "output": {"Age": "Adolescent|Adult|Senior"},'
+         ' "citazioni": {"HomeBase": "kept in a rural area",'
+         ' "Age": "the age of the driver"}}',
+         # 14 dei 26 valori non risolti sono questa forma: tre stati in un campo che ne
+         # vuole uno, copiati dall'elenco del prompt. Se la tabella ne risolvesse uno,
+         # la normalizzazione avrebbe scelto lo stato al posto del modello -- ed e'
+         # esattamente cio' che `alias_di` rende impossibile scartando le collisioni.
+         # La citazione nominano la variabile, quindi non e' lei a fermare la riga:
+         # il motivo deve restare il vocabolario, con la tabella dichiarata accanto.
+         "backward_reasoning", q_cp,
+         ("no", "non e' uno stato di Age"),
+         {"citazione_output": False, "stati_alias": "prosa+unita"}),
+
+        ("nome di normalizzazione sconosciuto solleva, non torna al letterale",
+         '{"input": {"Age": "Senior"}, "output": {"PropCost": "ten thousand dollars"},'
+         ' "citazioni": {"Age": "the driver is senior",'
+         ' "PropCost": "the property damage cost is ten thousand dollars"}}',
+         # Lo stesso obbligo della `coerenza`: un regime scritto male al replay
+         # consegnerebbe il numero della normalizzazione che si credeva di misurare.
+         "intervention",
+         ("What is the probability that the property damage cost is ten thousand "
+          "dollars if we intervene to make it so that the driver is senior?"),
+         ("eccezione", "normalizzazione di stato sconosciuta"),
+         {"stati_alias": "prosa+solenne"}),
     ]
 
 
@@ -1124,6 +1430,32 @@ def autoverifica(path_rete: str | None = None) -> int:
           f"{sum(len(s) for s in voc.values())} stati, "
           f"{len(elenco_vocabolario(voc))} caratteri di prompt")
     print(f"voci scartate sui casi: {scarti}")
+    # La tabella degli alias si genera dalle **etichette**, quindi e' una sola e non
+    # dipende dalla normalizzazione: `prosa` e `prosa+unita` cambiano cio' che si
+    # toglie al valore **scritto**, non le voci. Cio' che le tiene insieme e' una
+    # proprieta' da controllare su questa rete, non da dare per assunta: la
+    # forma-canone di un'etichetta deve riprendere l'etichetta stessa. Serve perche'
+    # la lista delle unita' contiene `mile` e lo stato `Thousand` di `Mileage` scrive
+    # la prosa `thousand`: se un domani un'etichetta contenesse una parola della
+    # lista di pulizia, la sua voce sarebbe irraggiungibile dal regime e il numero
+    # pubblicato (74/77 normalizzazioni) non sarebbe piu' rigenerabile.
+    # La rete qui e' quella passata con `--rete`, non il default: le righe perturbate
+    # del benchmark girano su un altro `.bif`, e una collisione la si deve vedere
+    # prima di accendere `stati_alias` li'.
+    stati_totali = sum(len(s) for s in voc.values())
+    tabelle = {nome: alias_di(stati) for nome, stati in voc.items()}
+    collisioni = [(nome, prosa, etichette) for nome, tab in tabelle.items()
+                  for prosa, etichette in tab[1]]
+    print(f"tabella alias: {sum(len(tab[0]) for tab in tabelle.values())} voci su "
+          f"{stati_totali} stati, collisioni scartate: "
+          + ("; ".join(f"{n}:{p}<-{','.join(e)}" for n, p, e in collisioni)
+             or "nessuna"))
+    for nome in sorted(NORMALIZZAZIONI_STATO):
+        perse = [(v, s) for v, stati in voc.items() for s in stati
+                 if cerca_stato_alias(_forma_prosa(s), v, stati, nome) != s]
+        print(f"autoconsistenza (`{nome}`): {stati_totali - len(perse)} stati su "
+              f"{stati_totali} si riprendono dalla propria prosa"
+              + (f", perduti: {perse}" if perse else ""))
     return caduti
 
 
