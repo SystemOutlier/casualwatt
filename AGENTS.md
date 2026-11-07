@@ -247,7 +247,28 @@ si congela dopo un run di calibrazione su configurazione fissa con R repliche e
 fasi >= 5 bucket, non prima del primo run in senso assoluto (emendamento
 esplicito al protocollo). Pre-pilota completato: 3 fasi valide (prep-r3, prep-r5, prep-r6). Banda congelata: B_abs=0.6, B_rel=1.1 (margine 20%). Piano: prep_plan_frozen.json.
 
-Esecuzione P6 (2026-11-06): P6.1 aritmetica documentata (2h33min pavimento). P6.2 pilota eseguito (qwen2.5:0.5b + gemma2:9b, 6 record, 0 errori). P6.3 audit idle eseguito (seconda run con 120s assestamento): 5 finestre, range 0.86 W < 1.0 W soglia -> macchina STAZIONARIA, campagna sbloccata. P6.4 sonde Monte Carlo eseguite (5/5 verifiche ciascuna). P6.6 pre-pilota completato, banda congelata. Prova completa: 10 configurazioni x 3 prompt, 0 errori. Confronto CodeCarbon eseguito (0.000304 kg CO2eq). Fixture GPU allineate al contratto di identita' (UUID): 73 test GPU verdi; suite a **906** node id raccolti, **903 passati** e **4 saltati** (3 RAPL, 1 modulo ecologits), 0 falliti (misurato 07-11 dopo P6.5; il totale eseguito e' 907 perche' lo skip di modulo non compare in `--collect-only`). P6.5 (risolutore QR/SVD della superficie predittiva) e' **chiuso sul lato analisi il 2026-11-07**: `cwEnergyModular/surface_fit.py` implementa F.7/F.9 con QR sul disegno standardizzato e β in unità P3.3, con 14 node id in `tests/test_surface_fit.py`; la riga di P5 fa fede sulla collocazione (analisi, non runner) e la sonda storica di P6.4 resta sulle equazioni normali per non spostare i propri artefatti, come dichiarato nel protocollo.
+Esecuzione P6 (2026-11-06): P6.1 aritmetica documentata (2h33min pavimento). P6.2 pilota eseguito (qwen2.5:0.5b + gemma2:9b, 6 record, 0 errori). P6.3 audit idle eseguito (seconda run con 120s assestamento): 5 finestre, range 0.86 W < 1.0 W soglia -> macchina STAZIONARIA, campagna sbloccata. P6.4 sonde Monte Carlo eseguite (5/5 verifiche ciascuna). P6.6 pre-pilota completato, banda congelata. Prova completa: 10 configurazioni x 3 prompt, 0 errori. Confronto CodeCarbon eseguito (0.000304 kg CO2eq). Fixture GPU allineate al contratto di identita' (UUID): 73 test GPU verdi; suite a **943** node id raccolti, **940 passati** e **4 saltati** (3 RAPL, 1 modulo ecologits), 0 falliti (misurato la sera del 07-11, dopo i **+37** node id di `tests/test_s_epi_phase.py` (22) e `tests/test_geometry.py` (15); il totale eseguito e' 944 perche' lo skip di modulo non compare in `--collect-only`; i **906** con **903 passati** sono la fotografia del 07-11 dopo P6.5, eseguita 907). P6.5 (risolutore QR/SVD della superficie predittiva) e' **chiuso sul lato analisi il 2026-11-07**: `cwEnergyModular/surface_fit.py` implementa F.7/F.9 con QR sul disegno standardizzato e β in unità P3.3, con 14 node id in `tests/test_surface_fit.py`; la riga di P5 fa fede sulla collocazione (analisi, non runner) e la sonda storica di P6.4 resta sulle equazioni normali per non spostare i propri artefatti, come dichiarato nel protocollo.
+
+Allineamento del pilota (2026-11-07, sera). `s_epi_phase.py` e' promosso da
+harness di radice a modulo di analisi (`cwEnergyModular/s_epi_phase.py`, con
+`git mv`) e legge la finestra di fase e i due tempi di assestamento dalle colonne
+del runner v4 (`timestamp_start`/`timestamp_end`, `settle_pre_s`/`settle_post_s`),
+non dalla forma dei bucket SRUM: un valore assente resta vuoto con la sua
+provenienza (`settle_source`) e un flag non bloccante, mai dedotto dai bucket.
+`cwEnergyModular/geometry.py` promuove la metrica di F.13 (`hull_margin_tok`,
+distanza perpendicolare euclidea dallo spigolo, coordinate grezze, negativa
+fuori) con due inviluppi e la fascia piu' conservativa. Il pilota P6.2 e'
+aggregato da `cwEnergyModular/tools/aggregate_p62_pilot.py` in
+`experiment_results/p62_pilot_aggregated.json`: il file che il mandato indicava
+(`experiment_results/prep_after6.csv`) e' un dump SRUM del pre-pilota P6.6 e non
+ha colonne di baseline, e il CSV del pilota del 06-11 (6 record) e' stato
+sovrascritto dai run successivi, quindi le terne sopravvissute sono le 8
+esecuzioni di blocco del runner v4 del 06-11 sera (`half_range_pre_w` fra
+0,302665 e 2,256709 W, mediana 0,865126; `u_within_b` nullo perche' `m = 1`).
+Su quei dati `experiment_results/prep_plan_frozen.json` porta la decisione
+datata `C = 10`, `R = 3`, con la regola (la terna di P4.12 vuole tre
+osservazioni) e il numero dichiarato (errore proxy 0,0639 = 10,6% di `B_abs`,
+banda larga 9,4 errori proxy).
 
 Eccezione dichiarata al congelamento, ora **chiusa** da Emenda 8 (2026-10-26):
 la **forma di combinazione** di `budget_base_w` e' la **quadratura**
@@ -498,10 +519,11 @@ stanno solo le regole che un agente puo' violare senza accorgersene.
 ## Comandi di verifica
 
 ```
-pytest cwEnergyModular          # 906 raccolti: 903 passati, 4 saltati, 0 falliti
-                                # (07-11, dopo P6.5; eseguito 907 per lo skip di
+pytest cwEnergyModular          # 943 raccolti: 940 passati, 4 saltati, 0 falliti
+                                # (07-11 sera; eseguito 944 per lo skip di
                                 # modulo, che non compare in --collect-only)
-                                # storia datata: 845 raccolti (notte 05-11);
+                                # storia datata: 906 raccolti / 903 passati
+                                # (07-11, dopo P6.5); 845 raccolti (notte 05-11);
                                 # 888 raccolti, 871 passati, 14 falliti (identita'
                                 # GPU), 3 saltati (albero sporco, 06-11 alle 12:04)
 ```
@@ -576,7 +598,13 @@ controllo segue un run.
   superficie predittiva sta a parte, sul lato analisi (P6.5, 2026-11-07):
   `surface_fit.py` aggrega i blocchi con F.7, standardizza i predittori e risolve
   F.9 con QR/SVD, restituendo β in unità P3.3; non è chiamato dal runner di
-  misura e non tocca lo schema CSV.
+  misura e non tocca lo schema CSV. Dalla stessa giornata due moduli di sola
+  analisi stanno accanto: `geometry.py` (la metrica di copertura di F.13,
+  `hull_margin_tok` perpendicolare su coordinate grezze e la fascia più
+  conservativa dei due inviluppi) e `s_epi_phase.py` (l'harness di P6.6,
+  promosso dalla radice con `git mv`), che legge finestra di fase e
+  `settle_pre_s`/`settle_post_s` dalle colonne del runner v4 invece che dai
+  bucket SRUM. Nessuno dei due è chiamato dal percorso di misura.
 - **Il valutatore della risposta sta nello stesso modulo**: `evaluation_runner.py`
   (aggregati con intervallo di Wilson a livello di riga, bootstrap a cluster a
   livello di task, rifiuto dei valori non finiti),
@@ -617,6 +645,18 @@ controllo segue un run.
   l'AST ora conta zero funzioni `test_` senza docstring su tutto il tree. Il
   generatore continua a stampare "nessuna docstring" invece di mascherare, e su
   questa suite oggi non stampa quella riga per nessuna delle 608 righe.
+  **La fotografia al 07-11-2026 (sera) non e' piu' quella**: l'Appendice D
+  rigenerata su 943 node id stampa `Copertura delle docstring: 935 righe
+  documentate su 943`, e le otto scoperte stanno tutte in
+  `tests/test_paired_mcnemar.py`, entrato con `c33a7846c`: `test_basic_table_counts`,
+  `test_indecis_when_no_discordant`, `test_small_discordant_uses_exact`,
+  `test_large_discordant_computes_chi2`, `test_indeterminate_excluded_and_counted`,
+  `test_length_mismatch_raises`, `test_no_chance_correction` e
+  `test_record_verdict_coercion` non hanno docstring (misurato con l'AST sul
+  file, 8 funzioni `test_` su 8). Le 608 righe della frase sopra
+  restano storia datata; il debito e' aperto da un commit precedente a questo
+  allineamento, non e' stato creato qui, e si chiude in un punto suo -- non
+  allungando i test di oggi ne' correggendo la riga per far tornare il conteggio.
   Dal 27-10-2026 la cartella contiene anche `tests/test_rapl_zone.py`
   (8, logica RAPL su un finto sysfs), `tests/test_diagnostics_pmi.py` (7,
   sonda PMI/WMI) e `tests/test_emi_selezione.py` (16, metadati EMI sintetici:
@@ -836,7 +876,10 @@ controllo segue un run.
   di P4.6 senza hardware né dati: sono i test da eseguire quando qualcuno propone
   di cambiare i vertici dell'inviluppo o la formula del budget.
 - **Alla radice del repo stanno 36 script `.py` tracciati** (35 fino a `244d1c2f`,
-  che ha portato `montecarlo_protocollo_p64_probe.py`): sono gli harness
+  che ha portato `montecarlo_protocollo_p64_probe.py`; `s_epi_phase.py` li aveva
+  portati a 37 il 06-11 e il 07-11 e' uscito con `git mv` verso
+  `cwEnergyModular/s_epi_phase.py`, quindi 36 e' di nuovo il conteggio e l'ultimo
+  ingresso alla radice resta `montecarlo_protocollo_p64_probe.py`): sono gli harness
   degli esperimenti (`emi_50ms_probe.py`, `emi_resolution_check.py`,
   `four_way_test.py`, `srum.py`, `srum_emi_cross.py`, `observer_cost_probe.py`,
   `idle_floor_sensitivity.py`, `four_way_pi_audit.py`, ...). Questa e' la
@@ -844,20 +887,25 @@ controllo segue un run.
   protocollo va tracciato**, perche' un'analisi non tracciata e' un numero che
   nessuno puo' rigenerare. Le sonde usa-e-getta non citate da nulla sono in
   `.gitignore`.
-- `cwEnergyModular/tools/` — 9 file tracciati: i generatori del materiale LaTeX
+- `cwEnergyModular/tools/` — 11 file tracciati: i generatori del materiale LaTeX
   (Appendici A, D, E), l'analisi di cadenza EMI, la validazione HWiNFO e le tre
   sonde PawnIO (`fetch_pawnio_modules.py` scarica e verifica i moduli della
   release con hash pinnato, `pawnio_probe.py` confronta il contatore con EMI e
   misura il costo di osservazione A-B-A, `pawnio_priv_probe.py` misura i
   privilegi invece di dedurli). Il decimo file della cartella,
-  `smoke_keep_alive.py`, e' **nuovo il 06-11-2026 e non ancora committato**:
+  `smoke_keep_alive.py`, e' **nuovo il 06-11-2026**:
   controllo pre-campagna sulla forma di `keep_alive` contro il motore reale
   (percorso di produzione `payload_v4` -> `infer_v4` / `infer_v4_stream`, piu'
   `/api/version` perche' la forma accettata dipende dalla versione); parametrizzato
   per host e modello perche' chi lo riceve non deve spostare cartelle ne' editing di
   percorsi; esce `2` se il motore non risponde, e questo NON e' un controllo
-  superato. I nove contati restano il numero **tracciato**: il conteggio di questa
-  riga e' `git ls-files`, non un elenco a vista.
+  superato. L'undicesimo, `aggregate_p62_pilot.py`, e' **nuovo il 07-11-2026**:
+  aggrega le terne di `baseline_pre_w` del pilota, ricalcola `half_range_pre_w`
+  e confronta il ricalcolo con le colonne del runner; scrive
+  `experiment_results/p62_pilot_aggregated.json` e non calcola `u_within,b`
+  quando il blocco ha `m = 1`, perche' un semi-range su una richiesta sola e'
+  zero per costruzione. Il conteggio di questa riga e' `git ls-files`, non un
+  elenco a vista.
 - `experiment_results/` — dati sperimentali e analisi, tracciati (220 file: 219 in
   radice, 1 in `codecarbon_four_way/`; riverificati il 04-11-2026, dopo `244d1c2f`,
   che porta l'analisi Monte Carlo di P6.4). I
