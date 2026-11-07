@@ -1,0 +1,167 @@
+{
+  "audit": "P6.3",
+  "source": "protocollo_v4_20261024.md:2407-2416",
+  "thresholds": {
+    "pre_range_w_max": 1.0,
+    "abs_dp_w_max": 1.0,
+    "settle_tolerance_w": 0.5,
+    "settle_timeout_s": 120.0,
+    "window_s": 30.0,
+    "windows_per_group": 3
+  },
+  "channel": "emi-counter",
+  "note": [
+    "chiusi prima della misura: comet.exe (browser, 14 processi), github.exe + copilot-runtime.exe, WidgetBoard/WidgetService/MicrosoftStartFeedProvider/CrossDeviceResume/PrintDialog",
+    "non chiusi e dichiarati: Qoder.exe (app che ospita la sessione), ollama.exe + ollama app.exe (servono alla campagna), MsMpEng/MpDefenderCoreService (Defender), RogueKiller64/RogueKillerSvc, SearchIndexer, PresentMonService + IntelGraphicsSoftware, vmms, OfficeClickToRun",
+    "CPU totale di sistema prima dell'audit: 2.60% su 10 s (20 core logici)"
+  ],
+  "snapshot": {
+    "timestamp_utc": "2026-11-07T16:05:52+00:00",
+    "elevated": true,
+    "power_plan": "GUID combinazione risparmio energia: 381b4222-f694-41f0-9685-ff5bb260df2e  (Bilanciato)",
+    "battery": null,
+    "monitoring_processes": [],
+    "ollama_processes": [
+      {
+        "pid": 20208,
+        "name": "ollama.exe"
+      },
+      {
+        "pid": 22304,
+        "name": "ollama app.exe"
+      }
+    ],
+    "top_by_rss": [
+      {
+        "pid": 6060,
+        "name": "MsMpEng.exe",
+        "rss_mb": 510.6
+      },
+      {
+        "pid": 23240,
+        "name": "Qoder.exe",
+        "rss_mb": 483.2
+      },
+      {
+        "pid": 4016,
+        "name": "MemCompression",
+        "rss_mb": 453.0
+      },
+      {
+        "pid": 22268,
+        "name": "Qoder.exe",
+        "rss_mb": 375.7
+      },
+      {
+        "pid": 10636,
+        "name": "explorer.exe",
+        "rss_mb": 375.7
+      },
+      {
+        "pid": 23668,
+        "name": "Qoder.exe",
+        "rss_mb": 366.2
+      },
+      {
+        "pid": 25616,
+        "name": "Qoder.exe",
+        "rss_mb": 265.7
+      },
+      {
+        "pid": 15556,
+        "name": "Qoder.exe",
+        "rss_mb": 222.8
+      },
+      {
+        "pid": 9712,
+        "name": "StartMenuExperienceHost.exe",
+        "rss_mb": 185.6
+      },
+      {
+        "pid": 21752,
+        "name": "Qoder.exe",
+        "rss_mb": 179.4
+      }
+    ]
+  },
+  "quiescence": {
+    "duration_s": 1800.2,
+    "n_samples": 1796,
+    "cpu_pct_min": 0.3,
+    "cpu_pct_median": 2.6,
+    "cpu_pct_max": 100.0,
+    "samples_over_threshold": 319,
+    "max_consecutive_over_threshold": 24,
+    "background_load": true,
+    "threshold_pct": 5.0
+  },
+  "groups": [
+    {
+      "group": "pre",
+      "settle_s": 120.0,
+      "settle_converged": false,
+      "windows": [
+        {
+          "delta_j": 145.683555,
+          "dt_s": 30.000725,
+          "power_w": 4.856001,
+          "method": "emi-counter"
+        },
+        {
+          "delta_j": 141.133565,
+          "dt_s": 30.000988,
+          "power_w": 4.704297,
+          "method": "emi-counter"
+        },
+        {
+          "delta_j": 142.22028,
+          "dt_s": 30.000342,
+          "power_w": 4.740622,
+          "method": "emi-counter"
+        }
+      ],
+      "n_valid": 3,
+      "median_w": 4.740622,
+      "range_w": 0.151704
+    },
+    {
+      "group": "post",
+      "settle_s": 120.0,
+      "settle_converged": false,
+      "windows": [
+        {
+          "delta_j": 145.172558,
+          "dt_s": 30.000672,
+          "power_w": 4.838977,
+          "method": "emi-counter"
+        },
+        {
+          "delta_j": 116.059027,
+          "dt_s": 30.000519,
+          "power_w": 3.868567,
+          "method": "emi-counter"
+        },
+        {
+          "delta_j": 116.453026,
+          "dt_s": 30.000365,
+          "power_w": 3.88172,
+          "method": "emi-counter"
+        }
+      ],
+      "n_valid": 3,
+      "median_w": 3.88172,
+      "range_w": 0.97041
+    }
+  ],
+  "baseline_pre_w": 4.740622,
+  "baseline_post_w": 3.88172,
+  "dP_w": -0.858902,
+  "pre_range_w": 0.151704,
+  "post_range_w": 0.97041,
+  "gate": {
+    "pre_range_ok": true,
+    "dp_ok": true,
+    "campaign_may_start": true
+  },
+  "n_power_values": 6
+}
