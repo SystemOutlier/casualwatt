@@ -16,17 +16,17 @@ misurate quel numero non ha una provenienza, e questo strumento la produce.
 
 Cosa fa, in tre passi separati perche' la dichiarazione viene prima dei dati:
 
-  1. ``--plan`` scrive ``plan.json`` nell'archivio tracciato: prompt esatti,
+  1. ``plan`` scrive ``plan.json`` nell'archivio tracciato: prompt esatti,
      geometria di ogni braccio, ordine, tolleranze delle verifiche e impronte
      sha256. Se un piano c'e' gia' e differisce, non lo sovrascrive: un disegno
      che cambia dopo i dati non e' un pilota.
-  2. ``--execute`` esegue i sei blocchi (A1, A2, A3, B-identico, B-nonce, C)
+  2. ``execute`` esegue i sei blocchi (A1, A2, A3, B-identico, B-nonce, C)
      attraverso ``benchmark_v4.run_v4_benchmark``, una invocazione per braccio,
      in una cartella di ``results/`` dedicata (il runner appende, ma un secondo
      tentativo nella stessa cartella mescolerebbe due piloti: se trova righe si
      ferma). Raccoglie anche la riga di run metadata di ogni invocazione, che
      porta lo stato macchina di P1.4 e i conteggi dei warm-up.
-  3. ``--analyze`` verifica A/B/C, calcola le terne per blocco, copia i CSV
+  3. ``analyze`` verifica A/B/C, calcola le terne per blocco, copia i CSV
      nell'archivio tracciato con lo sha256 e scrive ``dt_nominal_frozen.json``.
 
 Le tre verifiche di P2.9, come sono lette qui:
@@ -61,9 +61,9 @@ pilota non e' omogeneo per geometria (B ha ``num_predict=1``, C ha il massimo
 visto le durate sarebbe una decisione presa sui dati.
 
 Uso (dalla radice del repository):
-    py cwEnergyModular/tools/run_pilot_p29.py --plan
-    py cwEnergyModular/tools/run_pilot_p29.py --execute
-    py cwEnergyModular/tools/run_pilot_p29.py --analyze
+    py cwEnergyModular/tools/run_pilot_p29.py plan
+    py cwEnergyModular/tools/run_pilot_p29.py execute
+    py cwEnergyModular/tools/run_pilot_p29.py analyze
 """
 from __future__ import annotations
 
@@ -270,7 +270,7 @@ def _load_plan() -> Dict:
     path = ARCHIVE_DIR / PLAN_NAME
     if not path.exists():
         raise SystemExit(
-            f"piano assente ({path}): il pilota si dichiara con --plan prima "
+            f"piano assente ({path}): il pilota si dichiara con plan prima "
             "di misurare")
     return json.loads(path.read_text(encoding="utf-8"))
 
@@ -634,7 +634,7 @@ def cmd_analyze(model: str) -> int:
     runs_path = RESULTS_DIR / RUNS_NAME
     for p in (rows_path, blocks_path, runs_path):
         if not p.exists():
-            raise SystemExit(f"serve {p}: eseguire prima --execute")
+            raise SystemExit(f"serve {p}: eseguire prima execute")
     rows = _carica_csv(rows_path)
     blocchi = _carica_csv(blocks_path)
     runs = json.loads(runs_path.read_text(encoding="utf-8"))["runs"]
@@ -755,21 +755,24 @@ def main(argv: Optional[Sequence[str]] = None) -> int:
     ap = argparse.ArgumentParser(
         description="Pilota P2.9 sul runner v4 (dichiarazione, esecuzione, "
                     "analisi).")
-    ap.add_argument("--plan", action="store_true",
-                    help="scrive plan.json prima di misurare")
-    ap.add_argument("--execute", action="store_true",
-                    help="esegue i sei blocchi del piano e analizza")
-    ap.add_argument("--analyze", action="store_true",
-                    help="verifica A/B/C e congela dt_nominal_s dai CSV")
-    ap.add_argument("--model", default=DEFAULT_MODEL)
+    sub = ap.add_subparsers(dest="cmd", required=True)
+    p_plan = sub.add_parser("plan", help="scrive plan.json prima di misurare")
+    p_plan.add_argument("--model", default=DEFAULT_MODEL)
+    p_exec = sub.add_parser("execute",
+                            help="esegue i sei blocchi del piano e analizza")
+    p_exec.add_argument("--model", default=DEFAULT_MODEL)
+    p_ana = sub.add_parser("analyze",
+                           help="verifica A/B/C e congela dt_nominal_s dai CSV")
+    p_ana.add_argument("--model", default=DEFAULT_MODEL)
     args = ap.parse_args(argv)
-    if sum(bool(x) for x in (args.plan, args.execute, args.analyze)) != 1:
-        ap.error("scegliere esattamente uno fra --plan, --execute, --analyze")
-    if args.plan:
+    if args.cmd == "plan":
         return cmd_plan(args.model)
-    if args.execute:
+    if args.cmd == "execute":
         return cmd_execute(args.model)
-    return cmd_analyze(args.model)
+    if args.cmd == "analyze":
+        return cmd_analyze(args.model)
+    ap.error("scegliere plan, execute o analyze")
+    return 1
 
 
 if __name__ == "__main__":
