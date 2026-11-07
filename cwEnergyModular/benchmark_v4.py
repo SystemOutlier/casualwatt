@@ -482,13 +482,26 @@ def prompt_sha256(text: str) -> str:
     return hashlib.sha256(text.encode("utf-8")).hexdigest()
 
 
-def build_prompt_v4(prompt: Dict, seq: int) -> Tuple[Dict, str, str]:
+def build_prompt_v4(prompt: Dict, seq: int,
+                    use_nonce: bool = True) -> Tuple[Dict, str, str]:
     """Prompt effettivamente inviato = nonce + testo originale.
 
     Ritorna ``(prompt_inviato, nonce, sha256)``. Il nonce sta nel testo, quindi
     e' ricostruibile dal solo CSV: ``prompt`` contiene cio' che e' stato
     spedito, non cio' che si intendeva spedire.
+
+    ``use_nonce=False`` spedisce il testo **senza** nonce e ritorna nonce
+    vuoto. Non e' una scorciatoia di produzione: P2.8 rende il nonce
+    obbligatorio e il default resta ``True``. Serve a un solo braccio del
+    test B di P2.9, che deve confrontare tre richieste byte-identiche con tre
+    richieste a prefisso distinto: se il nonce non si potesse spegnere, il
+    braccio di controllo non esisterebbe e ``prompt_eval_count`` misurerebbe
+    sempre il prefisso non riusato. Lo ``sha256`` resta quello del testo
+    spedito, quindi la riga dice comunque cosa e' partito.
     """
+    if not use_nonce:
+        sent_text = str(prompt["text"])
+        return dict(prompt, text=sent_text), "", prompt_sha256(sent_text)
     nonce = prompt_nonce(seq)
     sent_text = f"{nonce}\n{prompt['text']}"
     sent = dict(prompt, text=sent_text)
@@ -1797,7 +1810,7 @@ def run_block(model: str, prompt: Dict, *, run_id: str, session_id: str,
               stop_event: Optional[threading.Event] = None,
               cooldown: Optional[Dict[str, object]] = None,
               block_attempt: int = 1, replaced_block_id: str = "",
-              control: bool = False,
+              control: bool = False, use_nonce: bool = True,
               on_log: Optional[Callable[[str], None]] = None
               ) -> Tuple[List[Dict], Dict[str, object]]:
     """Esegue un blocco P1.5 e ritorna (righe, riepilogo di blocco).
@@ -1827,6 +1840,14 @@ def run_block(model: str, prompt: Dict, *, run_id: str, session_id: str,
     denominatore l'energia delle richieste valide, che qui non esiste. Le
     quantita' della finestra non hanno colonna nello schema P5 e stanno nel
     riepilogo con il prefisso ``control_``.
+
+    P2.8 (``use_nonce``): ogni richiesta porta un nonce a larghezza fissa in
+    testa al prompt, e la riga lo registra con lo ``sha256`` del testo
+    spedito. ``use_nonce=False`` esiste per il solo braccio di controllo del
+    test B di P2.9 (tre richieste byte-identiche contro tre a prefisso
+    distinto) e non e' un'opzione di campagna: la riga scrive
+    ``prompt_nonce=off``, quindi non si confonde con una riga dove il nonce
+    c'era.
 
     Emenda 8 (P1.6): ``block_attempt`` vale ``1`` per il blocco in piano e
     ``2`` per il sostituto, e ``replaced_block_id`` e' l'id del blocco
@@ -1909,7 +1930,8 @@ def run_block(model: str, prompt: Dict, *, run_id: str, session_id: str,
     for i in richieste:
         if stop_event is not None and stop_event.is_set():
             raise _Cancelled(f"stop richiesto durante {block_id}")
-        sent, nonce, sha = build_prompt_v4(prompt, nonce_seq + i)
+        sent, nonce, sha = build_prompt_v4(prompt, nonce_seq + i,
+                                          use_nonce=use_nonce)
         capture = JudgeEdgeCapture()
         _lj.LAST_WINDOWS = []
 
@@ -2044,9 +2066,18 @@ def run_block(model: str, prompt: Dict, *, run_id: str, session_id: str,
                 f"d_busy grezzo {busy_raw:.6f} s < 0 fra i bordi (contatore "
                 "cumulativo non monotono): al profiler e' passato 0.0, la "
                 "quota e' dichiarata non valida con anomalia d_busy=0")
-        notes.append(
-            f"prompt_nonce={nonce}; prompt_sha256={sha}; "
-            f"num_ctx={int(num_ctx)}; num_predict={int(num_predict)}")
+        if use_nonce:
+            notes.append(
+                f"prompt_nonce={nonce}; prompt_sha256={sha}; "
+                f"num_ctx={int(num_ctx)}; num_predict={int(num_predict)}")
+        else:
+            # Braccio di controllo del test B di P2.9: il nonce e' spento e
+            # la riga lo dice, altrimenti un prefisso riusato sembrerebbe un
+            # nonce che il motore ha ignorato.
+            notes.append(
+                f"prompt_nonce=off (P2.9 test B, nessun nonce: testo "
+                f"byte-identico fra le richieste); prompt_sha256={sha}; "
+                f"num_ctx={int(num_ctx)}; num_predict={int(num_predict)}")
         # P2.4: done_reason si registra SEMPRE, anche quando il motore non lo
         # riporta. Il ramo condizionale precedente lasciava la riga muta
         # sull'assenza, e l'assenza e' esattamente la classe
@@ -2415,6 +2446,7 @@ def run_v4_benchmark(
     blocks_per_point: int = 3,
     num_predict: int = 160,
     num_ctx: int = NUM_CTX,
+    use_nonce: bool = True,
     temperature: float = config.DEFAULT_TEMPERATURE,
     timeout_s: float = config.DEFAULT_TIMEOUT_S,
     eval_mode_override: Optional[str] = None,
@@ -2440,6 +2472,11 @@ def run_v4_benchmark(
     registrato nel run metadata (``notes``) insieme a ``m``, ``num_ctx`` e
     ``num_predict``. Il chiamante puo' ridurlo per collaudi, ma il numero
     effettivo resta scritto li'.
+
+    ``use_nonce`` (P2.8) vale ``True`` in campagna e non si spegne per
+    scelta: esiste per il braccio di controllo del test B di P2.9, che deve
+    spedire richieste byte-identiche. Il valore usato finisce nel metadata,
+    perche' ``prompt_nonce`` e' una nota di riga e non una colonna.
 
     ``stop_event`` interrompe fra un blocco e l'altro: il blocco gia'
     iniziato viene completato, e il riepilogo esce con ``cancelled=True``
@@ -2625,6 +2662,7 @@ def run_v4_benchmark(
                     stop_event=stop_event, cooldown=cooldown, on_log=log,
                     block_attempt=attempt,
                     replaced_block_id=str(entry["replaced"]),
+                    use_nonce=use_nonce,
                 )
             except V4CounterFault as fault:
                 # Emenda 8 (P1.6): prima occorrenza -> invalidazione senza
@@ -2738,6 +2776,14 @@ def run_v4_benchmark(
         f"blocks_per_point={blocks_per_point}",
         f"num_ctx={int(num_ctx)}",
         f"num_predict={int(num_predict)}",
+        # P2.8: il nonce e' obbligatorio in campagna. Se e' spento la ragione
+        # e' una sola (braccio di controllo del test B di P2.9) e il verbale
+        # del run non puo' tacerla: le righe da sole non dicono perche'.
+        ("nonce=on (P2.8: un nonce per richiesta in testa al prompt)"
+         if use_nonce else
+         "nonce=off (solo test B di P2.9: braccio di controllo a prompt "
+         "byte-identico; NON e' una forma di campagna, P2.8 resta "
+         "obbligatorio)"),
         f"keep_alive={KEEP_ALIVE}",
         # Il ghiaccio dello schema di P5 non ha una colonna per il percorso dei
         # riepiloghi di blocco ne' per l'identita' del giudice: ``results_csv``
