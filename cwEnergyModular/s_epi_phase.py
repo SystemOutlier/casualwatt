@@ -1,4 +1,3 @@
-#!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 """s_epi_phase.py -- estrazione di s_EPI per fase e associazione a s (P6.6).
 
@@ -18,6 +17,29 @@ Poi associa a ogni fase la quota ``s`` prodotta dal run (``d_ollama`` e
 e, SOLO se il piano porta una banda gia' congelata, dice se la fase e' dentro.
 Se la banda manca, ``in_band`` resta nullo: l'harness non inventa soglie.
 
+Collocazione (2026-11-07).  Il modulo sta in ``cwEnergyModular/`` ed e' parte
+dell'analisi, non del percorso di misura: non e' importato dal runner e non
+tocca il percorso energetico di produzione.  Da qui importa ``srum`` dalla
+radice del repository, dove l'esportatore vive.
+
+La finestra di fase viene dal runner, non dai bucket.  Una fase si puo'
+dichiarare in due modi, e il secondo e' quello della campagna:
+
+  * con ``t_start_utc``/``t_end_utc`` nel piano (pre-pilota, battitura a mano);
+  * con un ``block_id`` e le righe del runner in ``--rows``: la finestra e'
+    ``[min(timestamp_start), max(timestamp_end)]`` delle righe di quel blocco,
+    cioe' la finestra delle richieste, e ``window_source`` lo dichiara.
+
+I due tempi di assestamento ``settle_pre_s``/``settle_post_s`` si leggono dalle
+colonne del runner v4 (``benchmark_v4.py`` le scrive su ogni riga e nel
+riepilogo di blocco, ``casualwatt_csv_export.py:212-227``), mai ricavandoli
+dalla forma dei bucket SRUM.  Servono a dichiarare che cosa sta **fuori** dalla
+finestra: il blocco contiene settling pre, tre finestre di baseline, le
+richieste e settling post, e solo le richieste sono dentro il confronto
+``s``-``s_EPI``.  Un valore assente non si inventa: la riga porta
+``settle_source = "assente"`` e il flag ``settle_assente``, che non toglie il
+verdetto perche' P6.6 non lo elenca fra le condizioni di validita'.
+
 Non avvia esperimenti e non tocca il percorso energetico di produzione.  Il
 solo comando che scrive sul sistema e' ``--capture-to`` (chiama
 ``powercfg /srumutil``, richiede amministratore); e' separato dall'analisi e
@@ -28,10 +50,11 @@ confrontati sul basename dell'AppId.  Il needle ``"ollama"`` non va usato:
 vede 0,0011 invece di 0,7361 (``srum_emi_cross_20261023_analisi.md:158-162``).
 
 Unita' e tempo: SRUM esporta millijoule e ``TimeStamp`` in UTC naive
-(``srum.py:26-41``).  Le fasi nel piano sono UTC naive.  I bucket da minuto
-possono arrivare in due righe complementari e vengono compattati in record
-orari ai boundary: le righe con ``TimeInMSec`` oltre 70 s sono scartate come
-roll-up, la deduplica e' per firma esatta.
+(``srum.py:26-41``).  Le fasi sono portate a UTC naive: i timestamp del runner
+sono ISO con offset e si convertono qui.  I bucket da minuto possono arrivare in
+due righe complementari e vengono compattati in record orari ai boundary: le
+righe con ``TimeInMSec`` oltre 70 s sono scartate come roll-up, la deduplica e'
+per firma esatta.
 
 Bucket di bordo (P6.6).  Un bucket che attraversa un bordo non viene ne'
 ripartito ne' sommato — ripartirlo assumerebbe una distribuzione uniforme del
@@ -49,11 +72,12 @@ incompleta; la completezza si controlla invece sulla *presenza* dell'albero in
 ogni minuto della fase.  Sotto i 5 minuti la fase non si valuta.
 
 Uso:
-  py s_epi_phase.py --plan fasi.json --dump dump_fase1.csv --dump dump_fase2.csv
-  py s_epi_phase.py --plan fasi.json --buckets bucket_normalizzati.csv
-  py s_epi_phase.py --plan fasi.json --dump d1.csv --archive-dir sr_emi_2026/
-  py s_epi_phase.py --selftest
-  py s_epi_phase.py --capture-to dump.csv          # powercfg, admin, non test
+  py cwEnergyModular/s_epi_phase.py --plan fasi.json --dump dump_fase1.csv
+  py cwEnergyModular/s_epi_phase.py --plan fasi.json --rows results.csv
+  py cwEnergyModular/s_epi_phase.py --plan fasi.json --buckets bucket.csv
+  py cwEnergyModular/s_epi_phase.py --plan fasi.json --dump d1.csv --archive-dir sr_emi_2026/
+  py cwEnergyModular/s_epi_phase.py --selftest
+  py cwEnergyModular/s_epi_phase.py --capture-to dump.csv    # powercfg, admin, non test
 
 Formato del piano (JSON):
 {
@@ -62,8 +86,8 @@ Formato del piano (JSON):
   "done_reason_expected": "length",   # facoltativo: se manca, non si confronta
   "phases": [
     {"phase_id": "c1-r1", "config_id": "c1", "replica": 1,
-     "t_start_utc": "2026-10-25T10:00:00", "t_end_utc": "2026-10-25T10:06:00",
-     "d_ollama_s": 99.28, "d_busy_s": 119.28, "s_source": "csv:direct",
+     "block_id": "qwen2.5-0.5b__c-001__b01",   # oppure t_start_utc/t_end_utc
+     "d_ollama_s": 9.875, "d_busy_s": 14.0625, "s_source": "csv:direct",
      "done_reason": "length",
      "engine_tree_changed": false, "exclusion": ""}
   ]
@@ -91,8 +115,9 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Dict, Iterable, List, Optional, Sequence, Tuple
 
-ROOT = Path(__file__).resolve().parent
-sys.path.insert(0, str(ROOT))
+#: radice del repository: qui vive ``srum.py``; il modulo sta in cwEnergyModular/
+_REPO_ROOT = Path(__file__).resolve().parent.parent
+sys.path.insert(0, str(_REPO_ROOT))
 
 import srum  # noqa: E402  (load offline; flush solo in --capture-to)
 
@@ -104,6 +129,10 @@ SRUM_EMI_PREFIX = "emi_rapl_"
 MAX_BUCKET_MS = 70_000
 #: regola documentata: almeno 5 bucket da ~1 min per fase
 MIN_BUCKETS_PER_PHASE = 5
+#: colonne del runner senza le quali la finestra di fase non si ricava
+ROW_WINDOW_COLUMNS = ("timestamp_start", "timestamp_end")
+#: colonne del runner con i tempi di assestamento (P1.5)
+ROW_SETTLE_COLUMNS = ("settle_pre_s", "settle_post_s")
 
 
 # ---------------------------------------------------------------------------
@@ -249,6 +278,111 @@ def minute_coverage(
 
 
 # ---------------------------------------------------------------------------
+# righe del runner: finestra di fase e tempi di assestamento
+# ---------------------------------------------------------------------------
+@dataclass(frozen=True)
+class Settle:
+    """I due tempi di assestamento di un blocco, con la loro provenienza."""
+
+    pre_s: Optional[float]
+    post_s: Optional[float]
+    source: str
+    n_rows: int
+    inconsistent: bool
+
+
+def rows_for_phase(rows: Sequence[Dict[str, str]],
+                   phase: Dict[str, object]) -> List[Dict[str, str]]:
+    """Le righe del runner della fase, per ``block_id`` o ``batch_id``."""
+    block_id = str(phase.get("block_id") or "")
+    batch_id = str(phase.get("batch_id") or "")
+    if block_id:
+        return [r for r in rows if str(r.get("block_id") or "") == block_id]
+    if batch_id:
+        return [r for r in rows if str(r.get("batch_id") or "") == batch_id]
+    return []
+
+
+def window_from_rows(
+    rows: Sequence[Dict[str, str]],
+) -> Optional[Tuple[_dt.datetime, _dt.datetime]]:
+    """``[min timestamp_start, max timestamp_end]`` delle righe, UTC naive.
+
+    E' la finestra delle richieste -- quella su cui il runner calcola ``s`` --
+    e non quella del blocco: settling pre, tre finestre di baseline, richieste
+    e settling post stanno tutti dentro il blocco, ma solo le richieste sono
+    nel confronto.  I timestamp del runner sono ISO con offset (``+00:00``) e
+    qui diventano UTC naive, la base di SRUM.  Una riga senza timestamp
+    leggibile non si salta e non si sostituisce: la finestra e' ``None``.
+    """
+    starts, ends = [], []
+    for r in rows:
+        t0 = _parse_utc(str(r.get("timestamp_start") or ""))
+        t1 = _parse_utc(str(r.get("timestamp_end") or ""))
+        if t0 is None or t1 is None:
+            return None
+        starts.append(t0)
+        ends.append(t1)
+    if not starts:
+        return None
+    primo, ultimo = min(starts), max(ends)
+    if ultimo <= primo:
+        return None
+    return primo, ultimo
+
+
+def _float_or_none(value: object) -> Optional[float]:
+    text = str(value if value is not None else "").strip()
+    if not text:
+        return None
+    try:
+        return float(text)
+    except ValueError:
+        return None
+
+
+def _unique_column_value(rows: Sequence[Dict[str, str]],
+                         column: str) -> Tuple[Optional[float], bool]:
+    """Valore unico della colonna; ``(None, False)`` se i valori divergono."""
+    vals = {v for v in (_float_or_none(r.get(column)) for r in rows)
+            if v is not None}
+    if len(vals) > 1:
+        return None, False
+    if len(vals) == 1:
+        return next(iter(vals)), True
+    return None, True
+
+
+def settle_of(phase: Dict[str, object],
+              rows: Sequence[Dict[str, str]]) -> Settle:
+    """``settle_pre_s``/``settle_post_s`` dalle colonne del runner v4.
+
+    Il runner li misura con ``SESSION.settle_idle()`` prima della calibrazione
+    pre e prima di quella post (``benchmark_v4.py:1733`` e ``:1945``) e li
+    scrive su ogni riga del blocco (``casualwatt_csv_export.py:212-227``).  Le
+    righe di un blocco devono portare lo stesso valore: se divergono, i file
+    mescolano blocchi o run e si pubblica ``source = "incoerente"`` con i campi
+    vuoti, perche' "vuoto = non calcolabile" vale anche qui.  Senza colonne
+    valorizzate si legge il piano (``source = "piano"``); senza nemmeno quello
+    i campi restano vuoti con ``source = "assente"``.  In nessun caso il tempo
+    di assestamento si deduce dalla forma dei bucket SRUM.
+    """
+    n_rows = len(rows)
+    if rows:
+        pre, ok_pre = _unique_column_value(rows, "settle_pre_s")
+        post, ok_post = _unique_column_value(rows, "settle_post_s")
+        if not (ok_pre and ok_post):
+            return Settle(None, None, "incoerente", n_rows, True)
+        if pre is not None or post is not None:
+            return Settle(pre, post, "runner", n_rows, False)
+    plan_pre = _float_or_none(phase.get("settle_pre_s"))
+    plan_post = _float_or_none(phase.get("settle_post_s"))
+    if plan_pre is not None or plan_post is not None:
+        return Settle(plan_pre, plan_post, "piano", n_rows, False)
+    return Settle(None, None, "assente", n_rows, False)
+
+
+# ---------------------------------------------------------------------------
 # s_EPI
 # ---------------------------------------------------------------------------
 def s_epi_of(buckets: Sequence[Bucket]) -> Dict[str, object]:
@@ -281,6 +415,9 @@ def s_epi_of(buckets: Sequence[Bucket]) -> Dict[str, object]:
 #: bucket di bordo, e trattarlo come bloccante vorrebbe dire non valutare nessuna
 #: fase.  Il costo della finestra non identica (``s`` intera, ``s_EPI`` sui soli
 #: bucket interi) si dichiara e si quantifica con la sensibilita' al bordo.
+#: Nemmeno ``settle_assente``/``settle_incoerente`` sono qui: dichiarano una
+#: lacuna di provenienza dei due tempi di assestamento, non una condizione di
+#: validita' che P6.6 elenchi.
 BLOCKING_FLAGS = (
     "finestra_non_valida", "nessun_bucket", "meno_di_5_bucket",
     "engine_tree_changed", "denominatore_nullo", "albero_a_zero",
@@ -388,16 +525,32 @@ def evaluate_phase(
     phase: Dict[str, object], buckets: Sequence[Bucket],
     band: Optional[Dict[str, float]],
     expected_done_reason: Optional[str] = None,
+    rows: Sequence[Dict[str, str]] = (),
 ) -> Dict[str, object]:
     t0 = _parse_utc(str(phase.get("t_start_utc") or ""))
     t1 = _parse_utc(str(phase.get("t_end_utc") or ""))
+    # la finestra dichiarata nel piano vince; se il piano non ne dichiara una,
+    # si prende quella delle righe del runner (block_id/batch_id + --rows)
+    window_source = "piano"
+    if t0 is None or t1 is None:
+        derived = window_from_rows(rows)
+        if derived is not None:
+            t0, t1 = derived
+            window_source = "runner:timestamp_start/end"
+    settle = settle_of(phase, rows)
     row: Dict[str, object] = {
         "phase_id": phase.get("phase_id"),
         "config_id": phase.get("config_id"),
         "replica": phase.get("replica"),
-        "t_start_utc": phase.get("t_start_utc"),
-        "t_end_utc": phase.get("t_end_utc"),
+        "block_id": phase.get("block_id"),
+        "t_start_utc": t0.isoformat() if t0 is not None
+        else phase.get("t_start_utc"),
+        "t_end_utc": t1.isoformat() if t1 is not None else phase.get("t_end_utc"),
+        "window_source": window_source,
         "duration_s": None,
+        "settle_pre_s": settle.pre_s,
+        "settle_post_s": settle.post_s,
+        "settle_source": settle.source,
         "s": None, "s_source": None,
         "s_epi": None, "d": None, "r": None, "in_band": None,
         "blocking": False,
@@ -444,6 +597,10 @@ def evaluate_phase(
         row["r"] = round(r, 9) if r is not None else None
     flags = quality_flags({**phase, **row}, inside, boundary, s_val,
                           expected_done_reason)
+    if settle.inconsistent:
+        flags.append("settle_incoerente")
+    elif settle.source == "assente":
+        flags.append("settle_assente")
     if (phase.get("s") is not None and phase.get("d_ollama_s") is not None
             and phase.get("d_busy_s") is not None and s_val is not None):
         try:
@@ -564,8 +721,10 @@ def _write_outputs(rows: List[Dict[str, object]], plan: Dict[str, object],
     with open(out_json, "w", encoding="utf-8") as fh:
         json.dump(payload, fh, ensure_ascii=False, indent=2)
     fields = [
-        "phase_id", "config_id", "replica", "t_start_utc", "t_end_utc",
-        "duration_s", "s", "s_source", "s_epi", "d", "r", "in_band",
+        "phase_id", "config_id", "replica", "block_id", "t_start_utc",
+        "t_end_utc", "window_source", "duration_s", "settle_pre_s",
+        "settle_post_s", "settle_source",
+        "s", "s_source", "s_epi", "d", "r", "in_band",
         "blocking", "n_minutes", "n_minutes_with_tree", "boundary_buckets",
         "boundary_minutes", "window_strict",
         "tree_cpu_j", "total_cpu_j", "tree_app_ids", "engine_tree_changed",
@@ -650,6 +809,7 @@ def _selftest() -> int:
         "phase_id": "p1", "config_id": "c1", "replica": 1,
         "t_start_utc": base.isoformat(),
         "t_end_utc": (base + td(minutes=5)).isoformat(),
+        "settle_pre_s": 42.146, "settle_post_s": 25.071,
         "d_ollama_s": 73.39, "d_busy_s": 100.0, "s_source": "csv",
         "engine_tree_changed": False, "exclusion": "",
     }
@@ -756,6 +916,49 @@ def _selftest() -> int:
     check("summary con verdetto", summ["c1"]["n_with_verdict"] == 2)
     check("summary finestre strette", summ["c1"]["n_window_strict"] == 3)
 
+    # 18. settling e finestra dalle colonne del runner (non dai bucket)
+    rows_ok = [
+        {"block_id": "b1", "timestamp_start": base.isoformat() + "+00:00",
+         "timestamp_end": (base + td(minutes=5)).isoformat() + "+00:00",
+         "settle_pre_s": "42.146", "settle_post_s": "25.071"},
+        {"block_id": "b1", "timestamp_start": base.isoformat() + "+00:00",
+         "timestamp_end": (base + td(minutes=5)).isoformat() + "+00:00",
+         "settle_pre_s": "42.146", "settle_post_s": "25.071"},
+    ]
+    set_ok = settle_of({"phase_id": "p18"}, rows_ok)
+    check("settle dal runner",
+          set_ok.source == "runner" and set_ok.pre_s == 42.146)
+    check("settle non incoerente", set_ok.inconsistent is False)
+    check("finestra dal runner",
+          window_from_rows(rows_ok) == (base, base + td(minutes=5)))
+
+    # 19. righe che divergono: nessun valore, la lacuna si dichiara
+    rows_bad = [dict(rows_ok[0]), dict(rows_ok[1], settle_pre_s="48.151")]
+    set_bad = settle_of({"phase_id": "p19"}, rows_bad)
+    check("settle incoerente", set_bad.source == "incoerente"
+          and set_bad.pre_s is None and set_bad.inconsistent is True)
+
+    # 20. fase senza t_start/t_end: finestra dalle righe, settling in riga
+    ph20 = {"phase_id": "p20", "config_id": "c1", "replica": 2,
+            "block_id": "b1", "d_ollama_s": 73.39, "d_busy_s": 100.0,
+            "engine_tree_changed": False, "exclusion": ""}
+    row10 = evaluate_phase(ph20, buckets, {"abs": 0.5, "rel": 0.9},
+                           rows=rows_ok)
+    check("finestra dal runner nel verdetto",
+          row10["window_source"] == "runner:timestamp_start/end")
+    check("settle nella riga", row10["settle_pre_s"] == 42.146
+          and row10["settle_source"] == "runner")
+    check("nessun flag settle", "settle_assente" not in row10["flags"])
+    check("finestra runner valutata", row10["n_minutes"] == 5)
+
+    # 21. settling assente ovunque: flag dichiarato, non bloccante
+    ph21 = {k: v for k, v in phase.items() if not k.startswith("settle_")}
+    row11 = evaluate_phase(ph21, buckets, {"abs": 0.5, "rel": 0.9})
+    check("settle assente flag", "settle_assente" in row11["flags"])
+    check("settle non bloccante", row11["blocking"] is False)
+    check("settle assente non inventato", row11["settle_pre_s"] is None
+          and row11["settle_source"] == "assente")
+
     print(f"[selftest OK] {ok} controlli; nessun run, nessun powercfg, "
           "nessun accesso all'hardware")
     return 0
@@ -769,6 +972,10 @@ def main(argv: Optional[Sequence[str]] = None) -> int:
                    help="dump SRUM da powercfg /srumutil (ripetibile)")
     p.add_argument("--buckets", action="append", default=[],
                    help="bucket gia' normalizzati in CSV (ripetibile)")
+    p.add_argument("--rows", action="append", default=[],
+                   help="CSV delle righe del runner v4: da qui vengono la "
+                        "finestra di fase e settle_pre_s/settle_post_s "
+                        "(ripetibile)")
     p.add_argument("--out-json", help="output JSON")
     p.add_argument("--out-csv", help="output CSV per fase")
     p.add_argument("--archive-dir", help="copia qui i dump SRUM grezzi "
@@ -816,6 +1023,23 @@ def main(argv: Optional[Sequence[str]] = None) -> int:
         got = buckets_from_csv(path)
         sources.append(_source_record(path, "buckets-normalized", len(got)))
         buckets += got
+    runner_rows: List[Dict[str, str]] = []
+    for r in args.rows:
+        path = Path(r)
+        with open(path, encoding="utf-8-sig", newline="") as fh:
+            reader = csv.DictReader(fh)
+            header = set(reader.fieldnames or ())
+            mancanti = [c for c in ROW_WINDOW_COLUMNS if c not in header]
+            if mancanti:
+                print(f"ERRORE: {path} non e' un export del runner v4: "
+                      f"colonne assenti {mancanti}", file=sys.stderr)
+                return 2
+            got_rows = list(reader)
+        sources.append({
+            "kind": "runner-rows", "path": str(path), "sha256": _sha256(path),
+            "bytes": path.stat().st_size, "n_rows": len(got_rows),
+        })
+        runner_rows += got_rows
     n_before = len(buckets)
     buckets = dedup(buckets)
     n_dup = n_before - len(buckets)
@@ -824,10 +1048,12 @@ def main(argv: Optional[Sequence[str]] = None) -> int:
         return 2
     band = plan.get("band")
     expected = plan.get("done_reason_expected")
-    rows = [evaluate_phase(ph, buckets, band, expected) for ph in plan["phases"]]
-    out_json = Path(args.out_json or ROOT / "experiment_results" /
+    rows = [evaluate_phase(ph, buckets, band, expected,
+                           rows_for_phase(runner_rows, ph))
+            for ph in plan["phases"]]
+    out_json = Path(args.out_json or _REPO_ROOT / "experiment_results" /
                     "s_epi_phase_out.json")
-    out_csv = Path(args.out_csv or ROOT / "experiment_results" /
+    out_csv = Path(args.out_csv or _REPO_ROOT / "experiment_results" /
                    "s_epi_phase_out.csv")
     _write_outputs(rows, plan, out_json, out_csv, sources)
     flagged = sum(1 for r in rows if str(r.get("flags") or ""))
