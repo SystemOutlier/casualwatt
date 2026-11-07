@@ -1,0 +1,102 @@
+{
+  "phases": [
+    {
+      "phase_id": "prep-r3",
+      "config_id": "prep",
+      "replica": 3,
+      "t_start_utc": "2026-11-06T14:21:42",
+      "t_end_utc": "2026-11-06T14:29:17",
+      "d_ollama_s": 180.0,
+      "d_busy_s": 234.0
+    },
+    {
+      "phase_id": "prep-r5",
+      "config_id": "prep",
+      "replica": 5,
+      "t_start_utc": "2026-11-06T14:38:04",
+      "t_end_utc": "2026-11-06T14:45:30",
+      "d_ollama_s": 1156.2,
+      "d_busy_s": 1477.7
+    },
+    {
+      "phase_id": "prep-r6",
+      "config_id": "prep",
+      "replica": 6,
+      "t_start_utc": "2026-11-06T14:49:43",
+      "t_end_utc": "2026-11-06T14:57:26",
+      "d_ollama_s": 1106.95,
+      "d_busy_s": 1326.38
+    }
+  ],
+  "band": {
+    "abs": 0.6,
+    "rel": 1.1
+  },
+  "p6_6_trial_design": {
+    "frozen_at": "2026-11-07",
+    "C": 10,
+    "C_source": "P6.6, ottava emenda (2026-10-25): C = 10 configurazioni, dichiarato prima del primo run",
+    "R": 3,
+    "R_rule": "R = 3 e' il minimo per cui il riassunto per configurazione e' la terna (min, mediana, max) di valori osservati, cioe' la statistica che P4.12 prescrive: a R = 1 la dispersione vale zero per costruzione (la stessa ragione per cui u_within_b esce nullo dal pilota quando m = 1), a R = 2 la mediana e' un'interpolazione fra due osservazioni e non un valore misurato.",
+    "R_evidence": {
+      "from_p62_pilot": {
+        "artifact": "experiment_results/p62_pilot_aggregated.json",
+        "source": "cwEnergyModular/results/casualwatt_v4_block_summary.csv (8 esecuzioni di blocco, benchmark_v4, 2026-11-06 19:22-19:51)",
+        "half_range_pre_w": {
+          "n": 8,
+          "min": 0.302665,
+          "median": 0.865126,
+          "max": 2.256709,
+          "range": 1.954044
+        },
+        "budget_base_w": {
+          "n": 8,
+          "min": 0.319134,
+          "median": 1.327692,
+          "max": 3.454142
+        },
+        "baseline_pre_w_drift": {
+          "first_execution": 12.971015,
+          "last_execution": 8.724488,
+          "delta": -4.246527
+        },
+        "u_within_b": null,
+        "reading": "la baseline pre si muove di 4,25 W fra la prima e l'ultima esecuzione e il semi-range pre arriva a 2,26 W: lo stato di sessione non e' stazionario, quindi una replica sola per configurazione confonderebbe la condizione con la deriva. e' la ragione per cui R > 1, non la sua misura: la dispersione entro configurazione di d non e' stimabile da questi file, perche' le 8 esecuzioni differiscono per num_predict (32/128/256) e vengono da invocazioni separate del runner, non sono repliche."
+      },
+      "from_p66_prepilot": {
+        "artifact": "experiment_results/p6_6_prepilota_option_c_20261106.md",
+        "phases": 3,
+        "d": [0.4737, 0.2524, 0.3903],
+        "r": [0.8922, 0.3847, 0.6104],
+        "semi_range_d": 0.11065,
+        "semi_range_r": 0.25375
+      }
+    },
+    "R_precision_disclosed": {
+      "formula": "errore proxy = semi-range(del pre-pilota) / sqrt(R): e' un proxy di incertezza standard, non una stima di varianza (P1.7, P4.12)",
+      "proxy_se_d_at_R3": 0.063884,
+      "proxy_se_r_at_R3": 0.146503,
+      "band_in_proxy_se_d": 9.392,
+      "band_in_proxy_se_r": 7.508,
+      "note": "0,6 di banda contro 0,064 di errore proxy: il rumore fra repliche non puo' spostare il verdetto dentro/fuori banda, che richiederebbe uno spostamento di 0,6, cioe' 9,4 volte l'errore proxy."
+    },
+    "R_alternatives_considered": {
+      "R_1": "escluso da P6.6: dieci numeri e nessuna dispersione entro configurazione",
+      "R_2": "escluso: la mediana non e' osservata",
+      "R_4_R_5_R_6": "portano l'errore proxy a 9,2% / 8,3% / 7,5% di B_abs, ma dimensionano R sopra la risoluzione del criterio: il semi-range da cui escono viene da 3 fasi di calibrazione, e a n = 3 il protocollo non associa al semi-range una varianza stimata. Costerebbero 40/50/60 fasi invece di 30."
+    },
+    "cost_estimate_arithmetic": {
+      "phases": 30,
+      "phase_s_reference": 450,
+      "hours": 3.75,
+      "note": "aritmetica sulle durate delle fasi del pre-pilota (455/446/463 s), non una durata misurata della campagna e non un ancoraggio citabile"
+    },
+    "does_not_decide": [
+      "la banda: gia' congelata il 2026-11-06 (B_abs = 0.6, B_rel = 1.1) e non dipende da R",
+      "le condizioni di validita' di una fase (P6.6) e il trattamento di engine_tree_changed",
+      "il numero C = 10, dichiarato dall'ottava emenda",
+      "nessun valore di d o r della prova vera"
+    ],
+    "known_gap": "il CSV del pilota P6.2 del 2026-11-06 (qwen2.5:0.5b e gemma2:9b, 6 record) e' stato sovrascritto dai run successivi nella stessa cartella: le terne sopravvissute sono quelle del riepilogo di blocco del runner v4 (8 esecuzioni), non quelle del pilota. La decisione su R non dipende da u_within_b, che resta non calcolabile finche' un blocco non gira con m >= 2."
+  }
+}
