@@ -1,0 +1,181 @@
+{
+  "pilot": "P4.4 gate",
+  "campaign_date": "20261108",
+  "declared_at": "2026-11-08T16:35:03+00:00",
+  "model": "hf.co/sigmanih/Qwen-Qwen3-0.6B-GGUF-Q6_K:latest",
+  "temperature": 0.2,
+  "timeout_s": 60.0,
+  "num_ctx": 8192,
+  "order_seed": "gate-seed-20261107",
+  "n_coppie": 6,
+  "n_blocchi": 12,
+  "blocks_per_point": 1,
+  "invocazioni": "una run_v4_benchmark per blocco (12), non 6 da 2",
+  "emenda8": {
+    "max_invalidated_blocks": 1,
+    "substitution_seed": "p44-<label> per blocco"
+  },
+  "quiet_consecutive": 3,
+  "quiet_cap_s": 600.0,
+  "geometry": "12,32",
+  "checks": {
+    "A": "dodici blocchi in sei coppie; ogni coppia: blocco load m=32/np=32/nonce, poi blocco control con finestra passiva di dt_nominal_s e ZERO richieste (requisiti 1 e 5)",
+    "B": "geometria operativa (12,32) confermata (requisito 4); DT_NOM = 2.930748 s congelata dal pilota P2.9 (requisito 5)",
+    "C": "ordine carico-primo per coppia, dichiarato nel piano; order_seed = gate-seed-20261107 registrato su ogni blocco (requisito 3)",
+    "D": "baseline 3 pre + 3 post su ENTRAMBI i bracci (requisito 7); cooldown intra-coppia carico->controllo via initial_last_pre_w: scelta operativa, non requisito P4.4",
+    "E": "precondizione di quiete PRIMA di ogni blocco (load e control): 3 letture consecutive con background_load=False, una rumorosa azzera il conteggio; tetto 600 s poi SystemExit. Parametro di esecuzione lato tool: il criterio F.12 non cambia"
+  },
+  "deviazioni_dichiarate": [
+    "12 invocazioni = 12 preparazioni di stato macchina (P1.4) e fino a 24 warm-up (2 per invocazione): costo non pagato dal disegno a 6 invocazioni",
+    "le finestre idle pre/post del blocco control non sono contigue a quelle del carico: la coppia e' congiunta dal pair_id e dal cooldown propagato, non dalla contiguita' temporale",
+    "prepare_model_state (i due warm-up) precede il cooldown: il warm-up scalda il motore prima di attendere il rientro a P_pre",
+    "i parametri inerti del controllo (m, num_predict, use_nonce) non sono passati: valore_effectivo = default del runner, inerte per costruzione su range(0)"
+  ],
+  "dt_nominal_rule": "3 x mediana(duration_s) su TUTTE righe valide del pilot P2.9; DT_NOM = 2.930748 s, congelato prima della campagna (requisito 5)",
+  "blocks": [
+    {
+      "index": 0,
+      "label": "carico-1",
+      "arm": "load",
+      "pair_id": "pair-0",
+      "prompt_id": "load-1",
+      "text": "Spiega in una frase cos'e' un watt.",
+      "source": "p44_gate",
+      "m": 32,
+      "num_predict": 32,
+      "use_nonce": true
+    },
+    {
+      "index": 1,
+      "label": "controllo-1",
+      "arm": "control",
+      "pair_id": "pair-0",
+      "prompt_id": "ctrl-1",
+      "text": "",
+      "source": "gate_control",
+      "richieste": 0,
+      "dt_nominal_s": 2.930748
+    },
+    {
+      "index": 2,
+      "label": "carico-2",
+      "arm": "load",
+      "pair_id": "pair-1",
+      "prompt_id": "load-2",
+      "text": "Spiega in una frase cos'e' un watt.",
+      "source": "p44_gate",
+      "m": 32,
+      "num_predict": 32,
+      "use_nonce": true
+    },
+    {
+      "index": 3,
+      "label": "controllo-2",
+      "arm": "control",
+      "pair_id": "pair-1",
+      "prompt_id": "ctrl-2",
+      "text": "",
+      "source": "gate_control",
+      "richieste": 0,
+      "dt_nominal_s": 2.930748
+    },
+    {
+      "index": 4,
+      "label": "carico-3",
+      "arm": "load",
+      "pair_id": "pair-2",
+      "prompt_id": "load-3",
+      "text": "Spiega in una frase cos'e' un watt.",
+      "source": "p44_gate",
+      "m": 32,
+      "num_predict": 32,
+      "use_nonce": true
+    },
+    {
+      "index": 5,
+      "label": "controllo-3",
+      "arm": "control",
+      "pair_id": "pair-2",
+      "prompt_id": "ctrl-3",
+      "text": "",
+      "source": "gate_control",
+      "richieste": 0,
+      "dt_nominal_s": 2.930748
+    },
+    {
+      "index": 6,
+      "label": "carico-4",
+      "arm": "load",
+      "pair_id": "pair-3",
+      "prompt_id": "load-4",
+      "text": "Spiega in una frase cos'e' un watt.",
+      "source": "p44_gate",
+      "m": 32,
+      "num_predict": 32,
+      "use_nonce": true
+    },
+    {
+      "index": 7,
+      "label": "controllo-4",
+      "arm": "control",
+      "pair_id": "pair-3",
+      "prompt_id": "ctrl-4",
+      "text": "",
+      "source": "gate_control",
+      "richieste": 0,
+      "dt_nominal_s": 2.930748
+    },
+    {
+      "index": 8,
+      "label": "carico-5",
+      "arm": "load",
+      "pair_id": "pair-4",
+      "prompt_id": "load-5",
+      "text": "Spiega in una frase cos'e' un watt.",
+      "source": "p44_gate",
+      "m": 32,
+      "num_predict": 32,
+      "use_nonce": true
+    },
+    {
+      "index": 9,
+      "label": "controllo-5",
+      "arm": "control",
+      "pair_id": "pair-4",
+      "prompt_id": "ctrl-5",
+      "text": "",
+      "source": "gate_control",
+      "richieste": 0,
+      "dt_nominal_s": 2.930748
+    },
+    {
+      "index": 10,
+      "label": "carico-6",
+      "arm": "load",
+      "pair_id": "pair-5",
+      "prompt_id": "load-6",
+      "text": "Spiega in una frase cos'e' un watt.",
+      "source": "p44_gate",
+      "m": 32,
+      "num_predict": 32,
+      "use_nonce": true
+    },
+    {
+      "index": 11,
+      "label": "controllo-6",
+      "arm": "control",
+      "pair_id": "pair-5",
+      "prompt_id": "ctrl-6",
+      "text": "",
+      "source": "gate_control",
+      "richieste": 0,
+      "dt_nominal_s": 2.930748
+    }
+  ],
+  "outputs": {
+    "results_csv": "C:\\Users\\Massimo\\Documents\\CasualWatt\\CWProject\\cwEnergyModular\\results\\p44_gate_20261108\\casualwatt_v4_results_p44.csv",
+    "block_summary_csv": "C:\\Users\\Massimo\\Documents\\CasualWatt\\CWProject\\cwEnergyModular\\results\\p44_gate_20261108\\casualwatt_v4_block_summary_p44.csv"
+  },
+  "git_head": "b937605a4a48808d024611cc04903af75413542b",
+  "runner_sha256": "99846365de073fa112a1594b5659d73d393a86ddf6cca3e196467a25f7881ee0"
+}
