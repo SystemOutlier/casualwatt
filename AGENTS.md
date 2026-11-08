@@ -549,7 +549,7 @@ stanno solo le regole che un agente puo' violare senza accorgersene.
   liberta'; la variabilita' da coprire e' fra task diversi. Accanto all'intervallo
   di Wilson a livello di riga si pubblica un **bootstrap a livello di task**
   (percentile 2,5-97,5, 2000 ricampioni, seed `20261104`:
-  `evaluation_runner.py:14-20`, chiave `accuracy_cluster_bootstrap_95` a `:169`, e
+  `evaluation_runner.py:14-20`, chiave `accuracy_cluster_bootstrap_95` a `:565`, e
   `robust_evaluator.py:490-510`, dove `task_ids` arriva come argomento perche'
   `EvaluationResult` non porta l'identita' del task). Nei tre casi in cui non e'
   calcolabile l'intervallo resta **`None` con la ragione dichiarata**: identita'
@@ -557,7 +557,9 @@ stanno solo le regole che un agente puo' violare senza accorgersene.
   e' evidenza), righe senza id escluse dal ricampiono ma conteggiate nella nota. Se
   il bootstrap a cluster risulta piu' largo di Wilson, le righe non erano prove
   indipendenti. Il confronto fra due sistemi sullo stesso task **non** si fa per
-  sovrapposizione di intervalli: resta una McNemar appaiata.
+  sovrapposizione di intervalli: resta una McNemar appaiata, implementata in
+  `paired_mcnemar` (`evaluation_runner.py:177-331`) con coppie ridotte a una per
+  task e intervallo di Newcombe.
 - **Un accordo fra due letture dello stesso registro NON e' una validazione
   indipendente.** EMI, LibreHardwareMonitor (oggi fuori dall'implementazione) e
   SRUM leggono tutti
@@ -677,7 +679,8 @@ controllo segue un run.
   gate; non esegue misura. Nessuno dei tre è chiamato dal percorso di misura.
 - **Il valutatore della risposta sta nello stesso modulo**: `evaluation_runner.py`
   (aggregati con intervallo di Wilson a livello di riga, bootstrap a cluster a
-  livello di task, rifiuto dei valori non finiti),
+  livello di task, rifiuto dei valori non finiti, e il confronto appaiato
+  `paired_mcnemar`/`paired_summary` fra due sistemi sugli stessi task),
   `mudilab_adapter.py` (ponte MUDILAB: un tool call non verificabile rende la
   riga `indeterminate`), `robust_evaluator.py` (secondo criterio: numero univoco
   o marcatore finale, probabilita' condizionate a tutti gli stadi, controfattuale
@@ -966,25 +969,33 @@ controllo segue un run.
   protocollo va tracciato**, perche' un'analisi non tracciata e' un numero che
   nessuno puo' rigenerare. Le sonde usa-e-getta non citate da nulla sono in
   `.gitignore`.
-- `cwEnergyModular/tools/` — 11 file tracciati: i generatori del materiale LaTeX
-  (Appendici A, D, E), l'analisi di cadenza EMI, la validazione HWiNFO e le tre
-  sonde PawnIO (`fetch_pawnio_modules.py` scarica e verifica i moduli della
+- `cwEnergyModular/tools/` — **15** file tracciati (conteggio `git ls-files`,
+  non un elenco a vista; la riga diceva 11 e ne mancavano tre:
+  `audit_idle_p63.py`, `run_gate_p44.py`, `run_pilot_p29.py`; il quindicesimo e'
+  `mcnemar_report.py`, entrato l'08-11-2026 con il suo commit). I generatori del
+  materiale LaTeX (Appendici A, D, E), l'analisi di cadenza EMI, la validazione
+  HWiNFO e le tre sonde PawnIO (`fetch_pawnio_modules.py` scarica e verifica i moduli della
   release con hash pinnato, `pawnio_probe.py` confronta il contatore con EMI e
   misura il costo di osservazione A-B-A, `pawnio_priv_probe.py` misura i
-  privilegi invece di dedurli). Il decimo file della cartella,
-  `smoke_keep_alive.py`, e' **nuovo il 06-11-2026**:
+  privilegi invece di dedurli). `smoke_keep_alive.py` e' **nuovo il 06-11-2026**:
   controllo pre-campagna sulla forma di `keep_alive` contro il motore reale
   (percorso di produzione `payload_v4` -> `infer_v4` / `infer_v4_stream`, piu'
   `/api/version` perche' la forma accettata dipende dalla versione); parametrizzato
   per host e modello perche' chi lo riceve non deve spostare cartelle ne' editing di
   percorsi; esce `2` se il motore non risponde, e questo NON e' un controllo
-  superato. L'undicesimo, `aggregate_p62_pilot.py`, e' **nuovo il 07-11-2026**:
+  superato. `aggregate_p62_pilot.py` e' **nuovo il 07-11-2026**:
   aggrega le terne di `baseline_pre_w` del pilota, ricalcola `half_range_pre_w`
   e confronta il ricalcolo con le colonne del runner; scrive
   `experiment_results/p62_pilot_aggregated.json` e non calcola `u_within,b`
   quando il blocco ha `m = 1`, perche' un semi-range su una richiesta sola e'
-  zero per costruzione. Il conteggio di questa riga e' `git ls-files`, non un
-  elenco a vista.
+  zero per costruzione. `mcnemar_report.py`, **nuovo l'08-11-2026**, e' il
+  consumatore di `paired_summary` (`evaluation_runner.py`): legge un JSON di
+  confronto riga per riga, riduce a una coppia per task con la regola `first`,
+  risolve i due verdetti con un percorso puntato e scrive accanto all'input un
+  JSON e un `.txt` con matrice, p esatto, chi², delta, intervallo di Newcombe,
+  esclusi per ragione; dichiara **INDECISO** quando `b+c=0` e la cautela sopra il
+  10% di coppie escluse. Non tocca la misura e non tocca lo schema CSV. Il
+  conteggio di questa riga e' `git ls-files`, non un elenco a vista.
 - `experiment_results/` — dati sperimentali e analisi, tracciati (220 file: 219 in
   radice, 1 in `codecarbon_four_way/`; riverificati il 04-11-2026, dopo `244d1c2f`,
   che porta l'analisi Monte Carlo di P6.4). I

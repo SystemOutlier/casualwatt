@@ -304,7 +304,9 @@ Tre limiti sono dichiarati dal codice stesso:
 - con un solo task distinto l’intervallo non si pubblica: la dispersione dei
   ricampioni sarebbe zero per costruzione, non per evidenza;
 - i due intervalli si leggono insieme, e non sostituiscono il confronto fra due
-  sistemi sullo stesso task, che resta una McNemar appaiata.
+  sistemi sullo stesso task, che resta una McNemar appaiata: `paired_mcnemar`
+  (`evaluation_runner.py`) la calcola sulle coppie ridotte a una per task, con
+  intervallo di Newcombe, e `tests/test_paired_mcnemar.py` ne fissa i casi.
 
 Nessun riferimento bibliografico è associato a questa sezione: la procedura è il
 cluster bootstrap standard, ma la fonte va scelta e verificata alla fonte
