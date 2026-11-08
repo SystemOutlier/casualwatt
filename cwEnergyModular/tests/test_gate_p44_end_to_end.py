@@ -550,6 +550,62 @@ def test_execute_end_to_end_dodici_invocazioni_e_verdetto(monkeypatch,
     assert "P_pre_ref propagata dal carico=10.0 W" in report
     assert "propria del blocco=10.0 W" in report
 
+    # la serie di potenza grezza: sei finestre dichiarate; il fake non
+    # campiona, quindi l'artefatto dice 0 campioni con la ragione, non
+    # inventa una serie. La diagnostica non entra nel verdetto.
+    serie = json.loads(
+        (rg.ARCHIVE_DIR / rg.SERIES_NAME).read_text(encoding="utf-8"))
+    assert len(serie) == 6
+    for s in serie:
+        assert s["n_samples"] == 0 and s["samples"] == []
+        assert s["reason"] == "nessun campione nella finestra passiva"
+        assert isinstance(s["t0_mono"], float)
+        assert isinstance(s["t1_mono"], float)
+    assert analysis["series_counts"] == {s["block_id"]: 0 for s in serie}
+    assert analysis["control_power_series_json"].endswith(rg.SERIES_NAME)
+    assert "serie di potenza grezza dei controlli (JSON)" in report
+
+
+def test_serie_grezza_salvata_con_potenza_derivata(monkeypatch, tmp_path):
+    """Con campioni veri la serie deve portare i cumulati grezzi e la
+    potenza derivata ΔE/Δt (5 W su 1 s fra i due campioni del fake), e il
+    wrapper deve restituirsi: ``_run_control_window`` del runner torna
+    quello di prima e la sessione non resta con un edge method posticcio.
+    E' la prova che la cattura e' diagnostica e non tocca il percorso."""
+    from energy.energy_session import SystemSample  # noqa: E402
+
+    campioni = [
+        SystemSample(t=1001.0, wall=1.0, package_energy_j=1000.0,
+                     cpu_busy_seconds=0.0, cpu_percent=1.0),
+        SystemSample(t=1002.0, wall=2.0, package_energy_j=1005.0,
+                     cpu_busy_seconds=0.0, cpu_percent=1.0),
+    ]
+    viste: list = []
+
+    def samples(self, a, b):
+        viste.append(self)
+        return list(campioni)
+
+    monkeypatch.setattr(_SessioneGate, "samples_between", samples)
+    reale_cw = v4._run_control_window
+    analysis, _spediti, _targets = _esegui_gate(monkeypatch, tmp_path)
+    assert v4._run_control_window is reale_cw
+    assert viste
+    assert all("read_measurement_edge" not in s.__dict__ for s in viste)
+    serie = json.loads(
+        (rg.ARCHIVE_DIR / rg.SERIES_NAME).read_text(encoding="utf-8"))
+    assert len(serie) == 6
+    for s in serie:
+        assert s["n_samples"] == 2 and s["reason"] == ""
+        assert s["samples"][0]["package_energy_j"] == 1000.0
+        assert s["samples"][1]["package_energy_j"] == 1005.0
+        assert len(s["power_w"]) == 1
+        intervallo = s["power_w"][0]
+        assert intervallo["dt_s"] == pytest.approx(1.0)
+        assert intervallo["de_j"] == pytest.approx(5.0)
+        assert intervallo["power_w"] == pytest.approx(5.0)
+    assert set(analysis["series_counts"].values()) == {2}
+
 
 def test_execute_si_ferma_se_il_piano_non_e_pianificato(monkeypatch,
                                                         tmp_path):
