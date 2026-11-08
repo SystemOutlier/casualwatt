@@ -51,6 +51,7 @@ import pytest  # noqa: E402
 import benchmark_unified as bu  # noqa: E402
 import benchmark_v4 as v4  # noqa: E402
 import energy.local_energy as le  # noqa: E402
+import machine_state as ms  # noqa: E402
 import run_gate_p44 as rg  # noqa: E402
 from energy.worker_tree import WorkerProc  # noqa: E402
 
@@ -198,6 +199,13 @@ def _installa(monkeypatch):
         v4, "probe_machine_state_after",
         lambda **kw: {"top_processes": [], "cpu_samples_pct": [1.0],
                       "background_load": False})
+    # Precondizione di quiete (lato tool): senza questi due fake
+    # cmd_execute campionerebbe la macchina REALE (~3 s per lettura, 12
+    # blocchi) e il test dipenderebbe dal carico dell'host. I fake rendono
+    # l'attesa deterministica; le asserzioni di questo file non cambiano.
+    monkeypatch.setattr(ms, "total_cpu_samples",
+                        lambda *a, **k: [1.0, 1.0, 1.0])
+    monkeypatch.setattr(ms, "sample_top_processes", lambda *a, **k: [])
     monkeypatch.setattr(v4, "_ollama_runtime_info", lambda model: ("v", "d"))
     meta: dict = {}
     monkeypatch.setattr(v4, "write_run_metadata",
