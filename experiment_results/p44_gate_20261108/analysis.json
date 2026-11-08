@@ -1,0 +1,802 @@
+{
+  "n_pairs": 6,
+  "quorum": 4,
+  "controls": [
+    {
+      "block_id": "hf.co-sigmanih-Qwen-Qwen3-0.6B-GGUF-Q6_K-latest__ctrl-1__b01",
+      "pair_id": "pair-0",
+      "usable": true,
+      "control_unstable": false,
+      "reason": "pre_range_w=0.694745 W <= 1 W e |dP|=0.109395 W <= 1 W",
+      "pre_range_w": 0.694745,
+      "dP": -0.109395,
+      "e_net_j": 1.657777,
+      "dt_w_s": 2.931408,
+      "budget_base_j": 1.030838,
+      "budget_base_w": 0.351653,
+      "window_source": "exact-counter",
+      "block_pass": false,
+      "block_reason": "|E_net,control|=1.65778 J > budget_base_j=1.03084 J"
+    },
+    {
+      "block_id": "hf.co-sigmanih-Qwen-Qwen3-0.6B-GGUF-Q6_K-latest__ctrl-2__b01",
+      "pair_id": "pair-1",
+      "usable": true,
+      "control_unstable": false,
+      "reason": "pre_range_w=0.52469 W <= 1 W e |dP|=0.102105 W <= 1 W",
+      "pre_range_w": 0.52469,
+      "dP": 0.102105,
+      "e_net_j": 0.367103,
+      "dt_w_s": 2.931368,
+      "budget_base_j": 0.783455,
+      "budget_base_w": 0.267266,
+      "window_source": "exact-counter",
+      "block_pass": true,
+      "block_reason": "|E_net,control|=0.367103 J <= budget_base_j=0.783455 J"
+    },
+    {
+      "block_id": "hf.co-sigmanih-Qwen-Qwen3-0.6B-GGUF-Q6_K-latest__ctrl-3__b01",
+      "pair_id": "pair-2",
+      "usable": true,
+      "control_unstable": false,
+      "reason": "pre_range_w=0.044423 W <= 1 W e |dP|=0.017923 W <= 1 W",
+      "pre_range_w": 0.044423,
+      "dP": 0.017923,
+      "e_net_j": -0.07369,
+      "dt_w_s": 2.931679,
+      "budget_base_j": 0.070217,
+      "budget_base_w": 0.023951,
+      "window_source": "exact-counter",
+      "block_pass": false,
+      "block_reason": "|E_net,control|=0.07369 J > budget_base_j=0.070217 J"
+    },
+    {
+      "block_id": "hf.co-sigmanih-Qwen-Qwen3-0.6B-GGUF-Q6_K-latest__ctrl-4__b01",
+      "pair_id": "pair-3",
+      "usable": true,
+      "control_unstable": false,
+      "reason": "pre_range_w=0.397957 W <= 1 W e |dP|=0.078493 W <= 1 W",
+      "pre_range_w": 0.397957,
+      "dP": -0.078493,
+      "e_net_j": -0.175905,
+      "dt_w_s": 2.931941,
+      "budget_base_j": 0.594633,
+      "budget_base_w": 0.202812,
+      "window_source": "exact-counter",
+      "block_pass": true,
+      "block_reason": "|E_net,control|=0.175905 J <= budget_base_j=0.594633 J"
+    },
+    {
+      "block_id": "hf.co-sigmanih-Qwen-Qwen3-0.6B-GGUF-Q6_K-latest__ctrl-5__b01",
+      "pair_id": "pair-4",
+      "usable": true,
+      "control_unstable": false,
+      "reason": "pre_range_w=0.059282 W <= 1 W e |dP|=0.02981 W <= 1 W",
+      "pre_range_w": 0.059282,
+      "dP": -0.02981,
+      "e_net_j": 0.26957,
+      "dt_w_s": 2.931507,
+      "budget_base_j": 0.097262,
+      "budget_base_w": 0.033178,
+      "window_source": "exact-counter",
+      "block_pass": false,
+      "block_reason": "|E_net,control|=0.26957 J > budget_base_j=0.097262 J"
+    },
+    {
+      "block_id": "hf.co-sigmanih-Qwen-Qwen3-0.6B-GGUF-Q6_K-latest__ctrl-6__b01",
+      "pair_id": "pair-5",
+      "usable": true,
+      "control_unstable": false,
+      "reason": "pre_range_w=0.032977 W <= 1 W e |dP|=0.03802 W <= 1 W",
+      "pre_range_w": 0.032977,
+      "dP": -0.03802,
+      "e_net_j": 0.156772,
+      "dt_w_s": 2.931015,
+      "budget_base_j": 0.073756,
+      "budget_base_w": 0.025164,
+      "window_source": "exact-counter",
+      "block_pass": false,
+      "block_reason": "|E_net,control|=0.156772 J > budget_base_j=0.073756 J"
+    }
+  ],
+  "controls_usable_n": 6,
+  "executable": true,
+  "status": "fail",
+  "chain_status": "",
+  "bias_w": 0.1251712584025919,
+  "bias_threshold_w": 0.11799499999999999,
+  "bias_jtok_pct": [
+    0.7510275504155515,
+    1.376883842428511
+  ],
+  "reasons": [
+    "|bias_w|=0.125171 W > mediana_c(budget_base_w,c)=0.117995 W"
+  ],
+  "pilot": "P4.4 gate",
+  "model": "hf.co/sigmanih/Qwen-Qwen3-0.6B-GGUF-Q6_K:latest",
+  "dt_nominal_s": 2.930748,
+  "order_seed": "gate-seed-20261107",
+  "geometry": "12,32",
+  "quiet_precondition": {
+    "consecutive": 3,
+    "cap_s": 600.0
+  },
+  "runs": [
+    {
+      "index": 0,
+      "label": "carico-1",
+      "arm": "load",
+      "pair_id": "pair-0",
+      "run_id": "9be9e693300249a59384d9679eeb547b",
+      "batch_id": "p44-carico-1",
+      "block_id": "hf.co-sigmanih-Qwen-Qwen3-0.6B-GGUF-Q6_K-latest__load-1__b01",
+      "records": 32,
+      "blocks": 1,
+      "errors": 0,
+      "invalidated_blocks": 0,
+      "initial_last_pre_w": null,
+      "block_baseline_pre_w": 4.529809,
+      "block_cooldown_timeout": "",
+      "quiet_wait_s": 9.007541200000105,
+      "quiet_letture": 3,
+      "quiet_top_processes": [
+        {
+          "pid": 4,
+          "name": "System",
+          "cpu_pct": 3.1
+        },
+        {
+          "pid": 3224,
+          "name": "Taskmgr.exe",
+          "cpu_pct": 3.1
+        },
+        {
+          "pid": 288,
+          "name": "",
+          "cpu_pct": 0.0
+        },
+        {
+          "pid": 328,
+          "name": "Registry",
+          "cpu_pct": 0.0
+        },
+        {
+          "pid": 1032,
+          "name": "smss.exe",
+          "cpu_pct": 0.0
+        }
+      ],
+      "background_load_before": false,
+      "background_load_after": false
+    },
+    {
+      "index": 1,
+      "label": "controllo-1",
+      "arm": "control",
+      "pair_id": "pair-0",
+      "run_id": "32678edc962c4f79be7124a6b9b122e8",
+      "batch_id": "p44-controllo-1",
+      "block_id": "hf.co-sigmanih-Qwen-Qwen3-0.6B-GGUF-Q6_K-latest__ctrl-1__b01",
+      "records": 0,
+      "blocks": 1,
+      "errors": 0,
+      "invalidated_blocks": 0,
+      "initial_last_pre_w": 4.529809,
+      "block_baseline_pre_w": 3.710856,
+      "block_cooldown_timeout": "true",
+      "quiet_wait_s": 9.008857199999966,
+      "quiet_letture": 3,
+      "quiet_top_processes": [
+        {
+          "pid": 4,
+          "name": "System",
+          "cpu_pct": 3.1
+        },
+        {
+          "pid": 14568,
+          "name": "llama-server.exe",
+          "cpu_pct": 3.1
+        },
+        {
+          "pid": 13020,
+          "name": "WMIADAP.exe",
+          "cpu_pct": 1.6
+        },
+        {
+          "pid": 288,
+          "name": "",
+          "cpu_pct": 0.0
+        },
+        {
+          "pid": 328,
+          "name": "Registry",
+          "cpu_pct": 0.0
+        }
+      ],
+      "background_load_before": false,
+      "background_load_after": false
+    },
+    {
+      "index": 2,
+      "label": "carico-2",
+      "arm": "load",
+      "pair_id": "pair-1",
+      "run_id": "3af05ce0d9624c81bcb7cd36ed940a4f",
+      "batch_id": "p44-carico-2",
+      "block_id": "hf.co-sigmanih-Qwen-Qwen3-0.6B-GGUF-Q6_K-latest__load-2__b01",
+      "records": 32,
+      "blocks": 1,
+      "errors": 0,
+      "invalidated_blocks": 0,
+      "initial_last_pre_w": null,
+      "block_baseline_pre_w": 3.628981,
+      "block_cooldown_timeout": "",
+      "quiet_wait_s": 9.009378100000049,
+      "quiet_letture": 3,
+      "quiet_top_processes": [
+        {
+          "pid": 2064,
+          "name": "svchost.exe",
+          "cpu_pct": 1.6
+        },
+        {
+          "pid": 16744,
+          "name": "python.exe",
+          "cpu_pct": 1.6
+        },
+        {
+          "pid": 4,
+          "name": "System",
+          "cpu_pct": 0.0
+        },
+        {
+          "pid": 288,
+          "name": "",
+          "cpu_pct": 0.0
+        },
+        {
+          "pid": 328,
+          "name": "Registry",
+          "cpu_pct": 0.0
+        }
+      ],
+      "background_load_before": false,
+      "background_load_after": false
+    },
+    {
+      "index": 3,
+      "label": "controllo-2",
+      "arm": "control",
+      "pair_id": "pair-1",
+      "run_id": "33fa107cc73d4b0381ad82fc051ae906",
+      "batch_id": "p44-controllo-2",
+      "block_id": "hf.co-sigmanih-Qwen-Qwen3-0.6B-GGUF-Q6_K-latest__ctrl-2__b01",
+      "records": 0,
+      "blocks": 1,
+      "errors": 0,
+      "invalidated_blocks": 0,
+      "initial_last_pre_w": 3.628981,
+      "block_baseline_pre_w": 3.82036,
+      "block_cooldown_timeout": "false",
+      "quiet_wait_s": 9.009461199999805,
+      "quiet_letture": 3,
+      "quiet_top_processes": [
+        {
+          "pid": 4,
+          "name": "System",
+          "cpu_pct": 1.6
+        },
+        {
+          "pid": 4852,
+          "name": "svchost.exe",
+          "cpu_pct": 1.6
+        },
+        {
+          "pid": 16744,
+          "name": "python.exe",
+          "cpu_pct": 1.6
+        },
+        {
+          "pid": 288,
+          "name": "",
+          "cpu_pct": 0.0
+        },
+        {
+          "pid": 328,
+          "name": "Registry",
+          "cpu_pct": 0.0
+        }
+      ],
+      "background_load_before": false,
+      "background_load_after": false
+    },
+    {
+      "index": 4,
+      "label": "carico-3",
+      "arm": "load",
+      "pair_id": "pair-2",
+      "run_id": "ebca05cc591244fab9f8abe1dab69d85",
+      "batch_id": "p44-carico-3",
+      "block_id": "hf.co-sigmanih-Qwen-Qwen3-0.6B-GGUF-Q6_K-latest__load-3__b01",
+      "records": 32,
+      "blocks": 1,
+      "errors": 0,
+      "invalidated_blocks": 0,
+      "initial_last_pre_w": null,
+      "block_baseline_pre_w": 4.22374,
+      "block_cooldown_timeout": "",
+      "quiet_wait_s": 9.008743599999889,
+      "quiet_letture": 3,
+      "quiet_top_processes": [
+        {
+          "pid": 3780,
+          "name": "svchost.exe",
+          "cpu_pct": 1.6
+        },
+        {
+          "pid": 16744,
+          "name": "python.exe",
+          "cpu_pct": 1.6
+        },
+        {
+          "pid": 4,
+          "name": "System",
+          "cpu_pct": 0.0
+        },
+        {
+          "pid": 288,
+          "name": "",
+          "cpu_pct": 0.0
+        },
+        {
+          "pid": 328,
+          "name": "Registry",
+          "cpu_pct": 0.0
+        }
+      ],
+      "background_load_before": false,
+      "background_load_after": false
+    },
+    {
+      "index": 5,
+      "label": "controllo-3",
+      "arm": "control",
+      "pair_id": "pair-2",
+      "run_id": "c09b26e8f622434eaff04fa36664a016",
+      "batch_id": "p44-controllo-3",
+      "block_id": "hf.co-sigmanih-Qwen-Qwen3-0.6B-GGUF-Q6_K-latest__ctrl-3__b01",
+      "records": 0,
+      "blocks": 1,
+      "errors": 0,
+      "invalidated_blocks": 0,
+      "initial_last_pre_w": 4.22374,
+      "block_baseline_pre_w": 3.780604,
+      "block_cooldown_timeout": "false",
+      "quiet_wait_s": 9.010416300000088,
+      "quiet_letture": 3,
+      "quiet_top_processes": [
+        {
+          "pid": 4,
+          "name": "System",
+          "cpu_pct": 3.1
+        },
+        {
+          "pid": 288,
+          "name": "",
+          "cpu_pct": 0.0
+        },
+        {
+          "pid": 328,
+          "name": "Registry",
+          "cpu_pct": 0.0
+        },
+        {
+          "pid": 1032,
+          "name": "smss.exe",
+          "cpu_pct": 0.0
+        },
+        {
+          "pid": 1296,
+          "name": "svchost.exe",
+          "cpu_pct": 0.0
+        }
+      ],
+      "background_load_before": false,
+      "background_load_after": false
+    },
+    {
+      "index": 6,
+      "label": "carico-4",
+      "arm": "load",
+      "pair_id": "pair-3",
+      "run_id": "ae75d433cdda40598e3cd57ca089d4ee",
+      "batch_id": "p44-carico-4",
+      "block_id": "hf.co-sigmanih-Qwen-Qwen3-0.6B-GGUF-Q6_K-latest__load-4__b01",
+      "records": 32,
+      "blocks": 1,
+      "errors": 0,
+      "invalidated_blocks": 0,
+      "initial_last_pre_w": null,
+      "block_baseline_pre_w": 3.742275,
+      "block_cooldown_timeout": "",
+      "quiet_wait_s": 9.008608000000095,
+      "quiet_letture": 3,
+      "quiet_top_processes": [
+        {
+          "pid": 4,
+          "name": "System",
+          "cpu_pct": 3.1
+        },
+        {
+          "pid": 6092,
+          "name": "vmware-usbarbitrator64.exe",
+          "cpu_pct": 1.6
+        },
+        {
+          "pid": 288,
+          "name": "",
+          "cpu_pct": 0.0
+        },
+        {
+          "pid": 328,
+          "name": "Registry",
+          "cpu_pct": 0.0
+        },
+        {
+          "pid": 1032,
+          "name": "smss.exe",
+          "cpu_pct": 0.0
+        }
+      ],
+      "background_load_before": false,
+      "background_load_after": false
+    },
+    {
+      "index": 7,
+      "label": "controllo-4",
+      "arm": "control",
+      "pair_id": "pair-3",
+      "run_id": "4677b0f7c1ae4e17bcda90ccb81c8e11",
+      "batch_id": "p44-controllo-4",
+      "block_id": "hf.co-sigmanih-Qwen-Qwen3-0.6B-GGUF-Q6_K-latest__ctrl-4__b01",
+      "records": 0,
+      "blocks": 1,
+      "errors": 0,
+      "invalidated_blocks": 0,
+      "initial_last_pre_w": 3.742275,
+      "block_baseline_pre_w": 3.741051,
+      "block_cooldown_timeout": "false",
+      "quiet_wait_s": 9.010108200000104,
+      "quiet_letture": 3,
+      "quiet_top_processes": [
+        {
+          "pid": 1724,
+          "name": "csrss.exe",
+          "cpu_pct": 1.6
+        },
+        {
+          "pid": 16744,
+          "name": "python.exe",
+          "cpu_pct": 1.6
+        },
+        {
+          "pid": 4,
+          "name": "System",
+          "cpu_pct": 0.0
+        },
+        {
+          "pid": 288,
+          "name": "",
+          "cpu_pct": 0.0
+        },
+        {
+          "pid": 328,
+          "name": "Registry",
+          "cpu_pct": 0.0
+        }
+      ],
+      "background_load_before": false,
+      "background_load_after": false
+    },
+    {
+      "index": 8,
+      "label": "carico-5",
+      "arm": "load",
+      "pair_id": "pair-4",
+      "run_id": "6ca224d025604e1890d5fccd54144624",
+      "batch_id": "p44-carico-5",
+      "block_id": "hf.co-sigmanih-Qwen-Qwen3-0.6B-GGUF-Q6_K-latest__load-5__b01",
+      "records": 32,
+      "blocks": 1,
+      "errors": 0,
+      "invalidated_blocks": 0,
+      "initial_last_pre_w": null,
+      "block_baseline_pre_w": 3.66947,
+      "block_cooldown_timeout": "",
+      "quiet_wait_s": 9.010219299999335,
+      "quiet_letture": 3,
+      "quiet_top_processes": [
+        {
+          "pid": 4,
+          "name": "System",
+          "cpu_pct": 1.6
+        },
+        {
+          "pid": 288,
+          "name": "",
+          "cpu_pct": 0.0
+        },
+        {
+          "pid": 328,
+          "name": "Registry",
+          "cpu_pct": 0.0
+        },
+        {
+          "pid": 1032,
+          "name": "smss.exe",
+          "cpu_pct": 0.0
+        },
+        {
+          "pid": 1296,
+          "name": "svchost.exe",
+          "cpu_pct": 0.0
+        }
+      ],
+      "background_load_before": false,
+      "background_load_after": false
+    },
+    {
+      "index": 9,
+      "label": "controllo-5",
+      "arm": "control",
+      "pair_id": "pair-4",
+      "run_id": "a745da9c18884210bbcc62f127c6b568",
+      "batch_id": "p44-controllo-5",
+      "block_id": "hf.co-sigmanih-Qwen-Qwen3-0.6B-GGUF-Q6_K-latest__ctrl-5__b01",
+      "records": 0,
+      "blocks": 1,
+      "errors": 0,
+      "invalidated_blocks": 0,
+      "initial_last_pre_w": 3.66947,
+      "block_baseline_pre_w": 3.718599,
+      "block_cooldown_timeout": "false",
+      "quiet_wait_s": 9.00959039999998,
+      "quiet_letture": 3,
+      "quiet_top_processes": [
+        {
+          "pid": 4,
+          "name": "System",
+          "cpu_pct": 3.1
+        },
+        {
+          "pid": 6092,
+          "name": "vmware-usbarbitrator64.exe",
+          "cpu_pct": 1.6
+        },
+        {
+          "pid": 16744,
+          "name": "python.exe",
+          "cpu_pct": 1.6
+        },
+        {
+          "pid": 288,
+          "name": "",
+          "cpu_pct": 0.0
+        },
+        {
+          "pid": 328,
+          "name": "Registry",
+          "cpu_pct": 0.0
+        }
+      ],
+      "background_load_before": false,
+      "background_load_after": false
+    },
+    {
+      "index": 10,
+      "label": "carico-6",
+      "arm": "load",
+      "pair_id": "pair-5",
+      "run_id": "4a156fd7e75e4f53918cad67345b160e",
+      "batch_id": "p44-carico-6",
+      "block_id": "hf.co-sigmanih-Qwen-Qwen3-0.6B-GGUF-Q6_K-latest__load-6__b01",
+      "records": 32,
+      "blocks": 1,
+      "errors": 0,
+      "invalidated_blocks": 0,
+      "initial_last_pre_w": null,
+      "block_baseline_pre_w": 3.755477,
+      "block_cooldown_timeout": "",
+      "quiet_wait_s": 9.008502300000146,
+      "quiet_letture": 3,
+      "quiet_top_processes": [
+        {
+          "pid": 4,
+          "name": "System",
+          "cpu_pct": 0.0
+        },
+        {
+          "pid": 288,
+          "name": "",
+          "cpu_pct": 0.0
+        },
+        {
+          "pid": 328,
+          "name": "Registry",
+          "cpu_pct": 0.0
+        },
+        {
+          "pid": 1032,
+          "name": "smss.exe",
+          "cpu_pct": 0.0
+        },
+        {
+          "pid": 1296,
+          "name": "svchost.exe",
+          "cpu_pct": 0.0
+        }
+      ],
+      "background_load_before": false,
+      "background_load_after": false
+    },
+    {
+      "index": 11,
+      "label": "controllo-6",
+      "arm": "control",
+      "pair_id": "pair-5",
+      "run_id": "97631587a7ba4f78acbdd73f4adfcbef",
+      "batch_id": "p44-controllo-6",
+      "block_id": "hf.co-sigmanih-Qwen-Qwen3-0.6B-GGUF-Q6_K-latest__ctrl-6__b01",
+      "records": 0,
+      "blocks": 1,
+      "errors": 0,
+      "invalidated_blocks": 0,
+      "initial_last_pre_w": 3.755477,
+      "block_baseline_pre_w": 3.722311,
+      "block_cooldown_timeout": "false",
+      "quiet_wait_s": 9.008778600000369,
+      "quiet_letture": 3,
+      "quiet_top_processes": [
+        {
+          "pid": 4,
+          "name": "System",
+          "cpu_pct": 3.1
+        },
+        {
+          "pid": 2252,
+          "name": "dwm.exe",
+          "cpu_pct": 1.6
+        },
+        {
+          "pid": 288,
+          "name": "",
+          "cpu_pct": 0.0
+        },
+        {
+          "pid": 328,
+          "name": "Registry",
+          "cpu_pct": 0.0
+        },
+        {
+          "pid": 1032,
+          "name": "smss.exe",
+          "cpu_pct": 0.0
+        }
+      ],
+      "background_load_before": false,
+      "background_load_after": false
+    }
+  ],
+  "results_csv": "C:\\Users\\Massimo\\Documents\\CasualWatt\\CWProject\\cwEnergyModular\\results\\p44_gate_20261108\\casualwatt_v4_results_p44.csv",
+  "block_summary_csv": "C:\\Users\\Massimo\\Documents\\CasualWatt\\CWProject\\cwEnergyModular\\results\\p44_gate_20261108\\casualwatt_v4_block_summary_p44.csv",
+  "blocks_controllo_json": "C:\\Users\\Massimo\\Documents\\CasualWatt\\CWProject\\experiment_results\\p44_gate_20261108\\blocks_controllo.json",
+  "control_power_series_json": "C:\\Users\\Massimo\\Documents\\CasualWatt\\CWProject\\experiment_results\\p44_gate_20261108\\control_power_series.json",
+  "series_counts": {
+    "hf.co-sigmanih-Qwen-Qwen3-0.6B-GGUF-Q6_K-latest__ctrl-1__b01": 5,
+    "hf.co-sigmanih-Qwen-Qwen3-0.6B-GGUF-Q6_K-latest__ctrl-2__b01": 6,
+    "hf.co-sigmanih-Qwen-Qwen3-0.6B-GGUF-Q6_K-latest__ctrl-3__b01": 5,
+    "hf.co-sigmanih-Qwen-Qwen3-0.6B-GGUF-Q6_K-latest__ctrl-4__b01": 6,
+    "hf.co-sigmanih-Qwen-Qwen3-0.6B-GGUF-Q6_K-latest__ctrl-5__b01": 6,
+    "hf.co-sigmanih-Qwen-Qwen3-0.6B-GGUF-Q6_K-latest__ctrl-6__b01": 6
+  },
+  "run_ids": [
+    "9be9e693300249a59384d9679eeb547b",
+    "32678edc962c4f79be7124a6b9b122e8",
+    "3af05ce0d9624c81bcb7cd36ed940a4f",
+    "33fa107cc73d4b0381ad82fc051ae906",
+    "ebca05cc591244fab9f8abe1dab69d85",
+    "c09b26e8f622434eaff04fa36664a016",
+    "ae75d433cdda40598e3cd57ca089d4ee",
+    "4677b0f7c1ae4e17bcda90ccb81c8e11",
+    "6ca224d025604e1890d5fccd54144624",
+    "a745da9c18884210bbcc62f127c6b568",
+    "4a156fd7e75e4f53918cad67345b160e",
+    "97631587a7ba4f78acbdd73f4adfcbef"
+  ],
+  "git_head": "39a34a9abd31b6774b7f2bda265f8320d929eaa1",
+  "runner_sha256": "99846365de073fa112a1594b5659d73d393a86ddf6cca3e196467a25f7881ee0",
+  "metadata_path": "C:\\Users\\Massimo\\Documents\\CasualWatt\\CWProject\\cwEnergyModular\\results\\casualwatt_run_metadata.csv",
+  "grandezze_riportate": {
+    "per_controllo": [
+      {
+        "block_id": "hf.co-sigmanih-Qwen-Qwen3-0.6B-GGUF-Q6_K-latest__ctrl-1__b01",
+        "usable": true,
+        "e_net_j": 1.657777,
+        "dt_w_s": 2.931408,
+        "p_net_w": 0.56552243836409,
+        "background_load_before": false,
+        "background_load_after": false
+      },
+      {
+        "block_id": "hf.co-sigmanih-Qwen-Qwen3-0.6B-GGUF-Q6_K-latest__ctrl-2__b01",
+        "usable": true,
+        "e_net_j": 0.367103,
+        "dt_w_s": 2.931368,
+        "p_net_w": 0.12523265587943924,
+        "background_load_before": false,
+        "background_load_after": false
+      },
+      {
+        "block_id": "hf.co-sigmanih-Qwen-Qwen3-0.6B-GGUF-Q6_K-latest__ctrl-3__b01",
+        "usable": true,
+        "e_net_j": -0.07369,
+        "dt_w_s": 2.931679,
+        "p_net_w": -0.025135766910360926,
+        "background_load_before": false,
+        "background_load_after": false
+      },
+      {
+        "block_id": "hf.co-sigmanih-Qwen-Qwen3-0.6B-GGUF-Q6_K-latest__ctrl-4__b01",
+        "usable": true,
+        "e_net_j": -0.175905,
+        "dt_w_s": 2.931941,
+        "p_net_w": -0.05999609132653078,
+        "background_load_before": false,
+        "background_load_after": false
+      },
+      {
+        "block_id": "hf.co-sigmanih-Qwen-Qwen3-0.6B-GGUF-Q6_K-latest__ctrl-5__b01",
+        "usable": true,
+        "e_net_j": 0.26957,
+        "dt_w_s": 2.931507,
+        "p_net_w": 0.09195611676861082,
+        "background_load_before": false,
+        "background_load_after": false
+      },
+      {
+        "block_id": "hf.co-sigmanih-Qwen-Qwen3-0.6B-GGUF-Q6_K-latest__ctrl-6__b01",
+        "usable": true,
+        "e_net_j": 0.156772,
+        "dt_w_s": 2.931015,
+        "p_net_w": 0.053487273180109964,
+        "background_load_before": false,
+        "background_load_after": false
+      }
+    ],
+    "tutti": {
+      "n": 6,
+      "media": 0.12517777099255972,
+      "sd": 0.2267289808753743,
+      "se": 0.09256171884098546,
+      "ci95": [
+        -0.11275970213535313,
+        0.3631152441204726
+      ],
+      "t_quantile": 2.5705818356363146,
+      "t_provenienza": "scipy"
+    },
+    "utilizzabili": {
+      "n": 6,
+      "media": 0.12517777099255972,
+      "sd": 0.2267289808753743,
+      "se": 0.09256171884098546,
+      "ci95": [
+        -0.11275970213535313,
+        0.3631152441204726
+      ],
+      "t_quantile": 2.5705818356363146,
+      "t_provenienza": "scipy"
+    },
+    "nota": "grandezze descrittive fra blocchi di controllo: non decidono l'esito del gate (F.12 invariato), non entrano nello schema CSV. sd campionaria (ddof=1) su n blocchi, non sulla terna di baseline di P4.12; CI95 = media +/- t(0.975, n-1) * SE; n<2 -> sd None dichiarata."
+  }
+}
