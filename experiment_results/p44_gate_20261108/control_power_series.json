@@ -1,0 +1,944 @@
+[
+  {
+    "block_id": "hf.co-sigmanih-Qwen-Qwen3-0.6B-GGUF-Q6_K-latest__ctrl-1__b01",
+    "t0_mono": 3010.642119,
+    "t1_mono": 3013.5854231,
+    "n_samples": 5,
+    "samples": [
+      {
+        "t": 3011.0673685,
+        "wall": 1794157339.8939273,
+        "package_energy_j": 20576.6592629976,
+        "cpu_busy_seconds": 160.109375,
+        "cpu_percent": 8.3,
+        "ollama_pids": [
+          2512,
+          14568,
+          14736,
+          16796
+        ],
+        "ollama_io_bytes": 679255147,
+        "ollama_cpu_seconds": 405.890625,
+        "nic_bytes": 69548407,
+        "gpu_power_w": null,
+        "gpu_util_pct": null,
+        "gpu_energy_mj": null,
+        "gpu_energy_ts_ns": null
+      },
+      {
+        "t": 3011.6189825,
+        "wall": 1794157340.437546,
+        "package_energy_j": 20579.0785229988,
+        "cpu_busy_seconds": 160.671875,
+        "cpu_percent": 3.0,
+        "ollama_pids": [
+          2512,
+          14568,
+          14736,
+          16796
+        ],
+        "ollama_io_bytes": 679255147,
+        "ollama_cpu_seconds": 405.890625,
+        "nic_bytes": 69548407,
+        "gpu_power_w": null,
+        "gpu_util_pct": null,
+        "gpu_energy_mj": null,
+        "gpu_energy_ts_ns": null
+      },
+      {
+        "t": 3012.1635747,
+        "wall": 1794157340.9831076,
+        "package_energy_j": 20581.253478,
+        "cpu_busy_seconds": 160.796875,
+        "cpu_percent": 1.0,
+        "ollama_pids": [
+          2512,
+          14568,
+          14736,
+          16796
+        ],
+        "ollama_io_bytes": 679255147,
+        "ollama_cpu_seconds": 405.90625,
+        "nic_bytes": 69548408,
+        "gpu_power_w": null,
+        "gpu_util_pct": null,
+        "gpu_energy_mj": null,
+        "gpu_energy_ts_ns": null
+      },
+      {
+        "t": 3012.7090446,
+        "wall": 1794157341.5352082,
+        "package_energy_j": 20583.1377679968,
+        "cpu_busy_seconds": 160.859375,
+        "cpu_percent": 0.7,
+        "ollama_pids": [
+          2512,
+          14568,
+          14736,
+          16796
+        ],
+        "ollama_io_bytes": 679255147,
+        "ollama_cpu_seconds": 405.90625,
+        "nic_bytes": 69548933,
+        "gpu_power_w": null,
+        "gpu_util_pct": null,
+        "gpu_energy_mj": null,
+        "gpu_energy_ts_ns": null
+      },
+      {
+        "t": 3013.2712532,
+        "wall": 1794157342.0899484,
+        "package_energy_j": 20585.6710369992,
+        "cpu_busy_seconds": 161.171875,
+        "cpu_percent": 2.9,
+        "ollama_pids": [
+          2512,
+          14568,
+          14736,
+          16796
+        ],
+        "ollama_io_bytes": 679255147,
+        "ollama_cpu_seconds": 405.90625,
+        "nic_bytes": 69548976,
+        "gpu_power_w": null,
+        "gpu_util_pct": null,
+        "gpu_energy_mj": null,
+        "gpu_energy_ts_ns": null
+      }
+    ],
+    "power_w": [
+      {
+        "t_start": 3011.0673685,
+        "t_end": 3011.6189825,
+        "dt_s": 0.5516139999999723,
+        "de_j": 2.419260001199291,
+        "power_w": 4.385784264357707
+      },
+      {
+        "t_start": 3011.6189825,
+        "t_end": 3012.1635747,
+        "dt_s": 0.5445921999998973,
+        "de_j": 2.174955001199123,
+        "power_w": 3.993731458510668
+      },
+      {
+        "t_start": 3012.1635747,
+        "t_end": 3012.7090446,
+        "dt_s": 0.545469900000171,
+        "de_j": 1.8842899968003621,
+        "power_w": 3.4544344184707008
+      },
+      {
+        "t_start": 3012.7090446,
+        "t_end": 3013.2712532,
+        "dt_s": 0.562208599999849,
+        "de_j": 2.5332690024006297,
+        "power_w": 4.505923606293661
+      }
+    ],
+    "reason": ""
+  },
+  {
+    "block_id": "hf.co-sigmanih-Qwen-Qwen3-0.6B-GGUF-Q6_K-latest__ctrl-2__b01",
+    "t0_mono": 3552.2438634,
+    "t1_mono": 3555.1875156,
+    "n_samples": 6,
+    "samples": [
+      {
+        "t": 3552.2852624,
+        "wall": 1794157881.1072707,
+        "package_energy_j": 23455.997610998398,
+        "cpu_busy_seconds": 89.625,
+        "cpu_percent": 0.6,
+        "ollama_pids": [
+          2512,
+          14568,
+          14736,
+          16796
+        ],
+        "ollama_io_bytes": 681239581,
+        "ollama_cpu_seconds": 739.328125,
+        "nic_bytes": 69872638,
+        "gpu_power_w": null,
+        "gpu_util_pct": null,
+        "gpu_energy_mj": null,
+        "gpu_energy_ts_ns": null
+      },
+      {
+        "t": 3552.834366,
+        "wall": 1794157881.6588175,
+        "package_energy_j": 23457.9197209968,
+        "cpu_busy_seconds": 89.6875,
+        "cpu_percent": 0.7,
+        "ollama_pids": [
+          2512,
+          14568,
+          14736,
+          16796
+        ],
+        "ollama_io_bytes": 681239581,
+        "ollama_cpu_seconds": 739.328125,
+        "nic_bytes": 69872638,
+        "gpu_power_w": null,
+        "gpu_util_pct": null,
+        "gpu_energy_mj": null,
+        "gpu_energy_ts_ns": null
+      },
+      {
+        "t": 3553.380961,
+        "wall": 1794157882.2056594,
+        "package_energy_j": 23460.10407,
+        "cpu_busy_seconds": 89.78125,
+        "cpu_percent": 0.9,
+        "ollama_pids": [
+          2512,
+          14568,
+          14736,
+          16796
+        ],
+        "ollama_io_bytes": 681239581,
+        "ollama_cpu_seconds": 739.328125,
+        "nic_bytes": 69872638,
+        "gpu_power_w": null,
+        "gpu_util_pct": null,
+        "gpu_energy_mj": null,
+        "gpu_energy_ts_ns": null
+      },
+      {
+        "t": 3553.926887,
+        "wall": 1794157882.7512083,
+        "package_energy_j": 23462.1702619992,
+        "cpu_busy_seconds": 89.875,
+        "cpu_percent": 0.9,
+        "ollama_pids": [
+          2512,
+          14568,
+          14736,
+          16796
+        ],
+        "ollama_io_bytes": 681239581,
+        "ollama_cpu_seconds": 739.328125,
+        "nic_bytes": 69872638,
+        "gpu_power_w": null,
+        "gpu_util_pct": null,
+        "gpu_energy_mj": null,
+        "gpu_energy_ts_ns": null
+      },
+      {
+        "t": 3554.4729347,
+        "wall": 1794157883.2990212,
+        "package_energy_j": 23464.3213049976,
+        "cpu_busy_seconds": 89.96875,
+        "cpu_percent": 0.9,
+        "ollama_pids": [
+          2512,
+          14568,
+          14736,
+          16796
+        ],
+        "ollama_io_bytes": 681239581,
+        "ollama_cpu_seconds": 739.34375,
+        "nic_bytes": 69872638,
+        "gpu_power_w": null,
+        "gpu_util_pct": null,
+        "gpu_energy_mj": null,
+        "gpu_energy_ts_ns": null
+      },
+      {
+        "t": 3555.0187594,
+        "wall": 1794157883.8422642,
+        "package_energy_j": 23466.420802998,
+        "cpu_busy_seconds": 90.03125,
+        "cpu_percent": 0.9,
+        "ollama_pids": [
+          2512,
+          14568,
+          14736,
+          16796
+        ],
+        "ollama_io_bytes": 681239581,
+        "ollama_cpu_seconds": 739.359375,
+        "nic_bytes": 69872638,
+        "gpu_power_w": null,
+        "gpu_util_pct": null,
+        "gpu_energy_mj": null,
+        "gpu_energy_ts_ns": null
+      }
+    ],
+    "power_w": [
+      {
+        "t_start": 3552.2852624,
+        "t_end": 3552.834366,
+        "dt_s": 0.549103599999853,
+        "de_j": 1.9221099984024477,
+        "power_w": 3.50045054959203
+      },
+      {
+        "t_start": 3552.834366,
+        "t_end": 3553.380961,
+        "dt_s": 0.5465949999997974,
+        "de_j": 2.184349003200623,
+        "power_w": 3.996284274831333
+      },
+      {
+        "t_start": 3553.380961,
+        "t_end": 3553.926887,
+        "dt_s": 0.545926000000236,
+        "de_j": 2.066191999198054,
+        "power_w": 3.784747381874395
+      },
+      {
+        "t_start": 3553.926887,
+        "t_end": 3554.4729347,
+        "dt_s": 0.5460477000001447,
+        "de_j": 2.1510429984009534,
+        "power_w": 3.9392950440050996
+      },
+      {
+        "t_start": 3554.4729347,
+        "t_end": 3555.0187594,
+        "dt_s": 0.5458246999996845,
+        "de_j": 2.0994980003997625,
+        "power_w": 3.8464693891664776
+      }
+    ],
+    "reason": ""
+  },
+  {
+    "block_id": "hf.co-sigmanih-Qwen-Qwen3-0.6B-GGUF-Q6_K-latest__ctrl-3__b01",
+    "t0_mono": 4100.4068844,
+    "t1_mono": 4103.3580703,
+    "n_samples": 5,
+    "samples": [
+      {
+        "t": 4100.742993,
+        "wall": 1794158429.5669622,
+        "package_energy_j": 26423.443504998,
+        "cpu_busy_seconds": 89.1875,
+        "cpu_percent": 0.9,
+        "ollama_pids": [
+          2512,
+          14568,
+          14736,
+          16796
+        ],
+        "ollama_io_bytes": 683224291,
+        "ollama_cpu_seconds": 1071.984375,
+        "nic_bytes": 70456831,
+        "gpu_power_w": null,
+        "gpu_util_pct": null,
+        "gpu_energy_mj": null,
+        "gpu_energy_ts_ns": null
+      },
+      {
+        "t": 4101.2897194,
+        "wall": 1794158430.112949,
+        "package_energy_j": 26425.417830998398,
+        "cpu_busy_seconds": 89.28125,
+        "cpu_percent": 0.9,
+        "ollama_pids": [
+          2512,
+          14568,
+          14736,
+          16796
+        ],
+        "ollama_io_bytes": 683224291,
+        "ollama_cpu_seconds": 1071.984375,
+        "nic_bytes": 70456831,
+        "gpu_power_w": null,
+        "gpu_util_pct": null,
+        "gpu_energy_mj": null,
+        "gpu_energy_ts_ns": null
+      },
+      {
+        "t": 4101.8353123,
+        "wall": 1794158430.659303,
+        "package_energy_j": 26427.3895949976,
+        "cpu_busy_seconds": 89.375,
+        "cpu_percent": 0.9,
+        "ollama_pids": [
+          2512,
+          14568,
+          14736,
+          16796
+        ],
+        "ollama_io_bytes": 683224291,
+        "ollama_cpu_seconds": 1071.984375,
+        "nic_bytes": 70456831,
+        "gpu_power_w": null,
+        "gpu_util_pct": null,
+        "gpu_energy_mj": null,
+        "gpu_energy_ts_ns": null
+      },
+      {
+        "t": 4102.3805465,
+        "wall": 1794158431.2034235,
+        "package_energy_j": 26429.4782959968,
+        "cpu_busy_seconds": 89.453125,
+        "cpu_percent": 0.7,
+        "ollama_pids": [
+          2512,
+          14568,
+          14736,
+          16796
+        ],
+        "ollama_io_bytes": 683224291,
+        "ollama_cpu_seconds": 1071.984375,
+        "nic_bytes": 70456831,
+        "gpu_power_w": null,
+        "gpu_util_pct": null,
+        "gpu_energy_mj": null,
+        "gpu_energy_ts_ns": null
+      },
+      {
+        "t": 4102.92732,
+        "wall": 1794158431.752369,
+        "package_energy_j": 26431.5593109996,
+        "cpu_busy_seconds": 89.546875,
+        "cpu_percent": 0.9,
+        "ollama_pids": [
+          2512,
+          14568,
+          14736,
+          16796
+        ],
+        "ollama_io_bytes": 683224291,
+        "ollama_cpu_seconds": 1072.0,
+        "nic_bytes": 70456831,
+        "gpu_power_w": null,
+        "gpu_util_pct": null,
+        "gpu_energy_mj": null,
+        "gpu_energy_ts_ns": null
+      }
+    ],
+    "power_w": [
+      {
+        "t_start": 4100.742993,
+        "t_end": 4101.2897194,
+        "dt_s": 0.5467263999998977,
+        "de_j": 1.974326000399742,
+        "power_w": 3.6111773647662004
+      },
+      {
+        "t_start": 4101.2897194,
+        "t_end": 4101.8353123,
+        "dt_s": 0.5455928999999742,
+        "de_j": 1.9717639992013574,
+        "power_w": 3.6139839781665977
+      },
+      {
+        "t_start": 4101.8353123,
+        "t_end": 4102.3805465,
+        "dt_s": 0.545234199999868,
+        "de_j": 2.0887009992002277,
+        "power_w": 3.830832693915263
+      },
+      {
+        "t_start": 4102.3805465,
+        "t_end": 4102.92732,
+        "dt_s": 0.5467735000001994,
+        "de_j": 2.0810150028009957,
+        "power_w": 3.8059909684727526
+      }
+    ],
+    "reason": ""
+  },
+  {
+    "block_id": "hf.co-sigmanih-Qwen-Qwen3-0.6B-GGUF-Q6_K-latest__ctrl-4__b01",
+    "t0_mono": 4649.6337227,
+    "t1_mono": 4652.5780879,
+    "n_samples": 6,
+    "samples": [
+      {
+        "t": 4649.6751984,
+        "wall": 1794158978.4958355,
+        "package_energy_j": 29332.223014996798,
+        "cpu_busy_seconds": 93.53125,
+        "cpu_percent": 1.5,
+        "ollama_pids": [
+          2512,
+          14568,
+          14736,
+          16796
+        ],
+        "ollama_io_bytes": 685208726,
+        "ollama_cpu_seconds": 1400.8125,
+        "nic_bytes": 70815653,
+        "gpu_power_w": null,
+        "gpu_util_pct": null,
+        "gpu_energy_mj": null,
+        "gpu_energy_ts_ns": null
+      },
+      {
+        "t": 4650.2181088,
+        "wall": 1794158979.0410051,
+        "package_energy_j": 29334.2719439988,
+        "cpu_busy_seconds": 93.59375,
+        "cpu_percent": 0.7,
+        "ollama_pids": [
+          2512,
+          14568,
+          14736,
+          16796
+        ],
+        "ollama_io_bytes": 685208726,
+        "ollama_cpu_seconds": 1400.8125,
+        "nic_bytes": 70815653,
+        "gpu_power_w": null,
+        "gpu_util_pct": null,
+        "gpu_energy_mj": null,
+        "gpu_energy_ts_ns": null
+      },
+      {
+        "t": 4650.7635712,
+        "wall": 1794158979.5863798,
+        "package_energy_j": 29336.238034999198,
+        "cpu_busy_seconds": 93.71875,
+        "cpu_percent": 1.1,
+        "ollama_pids": [
+          2512,
+          14568,
+          14736,
+          16796
+        ],
+        "ollama_io_bytes": 685208726,
+        "ollama_cpu_seconds": 1400.8125,
+        "nic_bytes": 70815653,
+        "gpu_power_w": null,
+        "gpu_util_pct": null,
+        "gpu_energy_mj": null,
+        "gpu_energy_ts_ns": null
+      },
+      {
+        "t": 4651.3090336,
+        "wall": 1794158980.1324098,
+        "package_energy_j": 29338.1725889988,
+        "cpu_busy_seconds": 93.796875,
+        "cpu_percent": 0.7,
+        "ollama_pids": [
+          2512,
+          14568,
+          14736,
+          16796
+        ],
+        "ollama_io_bytes": 685208726,
+        "ollama_cpu_seconds": 1400.8125,
+        "nic_bytes": 70815653,
+        "gpu_power_w": null,
+        "gpu_util_pct": null,
+        "gpu_energy_mj": null,
+        "gpu_energy_ts_ns": null
+      },
+      {
+        "t": 4651.8686925,
+        "wall": 1794158980.6915002,
+        "package_energy_j": 29340.1480129992,
+        "cpu_busy_seconds": 93.875,
+        "cpu_percent": 0.7,
+        "ollama_pids": [
+          2512,
+          14568,
+          14736,
+          16796
+        ],
+        "ollama_io_bytes": 685208726,
+        "ollama_cpu_seconds": 1400.8125,
+        "nic_bytes": 70815751,
+        "gpu_power_w": null,
+        "gpu_util_pct": null,
+        "gpu_energy_mj": null,
+        "gpu_energy_ts_ns": null
+      },
+      {
+        "t": 4652.4139235,
+        "wall": 1794158981.236171,
+        "package_energy_j": 29341.9900299996,
+        "cpu_busy_seconds": 93.953125,
+        "cpu_percent": 0.7,
+        "ollama_pids": [
+          2512,
+          14568,
+          14736,
+          16796
+        ],
+        "ollama_io_bytes": 685208726,
+        "ollama_cpu_seconds": 1400.8125,
+        "nic_bytes": 70815751,
+        "gpu_power_w": null,
+        "gpu_util_pct": null,
+        "gpu_energy_mj": null,
+        "gpu_energy_ts_ns": null
+      }
+    ],
+    "power_w": [
+      {
+        "t_start": 4649.6751984,
+        "t_end": 4650.2181088,
+        "dt_s": 0.5429103999995277,
+        "de_j": 2.048929002001387,
+        "power_w": 3.7739726518467305
+      },
+      {
+        "t_start": 4650.2181088,
+        "t_end": 4650.7635712,
+        "dt_s": 0.5454624000003605,
+        "de_j": 1.9660910003985919,
+        "power_w": 3.604448263340044
+      },
+      {
+        "t_start": 4650.7635712,
+        "t_end": 4651.3090336,
+        "dt_s": 0.545462399999451,
+        "de_j": 1.9345539996029402,
+        "power_w": 3.5466312611188
+      },
+      {
+        "t_start": 4651.3090336,
+        "t_end": 4651.8686925,
+        "dt_s": 0.5596589000006134,
+        "de_j": 1.9754240004003805,
+        "power_w": 3.5296928189620775
+      },
+      {
+        "t_start": 4651.8686925,
+        "t_end": 4652.4139235,
+        "dt_s": 0.545231000000058,
+        "de_j": 1.8420170003992098,
+        "power_w": 3.378415754788363
+      }
+    ],
+    "reason": ""
+  },
+  {
+    "block_id": "hf.co-sigmanih-Qwen-Qwen3-0.6B-GGUF-Q6_K-latest__ctrl-5__b01",
+    "t0_mono": 5201.3197411,
+    "t1_mono": 5204.2618042,
+    "n_samples": 6,
+    "samples": [
+      {
+        "t": 5201.4696873,
+        "wall": 1794159530.2859514,
+        "package_energy_j": 32203.358326998,
+        "cpu_busy_seconds": 88.65625,
+        "cpu_percent": 0.7,
+        "ollama_pids": [
+          2512,
+          14568,
+          14736,
+          16796
+        ],
+        "ollama_io_bytes": 687193437,
+        "ollama_cpu_seconds": 1733.484375,
+        "nic_bytes": 70880399,
+        "gpu_power_w": null,
+        "gpu_util_pct": null,
+        "gpu_energy_mj": null,
+        "gpu_energy_ts_ns": null
+      },
+      {
+        "t": 5202.017241,
+        "wall": 1794159530.834193,
+        "package_energy_j": 32205.332043,
+        "cpu_busy_seconds": 88.71875,
+        "cpu_percent": 0.6,
+        "ollama_pids": [
+          2512,
+          14568,
+          14736,
+          16796
+        ],
+        "ollama_io_bytes": 687193437,
+        "ollama_cpu_seconds": 1733.484375,
+        "nic_bytes": 70880399,
+        "gpu_power_w": null,
+        "gpu_util_pct": null,
+        "gpu_energy_mj": null,
+        "gpu_energy_ts_ns": null
+      },
+      {
+        "t": 5202.5625391,
+        "wall": 1794159531.379366,
+        "package_energy_j": 32207.510901999598,
+        "cpu_busy_seconds": 88.75,
+        "cpu_percent": 0.4,
+        "ollama_pids": [
+          2512,
+          14568,
+          14736,
+          16796
+        ],
+        "ollama_io_bytes": 687193437,
+        "ollama_cpu_seconds": 1733.5,
+        "nic_bytes": 70880399,
+        "gpu_power_w": null,
+        "gpu_util_pct": null,
+        "gpu_energy_mj": null,
+        "gpu_energy_ts_ns": null
+      },
+      {
+        "t": 5203.0952424,
+        "wall": 1794159531.91136,
+        "package_energy_j": 32209.518655998,
+        "cpu_busy_seconds": 88.875,
+        "cpu_percent": 1.0,
+        "ollama_pids": [
+          2512,
+          14568,
+          14736,
+          16796
+        ],
+        "ollama_io_bytes": 687193437,
+        "ollama_cpu_seconds": 1733.5,
+        "nic_bytes": 70880400,
+        "gpu_power_w": null,
+        "gpu_util_pct": null,
+        "gpu_energy_mj": null,
+        "gpu_energy_ts_ns": null
+      },
+      {
+        "t": 5203.6421538,
+        "wall": 1794159532.464403,
+        "package_energy_j": 32211.4666909968,
+        "cpu_busy_seconds": 88.9375,
+        "cpu_percent": 0.6,
+        "ollama_pids": [
+          2512,
+          14568,
+          14736,
+          16796
+        ],
+        "ollama_io_bytes": 687193437,
+        "ollama_cpu_seconds": 1733.515625,
+        "nic_bytes": 70880401,
+        "gpu_power_w": null,
+        "gpu_util_pct": null,
+        "gpu_energy_mj": null,
+        "gpu_energy_ts_ns": null
+      },
+      {
+        "t": 5204.1890395,
+        "wall": 1794159533.0110385,
+        "package_energy_j": 32213.5380069984,
+        "cpu_busy_seconds": 88.984375,
+        "cpu_percent": 0.4,
+        "ollama_pids": [
+          2512,
+          14568,
+          14736,
+          16796
+        ],
+        "ollama_io_bytes": 687193437,
+        "ollama_cpu_seconds": 1733.53125,
+        "nic_bytes": 70880401,
+        "gpu_power_w": null,
+        "gpu_util_pct": null,
+        "gpu_energy_mj": null,
+        "gpu_energy_ts_ns": null
+      }
+    ],
+    "power_w": [
+      {
+        "t_start": 5201.4696873,
+        "t_end": 5202.017241,
+        "dt_s": 0.5475536999992983,
+        "de_j": 1.9737160019976727,
+        "power_w": 3.6046071864735865
+      },
+      {
+        "t_start": 5202.017241,
+        "t_end": 5202.5625391,
+        "dt_s": 0.545298100000764,
+        "de_j": 2.17885899959947,
+        "power_w": 3.9957208719348505
+      },
+      {
+        "t_start": 5202.5625391,
+        "t_end": 5203.0952424,
+        "dt_s": 0.5327032999994117,
+        "de_j": 2.007753998401313,
+        "power_w": 3.768991103309347
+      },
+      {
+        "t_start": 5203.0952424,
+        "t_end": 5203.6421538,
+        "dt_s": 0.5469114000006812,
+        "de_j": 1.948034998800722,
+        "power_w": 3.5618840616565968
+      },
+      {
+        "t_start": 5203.6421538,
+        "t_end": 5204.1890395,
+        "dt_s": 0.5468856999996206,
+        "de_j": 2.0713160015984613,
+        "power_w": 3.787475155411631
+      }
+    ],
+    "reason": ""
+  },
+  {
+    "block_id": "hf.co-sigmanih-Qwen-Qwen3-0.6B-GGUF-Q6_K-latest__ctrl-6__b01",
+    "t0_mono": 5741.8472385,
+    "t1_mono": 5744.7908382,
+    "n_samples": 6,
+    "samples": [
+      {
+        "t": 5741.9839145,
+        "wall": 1794160070.7995956,
+        "package_energy_j": 35023.6741729968,
+        "cpu_busy_seconds": 85.890625,
+        "cpu_percent": 0.6,
+        "ollama_pids": [
+          2512,
+          14568,
+          14736,
+          16796
+        ],
+        "ollama_io_bytes": 689177871,
+        "ollama_cpu_seconds": 2064.78125,
+        "nic_bytes": 70988888,
+        "gpu_power_w": null,
+        "gpu_util_pct": null,
+        "gpu_energy_mj": null,
+        "gpu_energy_ts_ns": null
+      },
+      {
+        "t": 5742.5312247,
+        "wall": 1794160071.348009,
+        "package_energy_j": 35025.7614099984,
+        "cpu_busy_seconds": 85.96875,
+        "cpu_percent": 0.7,
+        "ollama_pids": [
+          2512,
+          14568,
+          14736,
+          16796
+        ],
+        "ollama_io_bytes": 689177871,
+        "ollama_cpu_seconds": 2064.78125,
+        "nic_bytes": 70988888,
+        "gpu_power_w": null,
+        "gpu_util_pct": null,
+        "gpu_energy_mj": null,
+        "gpu_energy_ts_ns": null
+      },
+      {
+        "t": 5743.0811963,
+        "wall": 1794160071.8977206,
+        "package_energy_j": 35027.7606239976,
+        "cpu_busy_seconds": 86.0625,
+        "cpu_percent": 0.7,
+        "ollama_pids": [
+          2512,
+          14568,
+          14736,
+          16796
+        ],
+        "ollama_io_bytes": 689177871,
+        "ollama_cpu_seconds": 2064.78125,
+        "nic_bytes": 70988888,
+        "gpu_power_w": null,
+        "gpu_util_pct": null,
+        "gpu_energy_mj": null,
+        "gpu_energy_ts_ns": null
+      },
+      {
+        "t": 5743.6228683,
+        "wall": 1794160072.447093,
+        "package_energy_j": 35029.80144,
+        "cpu_busy_seconds": 86.125,
+        "cpu_percent": 0.7,
+        "ollama_pids": [
+          2512,
+          14568,
+          14736,
+          16796
+        ],
+        "ollama_io_bytes": 689177871,
+        "ollama_cpu_seconds": 2064.78125,
+        "nic_bytes": 70988889,
+        "gpu_power_w": null,
+        "gpu_util_pct": null,
+        "gpu_energy_mj": null,
+        "gpu_energy_ts_ns": null
+      },
+      {
+        "t": 5744.1703705,
+        "wall": 1794160072.990451,
+        "package_energy_j": 35031.8783679984,
+        "cpu_busy_seconds": 86.171875,
+        "cpu_percent": 0.4,
+        "ollama_pids": [
+          2512,
+          14568,
+          14736,
+          16796
+        ],
+        "ollama_io_bytes": 689177871,
+        "ollama_cpu_seconds": 2064.78125,
+        "nic_bytes": 70988890,
+        "gpu_power_w": null,
+        "gpu_util_pct": null,
+        "gpu_energy_mj": null,
+        "gpu_energy_ts_ns": null
+      },
+      {
+        "t": 5744.7178853,
+        "wall": 1794160073.5394187,
+        "package_energy_j": 35033.7833979984,
+        "cpu_busy_seconds": 86.25,
+        "cpu_percent": 0.7,
+        "ollama_pids": [
+          2512,
+          14568,
+          14736,
+          16796
+        ],
+        "ollama_io_bytes": 689177871,
+        "ollama_cpu_seconds": 2064.796875,
+        "nic_bytes": 70988890,
+        "gpu_power_w": null,
+        "gpu_util_pct": null,
+        "gpu_energy_mj": null,
+        "gpu_energy_ts_ns": null
+      }
+    ],
+    "power_w": [
+      {
+        "t_start": 5741.9839145,
+        "t_end": 5742.5312247,
+        "dt_s": 0.5473102000005383,
+        "de_j": 2.0872370016004425,
+        "power_w": 3.8136270831393047
+      },
+      {
+        "t_start": 5742.5312247,
+        "t_end": 5743.0811963,
+        "dt_s": 0.5499715999994805,
+        "de_j": 1.999213999202766,
+        "power_w": 3.6351222485027486
+      },
+      {
+        "t_start": 5743.0811963,
+        "t_end": 5743.6228683,
+        "dt_s": 0.5416720000002897,
+        "de_j": 2.040816002401698,
+        "power_w": 3.767623215526382
+      },
+      {
+        "t_start": 5743.6228683,
+        "t_end": 5744.1703705,
+        "dt_s": 0.5475022000000536,
+        "de_j": 2.0769279983942397,
+        "power_w": 3.7934605530243286
+      },
+      {
+        "t_start": 5744.1703705,
+        "t_end": 5744.7178853,
+        "dt_s": 0.5475147999995897,
+        "de_j": 1.905030000001716,
+        "power_w": 3.4794127939612656
+      }
+    ],
+    "reason": ""
+  }
+]
