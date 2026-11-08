@@ -2501,6 +2501,17 @@ def run_v4_benchmark(
     l'argomento: nessuna soglia, seed, struttura di blocco o schema CSV
     cambia. Il valore e' propagato cosi' com'e', non ricalcolato.
 
+    Percorso del blocco di controllo (P4.4): ``control`` e' **derivato** da
+    ``block_kind == "control"``, non passata come parametro. La deriva e' la
+    scelta piu' piccola e aggiunge un vincolo di coerenza: non esiste
+    invocazione che dichiari un'etichetta di controllo e spedisca richieste,
+    ne' l'inverso -- il difetto che questa riga chiude e' esattamente quella
+    combinazione. Con ogni altro valore di ``block_kind`` la deriva vale
+    ``False`` e il percorso e' identico a prima. ``m``, ``num_predict`` e
+    ``use_nonce`` su un blocco derivato in controllo sono inerti per
+    costruzione (requisito 5: nessuna richiesta) e non vanno passati come se
+    operassero.
+
     Emenda 8 (P1.6) -- sostituzione del blocco invalidato. I piani dei blocchi
     (modello x punto x k) diventano una LISTA PIATTA eseguita con un cursore,
     perche' la posizione del sostituto deve poter cadere fra i blocchi che
@@ -2673,6 +2684,7 @@ def run_v4_benchmark(
                     block_attempt=attempt,
                     replaced_block_id=str(entry["replaced"]),
                     use_nonce=use_nonce,
+                    control=(block_kind == "control"),
                 )
             except V4CounterFault as fault:
                 # Emenda 8 (P1.6): prima occorrenza -> invalidazione senza
