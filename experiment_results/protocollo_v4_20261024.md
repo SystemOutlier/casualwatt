@@ -172,6 +172,69 @@ descrittive). Suite del 2026-11-08 su HEAD `dff422107`:
 nessuna soglia, nessun valore congelato modificato; la seconda campagna non è
 ancora eseguita e nessuna riga è `validated`.
 
+**Quattordicesima emenda, di disegno della terza campagna (2026-11-08)**:
+la seconda campagna è stata eseguita il 2026-11-08 in ambiente quieto e il
+verdetto è **fail** (`bias_w = 0,125171 W > mediana_c(budget_base_w,c) =
+0,117995 W`, +6,1%; 6/6 controlli utilizzabili, quorum 4 raggiunto; artefatti
+congelati in `experiment_results/p44_gate_20261108/`, confronto datato in
+`experiment_results/confronto_campagne_p44_20261108.md`). La quiete è
+verificata, non presunta: 12 blocchi su 12 partiti dopo 3 letture consecutive
+con `background_load=False` (attesa 9,0 s ciascuno), flag prima/dopo `False`
+su tutti i controlli. Il bias scende del 73,9% rispetto alla prima campagna
+(0,4796 W → 0,1252 W) ma la soglia si stringe del 55,0% (0,2623 W → 0,1180 W):
+una macchina quieta produce `pre_range_w` piccoli e quindi budget stretti.
+L'intervallo al 95% fra blocchi `[−0,113; +0,363] W` contiene lo zero, ma F.12
+non è un test di significatività e il verdetto resta quello del criterio
+congelato. La condizione della decisione 6, registrata al punto 8 della
+Tredicesima («solo se anche la seconda campagna fallisce in ambiente
+quieto»), è quindi **verificata**.
+
+1. **Adozione della decisione 6 nella forma minima.** Il disegno della terza
+   campagna passa da 6 a **12 coppie** (24 blocchi, un blocco per
+   invocazione); il quorum sale a `ceil(2/3 · 12) = 8` per l'aritmetica esatta
+   già congelata di `control_gate.quorum_for`. **Nulla altro cambia**:
+   `dt_nominal_s = 2,930748 s` resta congelata dal pilota P2.9 (requisito 5),
+   geometria `(12,32)`, modello, seme `gate-seed-20261107`, ordine
+   carico-primo, precondizione di quiete (3 letture, tetto 600 s), criterio
+   F.12 e soglie. È la forma scelta dall'utente fra quelle proposte: più
+   coppie, stessa durata della finestra passiva.
+2. **La revisione della scala dei tempi è documentata, non adottata.** Il
+   confronto datato registra il punto: il budget deriva da finestre idle di
+   30 s mentre la finestra di controllo dura 2,93 s, e il fail della seconda
+   campagna è strutturale anche ipoteticamente senza ctrl-1 (il transitorio
+   termico che pesa il 75,3% del numeratore del bias): 0,0371 W contro
+   mediana 0,0332 W, ancora fail. Cambiare la scala dei tempi significherebbe
+   una nuova `dt_nominal_s` e un nuovo disegno: non si fa in questa emenda,
+   resta un punto aperto che richiede evidenza e una decisione separata.
+3. **Parametrizzazione del tool, neutra a default.** `--pairs` è un parametro
+   come `--date` e `--seed` (commit `6bf5dbf86`): default 6, il disegno delle
+   prime due campagne, quindi nulla cambia per chi non lo passa. Il piano
+   congela `n_coppie`/`n_blocchi` e `_verifica_piano` rifiuta un execute il
+   cui `--pairs` diverge dal piano dichiarato, in entrambe le direzioni,
+   prima di misurare. I testi dichiarati del piano (check A, invocazioni,
+   deviazioni) e l'intestazione del report derivano dai conteggi.
+   `benchmark_v4.py` non è toccato: il suo SHA-256 resta
+   `99846365de073fa112a1594b5659d73d393a86ddf6cca3e196467a25f7881ee0`.
+4. **Terza campagna e obbligo di riportarla qualunque sia l'esito.** Vale
+   l'obbligo della Tredicesima, punto 6: tutte le campagne si riportano,
+   anche la terza. Non esiste un impegno a una quarta campagna automatica:
+   un ulteriore fail in quiete con 12 coppie sarebbe un esito da registrare
+   e da discutere, non da ripetere. Il piano della terza campagna precede i
+   dati (`plan --date <giorno del run> --pairs 12`) e si verifica prima di
+   misurare; la data del 2026-11-08 è occupata dalla seconda campagna e non
+   si riusa.
+
+Tracciabilità: il punto di codice entra con `6bf5dbf86`; evidenza **14** node
+id nuovi in `tests/test_pairs_gate_p44.py` (neutralità del default, disegno a
+24 blocchi con stessa `dt_nominal_s` e chiavi di quiete, rifiuto del piano
+discorde in entrambe le direzioni e percorso `main` → codice 3, rifiuto dei
+non conteggi, quorum 12 → 8, intestazione del report derivata, end-to-end a
+24 invocazioni con verdetto F.12 e quorum 8). Suite del 2026-11-08:
+`py -m pytest cwEnergyModular -q` → **1063 passati, 4 saltati, 0 falliti**
+(17,46 s; i 4 salti sono i 3 RAPL e il modulo ecologits). Nessuna formula,
+nessuna soglia, nessun valore congelato modificato; la terza campagna non è
+ancora eseguita e nessuna riga è `validated`.
+
 **Nove difetti dichiarati nel testo congelato, tutti chiusi.** Quattro registrati
 il 2026-10-24, un quinto emerso il 2026-10-25 verificando gli ancoraggi del
 secondo turno, quattro registrati e chiusi il 2026-10-25 nel terzo turno. Trovati
