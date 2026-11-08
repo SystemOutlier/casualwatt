@@ -2936,6 +2936,15 @@ def run_v4_benchmark(
         summary["metadata_error"] = f"{type(exc).__name__}: {exc}"
         log(f"[AVVISO] run metadata non scritti: {summary['metadata_error']}")
     summary["runtime"] = runtime
+    # P1.4: il flag di carico background e' gia' calcolato in
+    # machine_before/machine_after e gia' nelle notes; qui si espone nel
+    # riepilogo (modifica minima del 2026-11-08) perche' il chiamante lo
+    # legga come campo, non parsando la stringa delle notes. Stato non
+    # rilevato (run prima del primo blocco, o probe finale fallito) ->
+    # None: dichiarato, non inventato. Lo schema P5 non si muove: sono
+    # chiavi del riepilogo in memoria, non colonne del CSV.
+    summary["background_load_before"] = machine_before.get("background_load")
+    summary["background_load_after"] = machine_after.get("background_load")
     if failure is not None:
         raise failure
     return summary
