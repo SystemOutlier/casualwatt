@@ -671,6 +671,8 @@ def cmd_execute(model: str) -> Dict:
                 "quiet_wait_s": quiet["quiet_wait_s"],
                 "quiet_letture": quiet["quiet_letture"],
                 "quiet_top_processes": quiet["top_processes"],
+                "background_load_before": summary.get("background_load_before"),
+                "background_load_after": summary.get("background_load_after"),
             }
             runs.append(run_rec)
             if summary.get("errors"):

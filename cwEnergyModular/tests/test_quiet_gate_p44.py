@@ -320,3 +320,95 @@ def test_execute_registra_quiete_per_ogni_blocco(monkeypatch, tmp_path):
     assert "## Precondizione di quiete" in report
     assert "carico-1 (load): attesa=" in report
     assert "controllo-6 (control): attesa=" in report
+
+
+# ---------------------------------------------------------------------------
+# 3. il runner espone il flag P1.4 nel riepilogo (modifica minima)
+# ---------------------------------------------------------------------------
+def _run_un_blocco(monkeypatch, tmp_path, nome="flag"):
+    """Un blocco di carico minimo con l'harness e2e: il riepilogo che
+    run_v4_benchmark restituisce e' quello vero, falsi solo motore,
+    sessione e stato macchina."""
+    import benchmark_v4 as v4
+    from test_gate_p44_end_to_end import _installa
+    _installa(monkeypatch)
+    return v4.run_v4_benchmark(
+        ["m-test"], [{"id": "p1", "text": "domanda", "answer_type": "auto",
+                      "source": "test"}],
+        m=2, num_predict=2, blocks_per_point=1, batch_id=nome,
+        max_invalidated_blocks=1, substitution_seed=nome,
+        results_path=tmp_path / f"rows_{nome}.csv",
+        block_summary_path=tmp_path / f"blocks_{nome}.csv")
+
+
+def test_runner_espone_background_load_nel_riepilogo(monkeypatch, tmp_path):
+    """Le due chiavi arrivano da machine_before/machine_after, gia'
+    calcolati: il chiamante le legge come campo, non parsando le notes.
+    Con lo stato macchina finto (quieto) sono False prima e dopo."""
+    summary = _run_un_blocco(monkeypatch, tmp_path)
+    assert summary["background_load_before"] is False
+    assert summary["background_load_after"] is False
+
+
+def test_runner_flag_true_prima_del_blocco(monkeypatch, tmp_path):
+    """Il flag dice cio' che P1.4 ha misurato: macchina carica prima del
+    blocco -> True. Il gate del 2026-11-07 aveva 5 controlli su 6 cosi',
+    e il tool poteva leggerlo solo dalla stringa delle notes."""
+    import benchmark_v4 as v4
+    from test_gate_p44_end_to_end import _installa
+    _installa(monkeypatch)
+    monkeypatch.setattr(
+        v4, "prepare_machine_state",
+        lambda **kw: {"power": {}, "top_processes": [],
+                      "cpu_samples_pct": [20.0], "background_load": True,
+                      "sampler_interval_s": 0.5})
+    summary = v4.run_v4_benchmark(
+        ["m-test"], [{"id": "p1", "text": "domanda", "answer_type": "auto",
+                      "source": "test"}],
+        m=2, num_predict=2, blocks_per_point=1, batch_id="carico",
+        max_invalidated_blocks=1, substitution_seed="carico",
+        results_path=tmp_path / "rows.csv",
+        block_summary_path=tmp_path / "blocks.csv")
+    assert summary["background_load_before"] is True
+    assert summary["background_load_after"] is False
+
+
+def test_runner_flag_none_quando_stato_non_rilevato(monkeypatch, tmp_path):
+    """Probe finale fallito -> machine_after resta vuoto: la chiave e'
+    None (non rilevato), non False. Un False affermerebbe una quiete che
+    non e' stata misurata; il run resta valido e l'errore e' dichiarato
+    nelle notes, come prima della modifica."""
+    import benchmark_v4 as v4
+    from test_gate_p44_end_to_end import _installa
+    _installa(monkeypatch)
+
+    def probe_rotto(**kw):
+        raise RuntimeError("probe guasto")
+
+    monkeypatch.setattr(v4, "probe_machine_state_after", probe_rotto)
+    summary = v4.run_v4_benchmark(
+        ["m-test"], [{"id": "p1", "text": "domanda", "answer_type": "auto",
+                      "source": "test"}],
+        m=2, num_predict=2, blocks_per_point=1, batch_id="nonrilevato",
+        max_invalidated_blocks=1, substitution_seed="nonrilevato",
+        results_path=tmp_path / "rows.csv",
+        block_summary_path=tmp_path / "blocks.csv")
+    assert summary["background_load_before"] is False
+    assert summary["background_load_after"] is None
+    assert summary["errors"] == 0
+
+
+def test_execute_registra_background_load_per_blocco(monkeypatch, tmp_path):
+    """Il tool registra i due flag in runs — e quindi nel freeze — per
+    tutti i dodici blocchi: la tabella del report li legge da li', non
+    dalla stringa delle notes."""
+    from test_gate_p44_end_to_end import _esegui_gate
+    analysis, _spediti, _targets = _esegui_gate(monkeypatch, tmp_path)
+    assert len(analysis["runs"]) == 12
+    for r in analysis["runs"]:
+        assert r["background_load_before"] is False
+        assert r["background_load_after"] is False
+    freeze = json.loads(
+        (rg.ARCHIVE_DIR / rg.FREEZE_NAME).read_text(encoding="utf-8"))
+    assert all("background_load_before" in r and "background_load_after" in r
+               for r in freeze["runs"])
