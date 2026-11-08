@@ -26,6 +26,61 @@ non disallinea i CSV già scritti. La suite prescritta, eseguita il 2026-11-02 c
 **3 saltati** (RAPL non disponibile su Windows). Nessuna formula, soglia o disegno è
 stato modificato.
 
+**Dodicesima emenda, di sola dichiarazione e di provenienza (2026-11-08)**: la
+verifica pre-esecuzione del gate P4.4 — condotta sul disegno del tool
+`tools/run_gate_p44.py` prima di qualsiasi misura, come richiede il requisito 5 —
+trova **quattro** difetti, tutti di orchestrazione o di interfaccia, nessuno di
+formula o di soglia. Sono registrati qui perché la loro correzione tocca il
+percorso di misura, e il percorso di misura si tocca solo con emendamento
+dichiarato.
+
+1. **`pair_id` spaiato.** Il tool eseguiva sei invocazioni da due blocchi con
+   `blocks_per_point=2`: le righe di una coppia uscivano sotto `pair_id` assente,
+   perché l'argomento è uno solo per invocazione e non può distinguere i due
+   bracci. Disegno corretto: **dodici invocazioni di `run_v4_benchmark`, una per
+   blocco**, `blocks_per_point=1`, `pair_id='pair-<coppia>'`, ordine
+   carico-primo per coppia (dichiarato, non randomizzato; il seme del disegno
+   `gate-seed-20261107` resta).
+2. **Cooldown intra-coppia non propagato.** Fra due invocazioni separate il
+   `last_pre_w` del runner riparteva a zero, quindi il blocco di controllo non
+   faceva il cooldown verso la `P_pre` del carico della stessa coppia. Chiuso con
+   l'argomento `initial_last_pre_w` del runner (commit `80990cdef`), alimentato
+   dal tool con l'ultima `baseline_pre_w` scritta; se la propagazione manca il
+   tool **si ferma prima di proseguire**. Dichiarazione esplicita: il cooldown
+   intra-coppia è una **scelta operativa** del tool, non un requisito di P4.4 —
+   il requisito 7 vincola la struttura di baseline (3 pre + 3 post su entrambi i
+   bracci), non il cooldown.
+3. **Percorso di controllo mai attivato.** Il runner accettava
+   `block_kind='control'` ma non passava `control` a `run_block`, quindi un
+   blocco etichettato controllo spediva comunque `m` richieste: il gate avrebbe
+   misurato carico dichiarando di non averlo inviato. Corretto con la forma più
+   piccola approvata dalla deroga scritta del 2026-11-08: **derivazione**
+   `control=(block_kind == "control")` nell'unico punto di chiamata
+   (commit `b0ded5b23`), così etichetta e percorso non possono divergere per
+   costruzione. Conseguenza dichiarata sui parametri: su un blocco di controllo
+   `m`, `num_predict` e `use_nonce` sono **inerti** (le richieste sono
+   `range(0)` per requisito 5) e il tool **non li passa**; passarli fingerebbe
+   che operino.
+4. **Lacuna fra il riepilogo del runner e la lettura del gate** (emersa
+   costruendo il test end-to-end, non durante una misura): `control_e_net_j`,
+   `control_dt_w_s` e `control_package_window_source` non hanno colonna nello
+   schema P5 congelato (`BLOCK_SUMMARY_COLUMNS` resta a 36 nomi di blocco), e
+   `export_summary_csv` li scarta con `extrasaction='ignore'`. Un tool che
+   rileggesse i controlli dal CSV consegnerebbe a `evaluate_gate` campi per
+   costruzione vuoti: il gate si dichiarerebbe **non eseguibile dopo la
+   campagna**. Chiusa **lato tool** (la deroga limita il runner a due modifiche
+   e la quarta non è fra quelle approvate): il tool cattura i riepiloghi
+   completi nell'attimo in cui il runner li passa all'export e scrive
+   `blocks_controllo.json` nella forma che `control_gate.main --blocks` legge;
+   il CSV resta la fonte della propagazione (`baseline_pre_w` è una colonna).
+
+Deviazione operativa dichiarata, verificata sul codice: `prepare_model_state`
+(warm-up di P1.4) precede il `cooldown_to_baseline` nel flusso di
+`run_v4_benchmark`, quindi il cooldown parte dallo stato macchina riscaldato.
+Non è un requisito di P4.4 ed è qui registrata come scelta del tool.
+
+Tracciabilità: SHA-256 di `benchmark_v4.py` **prima** `51d3609c17d6eba2bbb7ae668ee6f9e19ad2ce56ddff5d7e5752335eeca3a758`, **dopo** `a8a35078fe74a98a69d5b57192aec42fe2b3e5f8f45e9508b656918353e1fe4d`; il delta è solo la derivazione e la sua documentazione. Il tool e i test entrano con `730179160`. Evidenza: **7** node id nuovi in `tests/test_gate_p44_end_to_end.py` — neutralità a default dei due argomenti (CSV di righe e di blocchi identici, `run_id`/`session_id`/`timestamp_end` esclusi), derivazione vista da `run_v4_benchmark` (con `block_kind='control'` zero richieste spedite e campi `control_*` valorizzati; con `'load'`/`'campaign'` i campi non esistono), il disegno a dodici righe, il blocco del codice cambiato dopo la dichiarazione, l'execute end-to-end con propagazione osservata nel cooldown e **verdetto F.12** (non `not-executable`) su controlli reali, e `execute` senza `plan` rifiutato. Suite del 2026-11-08: `py -m pytest cwEnergyModular -q` → **1010 passati, 4 saltati, 0 falliti**. Nessuna formula, nessuna soglia, nessun valore congelato modificato; il gate non è ancora eseguito e nessuna riga è `validated`.
+
 **Nove difetti dichiarati nel testo congelato, tutti chiusi.** Quattro registrati
 il 2026-10-24, un quinto emerso il 2026-10-25 verificando gli ancoraggi del
 secondo turno, quattro registrati e chiusi il 2026-10-25 nel terzo turno. Trovati
