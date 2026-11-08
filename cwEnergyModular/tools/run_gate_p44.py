@@ -95,6 +95,21 @@ con ``background_load`` prima/dopo dal riepilogo del runner. Queste
 grandezze NON decidono l'esito (che resta F.12) e non entrano nello schema
 CSV: la sd e' fra blocchi, non sulla terna di baseline di P4.12, dove a
 n=3 il divieto di stimare una varianza resta.
+
+Confronto diagnostico CodeCarbon (``--codecarbon``, opzionale). Il runner
+apre ``tools/codecarbon_probe.py`` e avvolge OGNI invocazione di
+``run_v4_benchmark`` con un start/stop del tracker; gli artefatti (CSV,
+manifest con finestre wall per blocco, status con backend e motivo) vanno
+in ``<archivio>/codecarbon/``, mai nel CSV di misura. Il gate primario non
+si muove: senza flag il modulo non viene nemmeno importato e l'analysis non
+contiene la chiave ``codecarbon``; con il flag, e con CodeCarbon assente o
+guasto, il gate PROSEGUE e lo stato dichiara ``unavailable`` con il motivo.
+I numeri CodeCarbon non correggono nulla — su questo host leggono peraltro
+lo stesso registro 0x611 della catena emi-counter (caveat nel modulo).
+``--codecarbon-interval`` configura ``measure_power_secs`` (default del
+probe: 1 s, fallback 15 s). E' un'estensione neutra dichiarata, nel senso
+della guardia pre-flight del 2026-11-08: il percorso di misura
+(``benchmark_v4.py``, ``energy/``) non cambia, il tool del gate si.
 """
 from __future__ import annotations
 import argparse
@@ -753,7 +768,8 @@ def _attendi_quiete(*, consecutive: Optional[int] = None,
             "top_processes": top}
 
 
-def cmd_execute(model: str) -> Dict:
+def cmd_execute(model: str, *, codecarbon: bool = False,
+                codecarbon_interval: Optional[float] = None) -> Dict:
     plan = _verifica_piano()
     ARCHIVE_DIR.mkdir(parents=True, exist_ok=True)
     RESULTS_DIR.mkdir(parents=True, exist_ok=True)
@@ -768,6 +784,19 @@ def cmd_execute(model: str) -> Dict:
 
     reale, wrapper, catturati = _cattura_riepiloghi()
     reale_cw, wrapper_cw, serie = _cattura_serie_controllo()
+
+    # Registro diagnostico CodeCarbon: SOLO con il flag. L'import e' dentro
+    # il ramo perche' senza flag il comportamento deve restare identico a
+    # oggi — modulo neppure caricato. avvia() non solleva mai: se la
+    # libreria manca il gate prosegue e il motivo finisce nello stato.
+    probe = None
+    riepilogo_probe: Optional[Dict] = None
+    if codecarbon:
+        import codecarbon_probe as ccp  # noqa: E402  (modulo accanto, tools/)
+        probe = ccp.ProbeCodeCarbon(ARCHIVE_DIR / ccp.DIR_NAME,
+                                    measure_power_secs=codecarbon_interval)
+        probe.avvia()
+
     runs: List[Dict] = []
     v4.export_summary_csv = wrapper
     v4._run_control_window = wrapper_cw
@@ -790,7 +819,19 @@ def cmd_execute(model: str) -> Dict:
             # Precondizione PRIMA di ogni invocazione, load E control:
             # una macchina carica non parte (check E del piano).
             quiet = _attendi_quiete(on_log=lambda m: print(m, flush=True))
-            summary = v4.run_v4_benchmark([model], [prompt], **kw)
+            # Il tracker avvolge la sola invocazione: l'overhead di
+            # start()/stop() (~1 s per blocco, misurato l'08-11) resta
+            # FUORI da run_v4_benchmark e il probe lo dichiara nel suo
+            # stato. La quiete NON e' riaperta dal tracker: vale il
+            # controllo sopra.
+            if probe is not None:
+                probe.apri_blocco(b["label"], arm=b["arm"],
+                                  pair_id=b["pair_id"])
+            try:
+                summary = v4.run_v4_benchmark([model], [prompt], **kw)
+            finally:
+                if probe is not None:
+                    probe.chiudi_blocco()
             rec = dict(catturati[-1]) if catturati else {}
             run_rec = {
                 "index": b["index"], "label": b["label"], "arm": b["arm"],
@@ -832,6 +873,14 @@ def cmd_execute(model: str) -> Dict:
     finally:
         v4.export_summary_csv = reale
         v4._run_control_window = reale_cw
+        if probe is not None:
+            # Scrive status e manifest anche sul percorso di errore: e' qui
+            # che il motivo di un blocco saltato deve restare leggibile.
+            riepilogo_probe = probe.concludi()
+            print(f"[CODECARBON] {riepilogo_probe['codecarbon_status']} "
+                  f"({riepilogo_probe['n_blocchi_con_dati']}/"
+                  f"{riepilogo_probe['n_blocchi_aperti']} blocchi con "
+                  f"dati) -> {riepilogo_probe['directory']}", flush=True)
 
     controls = _filtra_controlli(catturati)
     if len(controls) != N_COPPIE:
@@ -869,6 +918,11 @@ def cmd_execute(model: str) -> Dict:
     # nel freeze, accanto al verdetto F.12 che non toccano.
     analysis["grandezze_riportate"] = _grandezze_riportate(
         analysis["controls"], runs)
+    if riepilogo_probe is not None:
+        # Chiave diagnostica ACCANTO al verdetto, non dentro: il riepilogo
+        # di evaluate_gate e' gia' scritto e non legge questo ramo. Senza
+        # flag la chiave non esiste e l'analysis e' byte-identica a oggi.
+        analysis["codecarbon"] = riepilogo_probe
     _scrittura_atomica(ARCHIVE_DIR / ANALYSIS_NAME, analysis)
     _scrittura_atomica(ARCHIVE_DIR / FREEZE_NAME, analysis)
     _write_report(analysis)
@@ -1022,7 +1076,17 @@ def _write_report(data: Dict) -> None:
                  "(requisito 3)\n")
         fh.write("- geometria (12,32) (requisito 4)\n")
         fh.write(f"- {2 * data['n_pairs']} blocchi / {data['n_pairs']} "
-                 "coppie, un blocco per invocazione\n\n")
+                 "coppie, un blocco per invocazione\n")
+        cc = data.get("codecarbon")
+        if cc:
+            fh.write(f"- CodeCarbon (registro parallelo, NON criterio): "
+                     f"status `{cc['codecarbon_status']}`, "
+                     f"{cc['n_blocchi_con_dati']}/"
+                     f"{cc['n_blocchi_aperti']} blocchi con dati, "
+                     f"intervallo {cc['measure_power_secs_used']} s"
+                     + (f" — motivo: {cc['reason']}" if cc["reason"] else "")
+                     + f"; artefatti in `{cc['directory']}`\n")
+        fh.write("\n")
         fh.write("## Risultato\n\n")
         fh.write(summary + "\n")
         pass_false = sum(1 for c in data["controls"]
@@ -1173,6 +1237,14 @@ def main(argv: Optional[Sequence[str]] = None) -> int:
     p_exec.add_argument("--pairs", type=int, default=DEFAULT_PAIRS,
                         help="numero di coppie: deve essere quello del plan "
                              "dichiarato, altrimenti execute si ferma")
+    p_exec.add_argument("--codecarbon", action="store_true",
+                        help="registro parallelo CodeCarbon attorno a ogni "
+                             "blocco (diagnostico, NON criterio): artefatti "
+                             "in <archivio>/codecarbon/; senza libreria il "
+                             "gate prosegue e lo stato dichiara unavailable")
+    p_exec.add_argument("--codecarbon-interval", type=float, default=None,
+                        help="measure_power_secs del probe (default: 1 s, "
+                             "fallback 15 s se il tracker non lo accetta)")
     args = parser.parse_args(argv)
     _imposta_data(args.date)
     _imposta_seme(args.seed)
@@ -1181,7 +1253,8 @@ def main(argv: Optional[Sequence[str]] = None) -> int:
         return cmd_plan(args.model)
     if args.cmd == "execute":
         try:
-            r = cmd_execute(args.model)
+            r = cmd_execute(args.model, codecarbon=args.codecarbon,
+                            codecarbon_interval=args.codecarbon_interval)
         except SystemExit as e:
             if isinstance(e.code, int):
                 raise

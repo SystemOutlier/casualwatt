@@ -1,0 +1,23 @@
+# CasualWatt - dipendenze OPZIONALI del solo confronto diagnostico CodeCarbon
+#
+# Perche' esiste. Il gate P4.4 non usa CodeCarbon: senza il flag --codecarbon
+# di tools/run_gate_p44.py il modulo tools/codecarbon_probe.py non viene mai
+# importato e nessuna dipendenza qui elencata e' necessaria. Il flag aggiunge
+# un registro parallelo (energia/emissioni per blocco in
+# <archivio>/codecarbon/) che NON tocca bias_w, budget_base_w, E_net, dt_W ne'
+# il criterio F.12.
+#
+# Perche' pinnata. La versione 3.3.2 e' quella verificata su questo host il
+# 2026-11-08: costruttore che accetta measure_power_secs=1, CSV a 38 colonne
+# con una riga per run, backend CPU windows_EMI. Il probe legge tre attributi
+# privati del tracker (_start_time, _hardware, _pue) solo per dichiarare il
+# backend: un bump di versione va rifatto a mano, con la dichiarazione nel
+# modulo.
+#
+# Nota: codecarbon 3.3.2 ha un modulo rotto, codecarbon.core.measure
+# (ImportError su RAM); non e' usato dal probe, che passa dal tracker.
+#
+# Installazione (esplicita, perche' NON e' una dipendenza di produzione):
+#   py -m pip install -r requirements-codecarbon.txt
+
+codecarbon==3.3.2       # EmissionsTracker; porta con se' ~30 dipendenze
