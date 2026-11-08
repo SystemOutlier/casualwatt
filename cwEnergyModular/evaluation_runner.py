@@ -191,9 +191,19 @@ def paired_mcnemar(
       - a, b, c, d del 2x2 su determinate
       - discordant = b + c
       - p_value: binomiale esatto (sempre) e chi2 (se b+c >= 10), con correction
+      - chi2_correction: il flag *chiesto* dal chiamante, anche quando non c'e'
+        un chi2 su cui applicarlo
+      - correction_applied: cosa e' entrato davvero nella formula --
+        "yes" con chi2 corretto, "no" con chi2 non corretto, "not_applicable"
+        quando b+c < 10 e si usa il binomiale esatto (nessun chi2 da correggere)
       - delta_acc = (b-c)/n su determinate (n = determinate)
-      - delta_ci: intervallo Newcombe (None se non calcolabile)
+      - delta_ci: intervallo di Newcombe (metodo 10) con phi corretto,
+        None se non calcolabile
       - note
+
+    L'intervallo combina i due intervalli di Wilson marginali con il phi
+    corretto del 2x2. Non e' la somma in quadratura degli errori standard
+    marginali, che ignora l'appaiamento fra le due misure sullo stesso task.
     """
     list_a = list(pairs_a)
     list_b = list(pairs_b)
@@ -236,33 +246,67 @@ def paired_mcnemar(
     if discordant >= 10:
         if correction:
             chi2 = (abs(b - c) - 1) ** 2 / discordant
+            correction_applied = "yes"
         else:
             chi2 = (b - c) ** 2 / discordant
+            correction_applied = "no"
         z = _normal_ppf(1 - alpha / 2)
         p_chi2 = _chi2_survival_1df(chi2)
     else:
         chi2 = None
         p_chi2 = None
+        # Con b+c < 10 il test e' quello binomiale esatto: non c'e' un chi2 da
+        # correggere. "no" direbbe che la correzione e' stata disattivata.
+        correction_applied = "not_applicable"
     delta = (b - c) / n_determinate if n_determinate else None
-    # Newcombe paired interval
+    # Intervallo di Newcombe (metodo 10): i due intervalli di Wilson marginali
+    # si combinano con il phi corretto del 2x2, non in quadratura fra loro.
     if n_determinate and delta is not None:
         p_a = (a + b) / n_determinate
         p_bv = (a + c) / n_determinate
         z = _normal_ppf(1 - alpha / 2)
-        # Wilson intervals marginali
-        se_a = math.sqrt(p_a * (1 - p_a) / n_determinate + z * z / (4 * n_determinate * n_determinate))
-        se_b = math.sqrt(p_bv * (1 - p_bv) / n_determinate + z * z / (4 * n_determinate * n_determinate))
-        crit_a = z / (1 + z * z / n_determinate)
-        centre_a = p_a + z * z / (2 * n_determinate)
-        centre_b = p_bv + z * z / (2 * n_determinate)
         denom = 1 + z * z / n_determinate
-        lo_a = (centre_a - crit_a * math.sqrt(p_a * (1 - p_a) / n_determinate + z * z / (4 * n_determinate * n_determinate))) / denom
-        hi_a = (centre_a + crit_a * math.sqrt(p_a * (1 - p_a) / n_determinate + z * z / (4 * n_determinate * n_determinate))) / denom
-        lo_b = (centre_b - crit_a * math.sqrt(p_bv * (1 - p_bv) / n_determinate + z * z / (4 * n_determinate * n_determinate))) / denom
-        hi_b = (centre_b + crit_a * math.sqrt(p_bv * (1 - p_bv) / n_determinate + z * z / (4 * n_determinate * n_determinate))) / denom
-        # paired: width via sum of marginals
-        se_paired = math.sqrt(se_a * se_a + se_b * se_b)
-        delta_ci = [round(delta - z * se_paired, 6), round(delta + z * se_paired, 6)]
+        centre_a = (p_a + z * z / (2 * n_determinate)) / denom
+        centre_b = (p_bv + z * z / (2 * n_determinate)) / denom
+        half_a = z * math.sqrt(
+            p_a * (1 - p_a) / n_determinate
+            + z * z / (4 * n_determinate * n_determinate)
+        ) / denom
+        half_b = z * math.sqrt(
+            p_bv * (1 - p_bv) / n_determinate
+            + z * z / (4 * n_determinate * n_determinate)
+        ) / denom
+        lo_a = centre_a - half_a
+        hi_a = centre_a + half_a
+        lo_b = centre_b - half_b
+        hi_b = centre_b + half_b
+        # phi corretto di Newcombe: la covarianza positiva si riduce di n/2;
+        # con un marginale vuoto il coefficiente non e' definito e vale zero.
+        marg_prod = (a + b) * (c + d) * (a + c) * (b + d)
+        if marg_prod == 0:
+            phi = 0.0
+        else:
+            cov = a * d - b * c
+            if cov > 0:
+                cov = max(cov - n_determinate / 2.0, 0.0)
+            phi = cov / math.sqrt(marg_prod)
+        span_low = p_a - lo_a
+        span_high_b = hi_b - p_bv
+        lower = delta - math.sqrt(max(
+            0.0,
+            span_low * span_low
+            - 2.0 * phi * span_low * span_high_b
+            + span_high_b * span_high_b,
+        ))
+        span_high_a = hi_a - p_a
+        span_low_b = p_bv - lo_b
+        upper = delta + math.sqrt(max(
+            0.0,
+            span_high_a * span_high_a
+            - 2.0 * phi * span_high_a * span_low_b
+            + span_low_b * span_low_b,
+        ))
+        delta_ci = [round(lower, 6), round(upper, 6)]
     else:
         delta_ci = None
     indecis = (discordant == 0)
@@ -280,11 +324,67 @@ def paired_mcnemar(
         "delta_acc": round(delta, 6) if delta is not None else None,
         "delta_ci_newcombe": delta_ci,
         "indecis": indecis,
-        "correction_applied": "yes",
+        "correction_applied": correction_applied,
         "note": (
             "indecis: nessuna coppia discordante" if indecis else ""
         ),
     }
+
+
+def paired_summary(
+    verdicts_a: Iterable[Any],
+    verdicts_b: Iterable[Any],
+    task_ids: Iterable[Any],
+    reduction: str = "first",
+    **mcnemar_kwargs: Any,
+) -> dict[str, Any]:
+    """Riduce una coppia per task e applica `paired_mcnemar`.
+
+    E' il ponte fra righe di un report e il test: le repliche della stessa
+    richiesta non sono prove indipendenti, quindi la matrice si costruisce su
+    una coppia per task, con una regola dichiarata prima di guardare l'esito.
+    L'unica regola ammessa oggi e' `first`: la prima riga incontrata per ogni
+    task, nell'ordine dell'input (che nei report e' l'ordine dei file).
+
+    Le righe senza identita' del task non sono appaiabili: sono contate in
+    `n_without_task` e non scartate in silenzio. `n_tasks_with_replicates` dice
+    quante coppie la riduzione ha scartato, cioe' quanto la scelta della regola
+    pesa su questo insieme di dati. Il resto del dict e' quello di
+    `paired_mcnemar`, che riceve i verdi grezzi e applica la propria coerenza.
+    """
+    a = list(verdicts_a)
+    b = list(verdicts_b)
+    ids = list(task_ids)
+    if not (len(a) == len(b) == len(ids)):
+        raise ValueError(
+            "paired_summary: verdetti e identita' del task devono avere la "
+            "stessa lunghezza"
+        )
+    if reduction != "first":
+        raise ValueError(
+            f"paired_summary: riduzione non supportata {reduction!r} (ammessa: 'first')"
+        )
+    prima_coppia: dict[str, tuple[Any, Any]] = {}
+    repliche: Counter[str] = Counter()
+    n_without_task = 0
+    for va, vb, ident in zip(a, b, ids):
+        task = _task_id(ident)
+        if task is None:
+            n_without_task += 1
+            continue
+        repliche[task] += 1
+        if task not in prima_coppia:
+            prima_coppia[task] = (va, vb)
+    esito = paired_mcnemar(
+        [coppia[0] for coppia in prima_coppia.values()],
+        [coppia[1] for coppia in prima_coppia.values()],
+        **mcnemar_kwargs,
+    )
+    esito["reduction"] = reduction
+    esito["n_tasks"] = len(prima_coppia)
+    esito["n_without_task"] = n_without_task
+    esito["n_tasks_with_replicates"] = sum(1 for c in repliche.values() if c > 1)
+    return esito
 
 
 def _coerce_to_determined(value: Any) -> Optional[int]:
@@ -450,7 +550,9 @@ def summarize_records(records: Iterable[Mapping[str, Any]],
         f"ricampioni={cluster['resamples']}, seed={cluster['seed']}; "
         "Wilson e' a livello di riga e assume indipendenza, il bootstrap a "
         "cluster conserva le righe di ciascun task insieme. Le ampiezze non "
-        "misurano direttamente l'intra-correlazione. McNemar non implementato"
+        "misurano direttamente l'intra-correlazione. Questo riepilogo vale per "
+        "una sola serie di verdetti: il confronto fra due sistemi sullo stesso "
+        "task e' paired_mcnemar"
         if cluster["interval"] is not None else
         f"intervallo a livello di task non calcolabile: {cluster['reason']}"
     )
