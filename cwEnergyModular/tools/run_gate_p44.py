@@ -55,6 +55,16 @@ del 2026-11-07): sposta ``ARCHIVE_DIR`` e ``RESULTS_DIR`` senza toccare
 resta valida e un secondo run non richiede di editare il codice. Il risultato
 congelato di una campagna non si sovrascrive: ``execute`` rifiuta output gia'
 presenti.
+
+Serie di potenza grezza. Il runner non salva i campioni della finestra
+passiva (il riepilogo porta solo gli aggregati ``control_*``): senza la serie
+non si puo' dire se il bias di un controllo sia una deriva o un picco. Il tool
+la cattura lato proprio — wrapper di ``_run_control_window`` che trattiene i
+due bordi e chiede ``samples_between(t0, t1)`` alla sessione, senza letture
+aggiuntive sul contatore — e la scrive in ``control_power_series.json``.
+E' diagnostica: non entra nel criterio F.12. Per la campagna del 2026-11-07
+la serie non esiste e non e' recuperabile a posteriori: la cattura vale per
+quelle successive.
 """
 from __future__ import annotations
 import argparse
@@ -64,6 +74,8 @@ import hashlib
 import json
 import subprocess
 import sys
+import time
+from dataclasses import asdict
 from pathlib import Path
 from typing import Dict, List, Mapping, Optional, Sequence, Tuple
 
@@ -88,6 +100,7 @@ ANALYSIS_NAME = "analysis.json"
 FREEZE_NAME = "gate_result_frozen.json"
 REPORT_NAME = "p44_gate_report.md"
 BLOCKS_JSON_NAME = "blocks_controllo.json"
+SERIES_NAME = "control_power_series.json"
 DEFAULT_MODEL = "hf.co/sigmanih/Qwen-Qwen3-0.6B-GGUF-Q6_K:latest"
 K_MAX = 1                       # Emenda 8: sostituzione di un blocco
 SEED = "gate-seed-20261107"     # requisito 3: seme del disegno, dichiarato
@@ -343,6 +356,119 @@ def _cattura_riepiloghi():
     return reale, wrapper, catturati
 
 
+_MANCANTE = object()
+
+
+def _campione_dict(s) -> Dict:
+    """``SystemSample`` -> dict JSON-safe. I pid sono interi, nessun oggetto
+    vivo entra nell'artefatto; un campione senza ``package_energy_j`` resta
+    None (cella non misurata, non zero)."""
+    try:
+        d = asdict(s)
+    except TypeError:
+        d = dict(vars(s))
+    d["ollama_pids"] = [int(p) if isinstance(p, (int, float)) else str(p)
+                        for p in d.get("ollama_pids", ()) or ()]
+    return d
+
+
+def _serie_potenza(campioni: List[Dict]) -> List[Dict]:
+    """Potenza media fra campioni consecutivi: ``ΔE_pkg/Δt`` del contatore
+    cumulativo. E' la grandezza che dice se il bias di un controllo e' una
+    deriva lenta o un picco; i bordi interpolati da ``samples_between``
+    coprono l'intera finestra. Un intervallo con contatore assente o dt<=0
+    non produce un numero."""
+    out: List[Dict] = []
+    for a, b in zip(campioni, campioni[1:]):
+        ea, eb = a.get("package_energy_j"), b.get("package_energy_j")
+        try:
+            dt = float(b["t"]) - float(a["t"])
+        except (TypeError, ValueError, KeyError):
+            continue
+        if ea is None or eb is None or dt <= 0.0:
+            continue
+        de = float(eb) - float(ea)
+        out.append({"t_start": a["t"], "t_end": b["t"], "dt_s": dt,
+                    "de_j": de, "power_w": de / dt})
+    return out
+
+
+def _cattura_serie_controllo():
+    """Wrapper di ``_run_control_window``: passa al runner reale e salva la
+    serie di potenza grezza della finestra passiva, che il runner non
+    scrive da nessuna parte (il riepilogo porta solo gli aggregati).
+
+    Metodo: durante la sola finestra passiva la sessione e' quella di
+    produzione e ``_run_control_window`` legge esattamente due bordi. Il
+    wrapper trattiene quei due bordi (con l'istante monotono subito dopo
+    la lettura), ricostruisce ``[t0, t1]`` con la stessa espressione del
+    runner (``t_counter_mono`` del primo bordo, monotono dopo il secondo)
+    e chiede ``samples_between(t0, t1)`` — gli stessi campioni che il
+    sampler ha gia' raccolto, nessuna lettura in piu' sul contatore.
+    L'unico overhead e' un ``time.monotonic()`` per bordo.
+
+    La serie e' DIAGNOSTICA: non entra nel criterio F.12 e non cambia
+    nessuna quantita' misurata. Se i campioni mancano, l'artefatto lo
+    dichiara con la ragione, non inventa una serie.
+    """
+    reale = v4._run_control_window
+    catturate: List[Dict] = []
+
+    def wrapper(*, block_id, durata_s, profiler, p_pre,
+                stop_event=None, log=None):
+        sessione = v4.SESSION
+        bordi: List[Tuple[Dict, float]] = []
+        proprio = sessione.__dict__.get("read_measurement_edge", _MANCANTE)
+        reale_edge = sessione.read_measurement_edge
+
+        def edge_wrapper(**kw):
+            e = reale_edge(**kw)
+            bordi.append((e, time.monotonic()))
+            return e
+
+        sessione.read_measurement_edge = edge_wrapper
+        try:
+            rec = reale(block_id=block_id, durata_s=durata_s,
+                        profiler=profiler, p_pre=p_pre,
+                        stop_event=stop_event, log=log)
+        finally:
+            if proprio is _MANCANTE:
+                sessione.__dict__.pop("read_measurement_edge", None)
+            else:
+                sessione.read_measurement_edge = proprio
+        entry: Dict = {"block_id": block_id, "t0_mono": None,
+                       "t1_mono": None, "n_samples": 0,
+                       "samples": [], "power_w": [], "reason": ""}
+        if len(bordi) != 2:
+            entry["reason"] = (f"bordi catturati {len(bordi)} (attesi 2): "
+                               "serie non ricostruibile")
+            catturate.append(entry)
+            return rec
+        e0, mono0 = bordi[0]
+        _e1, mono1 = bordi[1]
+        try:
+            t0 = float(e0.get("t_counter_mono"))
+        except (TypeError, ValueError):
+            t0 = mono0
+        entry["t0_mono"], entry["t1_mono"] = t0, mono1
+        try:
+            campioni = sessione.samples_between(t0, mono1)
+        except Exception as exc:
+            entry["reason"] = f"samples_between non disponibile: {exc}"
+            catturate.append(entry)
+            return rec
+        dicts = [_campione_dict(s) for s in campioni]
+        entry["samples"] = dicts
+        entry["n_samples"] = len(dicts)
+        entry["power_w"] = _serie_potenza(dicts)
+        if not dicts:
+            entry["reason"] = "nessun campione nella finestra passiva"
+        catturate.append(entry)
+        return rec
+
+    return reale, wrapper, catturate
+
+
 def cmd_execute(model: str) -> Dict:
     plan = _verifica_piano()
     ARCHIVE_DIR.mkdir(parents=True, exist_ok=True)
@@ -357,8 +483,10 @@ def cmd_execute(model: str) -> Dict:
                 "accodare.")
 
     reale, wrapper, catturati = _cattura_riepiloghi()
+    reale_cw, wrapper_cw, serie = _cattura_serie_controllo()
     runs: List[Dict] = []
     v4.export_summary_csv = wrapper
+    v4._run_control_window = wrapper_cw
     try:
         for b in plan["blocks"]:
             initial_pre: Optional[float] = None
@@ -411,6 +539,7 @@ def cmd_execute(model: str) -> Dict:
                         "il gate.")
     finally:
         v4.export_summary_csv = reale
+        v4._run_control_window = reale_cw
 
     controls = _filtra_controlli(catturati)
     if len(controls) != N_COPPIE:
@@ -418,6 +547,11 @@ def cmd_execute(model: str) -> Dict:
             f"controlli catturati {len(controls)} su {N_COPPIE}: il gate "
             "sarebbe valutato su un disegno diverso da quello dichiarato")
     _scrittura_atomica(ARCHIVE_DIR / BLOCKS_JSON_NAME, controls)
+    if len(serie) != N_COPPIE:
+        print(f"[AVVISO] serie di potenza catturate {len(serie)} su "
+              f"{N_COPPIE}: diagnostica incompleta, il gate non cambia",
+              flush=True)
+    _scrittura_atomica(ARCHIVE_DIR / SERIES_NAME, serie)
     q = cg.evaluate_gate(controls, n_pairs=N_COPPIE)
     analysis = q.to_dict()
     analysis.update({
@@ -430,6 +564,8 @@ def cmd_execute(model: str) -> Dict:
         "results_csv": str(rows_path),
         "block_summary_csv": str(blocks_path),
         "blocks_controllo_json": str(ARCHIVE_DIR / BLOCKS_JSON_NAME),
+        "control_power_series_json": str(ARCHIVE_DIR / SERIES_NAME),
+        "series_counts": {s["block_id"]: s["n_samples"] for s in serie},
         "run_ids": [r["run_id"] for r in runs],
         "git_head": _git_head(),
         "runner_sha256": _sha256(MODULE_DIR / "benchmark_v4.py"),
@@ -511,11 +647,22 @@ def _write_report(data: Dict) -> None:
             fh.write("\n## Ragioni\n\n")
             for motivo in data["reasons"]:
                 fh.write(f"- {motivo}\n")
+        if data.get("series_counts"):
+            fh.write("\n## Serie di potenza grezza (diagnostica)\n\n")
+            fh.write("Campioni del sampler nella finestra passiva "
+                     "[t0, t1] del contatore; potenza = delta del "
+                     "contatore cumulativo / delta t fra campioni "
+                     "consecutivi. Diagnostica per distinguere deriva e "
+                     "picchi: non entra nel criterio F.12.\n\n")
+            for bid, n in data["series_counts"].items():
+                fh.write(f"- {bid}: {n} campioni\n")
         fh.write("\n## Artefatti\n\n")
         fh.write(f"- results CSV: {data['results_csv']}\n")
         fh.write(f"- block summary CSV: {data['block_summary_csv']}\n")
         fh.write(f"- riepiloghi controllo (JSON, forma --blocks): "
                  f"{data['blocks_controllo_json']}\n")
+        fh.write(f"- serie di potenza grezza dei controlli (JSON): "
+                 f"{data.get('control_power_series_json', '')}\n")
         fh.write(f"- run ids: {', '.join(data['run_ids'])}\n")
         fh.write(f"- git head: {data['git_head']}\n")
         fh.write(f"- runner sha256: {data['runner_sha256']}\n")
