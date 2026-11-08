@@ -17,8 +17,10 @@ da due blocchi, perche' in quel disegno il ``pair_id`` era uno solo per la
 coppia e il blocco di controllo non era mai attivato (il runner derivava
 ``control`` da ``block_kind``, ma l'etichetta di una singola invocazione non
 puo' coprire due bracci diversi). L'ordine e' carico-primo per coppia,
-dichiarato, non randomizzato; ``order_seed='gate-seed-20261107'`` resta il
-seme del disegno (requisito 3).
+dichiarato, non randomizzato; ``order_seed`` e' il seme del disegno
+(requisito 3), parametrizzato con ``--seed``: il default e'
+``'gate-seed-20261107'``, la campagna dichiarata, quindi nulla cambia per chi
+non lo passa.
 
 Il cooldown intra-coppia (P1.5) e' una SCELTA OPERATIVA, non un requisito di
 P4.4: il requisito 7 vincola la struttura di baseline (3 pre + 3 post su
@@ -51,10 +53,12 @@ dal pilota P2.9 (requisito 5): 2,930748 s.
 
 La data di campagna e' un parametro (``--date YYYYMMDD``, default la campagna
 del 2026-11-07): sposta ``ARCHIVE_DIR`` e ``RESULTS_DIR`` senza toccare
-``plan_blocks()``, il seme o la durata congelata, quindi la verifica del piano
-resta valida e un secondo run non richiede di editare il codice. Il risultato
-congelato di una campagna non si sovrascrive: ``execute`` rifiuta output gia'
-presenti.
+``plan_blocks()`` o la durata congelata, quindi la verifica del piano resta
+valida e un secondo run non richiede di editare il codice. Anche il seme e'
+un parametro (``--seed``): ``_verifica_piano`` confronta il piano contro il
+seme passato, non contro una costante — un execute con un seme diverso da
+quello del plan si ferma prima di misurare. Il risultato congelato di una
+campagna non si sovrascrive: ``execute`` rifiuta output gia' presenti.
 
 Serie di potenza grezza. Il runner non salva i campioni della finestra
 passiva (il riepilogo porta solo gli aggregati ``control_*``): senza la serie
@@ -103,7 +107,8 @@ BLOCKS_JSON_NAME = "blocks_controllo.json"
 SERIES_NAME = "control_power_series.json"
 DEFAULT_MODEL = "hf.co/sigmanih/Qwen-Qwen3-0.6B-GGUF-Q6_K:latest"
 K_MAX = 1                       # Emenda 8: sostituzione di un blocco
-SEED = "gate-seed-20261107"     # requisito 3: seme del disegno, dichiarato
+DEFAULT_SEED = "gate-seed-20261107"  # campagna dichiarata; --seed per le altre
+SEED = DEFAULT_SEED             # requisito 3: seme del disegno, dichiarato
 DT_NOM_FROZEN = 2.930748        # pilota P2.9, requisito 5: congelato
 GEOMETRY = "12,32"              # requisito 4: punto operativo di P3.5
 NUM_CTX = 8192
@@ -163,6 +168,25 @@ def _imposta_data(data: str) -> None:
     P44_DATE = data
     ARCHIVE_DIR = REPO_ROOT / "experiment_results" / f"p44_gate_{data}"
     RESULTS_DIR = MODULE_DIR / "results" / f"p44_gate_{data}"
+
+
+def _imposta_seme(seme: str) -> None:
+    """Il seme del disegno e' un parametro (``--seed``), non una costante.
+
+    Default = il seme della campagna dichiarata del 2026-11-07: nulla cambia
+    per chi non lo passa. ``_verifica_piano`` confronta il piano contro
+    QUESTO valore: un execute con un seme diverso da quello del plan si
+    ferma prima di misurare, perche' un ordine dei blocchi estratto con un
+    seme diverso e' un disegno diverso da quello dichiarato. Il valore e'
+    conservato esattamente come passato (nessuno strip silencioso): un seme
+    vuoto o di soli spazi non e' un seme e si rifiuta.
+    """
+    global SEED
+    if not isinstance(seme, str) or not seme.strip():
+        raise SystemExit(
+            f"--seed '{seme}' non valido: atteso un seme non vuoto "
+            f"(default {DEFAULT_SEED!r})")
+    SEED = seme
 
 
 def plan_blocks() -> List[Dict]:
@@ -277,6 +301,8 @@ def _verifica_piano() -> Dict:
             "il piano dichiarato non coincide con plan_blocks() del codice: "
             "il tool e' cambiato DOPO la dichiarazione. Ritirare plan.json e "
             "ripianificare PRIMA di misurare.")
+    # SEED e' il valore passato (--seed), non una costante: il piano deve
+    # coincidere con il seme dichiarato al plan, qualunque esso sia.
     if plan.get("order_seed") != SEED or plan.get("model") != DEFAULT_MODEL:
         raise SystemExit("seed o modello discostati dal piano dichiarato")
     return plan
@@ -678,6 +704,9 @@ def main(argv: Optional[Sequence[str]] = None) -> int:
     p_plan.add_argument("--date", default=DEFAULT_DATE,
                         help="etichetta della campagna YYYYMMDD: archivio e "
                              "results dedicati, disegno invariato")
+    p_plan.add_argument("--seed", default=DEFAULT_SEED,
+                        help="seme del disegno dichiarato nel piano "
+                             "(default: la campagna 2026-11-07)")
     p_exec = sub.add_parser("execute",
                             help="esegui le dodici righe e valuta F.12")
     p_exec.add_argument("--model", default=DEFAULT_MODEL,
@@ -685,8 +714,12 @@ def main(argv: Optional[Sequence[str]] = None) -> int:
     p_exec.add_argument("--date", default=DEFAULT_DATE,
                         help="etichetta della campagna YYYYMMDD: deve essere "
                              "quella del plan dichiarato")
+    p_exec.add_argument("--seed", default=DEFAULT_SEED,
+                        help="seme del disegno: deve essere quello del plan "
+                             "dichiarato, altrimenti execute si ferma")
     args = parser.parse_args(argv)
     _imposta_data(args.date)
+    _imposta_seme(args.seed)
     if args.cmd == "plan":
         return cmd_plan(args.model)
     if args.cmd == "execute":
