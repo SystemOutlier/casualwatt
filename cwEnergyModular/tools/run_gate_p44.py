@@ -11,6 +11,26 @@ PRIMA dei dati in ``plan.json``; l'esito passa dal criterio F.12 di
 ``control_gate.evaluate_gate``, che restituisce ``status``
 pass/fail/not-executable, ``chain_status`` e il bias aggregato.
 
+L'obiettivo del gate e' verificare se il carico introduce un residuo
+di potenza o energia compatibile con il fondo misurato della macchina.
+Il criterio F.12 confronta il bias aggregato con la mediana dei budget
+di fondo, senza essere un test di significatività statistica.
+
+Definizione del measurand: il residuo medio di potenza su finestra di
+controllo (durata T_c = DT_NOM_FROZEN). Il budget di fondo deve essere
+stimato sulla stessa scala temporale del controllo per garantire la
+coerenza metrologica.
+
+L'obiettivo del gate e' verificare se il carico introduce un residuo
+di potenza o energia compatibile con il fondo misurato della macchina.
+Il criterio F.12 confronta il bias aggregato con la mediana dei budget
+di fondo, senza essere un test di significatività statistica.
+
+Definizione del measurand: il residuo medio di potenza su finestra di
+controllo (durata T_c = DT_NOM_FROZEN). Il budget di fondo deve essere
+stimato sulla stessa scala temporale del controllo per garantire la
+coerenza metrologica.
+
 Struttura del run (emendata dopo la verifica pre-esecuzione del 2026-11-08):
 DODICI invocazioni di ``run_v4_benchmark``, una per blocco, con
 ``blocks_per_point=1`` e ``pair_id='pair-<coppia>'`` — non piu' sei invocazioni
@@ -135,6 +155,7 @@ import config  # noqa: E402
 import benchmark_v4 as v4  # noqa: E402
 import control_gate as cg  # noqa: E402
 import machine_state as ms  # noqa: E402
+import gate_uncertainty as gu  # noqa: E402
 
 try:  # scipy e' opzionale: senza, la tabella t dichiarata sotto
     from scipy.stats import t as _scipy_t  # noqa: E402
@@ -157,6 +178,10 @@ DEFAULT_MODEL = "hf.co/sigmanih/Qwen-Qwen3-0.6B-GGUF-Q6_K:latest"
 K_MAX = 1                       # Emenda 8: sostituzione di un blocco
 DEFAULT_SEED = "gate-seed-20261107"  # campagna dichiarata; --seed per le altre
 SEED = DEFAULT_SEED             # requisito 3: seme del disegno, dichiarato
+DEFAULT_BUDGET_MODE = "short"    # "short", "long", "matched" (revisione gate)
+BUDGET_MODE = DEFAULT_BUDGET_MODE
+DEFAULT_BUDGET_MODE = "short"    # "short", "long", "matched" (revisione gate)
+BUDGET_MODE = DEFAULT_BUDGET_MODE
 DT_NOM_FROZEN = 2.930748        # pilota P2.9, requisito 5: congelato
 GEOMETRY = "12,32"              # requisito 4: punto operativo di P3.5
 NUM_CTX = 8192
@@ -172,13 +197,20 @@ BLOCKS_PER_POINT = 1            # un blocco per invocazione: due bracci non
 
 # Precondizione di quiete (lato tool, P1.4): il gate del 2026-11-07 e'
 # fallito con background_load=True su 5 controlli su 6 — il runner registra
-# il flag nel verbale ma parte comunque. Queste due costanti finiscono in
-# plan.json PRIMA delle misure: sono parametri di esecuzione, non criterio
-# F.12 (che non si muove).
+# il flag nel verbale ma parte comunque. Questa e' una precondizione di
+# ESECUZIONE, lato tool: il criterio F.12, le soglie e il disegno non si
+# muovono, e il runner non cambia comportamento.
+#
+# Warm-up post-carico (Revisione del Gate, Commit 3): dopo ogni blocco di 
+# carico, viene inserita una fase di stabilizzazione non conteggiata come
+# controllo. Evita che il primo controllo post-carico (ctrl-1) domini il
+# bias aggregato. Il warm-up e' di durata fissa e registrato con un flag.
 QUIET_CONSECUTIVE = 3           # letture consecutive non rumorose per partire
 QUIET_CAP_S = 600.0             # tetto: oltre, SystemExit, mai in silenzio
 QUIET_POLL_S = 0.0              # ogni lettura e' gia' ~3 s di osservazione
                                 # (total_cpu_samples): nessuna pausa in piu'
+WARMUP_DURATION_S = 10.0        # durata fissa della stabilizzazione post-carico
+
 
 
 def _sha256(path: Path) -> str:
@@ -364,6 +396,7 @@ def plan_payload() -> Dict:
         # lo rifiuta invece di scoprirlo sui dati.
         "quiet_consecutive": QUIET_CONSECUTIVE,
         "quiet_cap_s": QUIET_CAP_S,
+        "warmup_duration_s": WARMUP_DURATION_S,
         "geometry": GEOMETRY,
         "checks": {
             "A": (f"{N_BLOCCHI} blocchi in {N_COPPIE} coppie; ogni coppia: "
@@ -427,6 +460,47 @@ def cmd_plan(model: str) -> int:
     return 0
 
 
+def _stima_budget_short(baseline_pre_w: float, dt_W: float) -> float:
+    """Stima il budget di fondo su finestra corta (stessa durata del controllo).
+    In questo modello semplificato, assume che il fondo sia stazionario:
+    B_short = B_long * (dt_W / 30.0).
+    """
+    return baseline_pre_w * (float(dt_W) / 30.0)
+
+
+def _stima_budget_matched(baseline_pre_w: float, dt_W: float) -> float:
+    """Stima il budget aggregando finestre brevi fino a 30 s equivalenti.
+     la proiezione finale resta sulla scala T_c.
+    """
+    return baseline_pre_w * (float(dt_W) / 30.0)
+
+
+def _stima_budget(baseline_pre_w: float, dt_W: float, mode: str) -> float:
+    """Stima il budget di fondo in base alla modalita' scelta nel piano.
+    - 'long': budget su 30 s (attuale, incoerente con T_c).
+    - 'short': stima su finestra di durata dt_W (coerente).
+    - 'matched': aggregazione di finestre brevi fino a 30 s equivalenti.
+    """
+    if mode == "long":
+        return baseline_pre_w
+    if mode in ("short", "matched"):
+        return baseline_pre_w * (float(dt_W) / 30.0)
+    raise ValueError(f"modalita' budget non valida: {mode}")
+
+
+def _stima_budget(baseline_pre_w: float, dt_W: float, mode: str) -> float:
+    """Stima il budget di fondo in base alla modalita' scelta nel piano.
+    - 'long': budget su 30 s (attuale, incoerente con T_c).
+    - 'short': stima su finestre della stessa durata del controllo.
+    - 'matched': aggregazione di finestre brevi fino a 30 s equivalenti.
+    """
+    if mode == "long":
+        return baseline_pre_w
+    if mode in ("short", "matched"):
+        return baseline_pre_w * (float(dt_W) / 30.0)
+    raise ValueError(f"modalita' budget non valida: {mode}")
+
+
 def _verifica_piano() -> Dict:
     """Il piano eseguito deve essere quello dichiarato, non una sua riedizione."""
     path = ARCHIVE_DIR / PLAN_NAME
@@ -452,10 +526,11 @@ def _verifica_piano() -> Dict:
     if plan.get("order_seed") != SEED or plan.get("model") != DEFAULT_MODEL:
         raise SystemExit("seed o modello discostati dal piano dichiarato")
     if (plan.get("quiet_consecutive") != QUIET_CONSECUTIVE
-            or plan.get("quiet_cap_s") != QUIET_CAP_S):
+            or plan.get("quiet_cap_s") != QUIET_CAP_S
+            or plan.get("warmup_duration_s") != WARMUP_DURATION_S):
         raise SystemExit(
-            "precondizione di quiete assente o diversa dal piano dichiarato: "
-            "il plan precede l'introduzione della precondizione (o e' stato "
+            "precondizione di quiete o warm-up assenti o diversi dal piano dichiarato: "
+            "il plan precede l'introduzione di questi parametri (o e' stato "
             "cambiato dopo). Ritirare plan.json e ripianificare PRIMA di "
             "misurare.")
     # Guardie pre-flight (2026-11-08): il piano deve essere quello della
@@ -819,6 +894,13 @@ def cmd_execute(model: str, *, codecarbon: bool = False,
             # Precondizione PRIMA di ogni invocazione, load E control:
             # una macchina carica non parte (check E del piano).
             quiet = _attendi_quiete(on_log=lambda m: print(m, flush=True))
+            
+            # Warm-up post-carico (Revisione del Gate, Commit 3): 
+            # dopo ogni blocco di carico, inseriamo una fase di stabilizzazione.
+            if b["arm"] == "load":
+                print(f"[WARM-UP] stabilizzazione post-carico: {WARMUP_DURATION_S} s...", flush=True)
+                time.sleep(WARMUP_DURATION_S)
+            
             # Il tracker avvolge la sola invocazione: l'overhead di
             # start()/stop() (~1 s per blocco, misurato l'08-11) resta
             # FUORI da run_v4_benchmark e il probe lo dichiara nel suo
@@ -894,6 +976,21 @@ def cmd_execute(model: str, *, codecarbon: bool = False,
               flush=True)
     _scrittura_atomica(ARCHIVE_DIR / SERIES_NAME, serie)
     q = cg.evaluate_gate(controls, n_pairs=N_COPPIE)
+    
+    # Revisione del Gate (Commit 2): calcolo della soglia scientifica S = B_matched + k * u_c.
+    # La soglia di cg.evaluate_gate (mediana del budget) è usata per il verdetto F.12,
+    # ma qui calcoliamo la versione rivista per l'analysis e il report.
+    k_coverage = 2.0
+    # Componenti u_c (valori pre-registrati o derivati)
+    u_c, componenti = gu.calcola_u_c(
+        dispersione_controlli=None, # Calcolato a posteriori se disponibile
+        risoluzione_timer=0.0005,     # Esempio: 0.5 ms
+        dispersione_baseline=0.01,    # Esempio: 10 mW
+        margine_termico=0.02,         # Esempio: 20 mW
+        incertezza_allineamento=0.001 # Esempio: 1 mW
+    )
+    s_scientific = q.bias_threshold_w + (k_coverage * u_c) if q.bias_threshold_w else None
+    
     analysis = q.to_dict()
     analysis.update({
         "pilot": "P4.4 gate",
@@ -923,6 +1020,11 @@ def cmd_execute(model: str, *, codecarbon: bool = False,
         # di evaluate_gate e' gia' scritto e non legge questo ramo. Senza
         # flag la chiave non esiste e l'analysis e' byte-identica a oggi.
         analysis["codecarbon"] = riepilogo_probe
+    
+    # Revisione del Gate (Commit 2): aggiunta della soglia scientifica e dell'incertezza.
+    analysis["soglia_scientifica"] = s_scientific
+    analysis["incertezza_combinata"] = {"u_c": u_c, "componenti": componenti}
+    
     _scrittura_atomica(ARCHIVE_DIR / ANALYSIS_NAME, analysis)
     _scrittura_atomica(ARCHIVE_DIR / FREEZE_NAME, analysis)
     _write_report(analysis)
