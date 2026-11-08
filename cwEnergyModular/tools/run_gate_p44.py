@@ -192,6 +192,50 @@ def _git_head() -> str:
         return ""
 
 
+# Il percorso di misura che il piano congela con ``git_head``: il runner e
+# la catena dei contatori. Il tool del gate puo' ricevere estensioni neutre
+# dichiarate (es. il probe diagnostico CodeCarbon); QUESTO percorso no.
+PERCORSO_MISURA = ("cwEnergyModular/benchmark_v4.py", "cwEnergyModular/energy")
+
+
+def _git_antenato(sha: str) -> bool:
+    """True se ``sha`` e' un antenato di HEAD (o HEAD stesso).
+
+    Forma scelta il 2026-11-08 per la guardia sul ``git_head`` del piano:
+    l'uguaglianza stretta ``git_head == HEAD`` sarebbe rotta dal commit del
+    piano stesso (il piano registra il commit dell'emenda, poi si committa
+    il piano). Se git non risponde, False: una guardia non verificabile
+    non passa in silenzio.
+    """
+    try:
+        out = subprocess.run(
+            ["git", "merge-base", "--is-ancestor", sha, "HEAD"],
+            cwd=str(REPO_ROOT), capture_output=True, text=True, timeout=20)
+        return out.returncode == 0
+    except Exception:
+        return False
+
+
+def _git_percorso_misura_mutato(da_sha: str) -> Optional[bool]:
+    """True se il percorso di misura e' cambiato fra ``da_sha`` e HEAD,
+    False se e' invariato, None se git non risponde (non decidibile).
+
+    Il diff e' fra commit, non sull'albero di lavoro: le modifiche non
+    committate al tool del gate non entrano, e il runner e' ancorato anche
+    dal suo SHA-256 registrato nel piano (guardia separata).
+    """
+    try:
+        out = subprocess.run(
+            ["git", "diff", "--name-only", f"{da_sha}..HEAD", "--",
+             *PERCORSO_MISURA],
+            cwd=str(REPO_ROOT), capture_output=True, text=True, timeout=20)
+        if out.returncode != 0:
+            return None
+        return bool(out.stdout.strip())
+    except Exception:
+        return None
+
+
 def _imposta_data(data: str) -> None:
     """Sposta archivio e results su un'altra campagna dichiarata (``--date``).
 
@@ -399,6 +443,45 @@ def _verifica_piano() -> Dict:
             "il plan precede l'introduzione della precondizione (o e' stato "
             "cambiato dopo). Ritirare plan.json e ripianificare PRIMA di "
             "misurare.")
+    # Guardie pre-flight (2026-11-08): il piano deve essere quello della
+    # campagna richiesta, il runner quello dichiarato, e il percorso di
+    # misura invariato dalla dichiarazione. Ognuna si ferma PRIMA di
+    # misurare; nessuna e' un avviso.
+    if plan.get("campaign_date") != P44_DATE:
+        raise SystemExit(
+            f"il piano dichiara la campagna {plan.get('campaign_date')}, "
+            f"execute chiede {P44_DATE}: un piano spostato di archivio non "
+            "e' il piano di questa campagna. Ritirare plan.json e "
+            "ripianificare con la data del run PRIMA di misurare.")
+    sha_attuale = _sha256(MODULE_DIR / "benchmark_v4.py")
+    if plan.get("runner_sha256") != sha_attuale:
+        raise SystemExit(
+            "benchmark_v4.py ha SHA-256 diverso da quello registrato nel "
+            f"piano (piano={plan.get('runner_sha256')}, attuale="
+            f"{sha_attuale}): il percorso di misura e' cambiato dopo la "
+            "dichiarazione. Il vincolo e' bloccante: ritirare plan.json e "
+            "ripianificare PRIMA di misurare, oppure ripristinare il "
+            "runner dichiarato.")
+    head_dichiarato = plan.get("git_head") or ""
+    if not head_dichiarato or not _git_antenato(head_dichiarato):
+        raise SystemExit(
+            f"git_head del piano ({head_dichiarato or 'assente'}) non e' "
+            "un antenato del commit corrente: la storia e' stata riscritta "
+            "o il piano arriva da un altro repository. Mi fermo PRIMA di "
+            "misurare.")
+    mutato = _git_percorso_misura_mutato(head_dichiarato)
+    if mutato is None:
+        raise SystemExit(
+            "git non risponde sul confronto del percorso di misura fra "
+            f"{head_dichiarato} e HEAD: la guardia non e' decidibile e non "
+            "passa in silenzio. Mi fermo PRIMA di misurare.")
+    if mutato:
+        raise SystemExit(
+            "il percorso di misura (benchmark_v4.py, energy/) e' cambiato "
+            f"fra il git_head del piano ({head_dichiarato}) e HEAD: il "
+            "piano dichiara un altro percorso. Estensioni neutre al tool "
+            "del gate sono ammesse, al percorso di misura no. Ritirare "
+            "plan.json e ripianificare PRIMA di misurare.")
     return plan
 
 

@@ -55,6 +55,11 @@ def _directories(monkeypatch, tmp_path):
     monkeypatch.setattr(rg, "SEED", rg.SEED)
     monkeypatch.setattr(rg, "_git_head", lambda: "test-head")
     monkeypatch.setattr(rg, "_sha256", lambda path: "test-sha")
+    # guardie pre-flight sul git_head: con un piano fake ("test-head") il
+    # git reale non risponderebbe; i test che verificano il seme devono
+    # arrivare al seme, non fermarsi sulla guardia del percorso di misura
+    monkeypatch.setattr(rg, "_git_antenato", lambda sha: True)
+    monkeypatch.setattr(rg, "_git_percorso_misura_mutato", lambda sha: False)
 
 
 # ---------------------------------------------------------------------------
