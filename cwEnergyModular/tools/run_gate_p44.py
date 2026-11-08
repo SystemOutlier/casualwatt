@@ -1,25 +1,53 @@
 # -*- coding: utf-8 -*-
 """tools/run_gate_p44.py — il gate load-versus-control di P4.4 sulla v4.
 
-Perche' esiste. P4.4 campagna di validazione precede quella principale: sei
-coppie di blocchi (emendamento del 2026-10-24) con due blocchi per coppia
-— uno di carico (``block_kind='load'``, m richieste, num_predict=32) e uno di
-controllo (``block_kind='control'``, m=3 con ``control=True``): il blocco di
-controllo non invia richieste ma una finestra passativa lunga
-``dt_nominal_s`` (congelato P4.4 requisito 5 = pilot P2.9, 2.930748 s). L'esito
-viene al criterio di F.12 di ``control_gate.evaluate_gate`` restituisce
-``status=pass``/``fail``/``not-executable``, ``chain_status`` e il bias aggregato.
+Perche' esiste. P4.4 (emendamento del 2026-10-24, terza emenda sostanziale)
+vuole sei coppie di blocchi: per ogni coppia un blocco di carico
+(``block_kind='load'``, m=32 richieste, num_predict=32) e un blocco di
+controllo (``block_kind='control'``, finestra passiva di ``dt_nominal_s``
+SENZA inviare richieste — requisito 5). Il disegno e' dichiarato
+PRIMA dei dati in ``plan.json``; l'esito passa dal criterio F.12 di
+``control_gate.evaluate_gate``, che restituisce ``status``
+pass/fail/not-executable, ``chain_status`` e il bias aggregato.
 
-Il disegno è dichiarato PRIMA dei dati e lo strumento riflette solo P1.5 base
-del runner, la struttura P4.3/P4.4/P4.5 richieste e l'ordine randomizzato
-con ``order_seed='gate-seed-20261107'`` (confermato dal test
-``tests/test_controllo_p44_v4.py``). ``K=1`` / ``substitution_seed='p44-<label>'``
-per Emenda 8: a causa del contatore guasto il runner si invalida col primo errore.
+Struttura del run (emendata dopo la verifica pre-esecuzione del 2026-11-08):
+DODICI invocazioni di ``run_v4_benchmark``, una per blocco, con
+``blocks_per_point=1`` e ``pair_id='pair-<coppia>'`` — non piu' sei invocazioni
+da due blocchi, perche' in quel disegno il ``pair_id`` era uno solo per la
+coppia e il blocco di controllo non era mai attivato (il runner derivava
+``control`` da ``block_kind``, ma l'etichetta di una singola invocazione non
+puo' coprire due bracci diversi). L'ordine e' carico-primo per coppia,
+dichiarato, non randomizzato; ``order_seed='gate-seed-20261107'`` resta il
+seme del disegno (requisito 3).
 
-Un singolo ``run_v4_benchmark`` per coppia (``blocks_per_point=2``) produce i
-due blocchi della coppia: il controllo ha la calibrazione pre del blocco
-carico come riferimento di cooldown (P4.4 requisito 7). In totale 6 run × 2 blocci =
-12 blocchi = sei coppie.
+Il cooldown intra-coppia (P1.5) e' una SCELTA OPERATIVA, non un requisito di
+P4.4: il requisito 7 vincola la struttura di baseline (3 pre + 3 post su
+entrambi i bracci), non il cooldown. Il blocco di controllo riceve il
+``P_pre`` del carico della stessa coppia tramite ``initial_last_pre_w``, letto
+dall'ultima riga di riepilogo scritta; se la propagazione manca, il tool si
+ferma prima di proseguire — un controllo senza cooldown verso il carico e' un
+disegno diverso da quello dichiarato, scoperto dopo i dati.
+
+Parametri inerti: su un blocco di controllo ``m``, ``num_predict`` e
+``use_nonce`` NON vengono passati — le richieste sono ``range(0)`` per
+costruzione (requisito 5), quindi qualunque valore sarebbe una finzione. Il
+percorso di controllo e' derivato nel runner da ``block_kind == "control"``.
+
+Come il gate legge i controlli. ``control_e_net_j``, ``control_dt_w_s`` e
+``control_package_window_source`` NON hanno colonna nello schema P5 congelato
+(``export_summary_csv`` le scarta con ``extrasaction='ignore'``): un tool che
+rileggesse i controlli dal CSV consegnerebbe a ``evaluate_gate`` campi per
+costruzione vuoti, e il gate si dichiarerebbe non eseguibile DOPO la campagna.
+La forma di consumo prevista e' il riepilogo completo del runner (e' quella
+che :meth:`control_gate.main` legge da ``--blocks``): il tool cattura i
+riepiloghi nell'attimo in cui il runner li passa a ``export_summary_csv`` e
+consegna anche ``blocks_controllo.json``, artefatto con la stessa forma. Il
+CSV resta la fonte della propagazione (``baseline_pre_w`` e' una colonna) e
+dei controlli d'identita'.
+
+Emenda 8: ``K=1`` per invocazione (il runner si invalida al primo guasto) e
+``substitution_seed='p44-<label>'`` per blocco. ``dt_nominal_s`` e' congelato
+dal pilota P2.9 (requisito 5): 2,930748 s.
 """
 from __future__ import annotations
 import argparse
@@ -27,11 +55,10 @@ import csv
 import datetime as _dt
 import hashlib
 import json
-import shutil
 import subprocess
 import sys
 from pathlib import Path
-from typing import Dict, List, Mapping, Optional, Sequence
+from typing import Dict, List, Mapping, Optional, Sequence, Tuple
 
 HERE = Path(__file__).resolve().parent
 MODULE_DIR = HERE.parent
@@ -39,29 +66,33 @@ REPO_ROOT = MODULE_DIR.parent
 sys.path.insert(0, str(MODULE_DIR))
 sys.path.insert(0, str(REPO_ROOT))
 
-from config import DEFAULT_TIMEOUT_S, DEFAULT_TEMPERATURE  # noqa: E402
+import config  # noqa: E402
 import benchmark_v4 as v4  # noqa: E402
 import control_gate as cg  # noqa: E402
 
 P44_DATE = "20261107"
-ARCHIVE_DIR = REPO_ROOT / f"experiment_results/p44_gate_{P44_DATE}"
-RESULTS_DIR = MODULE_DIR / f"results/p44_gate_{P44_DATE}"
+ARCHIVE_DIR = REPO_ROOT / "experiment_results" / f"p44_gate_{P44_DATE}"
+RESULTS_DIR = MODULE_DIR / "results" / f"p44_gate_{P44_DATE}"
 ROWS_NAME = "casualwatt_v4_results_p44.csv"
 BLOCKS_NAME = "casualwatt_v4_block_summary_p44.csv"
-RUNS_NAME = "runs.json"
 PLAN_NAME = "plan.json"
 ANALYSIS_NAME = "analysis.json"
-REPORT_NAME = "p44_gate_report.md"
 FREEZE_NAME = "gate_result_frozen.json"
+REPORT_NAME = "p44_gate_report.md"
+BLOCKS_JSON_NAME = "blocks_controllo.json"
 DEFAULT_MODEL = "hf.co/sigmanih/Qwen-Qwen3-0.6B-GGUF-Q6_K:latest"
 K_MAX = 1                       # Emenda 8: sostituzione di un blocco
-SEED = "gate-seed-20261107"     # ordine congelato
-DT_NOM_FROZEN = 2.930748       # pilot P2.9, congelato
-GEOMETRY = "12,32"             # conferma operativa di P3.5
+SEED = "gate-seed-20261107"     # requisito 3: seme del disegno, dichiarato
+DT_NOM_FROZEN = 2.930748        # pilota P2.9, requisito 5: congelato
+GEOMETRY = "12,32"              # requisito 4: punto operativo di P3.5
 NUM_CTX = 8192
-LOAD_PROMPT = "Spiega in una frase cos'e' un watt."   # n input ~51 token
-BLOCKS_PER_POINT = 2            # 2 blocchi per coppia = 6 run × 2 = 12 blocchi
-PAIRS = list(range(6))           # coppia i (carico) j (controllo): 0..2..5
+LOAD_PROMPT = "Spiega in una frase cos'e' un watt."   # n_in ~51 token
+LOAD_M = 32
+LOAD_NUM_PREDICT = 32
+N_COPPIE = 6
+N_BLOCCHI = 12
+BLOCKS_PER_POINT = 1            # un blocco per invocazione: due bracci non
+                                # possono stare sotto lo stesso block_kind
 
 
 def _sha256(path: Path) -> str:
@@ -90,213 +121,287 @@ def _git_head() -> str:
         return ""
 
 
+def plan_blocks() -> List[Dict]:
+    """Le dodici righe dichiarate: per ogni coppia, carico poi controllo."""
+    blocchi = []
+    for i in range(N_BLOCCHI):
+        coppia = i // 2
+        if i % 2 == 0:
+            blocchi.append({
+                "index": i, "label": f"carico-{coppia + 1}", "arm": "load",
+                "pair_id": f"pair-{coppia}",
+                "prompt_id": f"load-{coppia + 1}", "text": LOAD_PROMPT,
+                "source": "p44_gate",
+                "m": LOAD_M, "num_predict": LOAD_NUM_PREDICT,
+                "use_nonce": True,
+            })
+        else:
+            # m/num_predict/use_nonce NON si passano: su una finestra passiva
+            # sono inerti (requisito 5) e passarli fingerebbe che operino.
+            blocchi.append({
+                "index": i, "label": f"controllo-{coppia + 1}",
+                "arm": "control", "pair_id": f"pair-{coppia}",
+                "prompt_id": f"ctrl-{coppia + 1}", "text": "",
+                "source": "gate_control",
+                "richieste": 0, "dt_nominal_s": DT_NOM_FROZEN,
+            })
+    return blocchi
+
+
 def plan_payload() -> Dict:
     """Disegno dichiarato. Tutto dipende da P2.9: DT_NOM e' il pilota."""
-    points = []
-    labels = []
-    for k in range(6):
-        pid = f"pair{k}__p{k}"
-        prom = {"id": pid, "text": LOAD_PROMPT, "answer_type": "auto",
-                "source": "p44_gate"}
-        points.append({"model": DEFAULT_MODEL, "prompt": prom,
-                        "point_id": pid, "k": 0, "attempt": 1, "replaced": ""})
-        if k % 2 == 0:
-            labels.append((f"carico-{k}", "load"))
-        else:
-            labels.append((f"controllo-{k//2}", "control"))
-    # Ogni run gestira' le due finestre della stessa coppia.
-    dichiarati = []
-    for k in range(6):
-        core = (labels[k][0], labels[k][1])
-        pairs = [(f"p{i}", f"pair{i}") for i in range(6)]
-        if core[1] == "load":
-            b = dict(label=f"{core[0]}(load)", arm="load",
-                     prompt_id=f"load-{k}", m=32, num_predict=32,
-                     use_nonce=True)
-            prom = {"id": f"load-{k}", "text": LOAD_PROMPT,
-                    "answer_type": "auto", "source": "p44_gate"}
-        else:
-            b = dict(label=f"{core[0]}(ctrl)", arm="control",
-                     prompt_id=f"ctrl-{k}", m=3, num_predict=1,
-                     use_nonce=True)
-            prom = {"id": f"ctrl-{k}", "text": "", "answer_type": "auto",
-                    "source": "gate_control"}
-        b["points"] = [{"model": DEFAULT_MODEL, "prompt": prom,
-                        "point_id": f"pair{k}__p{k}", "k": 0,
-                        "attempt": 1, "replaced": ""}]
-        dichiarati.append(dict(b))
     return {
         "pilot": "P4.4 gate",
         "declared_at": _dt.datetime.now(_dt.timezone.utc).isoformat(
             timespec="seconds"),
-        "model": DEFAULT_MODEL, "temperature": DEFAULT_TEMPERATURE,
-        "timeout_s": DEFAULT_TIMEOUT_S, "num_ctx": NUM_CTX,
+        "model": DEFAULT_MODEL,
+        "temperature": config.DEFAULT_TEMPERATURE,
+        "timeout_s": config.DEFAULT_TIMEOUT_S, "num_ctx": NUM_CTX,
         "order_seed": SEED,
+        "n_coppie": N_COPPIE, "n_blocchi": N_BLOCCHI,
+        "blocks_per_point": BLOCKS_PER_POINT,
+        "invocazioni": "una run_v4_benchmark per blocco (12), non 6 da 2",
         "emenda8": {"max_invalidated_blocks": K_MAX,
-                    "substitution_seed": f"p44-{labels[0][0]}"},
+                    "substitution_seed": "p44-<label> per blocco"},
         "geometry": GEOMETRY,
         "checks": {
-            "A": ("sei coppie di blocchi; ogni coppia ha un blocco load m=32 "
-                  "e un blocco control m=3 con control=True"),
-            "B": (f"geometria operativa confermata sul report; DT_NOM uscita "
-                  "congelata P4.4 requisito 5"),
-            "C": ("ordine seed = gate-seed-20261107 (riconosciuto da "
-                  "test_controllo_p44_v4.py)"),
+            "A": ("dodici blocchi in sei coppie; ogni coppia: blocco load "
+                  "m=32/np=32/nonce, poi blocco control con finestra passiva "
+                  "di dt_nominal_s e ZERO richieste (requisiti 1 e 5)"),
+            "B": (f"geometria operativa (12,32) confermata (requisito 4); "
+                  f"DT_NOM = {DT_NOM_FROZEN} s congelata dal pilota P2.9 "
+                  "(requisito 5)"),
+            "C": ("ordine carico-primo per coppia, dichiarato nel piano; "
+                  f"order_seed = {SEED} registrato su ogni blocco "
+                  "(requisito 3)"),
+            "D": ("baseline 3 pre + 3 post su ENTRAMBI i bracci (requisito 7); "
+                  "cooldown intra-coppia carico->controllo via "
+                  "initial_last_pre_w: scelta operativa, non requisito P4.4"),
         },
+        "deviazioni_dichiarate": [
+            "12 invocazioni = 12 preparazioni di stato macchina (P1.4) e fino "
+            "a 24 warm-up (2 per invocazione): costo non pagato dal disegno a "
+            "6 invocazioni",
+            "le finestre idle pre/post del blocco control non sono contigue a "
+            "quelle del carico: la coppia e' congiunta dal pair_id e dal "
+            "cooldown propagato, non dalla contiguita' temporale",
+            "prepare_model_state (i due warm-up) precede il cooldown: il "
+            "warm-up scalda il motore prima di attendere il rientro a P_pre",
+            "i parametri inerti del controllo (m, num_predict, use_nonce) non "
+            "sono passati: valore_effectivo = default del runner, inerte per "
+            "costruzione su range(0)",
+        ],
         "dt_nominal_rule": ("3 x mediana(duration_s) su TUTTE righe valide del "
-                            "pilot P2.9; DT_NOM = 2.930748 s, congelato e "
-                            "anch'esso citato percorso/sha256/run id/HEAD"),
-        "blocks": dichiarati,
+                            "pilot P2.9; DT_NOM = 2.930748 s, congelato prima "
+                            "della campagna (requisito 5)"),
+        "blocks": plan_blocks(),
         "outputs": {"results_csv": str(RESULTS_DIR / ROWS_NAME),
                     "block_summary_csv": str(RESULTS_DIR / BLOCKS_NAME)},
         "git_head": _git_head(),
+        "runner_sha256": _sha256(MODULE_DIR / "benchmark_v4.py"),
     }
 
 
 def cmd_plan(model: str) -> int:
     ARCHIVE_DIR.mkdir(parents=True, exist_ok=True)
     RESULTS_DIR.mkdir(parents=True, exist_ok=True)
-    _scrittura_atomica(ARCHIVE_DIR / PLAN_NAME, plan_payload())
     plan = plan_payload()
+    _scrittura_atomica(ARCHIVE_DIR / PLAN_NAME, plan)
     print("[OK] piano scritto:", ARCHIVE_DIR / PLAN_NAME)
     for b in plan["blocks"]:
-        side = "load" if b["arm"] == "load" else "control"
-        txt = (LOAD_PROMPT if b["arm"] == "load" else "")
-        words = len(txt.split()) if txt else 0
-        print(f"  {b['label']:>2}: {side} m={b['m']} num_predict={b['num_predict']} "
-              f"nonce={'on' if b['use_nonce'] else 'off'} parole={words}", flush=True)
+        if b["arm"] == "load":
+            dettagli = (f"m={b['m']} num_predict={b['num_predict']} "
+                        f"nonce=on")
+        else:
+            dettagli = f"richieste=0 finestra={b['dt_nominal_s']} s"
+        print(f"  [{b['index']:>2}] {b['label']:<12} {b['arm']:<7} "
+              f"{b['pair_id']:<8} {dettagli}", flush=True)
     return 0
 
 
-def _meta_metadata_path() -> Path:
-    import config
-    return config.CSV_RUN_METADATA_PATH
+def _verifica_piano() -> Dict:
+    """Il piano eseguito deve essere quello dichiarato, non una sua riedizione."""
+    path = ARCHIVE_DIR / PLAN_NAME
+    if not path.exists():
+        raise SystemExit("nessun plan.json: lanciare prima `plan`")
+    with path.open(encoding="utf-8") as fh:
+        plan = json.load(fh)
+    dichiarati = plan_blocks()
+    if plan.get("blocks") != dichiarati:
+        raise SystemExit(
+            "il piano dichiarato non coincide con plan_blocks() del codice: "
+            "il tool e' cambiato DOPO la dichiarazione. Ritirare plan.json e "
+            "ripianificare PRIMA di misurare.")
+    if plan.get("order_seed") != SEED or plan.get("model") != DEFAULT_MODEL:
+        raise SystemExit("seed o modello discostati dal piano dichiarato")
+    return plan
 
 
-def _ultimo_metadata(run_id: str) -> Optional[Dict]:
-    path = _meta_metadata_path()
+def _ultima_baseline_pre(path: Path) -> Optional[float]:
+    """L'ultima baseline_pre_w scritta, o None se non c'e'/non e' finita."""
     if not path.exists():
         return None
     with path.open(newline="", encoding="utf-8-sig") as fh:
-        righe = [r for r in csv.DictReader(fh) if r.get("run_id") == run_id]
-    return righe[-1] if righe else None
+        righe = list(csv.DictReader(fh))
+    if not righe:
+        return None
+    try:
+        valore = float(righe[-1].get("baseline_pre_w", ""))
+    except (TypeError, ValueError):
+        return None
+    return valore if valore == valore and valore > 0.0 else None
 
 
-def _extract_control_blocks(path: Path) -> List[Mapping]:
-    """Legge i riepiloghi dei blocchi di controllo da ``block_summary.csv``."""
-    rows = list(csv.DictReader(path.open(encoding="utf-8")))
-    if not rows:
-        raise SystemExit(f"ripresa riepiloghi blocco assente o vuota: {path}")
+def _filtra_controlli(catturati: List[Dict]) -> List[Mapping]:
+    """I riepiloghi completi dei soli blocchi di controllo, notes escluse.
+
+    Sono i dizionari che il runner passa a ``export_summary_csv`` PRIMA che
+    lo schema P5 congeli le colonne: contengono i campi ``control_*`` che
+    ``evaluate_gate`` legge e che il CSV consegnato non porta.
+    """
     out = []
-    for r in rows:
-        if str(r.get("block_kind", "") or "") == "control":
-            c = dict(r)
-            c.pop("notes", None)  # cancelliamo notes raggruppate
+    for rec in catturati:
+        if str(rec.get("block_kind", "") or "") == "control":
+            c = dict(rec)
+            c.pop("notes", None)
             out.append(c)
     if not out:
         raise SystemExit(
-            f"nessun blocco di controllo scritto in {path}: gate non eseguito"
-            " (quorum da scartare)")
+            "nessun riepilogo di blocco di controllo catturato: gate non "
+            "eseguito")
     return out
 
 
+def _call_kwargs(b: Dict, initial_pre: Optional[float],
+                 rows_path: Path, blocks_path: Path) -> Tuple[Dict, Dict]:
+    kw = dict(
+        blocks_per_point=BLOCKS_PER_POINT,
+        num_ctx=NUM_CTX, temperature=config.DEFAULT_TEMPERATURE,
+        timeout_s=config.DEFAULT_TIMEOUT_S,
+        batch_id=f"p44-{b['label']}",
+        block_kind=b["arm"], pair_id=b["pair_id"], order_seed=SEED,
+        dt_nominal_s=str(DT_NOM_FROZEN),
+        max_invalidated_blocks=K_MAX,
+        substitution_seed=f"p44-{b['label']}",
+        initial_last_pre_w=initial_pre,
+        results_path=rows_path, block_summary_path=blocks_path,
+        on_log=lambda m: print(m, flush=True))
+    if b["arm"] == "load":
+        kw.update(m=b["m"], num_predict=b["num_predict"],
+                  use_nonce=b["use_nonce"])
+    prompt = {"id": b["prompt_id"], "text": b["text"],
+              "answer_type": "auto", "source": b["source"]}
+    return kw, prompt
+
+
+def _cattura_riepiloghi():
+    """Mod (non monkeypatch permanente) di ``export_summary_csv``: passa al
+    writer reale e trattiene una copia del riepilogo COMPLETO — con i campi
+    ``control_*`` che lo schema P5 scarterebbe. E' l'unico momento in cui il
+    chiamante di ``run_v4_benchmark`` li vede interi."""
+    reale = v4.export_summary_csv
+    catturati: List[Dict] = []
+
+    def wrapper(records, path, columns, mode="a"):
+        n = reale(records, path, columns, mode=mode)
+        for rec in records:
+            catturati.append(dict(rec))
+        return n
+
+    return reale, wrapper, catturati
+
+
 def cmd_execute(model: str) -> Dict:
-    plan = plan_payload()
+    plan = _verifica_piano()
     ARCHIVE_DIR.mkdir(parents=True, exist_ok=True)
-    # Verifica esplicita dei valori congelati P4.4 su ogni blocco del piano.
-    # Il confronto "expected != b" di prima era una forma di auto-verifica
-    # perche' expected era costruito estraendo le stesse chiavi da b, quindi
-    # il fallimento era strutturale: qui si confronta contro i valori
-    # prescritti dal protocollo, non contro il payload stesso.
-    for b in plan["blocks"]:
-        if b["arm"] == "load":
-            ok = (b["m"] == 32 and b["num_predict"] == 32
-                  and b["use_nonce"] is True)
-        elif b["arm"] == "control":
-            ok = (b["m"] == 3 and b["num_predict"] == 1
-                  and b["use_nonce"] is True)
-        else:
-            raise SystemExit(
-                f"blocco {b['label']}: arm={b['arm']!r} non ammesso "
-                "(atteso load|control)")
-        if not ok:
-            raise SystemExit(
-                f"blocco {b['label']} ({b['arm']}): m={b['m']} "
-                f"num_predict={b['num_predict']} use_nonce={b['use_nonce']} "
-                "- P4.4 vuole load m=32/np=32, control m=3/np=1")
     RESULTS_DIR.mkdir(parents=True, exist_ok=True)
     rows_path = RESULTS_DIR / ROWS_NAME
     blocks_path = RESULTS_DIR / BLOCKS_NAME
-    runs: List[Dict] = []
-    errors: List[str] = []
-    for k in range(PAIRS):
-        mid = labels = None
-        # label corrente della run: carico o controllo della coppia k
-        current = ("carico-" if k % 2 == 0 else "controllo-") + str(k // 2 + 1)
-        prom = ({"id": f"load-{k}", "text": LOAD_PROMPT,
-                  "answer_type": "auto", "source": "p44_gate"}
-                if current.startswith("carico-")
-                else {"id": f"ctrl-{k}", "text": "",
-                      "answer_type": "auto", "source": "gate_control"})
-        summary = v4.run_v4_benchmark(
-            [DEFAULT_MODEL], [prom],
-            m=32 if current.startswith("carico-") else 3,
-            blocks_per_point=BLOCKS_PER_POINT,
-            num_predict=32 if current.startswith("carico-") else 1,
-            num_ctx=NUM_CTX, temperature=DEFAULT_TEMPERATURE,
-            timeout_s=DEFAULT_TIMEOUT_S, batch_id=f"p44-{current}",
-            block_kind=current.startswith("carico-") and "load"
-                      or "control",
-            pair_id=f"pair-{k}", order_seed=SEED,
-            dt_nominal_s=str(DT_NOM_FROZEN),
-            max_invalidated_blocks=K_MAX,
-            substitution_seed=f"p44-{current}",
-            results_path=rows_path, block_summary_path=blocks_path,
-            on_log=lambda m: print(m, flush=True))
-        meta = _ultimo_metadata(summary["run_id"]) or {}
-        runs.append({"label": current, "arm": current.startswith("carico-")
-                     and "load" or "control", "m": 32 if current.startswith("carico-")
-                     else 3, "num_predict": 32 if current.startswith("carico-")
-                     else 1, "use_nonce": True, "run_id": summary["run_id"],
-                     "batch_id": summary["batch_id"], "records": summary.get(
-                        "records"), "blocks": summary.get("blocks"),
-                     "errors": summary.get("errors"),
-                     "invalidated_blocks": summary.get("invalidated_blocks"),
-                     "started_at": meta.get("started_at", ""),
-                     "finished_at": meta.get("finished_at", ""),
-                     "notes": meta.get("notes", "")})
-        if summary.get("errors"):
-            errors.append(f"{current}: {summary['errors']}")
-            print(f"[ERRORE] {current}: {summary['errors']}", file=sys.stderr)
+    for p in (rows_path, blocks_path):
+        if p.exists() and p.stat().st_size > 0:
+            raise SystemExit(
+                f"output gia' presente: {p}. Il gate misura una campagna "
+                "dichiarata: rimuovi l'archivio o cambia data, non accodare.")
 
-    if errors:
-        raise SystemExit(3)
-    controls = _extract_control_blocks(blocks_path)
-    q = cg.evaluate_gate(controls, n_pairs=len(PAIRS))
-    analysis = {
+    reale, wrapper, catturati = _cattura_riepiloghi()
+    runs: List[Dict] = []
+    v4.export_summary_csv = wrapper
+    try:
+        for b in plan["blocks"]:
+            initial_pre: Optional[float] = None
+            if b["arm"] == "control":
+                initial_pre = _ultima_baseline_pre(blocks_path)
+                if initial_pre is None:
+                    raise SystemExit(
+                        f"propagazione interrotta prima di {b['label']}: "
+                        "nessuna baseline_pre_w valida dall'ultimo blocco. Il "
+                        "controllo partirebbe senza cooldown verso il carico: "
+                        "disegno diverso da quello dichiarato, mi fermo.")
+            kw, prompt = _call_kwargs(b, initial_pre, rows_path, blocks_path)
+            print(f"[BLOCCO {b['index']:>2}] {b['label']} ({b['arm']}, "
+                  f"{b['pair_id']})"
+                  + (f" P_pre_ref={initial_pre:.6f} W" if initial_pre else ""),
+                  flush=True)
+            summary = v4.run_v4_benchmark([model], [prompt], **kw)
+            rec = dict(catturati[-1]) if catturati else {}
+            run_rec = {
+                "index": b["index"], "label": b["label"], "arm": b["arm"],
+                "pair_id": b["pair_id"], "run_id": summary["run_id"],
+                "batch_id": summary["batch_id"],
+                "block_id": rec.get("block_id", ""),
+                "records": summary.get("records"),
+                "blocks": summary.get("blocks"),
+                "errors": summary.get("errors"),
+                "invalidated_blocks": summary.get("invalidated_blocks"),
+                "initial_last_pre_w": initial_pre,
+                "block_baseline_pre_w": rec.get("baseline_pre_w", ""),
+                "block_cooldown_timeout": rec.get("cooldown_timeout", ""),
+            }
+            runs.append(run_rec)
+            if summary.get("errors"):
+                raise SystemExit(
+                    f"[ERRORE] {b['label']}: {summary['errors']} — K=1, mi "
+                    "fermo prima del blocco successivo (Emenda 8)")
+            if summary.get("invalidated_blocks"):
+                raise SystemExit(
+                    f"[ERRORE] {b['label']}: blocco invalidato per guasto "
+                    f"(K={K_MAX}): {summary.get('stopped_by_k', '')} — mi "
+                    "fermo")
+            if b["arm"] == "control":
+                cd = run_rec["block_cooldown_timeout"]
+                if cd == "":
+                    raise SystemExit(
+                        f"[ERRORE] {b['label']}: cooldown non eseguito "
+                        f"nonostante P_pre propagato ({initial_pre} W) — "
+                        "cella cooldown_timeout vuota. La propagazione non ha "
+                        "raggiunto il runner: mi fermo prima di dichiarare "
+                        "il gate.")
+    finally:
+        v4.export_summary_csv = reale
+
+    controls = _filtra_controlli(catturati)
+    if len(controls) != N_COPPIE:
+        raise SystemExit(
+            f"controlli catturati {len(controls)} su {N_COPPIE}: il gate "
+            "sarebbe valutato su un disegno diverso da quello dichiarato")
+    _scrittura_atomica(ARCHIVE_DIR / BLOCKS_JSON_NAME, controls)
+    q = cg.evaluate_gate(controls, n_pairs=N_COPPIE)
+    analysis = q.to_dict()
+    analysis.update({
         "pilot": "P4.4 gate",
-        "model": DEFAULT_MODEL,
+        "model": model,
         "dt_nominal_s": DT_NOM_FROZEN,
         "order_seed": SEED,
         "geometry": GEOMETRY,
-        "controls_usable_n": q.controls_usable_n,
-        "n_pairs": len(PAIRS),
-        "quorum": q.quorum,
-        "controls": [dict(c) for c in q.controls],
-        "bias_w": q.bias_w,
-        "bias_threshold_w": q.bias_threshold_w,
-        "bias_jtok_pct": list(q.bias_jtok_pct),
-        "chain_status": q.chain_status,
-        "status": q.status,
-        "reasons": list(q.reasons),
         "runs": runs,
-        "fake_results_csv": str(rows_path),
-        "fake_block_summary_csv": str(blocks_path),
-        "fake_run_ids": [r["run_id"] for r in runs],
-        "fake_block_ids": [r["run_id"] for r in runs],
-        "fake_git_head": _git_head(),
-        "fake_metadata_path": str(_meta_metadata_path()),
-    }
+        "results_csv": str(rows_path),
+        "block_summary_csv": str(blocks_path),
+        "blocks_controllo_json": str(ARCHIVE_DIR / BLOCKS_JSON_NAME),
+        "run_ids": [r["run_id"] for r in runs],
+        "git_head": _git_head(),
+        "runner_sha256": _sha256(MODULE_DIR / "benchmark_v4.py"),
+        "metadata_path": str(config.CSV_RUN_METADATA_PATH),
+    })
     _scrittura_atomica(ARCHIVE_DIR / ANALYSIS_NAME, analysis)
     _scrittura_atomica(ARCHIVE_DIR / FREEZE_NAME, analysis)
     _write_report(analysis)
@@ -305,44 +410,62 @@ def cmd_execute(model: str) -> Dict:
 
 
 def _write_report(data: Dict) -> None:
-    controls_usable = data["controls_usable_n"]
-    n_pairs = data["n_pairs"]
-    q = data["status"]
-    summary = (f"gate: {q}; controls_usable={controls_usable}/{n_pairs}, "
-               f"quorum={data['quorum']}, chain_status={data['chain_status']}; "
-               f"bias_w={data['bias_w']}; threshold={data['bias_threshold_w']}");
-    with open(ARCHIVE_DIR / REPORT_NAME, "w", encoding="utf-8") as fh:
-        fh.write(
-            "# Gate P4.4 load-versus-control — 2026-11-07\n\n")
+    summary = (f"gate: {data['status']}; controlli utilizzabili = "
+               f"{data['controls_usable_n']}/{data['n_pairs']} coppie, "
+               f"quorum = {data['quorum']}; chain_status = "
+               f"'{data['chain_status']}'")
+    with (ARCHIVE_DIR / REPORT_NAME).open("w", encoding="utf-8") as fh:
+        fh.write("# Gate P4.4 load-versus-control\n\n")
         fh.write(f"- modello: `{data['model']}`\n")
-        fh.write(f"- DT_NOM congelato = {data['dt_nominal_s']} s (pilota P2.9)\n")
-        fh.write(f"- ordine = {data['order_seed']}\n")
-        fh.write(f"- geometria confermata (12,32)\n\n")
+        fh.write(f"- DT_NOM congelato = {data['dt_nominal_s']} s "
+                 "(pilota P2.9, requisito 5)\n")
+        fh.write(f"- order_seed dichiarato = {data['order_seed']} "
+                 "(requisito 3)\n")
+        fh.write("- geometria (12,32) (requisito 4)\n")
+        fh.write("- 12 blocchi / 6 coppie, un blocco per invocazione\n\n")
         fh.write("## Risultato\n\n")
         fh.write(summary + "\n\n")
+        if data["bias_w"] is not None:
+            fh.write(f"- bias_w = {data['bias_w']:.6f} W contro soglia "
+                     f"mediana_c(budget_base_w) = "
+                     f"{data['bias_threshold_w']:.6f} W\n\n")
+        else:
+            fh.write("- bias non calcolato: gate non eseguibile\n\n")
+        fh.write("## Blocchi di controllo\n\n")
         for c in data["controls"]:
             fh.write(
-                f"- blocco {c['block_id']}: usable={c['usable']}, "
+                f"- {c['block_id']}: usable={c['usable']}, "
                 f"unstable={c['control_unstable']}, "
-                f"pre_range={c['pre_range_w']}, dP={c['dP']}, "
-                f"|E_net,control|={c['e_net_j']}, "
+                f"pre_range_w={c['pre_range_w']}, dP={c['dP']}, "
+                f"E_net={c['e_net_j']} J, dt_W={c['dt_w_s']} s, "
                 f"budget_base_j={c['budget_base_j']}, "
-                f"budget_base_w={c['budget_base_w']}, "
-                f"block_pass={c['block_pass']}\n")
-        fh.write("\n## Rapporto J/token (F.12)\n\n")
-        if data["bias_jtok_pct"][0] is not None:
-            fh.write(
-                f"- bias_w={data['bias_w']:.4f} W;\n"
-                f"  jtok_pct_lo={data['bias_jtok_pct'][0]:.3f},"
-                f" jtok_pct_hi={data['bias_jtok_pct'][1]:.3f}\n\n")
-        else:
-            fh.write("- gate non eseguibile: bias assente\n\n")
-        fh.write("## Artefatti\n\n")
-        fh.write(f"- results CSV: {data['fake_results_csv']}\n")
-        fh.write(f"- block summary CSV: {data['fake_block_summary_csv']}\n")
-        fh.write(f"- runs: {len(data['runs'])}\n")
-        fh.write(f"- run ids: {data['fake_run_ids']}\n")
-        fh.write(f"- git head: {data['fake_git_head']}\n")
+                f"budget_base_w={c['budget_base_w']} W, "
+                f"window={c['window_source']}, block_pass={c['block_pass']}"
+                + (f" — {c['reason']}" if c["reason"] else "") + "\n")
+        fh.write("\n## Propagazione cooldown (scelta operativa)\n\n")
+        for r in data["runs"]:
+            if r["arm"] == "control":
+                fh.write(
+                    f"- {r['label']}: P_pre_ref="
+                    f"{r['initial_last_pre_w']}, cooldown_timeout="
+                    f"'{r['block_cooldown_timeout']}'\n")
+        if data.get("bias_jtok_pct"):
+            lo, hi = data["bias_jtok_pct"]
+            fh.write("\n## Rapporto J/token (F.12, grandezza riportata)\n\n")
+            fh.write(f"- bias = {lo:.3f}–{hi:.3f} % di J/token "
+                     "(scala ancorata 1 W ~ 6–11%)\n")
+        if data.get("reasons"):
+            fh.write("\n## Ragioni\n\n")
+            for motivo in data["reasons"]:
+                fh.write(f"- {motivo}\n")
+        fh.write("\n## Artefatti\n\n")
+        fh.write(f"- results CSV: {data['results_csv']}\n")
+        fh.write(f"- block summary CSV: {data['block_summary_csv']}\n")
+        fh.write(f"- riepiloghi controllo (JSON, forma --blocks): "
+                 f"{data['blocks_controllo_json']}\n")
+        fh.write(f"- run ids: {', '.join(data['run_ids'])}\n")
+        fh.write(f"- git head: {data['git_head']}\n")
+        fh.write(f"- runner sha256: {data['runner_sha256']}\n")
 
 
 def main(argv: Optional[Sequence[str]] = None) -> int:
@@ -353,14 +476,20 @@ def main(argv: Optional[Sequence[str]] = None) -> int:
     p_plan.add_argument("--model", default=DEFAULT_MODEL,
                         help="modello locale")
     p_exec = sub.add_parser("execute",
-                            help="esegui le sei coppie e valuta F.12")
+                            help="esegui le dodici righe e valuta F.12")
     p_exec.add_argument("--model", default=DEFAULT_MODEL,
                         help="modello locale")
     args = parser.parse_args(argv)
     if args.cmd == "plan":
         return cmd_plan(args.model)
     if args.cmd == "execute":
-        r = cmd_execute(args.model)
+        try:
+            r = cmd_execute(args.model)
+        except SystemExit as e:
+            if isinstance(e.code, int):
+                raise
+            print(f"[ARRESTO] {e.code}", file=sys.stderr, flush=True)
+            return 3
         mapping = {"pass": 0, "fail": 1, "not-executable": 2}
         return mapping[r["status"]]
     parser.error("seguono solo plan/execute")
