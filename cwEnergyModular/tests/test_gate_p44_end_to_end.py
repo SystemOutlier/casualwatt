@@ -418,6 +418,57 @@ def test_date_non_valida_rifiutata_prima_di_scrivere(monkeypatch, tmp_path,
     assert list(tmp_path.iterdir()) == []
 
 
+def test_report_mostra_pass_false_rapporto_enet_dt_e_baseline(
+        monkeypatch, tmp_path):
+    """Il report deve rendere leggibili tre grandezze che il JSON gia' porta:
+    E_net/dt_W per controllo, quanti utilizzabili falliscono il criterio per
+    blocco (block_pass=False, non i None dei non utilizzabili), e la baseline
+    propagata contro quella propria del blocco. Un dt_W=0 non produce una
+    divisione: 'n/d'. I numeri ricalcano il fail reale del 20261107
+    (2,64 J contro budget 0,885 J)."""
+    monkeypatch.setattr(rg, "ARCHIVE_DIR", tmp_path)
+    data = {
+        "status": "fail", "controls_usable_n": 2, "n_pairs": 2,
+        "quorum": 2, "chain_status": "",
+        "model": "m-test", "dt_nominal_s": 0.05, "order_seed": rg.SEED,
+        "bias_w": 0.9, "bias_threshold_w": 0.3,
+        "controls": [
+            {"block_id": "b-1", "usable": True, "control_unstable": False,
+             "pre_range_w": 0.1, "dP": 0.5, "e_net_j": 2.64,
+             "dt_w_s": 2.93, "budget_base_j": 0.885,
+             "budget_base_w": 0.302, "window_source": "exact-counter",
+             "block_pass": False, "reason": ""},
+            {"block_id": "b-2", "usable": True, "control_unstable": False,
+             "pre_range_w": 0.1, "dP": -0.1, "e_net_j": 0.31,
+             "dt_w_s": 0.0, "budget_base_j": 0.511,
+             "budget_base_w": 0.173, "window_source": "exact-counter",
+             "block_pass": True, "reason": ""},
+            {"block_id": "b-3", "usable": False, "control_unstable": True,
+             "pre_range_w": 1.2, "dP": 1.1, "e_net_j": -2.56,
+             "dt_w_s": 2.93, "budget_base_j": 0.9,
+             "budget_base_w": 0.31, "window_source": "exact-counter",
+             "block_pass": None, "reason": "|dP| > 1 W"},
+        ],
+        "runs": [
+            {"label": "controllo-1", "arm": "control", "block_id": "b-1",
+             "initial_last_pre_w": 6.3, "block_baseline_pre_w": 5.2,
+             "block_cooldown_timeout": "false"},
+        ],
+        "results_csv": "r.csv", "block_summary_csv": "b.csv",
+        "blocks_controllo_json": "c.json", "run_ids": ["x"],
+        "git_head": "h", "runner_sha256": "s",
+    }
+    rg._write_report(data)
+    report = (tmp_path / rg.REPORT_NAME).read_text(encoding="utf-8")
+    # b-3 non e' utilizzabile: il suo block_pass=None non entra nel conteggio
+    assert "utilizzabili con block_pass=False: 1/2" in report
+    assert "E_net/dt_W=0.901024 W" in report      # 2.64 / 2.93
+    assert "E_net/dt_W=n/d" in report             # dt_W = 0
+    assert "P_pre_ref propagata dal carico=6.3 W" in report
+    assert "propria del blocco=5.2 W" in report
+    assert "baseline propria del blocco=5.2" in report
+
+
 # ---------------------------------------------------------------------------
 # 4. end-to-end del tool: dodici invocazioni reali e verdetto F.12
 # ---------------------------------------------------------------------------
@@ -489,6 +540,15 @@ def test_execute_end_to_end_dodici_invocazioni_e_verdetto(monkeypatch,
         (rg.ARCHIVE_DIR / rg.BLOCKS_JSON_NAME).read_text(encoding="utf-8"))
     assert len(payload) == 6
     assert all("control_e_net_j" in r for r in payload)
+
+    # il report porta le grandezze derivate, non solo il JSON: E_net/dt_W
+    # (0,1 J su 1,0 s nel fake), il conteggio dei pass=False e la baseline
+    # propagata contro quella propria del blocco
+    report = (rg.ARCHIVE_DIR / rg.REPORT_NAME).read_text(encoding="utf-8")
+    assert "E_net/dt_W=0.100000 W" in report
+    assert "utilizzabili con block_pass=False: 0/6" in report
+    assert "P_pre_ref propagata dal carico=10.0 W" in report
+    assert "propria del blocco=10.0 W" in report
 
 
 def test_execute_si_ferma_se_il_piano_non_e_pianificato(monkeypatch,

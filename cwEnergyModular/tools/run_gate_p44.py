@@ -457,7 +457,12 @@ def _write_report(data: Dict) -> None:
         fh.write("- geometria (12,32) (requisito 4)\n")
         fh.write("- 12 blocchi / 6 coppie, un blocco per invocazione\n\n")
         fh.write("## Risultato\n\n")
-        fh.write(summary + "\n\n")
+        fh.write(summary + "\n")
+        pass_false = sum(1 for c in data["controls"]
+                         if c["usable"] and c["block_pass"] is False)
+        fh.write(f"- utilizzabili con block_pass=False: {pass_false}/"
+                 f"{data['controls_usable_n']} (il criterio per blocco e' "
+                 "riportato, non decide lo status del gate)\n\n")
         if data["bias_w"] is not None:
             fh.write(f"- bias_w = {data['bias_w']:.6f} W contro soglia "
                      f"mediana_c(budget_base_w) = "
@@ -465,22 +470,37 @@ def _write_report(data: Dict) -> None:
         else:
             fh.write("- bias non calcolato: gate non eseguibile\n\n")
         fh.write("## Blocchi di controllo\n\n")
+        run_per_blocco = {r.get("block_id", ""): r
+                          for r in data.get("runs", [])}
         for c in data["controls"]:
+            try:
+                p_net_w = float(c["e_net_j"]) / float(c["dt_w_s"])
+                p_net_txt = f"{p_net_w:.6f} W"
+            except (TypeError, ValueError, ZeroDivisionError):
+                p_net_txt = "n/d"
             fh.write(
                 f"- {c['block_id']}: usable={c['usable']}, "
                 f"unstable={c['control_unstable']}, "
                 f"pre_range_w={c['pre_range_w']}, dP={c['dP']}, "
                 f"E_net={c['e_net_j']} J, dt_W={c['dt_w_s']} s, "
+                f"E_net/dt_W={p_net_txt}, "
                 f"budget_base_j={c['budget_base_j']}, "
                 f"budget_base_w={c['budget_base_w']} W, "
                 f"window={c['window_source']}, block_pass={c['block_pass']}"
                 + (f" — {c['reason']}" if c["reason"] else "") + "\n")
+            r = run_per_blocco.get(c["block_id"], {})
+            if r:
+                fh.write(
+                    f"  baseline: P_pre_ref propagata dal carico="
+                    f"{r.get('initial_last_pre_w')} W, propria del blocco="
+                    f"{r.get('block_baseline_pre_w')} W\n")
         fh.write("\n## Propagazione cooldown (scelta operativa)\n\n")
         for r in data["runs"]:
             if r["arm"] == "control":
                 fh.write(
                     f"- {r['label']}: P_pre_ref="
-                    f"{r['initial_last_pre_w']}, cooldown_timeout="
+                    f"{r['initial_last_pre_w']}, baseline propria del blocco="
+                    f"{r.get('block_baseline_pre_w', '')}, cooldown_timeout="
                     f"'{r['block_cooldown_timeout']}'\n")
         if data.get("bias_jtok_pct"):
             lo, hi = data["bias_jtok_pct"]
