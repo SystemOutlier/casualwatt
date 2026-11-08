@@ -1,0 +1,36 @@
+{
+  "input": "MUDILAB_run/harness/risultati/confronto_valutatori_20261103.json (HEAD, commit 303051dd9)",
+  "colonne": {
+    "task": "task_id",
+    "verdetto_a": "pubblicato.corretta",
+    "verdetto_b": "rampo.passi.end_to_end",
+    "etichetta_a": "pubblicato",
+    "etichetta_b": "ramo:passi"
+  },
+  "righe_lette": 321,
+  "n_total": 161,
+  "n_determinate": 161,
+  "n_excluded": 0,
+  "excluded_by_reason": {},
+  "a": 50,
+  "b": 7,
+  "c": 0,
+  "d": 104,
+  "discordant": 7,
+  "p_value_exact": 0.015625,
+  "p_value_chi2": null,
+  "chi2": null,
+  "chi2_correction": true,
+  "delta_acc": 0.043478,
+  "delta_ci_newcombe": [
+    0.009472,
+    0.078023
+  ],
+  "indecis": false,
+  "correction_applied": "not_applicable",
+  "note": "",
+  "reduction": "first",
+  "n_tasks": 161,
+  "n_without_task": 0,
+  "n_tasks_with_replicates": 80
+}

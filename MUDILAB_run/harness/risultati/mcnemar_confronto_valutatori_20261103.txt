@@ -1,0 +1,8 @@
+McNemar appaiato: pubblicato vs ramo:passi
+fonte: MUDILAB_run/harness/risultati/confronto_valutatori_20261103.json (HEAD, commit 303051dd9)
+riduzione: first (prima riga per task) -- 161 task, 80 con repliche, 0 righe senza identita'
+matrice: a=50 b=7 c=0 d=104 (discordanti 7, determinate 161, escluse 0)
+p esatto (binomiale): 0.015625
+chi2: n/d (b+c < 10: binomiale esatto)
+delta_acc = (b-c)/n: 0.043478  CI 95% Newcombe: [0.009472, 0.078023]
+esclusi per ragione: nessuno
