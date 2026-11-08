@@ -26,9 +26,32 @@ se una risposta è corretta.
    assumendo proprio l'indipendenza che il cluster deve correggere. Con un solo
    task distinto l'intervallo non si pubblica affatto (la dispersione sarebbe
    zero per costruzione, non per evidenza). Il confronto fra due sistemi sullo
-   stesso task richiede una McNemar appaiata: **non è implementata**. Finché non
-   esiste e non ha test propri, non va descritta come disponibile né usata per
-   decidere fra due sistemi.
+   stesso task richiede una McNemar appaiata: `paired_mcnemar`
+   (`evaluation_runner.py:177-331`) la implementa, con test proprio
+   (`tests/test_paired_mcnemar.py`, 13 test). Usa il binomiale esatto sempre, il
+   chi-quadro con correzione di continuità quando le coppie discordanti sono
+   almeno dieci, e pubblica `delta_acc = (b-c)/n` con l'intervallo di Newcombe
+   (metodo 10) e il phi corretto del 2×2; `correction_applied` dice cosa è
+   entrato davvero nella formula. Non sostituisce i due intervalli qui sopra: li
+   accompagna sul confronto appaiato, che va calcolato su **una coppia per
+   task**, perché le repliche dello stesso task non sono prove indipendenti. Le
+   coppie con almeno un esito indeterminato, mancante o in errore tecnico restano
+   fuori dalla matrice e sono contate in `n_excluded` con la ragione.
+   `paired_summary` (stesso modulo, subito dopo) applica la riduzione dichiarata
+   — oggi solo `"first"`, la prima riga di ogni task nell'ordine del file — e
+   aggiunge `n_tasks`, `n_tasks_with_replicas`, `n_without_task`, così che il
+   numero di righe scartate non resti implicito. Il percorso di report che la
+   chiama è `tools/mcnemar_report.py`: legge un JSON di confronto riga per riga
+   (`--input` obbligatorio), risolve i due verdetti con un percorso puntato
+   (`pubblicato.corretta`, `ramo.passi.end_to_end` nel caso MUDILAB), stampa
+   matrice, p esatto, chi², delta, intervallo di Newcombe, esclusi per ragione, e
+   scrive un JSON più un `.txt` accanto all'input; `--source` registra la
+   provenienza quando le righe sono estratte da un blob git. Quando `b+c=0`
+   dichiara **INDECISO** e quando le coppie escluse superano il 10% aggiunge la
+   cautela: una tabella degenere non si legge come una parità dimostrata. Sul
+   confronto MUDILAB del 03-11-2026 (321 run, una coppia per task) dà
+   `a=50 b=7 c=0 d=104`, p esatto 0,015625, `delta_acc = 0,043478` con intervallo
+   `[0,009472; 0,078023]`: il ramo `passi` perde sette task e nessuno ne vince.
 
 ## Contratto di riferimento
 
