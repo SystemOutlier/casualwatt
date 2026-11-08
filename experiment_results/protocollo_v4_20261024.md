@@ -81,6 +81,97 @@ Non è un requisito di P4.4 ed è qui registrata come scelta del tool.
 
 Tracciabilità: SHA-256 di `benchmark_v4.py` **prima** `51d3609c17d6eba2bbb7ae668ee6f9e19ad2ce56ddff5d7e5752335eeca3a758`, **dopo** `a8a35078fe74a98a69d5b57192aec42fe2b3e5f8f45e9508b656918353e1fe4d`; il delta è solo la derivazione e la sua documentazione. Il tool e i test entrano con `730179160`. Evidenza: **7** node id nuovi in `tests/test_gate_p44_end_to_end.py` — neutralità a default dei due argomenti (CSV di righe e di blocchi identici, `run_id`/`session_id`/`timestamp_end` esclusi), derivazione vista da `run_v4_benchmark` (con `block_kind='control'` zero richieste spedite e campi `control_*` valorizzati; con `'load'`/`'campaign'` i campi non esistono), il disegno a dodici righe, il blocco del codice cambiato dopo la dichiarazione, l'execute end-to-end con propagazione osservata nel cooldown e **verdetto F.12** (non `not-executable`) su controlli reali, e `execute` senza `plan` rifiutato. Suite del 2026-11-08: `py -m pytest cwEnergyModular -q` → **1010 passati, 4 saltati, 0 falliti**. Nessuna formula, nessuna soglia, nessun valore congelato modificato; il gate non è ancora eseguito e nessuna riga è `validated`.
 
+**Tredicesima emenda, di precondizione operativa e di dichiarazione (2026-11-08)**:
+il gate P4.4 è stato eseguito il 2026-11-07 e il verdetto è **fail**
+(`bias_w = 0,4796 W > mediana_c(budget_base_w,c) = 0,2623 W`, quorum 4/6
+raggiunto, artefatti congelati in `experiment_results/p44_gate_20261107/`).
+La lettura dei metadati del run mostra che la macchina era rumorosa durante la
+campagna. La decisione registrata qui — presa **prima** dei dati della seconda
+campagna — è che **il criterio e le soglie di P4.5/F.12 restano invariati**: ciò
+che cambia è la condizione di partenza dell'esecuzione e ciò che il report
+riporta. Nessun anello si sposta, nessuna riga è `validated`.
+
+1. **Precondizione di quiete, condizione di partenza e non esclusione a
+   posteriori.** Prima di **ogni** invocazione di `run_v4_benchmark` il tool
+   (`tools/run_gate_p44.py::_attendi_quiete`) attende `background_load=False`
+   su **3 letture consecutive** (`QUIET_CONSECUTIVE = 3`; ogni lettura è
+   `total_cpu_samples` di P1.4, ~3 s di osservazione, soglia 5% sostenuta),
+   con tetto `QUIET_CAP_S = 600,0 s`: una lettura rumorosa azzera il conteggio,
+   il tetto scaduto produce `SystemExit` con `[ARRESTO]` e codice di uscita 3,
+   senza dati parziali. È una condizione per **iniziare** a misurare: nessun
+   blocco misurato viene escluso dopo, quindi non introduce selezione dei
+   dati. Le tre costanti sono congelate in `plan.json` (check E) prima delle
+   misure; il criterio F.12 non le legge.
+2. **Conseguenza sul piano del 2026-11-07.** `_verifica_piano` rifiuta un
+   piano senza le chiavi di quiete: il `plan.json` della prima campagna non è
+   più eseguibile e la seconda campagna richiede un piano nuovo
+   (`plan --date 20261108`), che congela le costanti e il nuovo
+   `runner_sha256`. Il rifiuto è dichiarato, non un fallimento silenzioso.
+3. **Due modifiche di contorno al percorso, dichiarate.** `--seed` è
+   parametrizzato come `--date` e il piano si verifica contro il seme passato
+   (commit `9d524e365`); il riepilogo del runner espone
+   `background_load_before`/`background_load_after` (commit `0f29f66d8`),
+   quantità senza colonna nello schema P5 — passano per il riepilogo e le
+   note, `BLOCK_SUMMARY_COLUMNS` non si muove. SHA-256 di `benchmark_v4.py`
+   **prima** `a8a35078fe74a98a69d5b57192aec42fe2b3e5f8f45e9508b656918353e1fe4d`,
+   **dopo** `99846365de073fa112a1594b5659d73d393a86ddf6cca3e196467a25f7881ee0`.
+   Il seme del disegno della seconda campagna resta `gate-seed-20261107`
+   (stesso disegno, stessa `dt_nominal_s = 2,930748 s`, stessa geometria
+   `(12,32)`, stesso modello, sei coppie carico-primo).
+4. **Grandezze riportate, non criterio.** Il report del gate aggiunge la
+   potenza per controllo `E_net/Δt_W` su **tutti** i controlli (anche gli
+   inutilizzabili), media, semi-range campionario fra blocchi (ddof=1),
+   errore standard e intervallo al 95% (commit `b11c8fc38`). La deviazione
+   fra blocchi **non** è la terna di baseline di P1.3/P4.12: il divieto di
+   colonna `sd` sulla terna a `n = 3` resta, e queste statistiche non decidono
+   l'esito del gate.
+5. **Registro della macchina rumorosa nella prima campagna.** I flag
+   `background_load` prima/dopo di ogni controllo, verificati il 2026-11-08
+   sulle note di `cwEnergyModular/results/casualwatt_run_metadata.csv` (file
+   **ignorato da git**: questa tabella è il record tracciato di quella
+   lettura):
+
+   | controllo | run_id | prima | dopo |
+   |---|---|---|---|
+   | ctrl-1 | `c930e29802284aeb912b4e5868137ce3` | True | False |
+   | ctrl-2 | `923b4bd8627546e6b2222762a0315597` | True | True |
+   | ctrl-3 | `48a32c3b48f94af68861b955705740ce` | True | True |
+   | ctrl-4 | `bc6c61d5f2084b4baf6af9974c679ec8` | False | False |
+   | ctrl-5 | `f27dac3cc91d4fada7a73959092322fd` | True | True |
+   | ctrl-6 | `94c8a9a1138b4c33bbfb188ed72b7c96` | True | True |
+
+   Cinque controlli su sei hanno la macchina carica prima del blocco; il solo
+   ctrl-4 è quieto in entrambe le letture. Il rumore non decide da solo:
+   ctrl-6 (rumoroso) ha l'errore assoluto più piccolo della serie
+   (`|−0,072| W`), minore di ctrl-4 (quieto, `+0,106 W`). La causa del fail
+   resta una diagnosi, non un fatto stabilito da questa tabella.
+6. **Seconda campagna e obbligo di riportarle entrambe.** La seconda campagna
+   usa le stesse sei coppie (~1 h) con la precondizione di quiete attiva.
+   **Entrambe le campagne si riportano qualunque sia l'esito**: ripetere
+   pubblicando solo il passaggio sarebbe "ripeto finché passa".
+7. **Preparazione della macchina, scelta operativa dichiarata senza codice.**
+   Durante il run Chrome e Qoder sono chiusi; il servizio `WSearch` è fermato
+   (`Stop-Service WSearch`, da riavviare dopo il run); `CompatTelRunner` e
+   Chrome risultano assenti al controllo pre-flight; Defender **non** si
+   ferma — la precondizione di quiete lo gestisce aspettando. Nessuna di
+   queste azioni è nel percorso di misura del codice.
+8. **Decisione condizionata, registrata e non adottata.** Solo se anche la
+   seconda campagna fallisce in ambiente quieto: aumentare le coppie (con 12
+   il quorum sale a 8) e rivedere la scala dei tempi — il budget deriva da
+   finestre di 30 s mentre la finestra di controllo dura 2,93 s, scale
+   diverse. Questa decisione richiede una nuova emenda e nuovi dati; oggi è
+   un impegno registrato, non un cambiamento.
+
+Tracciabilità: i quattro punti di codice entrano con `9d524e365`, `0edcbc18f`,
+`0f29f66d8`, `b11c8fc38`; evidenza **27** node id nuovi in
+`tests/test_quiet_gate_p44.py` (conteggio quiete, reset su lettura rumorosa,
+tetto e arresto, chiavi nel piano, rifiuto del piano vecchio, statistiche
+descrittive). Suite del 2026-11-08 su HEAD `dff422107`:
+`py -m pytest cwEnergyModular -q` → **1049 passati, 4 saltati, 0 falliti**
+(269,35 s; i 4 salti sono i 3 RAPL e il modulo ecologits). Nessuna formula,
+nessuna soglia, nessun valore congelato modificato; la seconda campagna non è
+ancora eseguita e nessuna riga è `validated`.
+
 **Nove difetti dichiarati nel testo congelato, tutti chiusi.** Quattro registrati
 il 2026-10-24, un quinto emerso il 2026-10-25 verificando gli ancoraggi del
 secondo turno, quattro registrati e chiusi il 2026-10-25 nel terzo turno. Trovati
