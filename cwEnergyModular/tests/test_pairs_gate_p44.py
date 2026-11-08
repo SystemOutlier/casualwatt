@@ -58,6 +58,11 @@ def _directories(monkeypatch, tmp_path):
     monkeypatch.setattr(rg, "N_BLOCCHI", rg.N_BLOCCHI)
     monkeypatch.setattr(rg, "_git_head", lambda: "test-head")
     monkeypatch.setattr(rg, "_sha256", lambda path: "test-sha")
+    # guardie pre-flight sul git_head: il piano fake porta "test-head",
+    # che il git reale non conoscerebbe; la verifica deve arrivare al
+    # disegno, non fermarsi sulla guardia del percorso di misura
+    monkeypatch.setattr(rg, "_git_antenato", lambda sha: True)
+    monkeypatch.setattr(rg, "_git_percorso_misura_mutato", lambda sha: False)
 
 
 def _piano(tmp_path, data="20261109"):
