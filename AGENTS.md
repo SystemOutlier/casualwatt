@@ -232,6 +232,14 @@ Fonti primarie, in ordine di autorita':
 - **Non sostituire il metodo in produzione senza evidenza sperimentale.**
   Tenere l'attuale finche' un esperimento non dimostra che l'alternativa e'
   migliore. Confrontare non significa adottare.
+  
+## Regole di comunicazione e rigore metrologico
+
+- **Lingua e registro:** Rispondere sempre in italiano accademico corretto, senza mescolare le lingue nella prosa. Gli identificatori di codice, i token di protocollo e i nomi dei campi CSV mantengono l'inglese originale del sorgente.
+- **Invarianza degli identificatori:** Conservare esatti gli identificatori tecnici, le costanti, le firme delle funzioni e la nomenclatura dei campi di misura.
+- **Onestà metrologica:** Non inventare risultati di test, campioni energetici o valori di baseline. Un claim è valido solo se ancorato all'AST o a un artefatto tracciato.
+- **Verifica prima del completamento:** Eseguire sempre i test di regressione (Pytest) prima di dichiarare un'attività o un refactoring completato.
+- **Rigore nella metodologia energetica:** Mantenere il massimo rigore scientifico nella gestione dei consumi: i bias residui e le incertezze non si nascondono né si sottraggono arbitrariamente, ma si dichiarano e si propagano nel budget predittivo.
 
 ## Stato corrente del lavoro
 
