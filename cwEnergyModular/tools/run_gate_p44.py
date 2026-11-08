@@ -48,6 +48,13 @@ dei controlli d'identita'.
 Emenda 8: ``K=1`` per invocazione (il runner si invalida al primo guasto) e
 ``substitution_seed='p44-<label>'`` per blocco. ``dt_nominal_s`` e' congelato
 dal pilota P2.9 (requisito 5): 2,930748 s.
+
+La data di campagna e' un parametro (``--date YYYYMMDD``, default la campagna
+del 2026-11-07): sposta ``ARCHIVE_DIR`` e ``RESULTS_DIR`` senza toccare
+``plan_blocks()``, il seme o la durata congelata, quindi la verifica del piano
+resta valida e un secondo run non richiede di editare il codice. Il risultato
+congelato di una campagna non si sovrascrive: ``execute`` rifiuta output gia'
+presenti.
 """
 from __future__ import annotations
 import argparse
@@ -70,7 +77,8 @@ import config  # noqa: E402
 import benchmark_v4 as v4  # noqa: E402
 import control_gate as cg  # noqa: E402
 
-P44_DATE = "20261107"
+DEFAULT_DATE = "20261107"       # campagna dichiarata; --date per le successive
+P44_DATE = DEFAULT_DATE         # etichetta di campagna, non del disegno
 ARCHIVE_DIR = REPO_ROOT / "experiment_results" / f"p44_gate_{P44_DATE}"
 RESULTS_DIR = MODULE_DIR / "results" / f"p44_gate_{P44_DATE}"
 ROWS_NAME = "casualwatt_v4_results_p44.csv"
@@ -121,6 +129,29 @@ def _git_head() -> str:
         return ""
 
 
+def _imposta_data(data: str) -> None:
+    """Sposta archivio e results su un'altra campagna dichiarata (``--date``).
+
+    La data e' un'etichetta di campagna, non un parametro del disegno:
+    ``plan_blocks()``, il seed e ``DT_NOM_FROZEN`` non dipendono da essa,
+    quindi la verifica del piano resta quella congelata. Un secondo run
+    non richiede di editare il codice; il risultato della prima campagna
+    non si tocca. Formato accettato: YYYYMMDD (otto cifre, data reale).
+    """
+    global P44_DATE, ARCHIVE_DIR, RESULTS_DIR
+    try:
+        _dt.datetime.strptime(data, "%Y%m%d")
+    except (TypeError, ValueError):
+        raise SystemExit(
+            f"--date '{data}' non valida: atteso YYYYMMDD (es. 20261107)")
+    if len(data) != 8 or not data.isdigit():
+        raise SystemExit(
+            f"--date '{data}' non valida: atteso YYYYMMDD (es. 20261107)")
+    P44_DATE = data
+    ARCHIVE_DIR = REPO_ROOT / "experiment_results" / f"p44_gate_{data}"
+    RESULTS_DIR = MODULE_DIR / "results" / f"p44_gate_{data}"
+
+
 def plan_blocks() -> List[Dict]:
     """Le dodici righe dichiarate: per ogni coppia, carico poi controllo."""
     blocchi = []
@@ -152,6 +183,7 @@ def plan_payload() -> Dict:
     """Disegno dichiarato. Tutto dipende da P2.9: DT_NOM e' il pilota."""
     return {
         "pilot": "P4.4 gate",
+        "campaign_date": P44_DATE,
         "declared_at": _dt.datetime.now(_dt.timezone.utc).isoformat(
             timespec="seconds"),
         "model": DEFAULT_MODEL,
@@ -321,7 +353,8 @@ def cmd_execute(model: str) -> Dict:
         if p.exists() and p.stat().st_size > 0:
             raise SystemExit(
                 f"output gia' presente: {p}. Il gate misura una campagna "
-                "dichiarata: rimuovi l'archivio o cambia data, non accodare.")
+                "dichiarata: rimuovi l'archivio o cambia data (--date), non "
+                "accodare.")
 
     reale, wrapper, catturati = _cattura_riepiloghi()
     runs: List[Dict] = []
@@ -475,11 +508,18 @@ def main(argv: Optional[Sequence[str]] = None) -> int:
     p_plan = sub.add_parser("plan", help="scrivi il piano PRIMA di misurare")
     p_plan.add_argument("--model", default=DEFAULT_MODEL,
                         help="modello locale")
+    p_plan.add_argument("--date", default=DEFAULT_DATE,
+                        help="etichetta della campagna YYYYMMDD: archivio e "
+                             "results dedicati, disegno invariato")
     p_exec = sub.add_parser("execute",
                             help="esegui le dodici righe e valuta F.12")
     p_exec.add_argument("--model", default=DEFAULT_MODEL,
                         help="modello locale")
+    p_exec.add_argument("--date", default=DEFAULT_DATE,
+                        help="etichetta della campagna YYYYMMDD: deve essere "
+                             "quella del plan dichiarato")
     args = parser.parse_args(argv)
+    _imposta_data(args.date)
     if args.cmd == "plan":
         return cmd_plan(args.model)
     if args.cmd == "execute":
