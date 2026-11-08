@@ -1,0 +1,48 @@
+confronto valutatori, 321 run registrati, criterio pubblicato vs ramo hardened
+
+pubblicato         corrette 109/321 (34.0%)  915.749 J/corretta
+ramo_nessuno       corrette 0/321 (0.0%)  None J/corretta
+     212  accordo
+     109  tool: stato missing
+ramo_passi         corrette 0/321 (0.0%)  None J/corretta
+     212  accordo
+     109  altra causa
+ramo_dizionario    corrette 0/321 (0.0%)  None J/corretta
+     212  accordo
+     109  altra causa
+
+concordenza per fase (modo `passi`):
+  label        etichetta_ok=True / correct                   321
+  translation  mappatura_ok=False / incorrect                 88
+  translation  mappatura_ok=False / indeterminate            124
+  translation  mappatura_ok=True / correct                   109
+  output       numero_ok=False / incorrect                    88
+  output       numero_ok=False / indeterminate               124
+  output       numero_ok=True / correct                      109
+righe coherence per `expected_decision` (modo `passi`):
+  compatible         pubblicato_correct=False / incorrect       27
+  compatible         pubblicato_correct=False / indeterminate   12
+  compatible         pubblicato_correct=True / indeterminate     1
+  non_compatibile    pubblicato_correct=False / incorrect       14
+  non_compatibile    pubblicato_correct=True / indeterminate    19
+  non_compatibile    pubblicato_correct=False / indeterminate    7
+righe gate-fermate (modo `passi`):
+  gate_fermato=False / incorrect                         88
+  gate_fermato=False / indeterminate                    109
+  gate_fermato=True / indeterminate                     124
+esempi:
+  compatible|pubblicato_correct=False / incorrect :: COH03 r1 output='Evidences are NOT strongly compatible with a single AntiTheft of False with a probability of 0.3104' note=['cau_inference adoption: not recorded (no output provenance; matching numbers are not evidence of use)', 'cau_inference arguments: not recorded (call inputs are not recorded; execution proof does not cover the arguments)', 'coherence qualitative decision mismatch (literal marker check; semantic equivalence not assessed)']
+  compatible|pubblicato_correct=False / indeterminate :: COH04 r1 output='' note=['cau_inference adoption: not recorded (no output provenance; matching numbers are not evidence of use)', 'cau_inference execution status: missing; no tool call recorded in the run', 'cau_inference arguments: not recorded (call inputs are not recorded; execution proof does not cover the arguments)']
+  compatible|pubblicato_correct=True / indeterminate :: COH17 r1 output='Evidences are compatible with a single OtherCarCost of Thousand with a probability of 0.6719' note=['cau_inference adoption: not recorded (no output provenance; matching numbers are not evidence of use)', 'cau_inference arguments: not recorded (call inputs are not recorded; execution proof does not cover the arguments)']
+  non_compatibile|pubblicato_correct=False / incorrect :: COH07 r1 output='Evidences are NOT strongly compatible with a single SocioEcon of Wealthy with a probability of 0.0407' note=['cau_inference adoption: not recorded (no output provenance; matching numbers are not evidence of use)', 'cau_inference arguments: not recorded (call inputs are not recorded; execution proof does not cover the arguments)']
+  non_compatibile|pubblicato_correct=False / indeterminate :: COH24 r1 output='' note=['cau_inference adoption: not recorded (no output provenance; matching numbers are not evidence of use)', 'cau_inference execution status: missing; no tool call recorded in the run', 'cau_inference arguments: not recorded (call inputs are not recorded; execution proof does not cover the arguments)']
+  non_compatibile|pubblicato_correct=True / indeterminate :: COH08 r1 output='Evidences are NOT strongly compatible with a single CarValue of FiveThou with a probability of 0.2568' note=['cau_inference adoption: not recorded (no output provenance; matching numbers are not evidence of use)', 'cau_inference arguments: not recorded (call inputs are not recorded; execution proof does not cover the arguments)']
+
+per split e ramo (colonna = corrette/n, e copertura del ramo):
+  *         *              n= 321  pubblicato  109/321  915.749 J/c  nessuno:   0/321 None J/c(cov 0.2741)  passi:   0/321 None J/c(cov 0.2741)  dizionario:   0/321 None J/c(cov 0.2741)
+  dev       *              n=  81  pubblicato   32/81   797.412 J/c  nessuno:   0/81  None J/c(cov 0.3333)  passi:   0/81  None J/c(cov 0.3333)  dizionario:   0/81  None J/c(cov 0.3333)
+  held-out  *              n= 240  pubblicato   77/240  964.929 J/c  nessuno:   0/240 None J/c(cov 0.2542)  passi:   0/240 None J/c(cov 0.2542)  dizionario:   0/240 None J/c(cov 0.2542)
+  *         coherence      n=  80  pubblicato   20/80   1476.745 J/c  nessuno:   0/80  None J/c(cov 0.5125)  passi:   0/80  None J/c(cov 0.5125)  dizionario:   0/80  None J/c(cov 0.5125)
+  *         cond_prob      n=  81  pubblicato   39/81   522.828 J/c  nessuno:   0/81  None J/c(cov 0.0988)  passi:   0/81  None J/c(cov 0.0988)  dizionario:   0/81  None J/c(cov 0.0988)
+  *         counterfactual n=  80  pubblicato   26/80   1119.58 J/c  nessuno:   0/80  None J/c(cov 0.4375)  passi:   0/80  None J/c(cov 0.4375)  dizionario:   0/80  None J/c(cov 0.4375)
+  *         inter          n=  80  pubblicato   24/80   865.933 J/c  nessuno:   0/80  None J/c(cov 0.05)  passi:   0/80  None J/c(cov 0.05)  dizionario:   0/80  None J/c(cov 0.05)
