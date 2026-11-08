@@ -308,3 +308,19 @@ uguali riga per riga. Si rigenera con `MUDILAB_run/verifica_post_fix_20261103.py
 chiede `MUDILAB_RAMPO` e non la indovina, reindirizza l'output sul nome `post_fix` e porta
 il resto dalla copia committata del 2026-11-03: nessun modello invocato, nessun record
 nuovo, 321 verdetti ricalcolati.
+
+## 12. Appendice dell'08-11-2026 -- lo stesso confronto sotto il criterio corrente
+
+Questa appendice **aggiunge e non riscrive**: i numeri delle sezioni 3-7 e
+dell'appendice 11 restano quelli del 03-11. Fra il 04 e il 05-11 il ramo ha
+cambiato il trattamento della chiamata al tool (`98ec5972`, `6fc13d013`); le
+stesse 321 righe, rilette dal criterio nuovo, danno il ramo `passi` a 0/321 con
+88 righe determinate (27,41%) e 233 indeterminate, tutte le 88 determinate
+incorrect. Il risultato è in
+`harness/risultati/confronto_valutatori_20261103_rivalutato_20261108.{json,txt}`,
+prodotto da `rivalutazione_confronto_20261108.py` (che richiede `MUDILAB_RAMPO`
+e non indovina il codice) senza toccare `confronto_valutatori_20261103`: quello
+resta la fotografia della misura di allora. La lettura metodologica -- perché il
+ramo passa da 90 a 0, perché l'asimmetria fra un numero giusto e uno sbagliato
+è voluta, perché il confronto appaiato su questo artefatto è indeciso -- sta in
+`experiment_results/rivalutazione_confronto_mudilab_20261108.md`.
