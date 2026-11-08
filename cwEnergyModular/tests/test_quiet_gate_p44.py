@@ -36,6 +36,7 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent / "tools"))
+sys.path.insert(0, str(Path(__file__).resolve().parent))
 
 import pytest  # noqa: E402
 
@@ -116,3 +117,206 @@ def test_seed_conservato_esattamente_come_passato(monkeypatch):
     monkeypatch.setattr(rg, "SEED", rg.SEED)
     rg._imposta_seme(" seme-esatto ")
     assert rg.SEED == " seme-esatto "
+
+
+# ---------------------------------------------------------------------------
+# 2. _attendi_quiete: la precondizione di esecuzione, senza hardware
+# ---------------------------------------------------------------------------
+class _Clock:
+    """Orologio iniettabile: il tempo avanza solo quando lo dice il test.
+    Ogni lettura di ``total_cpu_samples`` dura ~3 s (P1.4): il fake
+    campiona avanza l'orologio della stessa quantita', cosi' l'attesa
+    misurata e' aritmetica dichiarata, non tempo reale."""
+
+    def __init__(self, step=3.0):
+        self.t = 0.0
+        self.step = step
+
+    def __call__(self):
+        return self.t
+
+
+def _campiona_da_seq(seq, clock, chiamate=None):
+    letture = iter(seq)
+
+    def fn(*a, **k):
+        if chiamate is not None:
+            chiamate.append(clock.t)
+        clock.t += clock.step
+        return next(letture)
+
+    return fn
+
+
+QUIETA = [1.0, 1.0, 1.0]        # sotto la soglia P1.4 (5% per 3 s)
+RUMOROSA = [20.0, 20.0, 20.0]   # tre campioni consecutivi sopra soglia
+
+
+def test_quiete_raggiunta_dopo_letture_consecutive():
+    """Tre letture consecutive non rumorose: partenza. L'attesa e' misurata
+    con l'orologio iniettato (9 s = 3 letture da 3 s), il top-5 e' letto una
+    sola volta al momento della partenza, e la pausa fra letture e'
+    iniettata (due, non tre: dopo l'ultima non si aspetta)."""
+    clock = _Clock()
+    sleeps = []
+    top_chiamate = []
+    top = [{"pid": 7, "name": "ollama.exe", "cpu_pct": 0.5}]
+
+    def top_fn(*a, **k):
+        top_chiamate.append(clock.t)
+        return top
+
+    esito = rg._attendi_quiete(
+        campiona=_campiona_da_seq([QUIETA] * 3, clock), top_fn=top_fn,
+        clock=clock, sleep=sleeps.append)
+    assert esito["quiet_letture"] == 3
+    assert esito["quiet_wait_s"] == pytest.approx(9.0)
+    assert esito["top_processes"] == top
+    assert top_chiamate == [9.0]
+    assert sleeps == [rg.QUIET_POLL_S, rg.QUIET_POLL_S]
+
+
+def test_lettura_rumorosa_azzera_il_conteggio():
+    """Sequenza quieta-rumorosa-quieta-quieta-quieta: la lettura rumorosa
+    AZZERA il conteggio, quindi la partenza costa 5 letture, non 3. Senza
+    azzeramento la 'persistenza' sarebbe una finzione: basterebbe alternare
+    rumore e quiete per partire comunque."""
+    clock = _Clock()
+    chiamate = []
+    esito = rg._attendi_quiete(
+        campiona=_campiona_da_seq(
+            [QUIETA, RUMOROSA, QUIETA, QUIETA, QUIETA], clock, chiamate),
+        top_fn=lambda *a, **k: [], clock=clock, sleep=lambda s: None)
+    assert esito["quiet_letture"] == 5
+    assert esito["quiet_wait_s"] == pytest.approx(15.0)
+    assert chiamate == [0.0, 3.0, 6.0, 9.0, 12.0]
+
+
+def test_tetto_raggiunto_senza_quiete_systemexit():
+    """Sempre rumorosa: al tetto la campagna si ferma con messaggio chiaro
+    (main() lo gira in [ARRESTO] exit 3). Mai procedere in silenzio: e'
+    SystemExit, non un ritorno con flag. Il top-5 non si legge: non c'e'
+    nessuna partenza da registrare."""
+    clock = _Clock()
+    top_chiamate = []
+
+    def top_fn(*a, **k):
+        top_chiamate.append(clock.t)
+        return []
+
+    with pytest.raises(SystemExit) as exc:
+        rg._attendi_quiete(
+            cap_s=30.0, campiona=_campiona_da_seq([RUMOROSA] * 100, clock),
+            top_fn=top_fn, clock=clock, sleep=lambda s: None)
+    assert "30 s" in str(exc.value)
+    assert "NON parte" in str(exc.value)
+    assert clock.t == pytest.approx(30.0)   # fermato al tetto, non oltre
+    assert top_chiamate == []
+
+
+def test_quiete_raggiunta_esattamente_al_tetto_non_si_ferma():
+    """Il tetto e' 'secondi senza RAGGIUNGERE la quiete': se l'ultima
+    lettura entro il tetto completa le consecutive, si parte. L'arresto
+    e' per chi non arriva mai, non per chi arriva all'ultimo istante."""
+    clock = _Clock()
+    esito = rg._attendi_quiete(
+        cap_s=15.0,
+        campiona=_campiona_da_seq(
+            [RUMOROSA, RUMOROSA, QUIETA, QUIETA, QUIETA], clock),
+        top_fn=lambda *a, **k: [], clock=clock, sleep=lambda s: None)
+    assert esito["quiet_letture"] == 5
+    assert esito["quiet_wait_s"] == pytest.approx(15.0)
+
+
+def test_costanti_di_default_quelle_congelate_nel_piano():
+    """Senza argomenti la funzione usa le costanti del piano, e il piano
+    le dichiara PRIMA delle misure: 3 letture consecutive, tetto 600 s.
+    Un default divergente dal piano sarebbe una precondizione diversa da
+    quella dichiarata."""
+    assert rg.QUIET_CONSECUTIVE == 3
+    assert rg.QUIET_CAP_S == 600.0
+    piano = rg.plan_payload()
+    assert piano["quiet_consecutive"] == 3
+    assert piano["quiet_cap_s"] == 600.0
+    assert "precondizione di quiete" in piano["checks"]["E"]
+
+
+def test_verifica_piano_rifiuta_quiete_assente_o_diversa(monkeypatch,
+                                                       tmp_path):
+    """Il plan del 2026-11-07 precede la precondizione: eseguirlo misurerebbe
+    con un disegno di esecuzione diverso da quello del codice. La verifica
+    si ferma sulle costanti mancanti, e anche su costanti cambiate dopo la
+    dichiarazione."""
+    monkeypatch.setattr(rg, "ARCHIVE_DIR", tmp_path)
+    rg.cmd_plan(rg.DEFAULT_MODEL)
+    path = tmp_path / rg.PLAN_NAME
+    piano = json.loads(path.read_text(encoding="utf-8"))
+    assert piano["quiet_consecutive"] == rg.QUIET_CONSECUTIVE
+    assert piano["quiet_cap_s"] == rg.QUIET_CAP_S
+    del piano["quiet_consecutive"]
+    path.write_text(json.dumps(piano), encoding="utf-8")
+    with pytest.raises(SystemExit):
+        rg._verifica_piano()
+    piano["quiet_consecutive"] = rg.QUIET_CONSECUTIVE
+    piano["quiet_cap_s"] = 1.0
+    path.write_text(json.dumps(piano), encoding="utf-8")
+    with pytest.raises(SystemExit):
+        rg._verifica_piano()
+
+
+def test_quiete_chiamata_prima_di_ogni_invocazione(monkeypatch, tmp_path):
+    """Ordine: l'attesa precede OGNI chiamata a run_v4_benchmark, load e
+    control — 12 attese per 12 invocazioni, alternate. Una quiete
+    controllata una sola volta a inizio campagna non coprirebbe i blocchi
+    successivi, che e' esattamente dove il 2026-11-07 ha visto il carico
+    (5 controlli su 6 con background_load=True)."""
+    import benchmark_v4 as v4
+    from test_gate_p44_end_to_end import _installa
+    monkeypatch.setattr(rg, "ARCHIVE_DIR", tmp_path / "archive")
+    monkeypatch.setattr(rg, "RESULTS_DIR", tmp_path / "results")
+    monkeypatch.setattr(rg, "DT_NOM_FROZEN", 0.05)
+    monkeypatch.setattr(rg, "LOAD_M", 2)
+    monkeypatch.setattr(rg, "LOAD_NUM_PREDICT", 2)
+    _installa(monkeypatch)
+    ordine = []
+    reale_quiete = rg._attendi_quiete
+
+    def quiet_spia(**kw):
+        ordine.append("quiete")
+        return reale_quiete(**kw)
+
+    monkeypatch.setattr(rg, "_attendi_quiete", quiet_spia)
+    reale_run = v4.run_v4_benchmark
+
+    def run_spia(*a, **kw):
+        ordine.append("run")
+        return reale_run(*a, **kw)
+
+    monkeypatch.setattr(v4, "run_v4_benchmark", run_spia)
+    assert rg.cmd_plan(rg.DEFAULT_MODEL) == 0
+    rg.cmd_execute(rg.DEFAULT_MODEL)
+    assert ordine == ["quiete", "run"] * 12
+
+
+def test_execute_registra_quiete_per_ogni_blocco(monkeypatch, tmp_path):
+    """Le dodici invocazioni portano ciascuna quiet_wait_s, quiet_letture e
+    il top-5 alla partenza in runs — e quindi in gate_result_frozen.json e
+    nel report. L'harness e2e falsa lo stato macchina: l'attesa e'
+    deterministica, la registrazione e' reale."""
+    from test_gate_p44_end_to_end import _esegui_gate
+    analysis, _spediti, _targets = _esegui_gate(monkeypatch, tmp_path)
+    assert len(analysis["runs"]) == 12
+    for r in analysis["runs"]:
+        assert r["quiet_letture"] == rg.QUIET_CONSECUTIVE
+        assert r["quiet_wait_s"] >= 0.0
+        assert r["quiet_top_processes"] == []
+    assert analysis["quiet_precondition"] == {"consecutive": 3,
+                                              "cap_s": 600.0}
+    freeze = json.loads(
+        (rg.ARCHIVE_DIR / rg.FREEZE_NAME).read_text(encoding="utf-8"))
+    assert all("quiet_wait_s" in r for r in freeze["runs"])
+    assert freeze["quiet_precondition"] == analysis["quiet_precondition"]
+    report = (rg.ARCHIVE_DIR / rg.REPORT_NAME).read_text(encoding="utf-8")
+    assert "## Precondizione di quiete" in report
+    assert "carico-1 (load): attesa=" in report
+    assert "controllo-6 (control): attesa=" in report

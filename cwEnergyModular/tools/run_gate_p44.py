@@ -69,6 +69,19 @@ aggiuntive sul contatore — e la scrive in ``control_power_series.json``.
 E' diagnostica: non entra nel criterio F.12. Per la campagna del 2026-11-07
 la serie non esiste e non e' recuperabile a posteriori: la cattura vale per
 quelle successive.
+
+Precondizione di quiete. Il gate del 2026-11-07 e' fallito con
+``background_load=True`` su 5 controlli su 6: P1.4 registra il flag ma il
+runner parte comunque. Prima di OGNI blocco (load e control) il tool
+attende che ``ms.background_load_from_samples`` sia False per
+``QUIET_CONSECUTIVE`` letture consecutive; una lettura rumorosa azzera il
+conteggio; al tetto ``QUIET_CAP_S`` senza quiete, ``SystemExit``
+([ARRESTO], exit 3), mai procedere in silenzio. Le costanti sono congelate
+in ``plan.json`` prima delle misure (check E) e la verifica del piano le
+confronta: il plan del 2026-11-07, che precede la precondizione, non e'
+eseguibile e va ripianificato. Attesa e top-5 alla partenza sono registrati
+per blocco in ``runs``, nel report e in ``gate_result_frozen.json``. E' una
+precondizione di ESECUZIONE: il criterio F.12 non cambia.
 """
 from __future__ import annotations
 import argparse
@@ -81,7 +94,7 @@ import sys
 import time
 from dataclasses import asdict
 from pathlib import Path
-from typing import Dict, List, Mapping, Optional, Sequence, Tuple
+from typing import Callable, Dict, List, Mapping, Optional, Sequence, Tuple
 
 HERE = Path(__file__).resolve().parent
 MODULE_DIR = HERE.parent
@@ -92,6 +105,7 @@ sys.path.insert(0, str(REPO_ROOT))
 import config  # noqa: E402
 import benchmark_v4 as v4  # noqa: E402
 import control_gate as cg  # noqa: E402
+import machine_state as ms  # noqa: E402
 
 DEFAULT_DATE = "20261107"       # campagna dichiarata; --date per le successive
 P44_DATE = DEFAULT_DATE         # etichetta di campagna, non del disegno
@@ -119,6 +133,16 @@ N_COPPIE = 6
 N_BLOCCHI = 12
 BLOCKS_PER_POINT = 1            # un blocco per invocazione: due bracci non
                                 # possono stare sotto lo stesso block_kind
+
+# Precondizione di quiete (lato tool, P1.4): il gate del 2026-11-07 e'
+# fallito con background_load=True su 5 controlli su 6 — il runner registra
+# il flag nel verbale ma parte comunque. Queste due costanti finiscono in
+# plan.json PRIMA delle misure: sono parametri di esecuzione, non criterio
+# F.12 (che non si muove).
+QUIET_CONSECUTIVE = 3           # letture consecutive non rumorose per partire
+QUIET_CAP_S = 600.0             # tetto: oltre, SystemExit, mai in silenzio
+QUIET_POLL_S = 0.0              # ogni lettura e' gia' ~3 s di osservazione
+                                # (total_cpu_samples): nessuna pausa in piu'
 
 
 def _sha256(path: Path) -> str:
@@ -232,6 +256,11 @@ def plan_payload() -> Dict:
         "invocazioni": "una run_v4_benchmark per blocco (12), non 6 da 2",
         "emenda8": {"max_invalidated_blocks": K_MAX,
                     "substitution_seed": "p44-<label> per blocco"},
+        # Congelate PRIMA delle misure: un'esecuzione con una precondizione
+        # diversa e' un disegno di esecuzione diverso, e la verifica sotto
+        # lo rifiuta invece di scoprirlo sui dati.
+        "quiet_consecutive": QUIET_CONSECUTIVE,
+        "quiet_cap_s": QUIET_CAP_S,
         "geometry": GEOMETRY,
         "checks": {
             "A": ("dodici blocchi in sei coppie; ogni coppia: blocco load "
@@ -246,6 +275,11 @@ def plan_payload() -> Dict:
             "D": ("baseline 3 pre + 3 post su ENTRAMBI i bracci (requisito 7); "
                   "cooldown intra-coppia carico->controllo via "
                   "initial_last_pre_w: scelta operativa, non requisito P4.4"),
+            "E": ("precondizione di quiete PRIMA di ogni blocco (load e "
+                  f"control): {QUIET_CONSECUTIVE} letture consecutive con "
+                  "background_load=False, una rumorosa azzera il conteggio; "
+                  f"tetto {QUIET_CAP_S:g} s poi SystemExit. Parametro di "
+                  "esecuzione lato tool: il criterio F.12 non cambia"),
         },
         "deviazioni_dichiarate": [
             "12 invocazioni = 12 preparazioni di stato macchina (P1.4) e fino "
@@ -305,6 +339,13 @@ def _verifica_piano() -> Dict:
     # coincidere con il seme dichiarato al plan, qualunque esso sia.
     if plan.get("order_seed") != SEED or plan.get("model") != DEFAULT_MODEL:
         raise SystemExit("seed o modello discostati dal piano dichiarato")
+    if (plan.get("quiet_consecutive") != QUIET_CONSECUTIVE
+            or plan.get("quiet_cap_s") != QUIET_CAP_S):
+        raise SystemExit(
+            "precondizione di quiete assente o diversa dal piano dichiarato: "
+            "il plan precede l'introduzione della precondizione (o e' stato "
+            "cambiato dopo). Ritirare plan.json e ripianificare PRIMA di "
+            "misurare.")
     return plan
 
 
@@ -495,6 +536,87 @@ def _cattura_serie_controllo():
     return reale, wrapper, catturate
 
 
+def _attendi_quiete(*, consecutive: Optional[int] = None,
+                    cap_s: Optional[float] = None,
+                    poll_s: float = QUIET_POLL_S,
+                    campiona=None, top_fn=None,
+                    clock: Callable[[], float] = time.monotonic,
+                    sleep: Callable[[float], None] = time.sleep,
+                    on_log=None) -> Dict:
+    """Precondizione di quiete: il blocco non parte se la macchina e' carica.
+
+    Perche' esiste. Il gate del 2026-11-07 e' fallito con
+    ``background_load=True`` su 5 controlli su 6 (CompatTelRunner,
+    SearchIndexer, Defender, Chrome, Qoder): P1.4 registra il flag nel
+    verbale ma non impedisce la partenza. Questa e' una precondizione di
+    ESECUZIONE, lato tool: il criterio F.12, le soglie e il disegno non si
+    muovono, e il runner non cambia comportamento.
+
+    Meccanica. Ogni lettura e' ``ms.total_cpu_samples()`` (~3 s di
+    osservazione, P1.4); ``ms.background_load_from_samples`` dice se e'
+    rumorosa (persistenza sopra la soglia congelata di P1.4, non un picco
+    singolo). Quiete = ``consecutive`` letture consecutive non rumorose;
+    una lettura rumorosa AZZERA il conteggio. Al tetto ``cap_s`` senza
+    quiete: ``SystemExit`` — main() lo gira in [ARRESTO] exit 3, la
+    campagna non parte e non prosegue in silenzio. Diverso dal cooldown
+    (che al tetto RITORNA con timed_out, perche' il blocco si puo' comunque
+    misurare e flaggare): qui partire senza quiete sarebbe un disegno
+    diverso da quello dichiarato, scoperto solo dopo i dati.
+
+    Iniezione. ``clock``/``sleep`` sono legati alla def come in
+    ``cooldown_to_baseline``; ``campiona``/``top_fn`` si risolvono alla
+    CHIAMATA (sentinella None) cosi' i test li sostituiscono sul modulo
+    senza hardware. I default delle costanti sono quelli congelati nel
+    piano (``plan_payload``), e ``_verifica_piano`` li confronta.
+
+    Restituisce ``quiet_wait_s`` (attesa misurata), ``quiet_letture``
+    (letture eseguite) e ``top_processes`` (top-5 al momento della
+    partenza, ``ms.sample_top_processes``): finiscono in ``runs`` per
+    blocco, nel report e in ``gate_result_frozen.json``.
+    """
+    if consecutive is None:
+        consecutive = QUIET_CONSECUTIVE
+    if cap_s is None:
+        cap_s = QUIET_CAP_S
+    if campiona is None:
+        campiona = ms.total_cpu_samples
+    if top_fn is None:
+        top_fn = ms.sample_top_processes
+    if consecutive < 1:
+        raise ValueError(
+            f"consecutive={consecutive}: serve almeno una lettura")
+    log = on_log or (lambda m: None)
+    t0 = clock()
+    consec = 0
+    letture = 0
+    while True:
+        campioni = campiona()
+        rumorosa = ms.background_load_from_samples(campioni)
+        letture += 1
+        if rumorosa:
+            consec = 0
+            log(f"[QUIETE] lettura {letture}: background_load=True "
+                f"(campioni={campioni}), conteggio azzerato")
+        else:
+            consec += 1
+        if consec >= consecutive:
+            break
+        if clock() - t0 >= cap_s:
+            raise SystemExit(
+                f"precondizione di quiete non raggiunta entro {cap_s:g} s "
+                f"({letture} letture, ne servono {consecutive} consecutive "
+                "non rumorose): background_load resta True. Il blocco NON "
+                "parte e la campagna si ferma — procedere in silenzio "
+                "sarebbe un disegno diverso da quello dichiarato.")
+        sleep(poll_s)
+    attesa = clock() - t0
+    top = top_fn()
+    log(f"[QUIETE] raggiunta dopo {attesa:.1f} s ({letture} letture); "
+        f"top-5 alla partenza: {top}")
+    return {"quiet_wait_s": attesa, "quiet_letture": letture,
+            "top_processes": top}
+
+
 def cmd_execute(model: str) -> Dict:
     plan = _verifica_piano()
     ARCHIVE_DIR.mkdir(parents=True, exist_ok=True)
@@ -529,6 +651,9 @@ def cmd_execute(model: str) -> Dict:
                   f"{b['pair_id']})"
                   + (f" P_pre_ref={initial_pre:.6f} W" if initial_pre else ""),
                   flush=True)
+            # Precondizione PRIMA di ogni invocazione, load E control:
+            # una macchina carica non parte (check E del piano).
+            quiet = _attendi_quiete(on_log=lambda m: print(m, flush=True))
             summary = v4.run_v4_benchmark([model], [prompt], **kw)
             rec = dict(catturati[-1]) if catturati else {}
             run_rec = {
@@ -543,6 +668,9 @@ def cmd_execute(model: str) -> Dict:
                 "initial_last_pre_w": initial_pre,
                 "block_baseline_pre_w": rec.get("baseline_pre_w", ""),
                 "block_cooldown_timeout": rec.get("cooldown_timeout", ""),
+                "quiet_wait_s": quiet["quiet_wait_s"],
+                "quiet_letture": quiet["quiet_letture"],
+                "quiet_top_processes": quiet["top_processes"],
             }
             runs.append(run_rec)
             if summary.get("errors"):
@@ -586,6 +714,8 @@ def cmd_execute(model: str) -> Dict:
         "dt_nominal_s": DT_NOM_FROZEN,
         "order_seed": SEED,
         "geometry": GEOMETRY,
+        "quiet_precondition": {"consecutive": QUIET_CONSECUTIVE,
+                               "cap_s": QUIET_CAP_S},
         "runs": runs,
         "results_csv": str(rows_path),
         "block_summary_csv": str(blocks_path),
@@ -664,6 +794,27 @@ def _write_report(data: Dict) -> None:
                     f"{r['initial_last_pre_w']}, baseline propria del blocco="
                     f"{r.get('block_baseline_pre_w', '')}, cooldown_timeout="
                     f"'{r['block_cooldown_timeout']}'\n")
+        fh.write("\n## Precondizione di quiete\n\n")
+        q = data.get("quiet_precondition") or {}
+        fh.write(f"Prima di OGNI blocco (load e control): "
+                 f"{q.get('consecutive', QUIET_CONSECUTIVE)} letture "
+                 "consecutive con background_load=False; una lettura "
+                 "rumorosa azzera il conteggio; al tetto "
+                 f"({q.get('cap_s', QUIET_CAP_S):g} s) il run si ferma. "
+                 "Precondizione di esecuzione lato tool (P1.4): non entra "
+                 "nel criterio F.12.\n\n")
+        for r in data["runs"]:
+            attesa = r.get("quiet_wait_s")
+            attesa_txt = (f"{attesa:.1f} s"
+                          if isinstance(attesa, (int, float)) else "n/d")
+            top = r.get("quiet_top_processes") or []
+            top_txt = ", ".join(
+                f"{p.get('name', '?')} pid={p.get('pid', '?')} "
+                f"({p.get('cpu_pct', '?')}%)" for p in top) or "nessuno"
+            fh.write(
+                f"- {r['label']} ({r['arm']}): attesa={attesa_txt}, "
+                f"letture={r.get('quiet_letture', 'n/d')}, top-5 alla "
+                f"partenza: {top_txt}\n")
         if data.get("bias_jtok_pct"):
             lo, hi = data["bias_jtok_pct"]
             fh.write("\n## Rapporto J/token (F.12, grandezza riportata)\n\n")
