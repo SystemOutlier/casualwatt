@@ -379,6 +379,45 @@ def test_verifica_piano_blocca_il_codice_cambiato_dopo_la_dichiarazione(
         rg._verifica_piano()
 
 
+def test_date_parametro_sposta_gli_output_senza_toccare_il_disegno(
+        monkeypatch, tmp_path):
+    """--date e' un'etichetta di campagna, non un parametro del disegno:
+    archivio e results si spostano, ``plan_blocks()`` e il seed restano
+    quelli dichiarati, quindi la verifica del piano non si invalida e un
+    secondo run non richiede di editare il codice."""
+    monkeypatch.setattr(rg, "REPO_ROOT", tmp_path)
+    monkeypatch.setattr(rg, "MODULE_DIR", tmp_path)
+    monkeypatch.setattr(rg, "P44_DATE", rg.P44_DATE)
+    monkeypatch.setattr(rg, "ARCHIVE_DIR", rg.ARCHIVE_DIR)
+    monkeypatch.setattr(rg, "RESULTS_DIR", rg.RESULTS_DIR)
+    monkeypatch.setattr(rg, "_git_head", lambda: "test-head")
+    monkeypatch.setattr(rg, "_sha256", lambda path: "test-sha")
+    assert rg.main(["plan", "--date", "20261109"]) == 0
+    archive = tmp_path / "experiment_results" / "p44_gate_20261109"
+    piano = json.loads((archive / rg.PLAN_NAME).read_text(encoding="utf-8"))
+    assert piano["blocks"] == rg.plan_blocks()
+    assert piano["order_seed"] == rg.SEED
+    assert piano["campaign_date"] == "20261109"
+    assert rg.ARCHIVE_DIR == archive
+    assert rg.RESULTS_DIR == tmp_path / "results" / "p44_gate_20261109"
+    # il piano e' per campagna: execute su un archivio senza plan si ferma
+    monkeypatch.setattr(rg, "ARCHIVE_DIR", tmp_path / "vuoto")
+    with pytest.raises(SystemExit):
+        rg.cmd_execute(rg.DEFAULT_MODEL)
+
+
+@pytest.mark.parametrize("data", ["2026-11-09", "20261399", "202611", ""])
+def test_date_non_valida_rifiutata_prima_di_scrivere(monkeypatch, tmp_path,
+                                                     data):
+    """Una data malformata non deve creare archivi: il rifiuto arriva prima
+    di qualunque scrittura (strptime da solo accettrebbe anche '2026117')."""
+    monkeypatch.setattr(rg, "REPO_ROOT", tmp_path)
+    monkeypatch.setattr(rg, "MODULE_DIR", tmp_path)
+    with pytest.raises(SystemExit):
+        rg.main(["plan", "--date", data])
+    assert list(tmp_path.iterdir()) == []
+
+
 # ---------------------------------------------------------------------------
 # 4. end-to-end del tool: dodici invocazioni reali e verdetto F.12
 # ---------------------------------------------------------------------------
