@@ -31,6 +31,7 @@ flusso end-to-end delle dodici invocazioni (test_gate_p44_end_to_end.py),
 che devono passare invariati.
 """
 import json
+import math
 import sys
 from pathlib import Path
 
@@ -412,3 +413,184 @@ def test_execute_registra_background_load_per_blocco(monkeypatch, tmp_path):
         (rg.ARCHIVE_DIR / rg.FREEZE_NAME).read_text(encoding="utf-8"))
     assert all("background_load_before" in r and "background_load_after" in r
                for r in freeze["runs"])
+
+
+# ---------------------------------------------------------------------------
+# 4. grandezze riportate, non criterio
+# ---------------------------------------------------------------------------
+def test_statistiche_descrittive_valori_noti():
+    """n=6, valori 1..6: media 3.5, sd campionaria sqrt(17.5/5)=sqrt(3.5),
+    SE=sd/sqrt(6), CI95=media +/- t*SE. Aritmetica verificabile a mano,
+    non una formula fidata; il quantile porta la sua provenienza."""
+    s = rg._statistiche_descrittive([1.0, 2.0, 3.0, 4.0, 5.0, 6.0])
+    assert s["n"] == 6
+    assert s["media"] == pytest.approx(3.5)
+    assert s["sd"] == pytest.approx(math.sqrt(3.5))
+    assert s["se"] == pytest.approx(math.sqrt(3.5) / math.sqrt(6))
+    lo, hi = s["ci95"]
+    assert lo == pytest.approx(3.5 - s["t_quantile"] * s["se"])
+    assert hi == pytest.approx(3.5 + s["t_quantile"] * s["se"])
+    assert s["t_provenienza"] in ("scipy", "tabella")
+
+
+def test_statistiche_n_uno_sd_dichiarata_none():
+    """Con n=1 la sd non e' calcolabile: None dichiarata, non zero. Uno
+    zero affermerebbe una precisione che una osservazione sola non ha."""
+    s = rg._statistiche_descrittive([2.0])
+    assert s["n"] == 1 and s["media"] == pytest.approx(2.0)
+    assert s["sd"] is None and s["se"] is None and s["ci95"] is None
+    assert "n<2" in s["t_provenienza"]
+
+
+def test_statistiche_lista_vuota_dichiarata():
+    """n=0: nessun valore, tutto None con la ragione. Il report non
+    tace la cella vuota."""
+    s = rg._statistiche_descrittive([])
+    assert s["n"] == 0 and s["media"] is None and s["sd"] is None
+    assert s["t_provenienza"] == "nessun valore"
+
+
+def test_tabella_t_senza_scipy(monkeypatch):
+    """Il percorso senza scipy usa la tavola dichiarata: df=5 -> 2.571,
+    df=1 -> 12.706, df=30 -> 2.042; oltre 30 l'approssimazione normale
+    1.960 e' nella provenienza, non nascosta nel numero."""
+    monkeypatch.setattr(rg, "_scipy_t", None)
+    assert rg._quantile_t_975(5) == (2.571, "tabella")
+    assert rg._quantile_t_975(1) == (12.706, "tabella")
+    assert rg._quantile_t_975(30) == (2.042, "tabella")
+    q, prov = rg._quantile_t_975(31)
+    assert q == 1.960 and "df>30" in prov
+    s = rg._statistiche_descrittive([1.0, 2.0, 3.0, 4.0, 5.0, 6.0])
+    assert s["t_quantile"] == 2.571
+    assert s["t_provenienza"] == "tabella"
+    lo, hi = s["ci95"]
+    assert lo == pytest.approx(3.5 - 2.571 * s["se"])
+    assert hi == pytest.approx(3.5 + 2.571 * s["se"])
+
+
+def test_quantile_t_provenienza_dichiarata():
+    """Con scipy il quantile e' quello della distribuzione (df=5 ->
+    2.5706), non la tavola arrotondata (2.571): il test verifica il
+    percorso attivo e la sua etichetta, qualunque esso sia."""
+    q, prov = rg._quantile_t_975(5)
+    if rg._scipy_t is not None:
+        assert prov == "scipy"
+        assert q == pytest.approx(2.570582, abs=1e-5)
+    else:
+        assert prov == "tabella"
+        assert q == 2.571
+
+
+def test_grandezze_riportate_tutti_e_utilizzabili():
+    """E_net/dt_W per TUTTI i controlli, anche non utilizzabili: il
+    rapporto del controllo scartato dal filtro e' riportato, non
+    nascosto. Le statistiche si fanno su tutti i valori calcolabili e
+    sui soli utilizzabili; i flag background arrivano dai runs per
+    block_id, e un run assente lascia None."""
+    controls = [
+        {"block_id": "c1", "usable": True, "e_net_j": 1.0, "dt_w_s": 2.0},
+        {"block_id": "c2", "usable": False, "e_net_j": 4.0, "dt_w_s": 2.0},
+        {"block_id": "c3", "usable": True, "e_net_j": 3.0, "dt_w_s": 2.0},
+    ]
+    runs = [{"block_id": "c1", "background_load_before": False,
+             "background_load_after": True},
+            {"block_id": "c2", "background_load_before": True,
+             "background_load_after": True}]
+    g = rg._grandezze_riportate(controls, runs)
+    assert [c["p_net_w"] for c in g["per_controllo"]] == \
+        pytest.approx([0.5, 2.0, 1.5])
+    assert g["tutti"]["n"] == 3
+    assert g["tutti"]["media"] == pytest.approx(4.0 / 3.0)
+    assert g["utilizzabili"]["n"] == 2
+    assert g["utilizzabili"]["media"] == pytest.approx(1.0)
+    assert g["per_controllo"][0]["background_load_after"] is True
+    assert g["per_controllo"][1]["background_load_before"] is True
+    assert g["per_controllo"][2]["background_load_before"] is None
+    assert "non decidono l'esito" in g["nota"]
+
+
+def test_grandezze_dt_zero_o_assente_non_produce_numero():
+    """dt_W=0, E_net assente o non numerico: nessun numero (None), non
+    una divisione forzata ne' uno zero inventato. Il controllo resta
+    nella tabella con 'n/d'."""
+    controls = [
+        {"block_id": "z", "usable": True, "e_net_j": 1.0, "dt_w_s": 0.0},
+        {"block_id": "m", "usable": True, "e_net_j": None, "dt_w_s": 2.0},
+        {"block_id": "s", "usable": True, "e_net_j": "x", "dt_w_s": 2.0},
+    ]
+    g = rg._grandezze_riportate(controls, [])
+    assert all(c["p_net_w"] is None for c in g["per_controllo"])
+    assert g["tutti"]["n"] == 0
+    assert g["utilizzabili"]["n"] == 0
+
+
+def test_report_sezione_grandezze_riportate(monkeypatch, tmp_path):
+    """La sezione esiste col titolo richiesto, la tabella per controllo
+    con background_load prima/dopo e le due statistiche (tutti e soli
+    utilizzabili). Dati costruiti: il report e' una funzione dei dati."""
+    monkeypatch.setattr(rg, "ARCHIVE_DIR", tmp_path)
+    controls = [
+        {"block_id": "c1", "usable": True, "control_unstable": False,
+         "pre_range_w": 0.1, "dP": 0.2, "e_net_j": 1.0, "dt_w_s": 2.0,
+         "budget_base_j": 0.9, "budget_base_w": 0.3,
+         "window_source": "exact-counter", "block_pass": True,
+         "reason": ""},
+        {"block_id": "c2", "usable": False, "control_unstable": True,
+         "pre_range_w": 1.2, "dP": 1.1, "e_net_j": 4.0, "dt_w_s": 2.0,
+         "budget_base_j": 0.9, "budget_base_w": 0.3,
+         "window_source": "exact-counter", "block_pass": None,
+         "reason": "|dP| > 1 W"},
+    ]
+    runs = [{"label": "controllo-1", "arm": "control", "block_id": "c1",
+             "initial_last_pre_w": 6.3, "block_baseline_pre_w": 5.2,
+             "block_cooldown_timeout": "false",
+             "background_load_before": False, "background_load_after": True},
+            {"label": "controllo-2", "arm": "control", "block_id": "c2",
+             "initial_last_pre_w": 6.3, "block_baseline_pre_w": 5.2,
+             "block_cooldown_timeout": "false",
+             "background_load_before": True, "background_load_after": True}]
+    data = {
+        "status": "fail", "controls_usable_n": 1, "n_pairs": 2,
+        "quorum": 2, "chain_status": "bias_declared",
+        "model": "m-test", "dt_nominal_s": 2.930748, "order_seed": rg.SEED,
+        "bias_w": None, "bias_threshold_w": None,
+        "controls": controls, "runs": runs,
+        "results_csv": "r.csv", "block_summary_csv": "b.csv",
+        "blocks_controllo_json": "c.json", "run_ids": ["x"],
+        "git_head": "h", "runner_sha256": "s",
+    }
+    data["grandezze_riportate"] = rg._grandezze_riportate(controls, runs)
+    rg._write_report(data)
+    report = (tmp_path / rg.REPORT_NAME).read_text(encoding="utf-8")
+    assert "## Grandezze riportate, non criterio" in report
+    assert "| c1 | True | 0.500000 | False | True |" in report
+    assert "| c2 | False | 2.000000 | True | True |" in report
+    assert "### Statistiche su tutti i controlli" in report
+    assert "### Statistiche su soli utilizzabili" in report
+    assert "- n=1, media=0.500000 W; sd/SE/CI95 non calcolabili (n<2)" \
+        in report
+    assert "Non decidono l'esito del gate" in report
+
+
+def test_execute_grandezze_nel_freeze_e_report(monkeypatch, tmp_path):
+    """End-to-end: le grandezze arrivano nell'analysis, nel freeze e nel
+    report. L'harness produce E_net=0.1 J su dt=1.0 s per ogni controllo:
+    p_net=0.1 W, sd=0 calcolata (sei valori identici), CI95 degenere
+    [0.1, 0.1]. Numeri del fake, aritmetica vera."""
+    from test_gate_p44_end_to_end import _esegui_gate
+    analysis, _spediti, _targets = _esegui_gate(monkeypatch, tmp_path)
+    g = analysis["grandezze_riportate"]
+    assert len(g["per_controllo"]) == 6
+    assert all(c["p_net_w"] == pytest.approx(0.1)
+               for c in g["per_controllo"])
+    assert g["tutti"]["n"] == 6 and g["utilizzabili"]["n"] == 6
+    assert g["tutti"]["media"] == pytest.approx(0.1)
+    assert g["tutti"]["sd"] == pytest.approx(0.0, abs=1e-12)
+    assert g["tutti"]["ci95"][0] == pytest.approx(0.1)
+    assert g["tutti"]["ci95"][1] == pytest.approx(0.1)
+    freeze = json.loads(
+        (rg.ARCHIVE_DIR / rg.FREEZE_NAME).read_text(encoding="utf-8"))
+    assert freeze["grandezze_riportate"] == g
+    report = (rg.ARCHIVE_DIR / rg.REPORT_NAME).read_text(encoding="utf-8")
+    assert "## Grandezze riportate, non criterio" in report
+    assert "| True | 0.100000 | False | False |" in report

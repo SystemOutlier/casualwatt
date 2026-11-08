@@ -82,6 +82,16 @@ confronta: il plan del 2026-11-07, che precede la precondizione, non e'
 eseguibile e va ripianificato. Attesa e top-5 alla partenza sono registrati
 per blocco in ``runs``, nel report e in ``gate_result_frozen.json``. E' una
 precondizione di ESECUZIONE: il criterio F.12 non cambia.
+
+Grandezze riportate, non criterio. Per tutti i controlli, anche non
+utilizzabili, il tool riporta E_net/dt_W e le statistiche descrittive fra
+blocchi (media, sd campionaria ddof=1, SE, CI95 con t di Student: scipy se
+installato, altrimenti tabella dichiarata; df>30 senza scipy -> 1.960,
+approssimazione normale dichiarata). Nel report una tabella per controllo
+con ``background_load`` prima/dopo dal riepilogo del runner. Queste
+grandezze NON decidono l'esito (che resta F.12) e non entrano nello schema
+CSV: la sd e' fra blocchi, non sulla terna di baseline di P4.12, dove a
+n=3 il divieto di stimare una varianza resta.
 """
 from __future__ import annotations
 import argparse
@@ -89,6 +99,7 @@ import csv
 import datetime as _dt
 import hashlib
 import json
+import math
 import subprocess
 import sys
 import time
@@ -106,6 +117,11 @@ import config  # noqa: E402
 import benchmark_v4 as v4  # noqa: E402
 import control_gate as cg  # noqa: E402
 import machine_state as ms  # noqa: E402
+
+try:  # scipy e' opzionale: senza, la tabella t dichiarata sotto
+    from scipy.stats import t as _scipy_t  # noqa: E402
+except ImportError:
+    _scipy_t = None
 
 DEFAULT_DATE = "20261107"       # campagna dichiarata; --date per le successive
 P44_DATE = DEFAULT_DATE         # etichetta di campagna, non del disegno
@@ -729,11 +745,147 @@ def cmd_execute(model: str) -> Dict:
         "runner_sha256": _sha256(MODULE_DIR / "benchmark_v4.py"),
         "metadata_path": str(config.CSV_RUN_METADATA_PATH),
     })
+    # Grandezze riportate, non criterio: viaggiano nell'analysis e quindi
+    # nel freeze, accanto al verdetto F.12 che non toccano.
+    analysis["grandezze_riportate"] = _grandezze_riportate(
+        analysis["controls"], runs)
     _scrittura_atomica(ARCHIVE_DIR / ANALYSIS_NAME, analysis)
     _scrittura_atomica(ARCHIVE_DIR / FREEZE_NAME, analysis)
     _write_report(analysis)
     print(json.dumps(analysis, indent=2, ensure_ascii=False), flush=True)
     return analysis
+
+
+# Quantili t di Student, coda superiore 0.025 (CI95 bilaterale), df 1-30:
+# tavola standard della distribuzione t (NIST/SEMATECH e-Handbook, tabella
+# dei quantili t; valori arrotondati alla terza cifra). Usata SOLO se scipy
+# non e' installato: la provenienza e' dichiarata per ogni calcolo.
+_T_TABLE_975 = {
+    1: 12.706, 2: 4.303, 3: 3.182, 4: 2.776, 5: 2.571,
+    6: 2.447, 7: 2.365, 8: 2.306, 9: 2.262, 10: 2.228,
+    11: 2.201, 12: 2.179, 13: 2.160, 14: 2.145, 15: 2.131,
+    16: 2.120, 17: 2.110, 18: 2.101, 19: 2.093, 20: 2.086,
+    21: 2.080, 22: 2.074, 23: 2.069, 24: 2.064, 25: 2.060,
+    26: 2.056, 27: 2.052, 28: 2.048, 29: 2.045, 30: 2.042,
+}
+_T_INF_975 = 1.960  # df>30 senza scipy: approssimazione normale, dichiarata
+
+
+def _quantile_t_975(df: int) -> Tuple[float, str]:
+    """Quantile t(0.975, df) con la sua provenienza: scipy se c'e',
+    altrimenti tabella 1-30; oltre 30, 1.960 (approssimazione normale).
+    La provenienza viaggia col numero: un quantile senza fonte non e'
+    verificabile da un terzo."""
+    if df < 1:
+        raise ValueError(f"df={df}: i gradi di liberta' sono n-1, n>=2")
+    if _scipy_t is not None:
+        return float(_scipy_t.ppf(0.975, df)), "scipy"
+    if df <= 30:
+        return _T_TABLE_975[df], "tabella"
+    return _T_INF_975, "tabella (df>30: 1.960, approssimazione normale)"
+
+
+def _statistiche_descrittive(valori: Sequence[float]) -> Dict:
+    """Media, sd campionaria (ddof=1), SE e CI95 t di Student.
+
+    Descrittiva FRA blocchi di controllo: non e' la terna di baseline di
+    P4.12 (lì a n=3 non si stima una varianza, e quel divieto resta), non
+    entra nello schema CSV e non decide l'esito del gate. Con n<2 la sd
+    non e' calcolabile: None dichiarata, non zero. CI95 = media +/-
+    t(0.975, n-1) * SE, con la provenienza del quantile registrata.
+    """
+    n = len(valori)
+    out: Dict = {"n": n, "media": None, "sd": None, "se": None,
+                 "ci95": None, "t_quantile": None, "t_provenienza": ""}
+    if n == 0:
+        out["t_provenienza"] = "nessun valore"
+        return out
+    media = sum(valori) / n
+    out["media"] = media
+    if n < 2:
+        out["t_provenienza"] = "n<2: sd non calcolabile"
+        return out
+    sd = math.sqrt(sum((x - media) ** 2 for x in valori) / (n - 1))
+    se = sd / math.sqrt(n)
+    q, prov = _quantile_t_975(n - 1)
+    out.update(sd=sd, se=se, ci95=[media - q * se, media + q * se],
+               t_quantile=q, t_provenienza=prov)
+    return out
+
+
+def _grandezze_riportate(controls: Sequence[Mapping],
+                         runs: Sequence[Mapping]) -> Dict:
+    """E_net/dt_W per TUTTI i controlli, anche non utilizzabili, e le
+    statistiche descrittive su tutti e sui soli utilizzabili.
+
+    Non decide l'esito: il gate resta F.12. Un controllo non utilizzabile
+    non sparisce dal report — il suo rapporto e' riportato, il criterio lo
+    esclude. I flag ``background_load`` prima/dopo arrivano dai runs (il
+    runner li espone nel riepilogo), matched per ``block_id``; un run
+    assente lascia None, non inventa uno stato. dt_W=0 o assente, E_net
+    non numerico: nessun numero (None), non una divisione forzata.
+    """
+    run_per_blocco = {r.get("block_id", ""): r for r in runs}
+    per_controllo: List[Dict] = []
+    tutti: List[float] = []
+    utilizzabili: List[float] = []
+    for c in controls:
+        bid = str(c.get("block_id", "") or "")
+        r = run_per_blocco.get(bid, {})
+        e_net, dt = c.get("e_net_j"), c.get("dt_w_s")
+        p_net: Optional[float] = None
+        try:
+            if e_net is not None and dt is not None and float(dt) != 0.0:
+                p_net = float(e_net) / float(dt)
+        except (TypeError, ValueError):
+            p_net = None
+        if p_net is not None and not math.isfinite(p_net):
+            p_net = None
+        per_controllo.append({
+            "block_id": bid,
+            "usable": bool(c.get("usable")),
+            "e_net_j": e_net, "dt_w_s": dt, "p_net_w": p_net,
+            "background_load_before": r.get("background_load_before"),
+            "background_load_after": r.get("background_load_after"),
+        })
+        if p_net is not None:
+            tutti.append(p_net)
+            if c.get("usable"):
+                utilizzabili.append(p_net)
+    return {
+        "per_controllo": per_controllo,
+        "tutti": _statistiche_descrittive(tutti),
+        "utilizzabili": _statistiche_descrittive(utilizzabili),
+        "nota": ("grandezze descrittive fra blocchi di controllo: non "
+                 "decidono l'esito del gate (F.12 invariato), non entrano "
+                 "nello schema CSV. sd campionaria (ddof=1) su n blocchi, "
+                 "non sulla terna di baseline di P4.12; CI95 = media +/- "
+                 "t(0.975, n-1) * SE; n<2 -> sd None dichiarata."),
+    }
+
+
+def _flag_txt(v) -> str:
+    """Il flag P1.4 nel report: True/False misurati, None = non rilevato.
+    Un 'non rilevato' non si stampa come False."""
+    if v is True:
+        return "True"
+    if v is False:
+        return "False"
+    return "non rilevato"
+
+
+def _stats_txt(s: Mapping) -> str:
+    """Riga di report per le statistiche: n, media, sd, SE, CI95 e la
+    provenienza del quantile t. n<2 e n=0 sono dichiarati, non taciuti."""
+    if s["n"] == 0:
+        return "- n=0: nessun valore calcolabile\n"
+    riga = f"- n={s['n']}, media={s['media']:.6f} W"
+    if s["sd"] is None:
+        return riga + "; sd/SE/CI95 non calcolabili (n<2), dichiarati\n"
+    lo, hi = s["ci95"]
+    return (riga + f", sd={s['sd']:.6f} W, SE={s['se']:.6f} W, "
+            f"CI95=[{lo:.6f}, {hi:.6f}] W "
+            f"(t={s['t_quantile']:.4f}, provenienza: {s['t_provenienza']})\n")
 
 
 def _write_report(data: Dict) -> None:
@@ -788,6 +940,29 @@ def _write_report(data: Dict) -> None:
                     f"  baseline: P_pre_ref propagata dal carico="
                     f"{r.get('initial_last_pre_w')} W, propria del blocco="
                     f"{r.get('block_baseline_pre_w')} W\n")
+        g = data.get("grandezze_riportate")
+        if g:
+            fh.write("\n## Grandezze riportate, non criterio\n\n")
+            fh.write("E_net/dt_W per TUTTI i controlli (anche non "
+                     "utilizzabili) e statistiche descrittive fra blocchi: "
+                     "media, sd campionaria (ddof=1), SE, CI95 t di "
+                     "Student. Non decidono l'esito del gate, che resta "
+                     "F.12; non entrano nello schema CSV. background_load "
+                     "prima/dopo dal riepilogo del runner (P1.4).\n\n")
+            fh.write("| blocco | utilizzabile | E_net/dt_W (W) | "
+                     "background_load prima | dopo |\n")
+            fh.write("|---|---|---|---|---|\n")
+            for c in g["per_controllo"]:
+                p = c["p_net_w"]
+                p_txt = f"{p:.6f}" if p is not None else "n/d"
+                fh.write(
+                    f"| {c['block_id']} | {c['usable']} | {p_txt} | "
+                    f"{_flag_txt(c['background_load_before'])} | "
+                    f"{_flag_txt(c['background_load_after'])} |\n")
+            for nome, stats in (("tutti i controlli", g["tutti"]),
+                                ("soli utilizzabili", g["utilizzabili"])):
+                fh.write(f"\n### Statistiche su {nome}\n\n")
+                fh.write(_stats_txt(stats))
         fh.write("\n## Propagazione cooldown (scelta operativa)\n\n")
         for r in data["runs"]:
             if r["arm"] == "control":
