@@ -2,7 +2,8 @@
 """tools/run_gate_p44.py — il gate load-versus-control di P4.4 sulla v4.
 
 Perche' esiste. P4.4 (emendamento del 2026-10-24, terza emenda sostanziale)
-vuole sei coppie di blocchi: per ogni coppia un blocco di carico
+vuole un numero dichiarato di coppie di blocchi (default sei): per ogni
+coppia un blocco di carico
 (``block_kind='load'``, m=32 richieste, num_predict=32) e un blocco di
 controllo (``block_kind='control'``, finestra passiva di ``dt_nominal_s``
 SENZA inviare richieste — requisito 5). Il disegno e' dichiarato
@@ -20,7 +21,9 @@ puo' coprire due bracci diversi). L'ordine e' carico-primo per coppia,
 dichiarato, non randomizzato; ``order_seed`` e' il seme del disegno
 (requisito 3), parametrizzato con ``--seed``: il default e'
 ``'gate-seed-20261107'``, la campagna dichiarata, quindi nulla cambia per chi
-non lo passa.
+non lo passa. Il numero di coppie e' parametrizzato con ``--pairs``
+(default 6): la Quattordicesima emenda (2026-11-08) adotta 12 coppie per la
+terza campagna, stessa ``dt_nominal_s`` congelata, quorum 8.
 
 Il cooldown intra-coppia (P1.5) e' una SCELTA OPERATIVA, non un requisito di
 P4.4: il requisito 7 vincola la struttura di baseline (3 pre + 3 post su
@@ -145,8 +148,10 @@ NUM_CTX = 8192
 LOAD_PROMPT = "Spiega in una frase cos'e' un watt."   # n_in ~51 token
 LOAD_M = 32
 LOAD_NUM_PREDICT = 32
-N_COPPIE = 6
-N_BLOCCHI = 12
+DEFAULT_PAIRS = 6               # disegno delle campagne 2026-11-07 e 2026-11-08
+N_COPPIE = DEFAULT_PAIRS        # --pairs per la terza campagna (Quattordicesima
+                                # emenda: 12 coppie, quorum ceil(2/3*12) = 8)
+N_BLOCCHI = 2 * N_COPPIE
 BLOCKS_PER_POINT = 1            # un blocco per invocazione: due bracci non
                                 # possono stare sotto lo stesso block_kind
 
@@ -229,8 +234,30 @@ def _imposta_seme(seme: str) -> None:
     SEED = seme
 
 
+def _imposta_coppie(n: int) -> None:
+    """Il numero di coppie e' un parametro (``--pairs``), non una costante.
+
+    Default = 6, il disegno delle prime due campagne: nulla cambia per chi
+    non lo passa. La Quattordicesima emenda (2026-11-08) adotta la decisione 6
+    della Tredicesima nella forma minima: 12 coppie, stessa ``dt_nominal_s``
+    congelata, quorum ``ceil(2/3 * 12) = 8``. ``_verifica_piano`` confronta il
+    piano contro QUESTO valore: un execute con un numero di coppie diverso da
+    quello del plan si ferma prima di misurare, perche' un disegno con piu'
+    (o meno) coppie e' un disegno diverso da quello dichiarato. Un intero
+    positivo e' l'unico valore accettato: zero o negativo non sono un disegno,
+    e un non intero non e' un conteggio.
+    """
+    global N_COPPIE, N_BLOCCHI
+    if isinstance(n, bool) or not isinstance(n, int) or n < 1:
+        raise SystemExit(
+            f"--pairs '{n}' non valido: atteso un intero positivo "
+            f"(default {DEFAULT_PAIRS})")
+    N_COPPIE = n
+    N_BLOCCHI = 2 * n
+
+
 def plan_blocks() -> List[Dict]:
-    """Le dodici righe dichiarate: per ogni coppia, carico poi controllo."""
+    """Le righe dichiarate (due per coppia): carico poi controllo."""
     blocchi = []
     for i in range(N_BLOCCHI):
         coppia = i // 2
@@ -269,7 +296,8 @@ def plan_payload() -> Dict:
         "order_seed": SEED,
         "n_coppie": N_COPPIE, "n_blocchi": N_BLOCCHI,
         "blocks_per_point": BLOCKS_PER_POINT,
-        "invocazioni": "una run_v4_benchmark per blocco (12), non 6 da 2",
+        "invocazioni": (f"una run_v4_benchmark per blocco ({N_BLOCCHI}), "
+                        f"non {N_COPPIE} da 2"),
         "emenda8": {"max_invalidated_blocks": K_MAX,
                     "substitution_seed": "p44-<label> per blocco"},
         # Congelate PRIMA delle misure: un'esecuzione con una precondizione
@@ -279,9 +307,10 @@ def plan_payload() -> Dict:
         "quiet_cap_s": QUIET_CAP_S,
         "geometry": GEOMETRY,
         "checks": {
-            "A": ("dodici blocchi in sei coppie; ogni coppia: blocco load "
-                  "m=32/np=32/nonce, poi blocco control con finestra passiva "
-                  "di dt_nominal_s e ZERO richieste (requisiti 1 e 5)"),
+            "A": (f"{N_BLOCCHI} blocchi in {N_COPPIE} coppie; ogni coppia: "
+                  "blocco load m=32/np=32/nonce, poi blocco control con "
+                  "finestra passiva di dt_nominal_s e ZERO richieste "
+                  "(requisiti 1 e 5)"),
             "B": (f"geometria operativa (12,32) confermata (requisito 4); "
                   f"DT_NOM = {DT_NOM_FROZEN} s congelata dal pilota P2.9 "
                   "(requisito 5)"),
@@ -298,9 +327,10 @@ def plan_payload() -> Dict:
                   "esecuzione lato tool: il criterio F.12 non cambia"),
         },
         "deviazioni_dichiarate": [
-            "12 invocazioni = 12 preparazioni di stato macchina (P1.4) e fino "
-            "a 24 warm-up (2 per invocazione): costo non pagato dal disegno a "
-            "6 invocazioni",
+            f"{N_BLOCCHI} invocazioni = {N_BLOCCHI} preparazioni di stato "
+            f"macchina (P1.4) e fino a {2 * N_BLOCCHI} warm-up (2 per "
+            f"invocazione): costo non pagato dal disegno a {N_COPPIE} "
+            "invocazioni",
             "le finestre idle pre/post del blocco control non sono contigue a "
             "quelle del carico: la coppia e' congiunta dal pair_id e dal "
             "cooldown propagato, non dalla contiguita' temporale",
@@ -345,6 +375,13 @@ def _verifica_piano() -> Dict:
         raise SystemExit("nessun plan.json: lanciare prima `plan`")
     with path.open(encoding="utf-8") as fh:
         plan = json.load(fh)
+    if (plan.get("n_coppie") != N_COPPIE
+            or plan.get("n_blocchi") != N_BLOCCHI):
+        raise SystemExit(
+            f"il piano dichiara {plan.get('n_coppie')} coppie / "
+            f"{plan.get('n_blocchi')} blocchi, il tool ne chiede "
+            f"{N_COPPIE} / {N_BLOCCHI}: --pairs diverso dal disegno "
+            "dichiarato. Ritirare plan.json e ripianificare PRIMA di misurare.")
     dichiarati = plan_blocks()
     if plan.get("blocks") != dichiarati:
         raise SystemExit(
@@ -901,7 +938,8 @@ def _write_report(data: Dict) -> None:
         fh.write(f"- order_seed dichiarato = {data['order_seed']} "
                  "(requisito 3)\n")
         fh.write("- geometria (12,32) (requisito 4)\n")
-        fh.write("- 12 blocchi / 6 coppie, un blocco per invocazione\n\n")
+        fh.write(f"- {2 * data['n_pairs']} blocchi / {data['n_pairs']} "
+                 "coppie, un blocco per invocazione\n\n")
         fh.write("## Risultato\n\n")
         fh.write(summary + "\n")
         pass_false = sum(1 for c in data["controls"]
@@ -1035,8 +1073,12 @@ def main(argv: Optional[Sequence[str]] = None) -> int:
     p_plan.add_argument("--seed", default=DEFAULT_SEED,
                         help="seme del disegno dichiarato nel piano "
                              "(default: la campagna 2026-11-07)")
+    p_plan.add_argument("--pairs", type=int, default=DEFAULT_PAIRS,
+                        help="numero di coppie del disegno (default 6; "
+                             "12 per la terza campagna, Quattordicesima "
+                             "emenda): il quorum e' ceil(2/3 * coppie)")
     p_exec = sub.add_parser("execute",
-                            help="esegui le dodici righe e valuta F.12")
+                            help="esegui i blocchi del piano e valuta F.12")
     p_exec.add_argument("--model", default=DEFAULT_MODEL,
                         help="modello locale")
     p_exec.add_argument("--date", default=DEFAULT_DATE,
@@ -1045,9 +1087,13 @@ def main(argv: Optional[Sequence[str]] = None) -> int:
     p_exec.add_argument("--seed", default=DEFAULT_SEED,
                         help="seme del disegno: deve essere quello del plan "
                              "dichiarato, altrimenti execute si ferma")
+    p_exec.add_argument("--pairs", type=int, default=DEFAULT_PAIRS,
+                        help="numero di coppie: deve essere quello del plan "
+                             "dichiarato, altrimenti execute si ferma")
     args = parser.parse_args(argv)
     _imposta_data(args.date)
     _imposta_seme(args.seed)
+    _imposta_coppie(args.pairs)
     if args.cmd == "plan":
         return cmd_plan(args.model)
     if args.cmd == "execute":
