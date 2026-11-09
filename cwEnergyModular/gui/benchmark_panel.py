@@ -33,9 +33,9 @@ def _gpu_idle_missing_message(gpu_mon) -> str:
     GPU non applicabile su questa macchina". Sono pero' due fatti diversi:
     (a) nessun monitor GPU rilevato, (b) monitor presente ma contatore
     cumulativo assente. Il caso (b) e' quello che lascia la riga in
-    sovrastima dichiarata -- ``gpu_idle_provenance='missing'`` -- e va detto
-    con il nome del device, perche' la potenza istantanea del backend NVML o
-    AMD SMI puo' dare un integrale di finestra ma non una baseline a
+    sovrastima dichiarata -- ``gpu_idle_provenance='invalid-baseline'`` -- e va
+    detto con il nome del device, perche' la potenza istantanea del backend
+    NVML o AMD SMI puo' dare un integrale di finestra ma non una baseline a
     mediana di tre finestre da 30 s.
     """
     if gpu_mon is not None and getattr(gpu_mon, "available", False):
@@ -44,8 +44,8 @@ def _gpu_idle_missing_message(gpu_mon) -> str:
             f"GPU rilevata ({name}) senza contatore cumulativo: "
             "``calibrate_gpu_idle`` non e' calcolabile, "
             "``idle_gpu_power_w`` resta ``None`` e la riga uscira' con "
-            "``gpu_idle_provenance='missing'``. Il ramo NVML/amdsmi con "
-            "potenza istantanea puo' dare un integrale di finestra, non "
+            "``gpu_idle_provenance='invalid-baseline'``. Il ramo NVML/amdsmi "
+            "con potenza istantanea puo' dare un integrale di finestra, non "
             "una baseline a mediana di tre finestre."
         )
     return (
