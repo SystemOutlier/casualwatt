@@ -245,7 +245,7 @@ def test_percorso_misura_copre_runner_e_catena():
 # ---------------------------------------------------------------------------
 # 5. pre-flight REALE del piano congelato della terza campagna
 # ---------------------------------------------------------------------------
-def test_preflight_reale_piano_terza_campagna(monkeypatch):
+def test_preflight_reale_piano_terza_campagna(monkeypatch, tmp_path):
     """Ancoraggio all'artefatto tracciato: il piano congelato
     ``experiment_results/p44_gate_20261109/plan.json`` (commit f9bcb5916)
     passa le QUATTRO guardie reali sull'albero corrente — data 20261109, 24
@@ -294,14 +294,22 @@ def test_preflight_reale_piano_terza_campagna(monkeypatch):
     monkeypatch.setattr(rg, "REPO_ROOT", REPO)
     monkeypatch.setattr(rg, "MODULE_DIR", REPO / "cwEnergyModular")
     monkeypatch.setattr(rg, "P44_DATE", "20261109")
-    monkeypatch.setattr(rg, "ARCHIVE_DIR", path.parent)
     monkeypatch.setattr(rg, "N_COPPIE", 12)
     monkeypatch.setattr(rg, "N_BLOCCHI", 24)
     monkeypatch.setattr(rg, "SEED", piano["order_seed"])
-    # Il piano del 20261109 precede i parametri di warm-up e della
-    # procedura di budget: la guardia li vuole dichiarati PRIMA di misurare
-    # e quindi BLOCCA. Non e' un difetto delle quattro guardie qui sopra,
-    # che passano: e' il disegno non piu' completo, e serve un piano nuovo
-    # di data prima di eseguire (il congelato non si tocca).
+
+    # Il piano congelato del 20261109 contiene gia' i parametri di warm-up e
+    # budget: sulla copia sul disco la guardia passa. Qui si verifica invece
+    # che la guardia BLOCCA quando quei parametri mancano, costruendo un
+    # piano incompleto in tmp_path (il congelato non si tocca).
+    incompleto = {k: v for k, v in piano.items()
+                  if k not in ("warmup_tolerance_w", "warmup_cpu_max_pct",
+                               "warmup_sustain_s", "warmup_cap_s",
+                               "warmup_step_s", "warmup_window_s",
+                               "budget_mode", "budget_n_terne",
+                               "budget_matched_target_s", "criterio_primario")}
+    piano_tmp = tmp_path / rg.PLAN_NAME
+    piano_tmp.write_text(json.dumps(incompleto), encoding="utf-8")
+    monkeypatch.setattr(rg, "ARCHIVE_DIR", tmp_path)
     with pytest.raises(SystemExit, match="warm-up"):
         rg._verifica_piano()
