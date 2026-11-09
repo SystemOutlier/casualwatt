@@ -785,6 +785,16 @@ def test_budget_preesecuzione_e_warmup_attraversano_l_orchestrazione(
     assert analysis["soglia_preregistrata_w"] == pytest.approx(
         inc["pre_esecuzione"]["soglia_w"])
     assert analysis["status"] == "pass"
+    # 4b. il criterio che DECIDE e' dichiarato nel piano e coincide con il
+    #     budget a scala Tc; la soglia non e' maggiorata da k * u_c
+    vp = analysis["verdetto_primario"]
+    assert vp["criterio"] == rg.CRITERIO_PRIMARIO
+    assert vp["status"] == "pass"
+    assert vp["soglia_w"] == pytest.approx(BW, abs=1e-6)
+    assert vp["f12_status"] == "pass"
+    assert inc["pre_esecuzione"]["u_c"] is None
+    assert inc["post_controlli"]["soglia_w"] == pytest.approx(BW, abs=1e-6)
+    assert inc["post_controlli"]["accettazione_guardata"]["accettata"] is True
 
     # 5. il report rende leggibile la soglia e le sue componenti: la
     #    tracciabilita' chiesta dalla revisione non deve vivere solo nel
