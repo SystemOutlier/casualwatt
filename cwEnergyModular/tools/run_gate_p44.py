@@ -493,6 +493,8 @@ def plan_payload() -> Dict:
         "budget_n_terne": BUDGET_N_TERNE,
         "budget_matched_target_s": BUDGET_MATCHED_TARGET_S,
         "budget_floor_finestra_s": BUDGET_FLOOR_FINESTRA_S,
+        "criterio_primario": CRITERIO_PRIMARIO,
+        "criterio_storico_riportato": CRITERIO_STORICO_F12,
         "geometry": GEOMETRY,
         "checks": {
             "A": (f"{N_BLOCCHI} blocchi in {N_COPPIE} coppie; ogni coppia: "
@@ -565,6 +567,15 @@ def plan_payload() -> Dict:
                   + " CodeCarbon non interviene ne' in correzione ne' in "
                     "calibrazione del budget: e' solo registro diagnostico "
                     "aperto dal flag --codecarbon"),
+            "H": ("criterio che DECIDE, dichiarato PRIMA dei dati: "
+                  f"{CRITERIO_PRIMARIO} = |bias_w| <= budget_base_w misurato "
+                  "a scala Tc prima dei blocchi (check G), con il filtro e il "
+                  "quorum di F.12. Il verdetto F.12 storico (mediana dei "
+                  "budget per blocco da finestre da 30 s) resta calcolato e "
+                  "riportato come " + CRITERIO_STORICO_F12 + ", NON decide. "
+                  "Nessuna soglia del tipo budget + k * u_c: u_c non include "
+                  "componenti gia' contenute nel budget. U = t * s / sqrt(n) "
+                  "e |bias| + U <= budget sono grandezze riportate"),
         },
         "deviazioni_dichiarate": [
             f"{N_BLOCCHI} invocazioni = {N_BLOCCHI} preparazioni di stato "
@@ -877,21 +888,39 @@ def _scrivi_budget_preregistrato(budget_w: float, dettagli: Dict) -> Path:
 
 
 # ---------------------------------------------------------------------------
-# Incertezza combinata: le componenti si DIMOSTRANO dai dati misurati, non
-# si elencano come esempi. Ogni componente porta il numero, la formula con
-# cui quel numero e' stato ottenuto e la fonte del numero (quale misura,
-# quale campo, quale modulo). Una componente non calcolabile resta None con
-# la sua ragione: None non e' zero, e sommare uno zero inventato restringe
-# la soglia senza fondamento (regola "nessun fallback silenzioso").
+# Incertezza e criterio di decisione (revisione 2026-11-09, secondo giro).
 #
-# Le quattro componenti qui sotto sono tutte calcolabili PRIMA dei controlli
-# perche' nascono dalla misura del fondo: e' quella la soglia pre-registrata.
-# u_A (dispersione fra i controlli) non puo' che venire dopo, e arriva come
-# quinta componente in un secondo numero dichiarato accanto, non in luogo del
-# primo. CodeCarbon non interviene su nessuna delle cinque: e' registro
-# diagnostico e la sua scala e' lo stesso registro 0x611 (caveat nel probe).
+# Cosa DECIDE. Il criterio primario e' |bias_w| <= budget_base_w, con il
+# budget MISURATO a scala Tc prima dei blocchi (pre-registrato) e con il
+# filtro/quorum di F.12. E' dichiarato in plan.json come ``criterio_primario``
+# e verificato da ``_verifica_piano``. Il verdetto F.12 storico (mediana dei
+# budget per blocco, derivati da finestre da 30 s) resta calcolato e riportato
+# accanto ma NON decide: la differenza fra i due e' il mismatch di scala fra
+# budget (30 s) e controllo (2,93 s) che la revisione ha individuato.
+#
+# Cosa NON c'e' piu'. La forma S = budget + k * u_c e' RIMOSSA. u_rumore e
+# u_termico erano gli stessi due termini di cui e' fatto budget_base_w
+# (= hypot(half_range_pre_w, half_drift_w)): quindi u_c >= budget e S >= 3 *
+# budget, cioe' la stessa dispersione contata due volte. Con i numeri delle
+# due campagne fallite la soglia sarebbe diventata >= 0,787 W contro un bias
+# di 0,480 W, e >= 0,354 W contro 0,125 W: entrambe sarebbero passate. Anche
+# u_A come semi-ampiezza (max - min) / 2 e' rimosso: un range cresce con il
+# numero di coppie e renderebbe il gate piu' facile con 12 coppie che con 6.
+# L'incertezza di tipo A della media dei controlli e' s / sqrt(n) (GUM,
+# JCGM 100:2008, 4.2).
+#
+# Cosa resta. Ogni componente dichiara valore, tipo (A/B), se e' INCLUSA in
+# u_c, il motivo, la formula e la fonte (vedi gate_uncertainty.py). Le
+# componenti escluse restano nel report con il loro valore informativo e la
+# ragione dell'esclusione: escludere non e' tacere. u_c e' la somma in
+# quadratura delle sole componenti incluse. Prima dei controlli non ne esiste
+# nessuna (None, non zero); dopo i controlli esiste u_A = s / sqrt(n).
+# L'incertezza estesa U = t(0,975, n-1) * u_c e l'accettazione con banda di
+# guardia (|bias| + U <= budget, JCGM 106:2012) sono GRANDEZZE RIPORTATE, non
+# il criterio. CodeCarbon non interviene su nessuna componente.
 # ---------------------------------------------------------------------------
-K_COVERAGE_DICHJARATO = 2.0   # fattore di copertura, dichiarato prima dei dati
+CRITERIO_PRIMARIO = "bias_vs_budget_tc"
+CRITERIO_STORICO_F12 = "f12_mediana_budget_per_blocco_30s"
 
 
 def _deviazione_allineamento(unita: List[Dict]) -> float:
@@ -939,6 +968,11 @@ def _incertezza_pre_esecuzione(dettagli_budget: Dict,
                       else float(dettagli_budget["tc_duration_s"]))
     componenti["u_rumore"] = {
         "value": float(b["half_range_pre_w"]),
+        "tipo": "A",
+        "inclusa": False,
+        "motivo": ("gia' contenuta in budget_base_w = hypot(u_rumore, "
+                   "u_termico): includerla in u_c conterebbe due volte la "
+                   "stessa dispersione e porterebbe la soglia a >= 3 * budget"),
         "formula": "half_range_pre_w = (max - min) / 2 sulle unita' pre",
         "fonte": (f"misura del fondo pre-esecuzione ({dettagli_budget['budget_mode']}), "
                   f"{dettagli_budget['n_terne']} unita' di "
@@ -947,6 +981,12 @@ def _incertezza_pre_esecuzione(dettagli_budget: Dict,
     }
     componenti["u_termico"] = {
         "value": float(b["half_drift_w"]),
+        "tipo": "A",
+        "inclusa": False,
+        "motivo": ("nome storico: e' la deriva fra i due gruppi di finestre, "
+                   "non un margine termico (nessun canale termico e' usato "
+                   "come criterio); gia' contenuta in budget_base_w, quindi "
+                   "esclusa dal conto per non contarla due volte"),
         "formula": "half_drift_w = |mediana(post) - mediana(pre)| / 2",
         "fonte": ("stessa misura del fondo: i due gruppi non sovrapposti "
                   "dell'attesa di stabilizzazione, come P1.5"),
@@ -954,6 +994,10 @@ def _incertezza_pre_esecuzione(dettagli_budget: Dict,
     if risoluzione_timer_s is None:
         componenti["u_timer"] = {
             "value": None,
+            "tipo": "B",
+            "inclusa": False,
+            "motivo": ("non misurabile su questo host: resta assente e non "
+                       "vale zero; comunque non sarebbe inclusa (vedi sotto)"),
             "formula": None,
             "fonte": ("probe_cpu_time_resolution non misurabile su questo "
                       "host: la componente resta assente, non vale zero"),
@@ -963,6 +1007,13 @@ def _incertezza_pre_esecuzione(dettagli_budget: Dict,
         u_timer = fondo_w * (float(risoluzione_timer_s) / 2.0) / dt_min_s
         componenti["u_timer"] = {
             "value": u_timer,
+            "tipo": "B",
+            "inclusa": False,
+            "motivo": ("la risoluzione dei cpu_times e' il clock dell'attribuzione "
+                       "CPU, non quello della finestra del contatore: "
+                       "E_net,control usa il dt_W degli stessi bordi del "
+                       "contatore (benchmark_v4._run_control_window), quindi "
+                       "questo valore e' informativo e non entra in u_c"),
             "formula": ("P_fondo * (mezza risoluzione dei cpu_times) / "
                         "min(dt osservato): l'errore di tempo agisce sul "
                         "denominatore della potenza"),
@@ -973,6 +1024,13 @@ def _incertezza_pre_esecuzione(dettagli_budget: Dict,
     u_all = fondo_w * dev_allineamento_s / dt_min_s
     componenti["u_allineamento"] = {
         "value": u_all,
+        "tipo": "B",
+        "inclusa": False,
+        "motivo": ("E_net,control sottrae P_pre * dt_W con il dt_W osservato "
+                   "dalla stessa coppia di bordi del contatore "
+                   "(benchmark_v4._run_control_window, requisito 5): lo "
+                   "scarto fra durata nominale e osservata non genera bias; "
+                   "valore informativo, non incluso in u_c"),
         "formula": ("P_fondo * max|dt_osservato - dt_nominale| / "
                     "min(dt osservato): bordo temporale fra finestra chiesta "
                     "e finestra effettivamente letta dal contatore"),
@@ -981,19 +1039,22 @@ def _incertezza_pre_esecuzione(dettagli_budget: Dict,
                   f"nominale {durata_unita_s:g} s"),
     }
 
-    u_c, _ = gu.calcola_u_c(
-        dispersione_controlli=None,
-        risoluzione_timer=componenti["u_timer"]["value"],
-        dispersione_baseline=componenti["u_rumore"]["value"],
-        margine_termico=componenti["u_termico"]["value"],
-        incertezza_allineamento=componenti["u_allineamento"]["value"])
+    # Nessuna componente indipendente dal budget e' calcolabile prima dei
+    # controlli: u_c e' None (non zero) e la soglia pre-registrata del criterio
+    # primario e' il budget a scala Tc, senza maggiorazioni.
+    u_c = gu.combina_incluse(componenti)
+    budget_w = float(dettagli_budget["budget_base_w"])
     return {
         "quando": "pre_esecuzione",
+        "criterio": CRITERIO_PRIMARIO,
         "u_c": u_c,
-        "k": K_COVERAGE_DICHJARATO,
-        "budget_base_w": float(dettagli_budget["budget_base_w"]),
-        "soglia_w": float(dettagli_budget["budget_base_w"])
-                      + K_COVERAGE_DICHJARATO * u_c,
+        "k": None,
+        "U_w": None,
+        "budget_base_w": budget_w,
+        "soglia_w": budget_w,
+        "nota_u_c": ("nessuna componente indipendente dal budget e' "
+                     "calcolabile prima dei controlli: u_c = None, non zero; "
+                     "la soglia del criterio primario e' il budget a scala Tc"),
         "componenti": componenti,
         "u_A": None,
         "nota_u_A": ("non calcolabile prima dei controlli: richiede le potenze "
@@ -1025,48 +1086,54 @@ def _potenze_netta_dei_controlli(controls: Sequence[Mapping]) -> List[float]:
 
 
 def _incertezza_con_au_controlli(pre: Dict, controls: Sequence[Mapping]) -> Dict:
-    """Lo stesso u_c con la quinta componente, quando i controlli esistono.
+    """u_c post-controlli: la componente u_A, tipo A, e il suo fattore t.
 
-    u_A e la semi-ampiezza della dispersione fra blocchi di controllo, non la
-    deviazione standard delle terne di baseline: P4.12 vieta una sigma a
-    n = 3 sulle ripetizioni dello stesso blocco; qui l'unita' statistica
-    e' il blocco e i blocchi sono N_COPPIE, e il numero resta descrittivo
-    (regola del linguaggio dell'incertezza) e non sostituisce il bias di F.12.
+    u_A = s / sqrt(n) e' l'incertezza di tipo A della MEDIA delle potenze nette
+    dei controlli utilizzabili (GUM, JCGM 100:2008, 4.2): decresce con n, a
+    differenza di un range (max - min), che cresce con n. L'unita' statistica
+    e' il blocco di controllo, non la terna di baseline di P4.12 (dove a n = 3
+    il divieto di stimare una varianza resta). U = t(0,975, n-1) * u_c e'
+    grandezza riportata: la soglia del criterio primario resta il budget a
+    scala Tc e non viene maggiorata.
     """
     potenze = _potenze_netta_dei_controlli(controls)
-    if len(potenze) < 2:
-        u_a = None
+    stats = _statistiche_descrittive(potenze)
+    u_a = stats["se"]          # s / sqrt(n); None se n < 2 (mai zero)
+    if u_a is None:
         fonte_a = (f"controlli utilizzabili con dt_W valido: {len(potenze)}; "
                    "serve almeno una coppia di blocchi per una dispersione "
                    "fra blocchi")
     else:
-        stats = _statistiche_descrittive(potenze)
-        half_amplitude = (max(potenze) - min(potenze)) / 2.0
-        u_a = half_amplitude
         fonte_a = (f"potenze nette dei {len(potenze)} controlli utilizzabili: "
-                   f"max {max(potenze):.6f} W, min {min(potenze):.6f} W, "
-                   f"semi-ampiezza {half_amplitude:.6f} W; SD campionaria di "
-                   f"riferimento {stats['sd']} (descrittiva fra blocchi, non "
-                   "usata come incertezza)")
+                   f"media {stats['media']:.6f} W, sd campionaria (ddof=1) "
+                   f"{stats['sd']:.6f} W, s / sqrt(n) = {u_a:.6f} W")
     componenti = dict(pre["componenti"])
     componenti["u_A"] = {
         "value": u_a,
-        "formula": ("(max - min) / 2 sulle potenze nette dei controlli "
-                    "utilizzabili: semi-ampiezza conservativa fra blocchi"),
+        "tipo": "A",
+        "inclusa": u_a is not None,
+        "motivo": ("incertezza di tipo A della media dei controlli: decresce "
+                   "con n, a differenza di un range. Indipendente dal "
+                   "budget (derivato dal fondo, non dai controlli)"
+                   if u_a is not None else
+                   "non calcolabile: servono almeno due controlli utilizzabili"),
+        "formula": ("s / sqrt(n) sulle potenze nette dei controlli "
+                    "utilizzabili (s campionaria, ddof=1)"),
         "fonte": fonte_a,
     }
-    u_c, _ = gu.calcola_u_c(
-        dispersione_controlli=u_a,
-        risoluzione_timer=componenti["u_timer"]["value"],
-        dispersione_baseline=componenti["u_rumore"]["value"],
-        margine_termico=componenti["u_termico"]["value"],
-        incertezza_allineamento=componenti["u_allineamento"]["value"])
+    u_c = gu.combina_incluse(componenti)
+    k = stats["t_quantile"] if u_c is not None else None
     return {
         "quando": "post_controlli",
+        "criterio": CRITERIO_PRIMARIO,
         "u_c": u_c,
-        "k": K_COVERAGE_DICHJARATO,
+        "k": k,
+        "k_provenienza": (f"t di Student 0,975 con {len(potenze) - 1} gradi di "
+                          f"liberta': {stats['t_provenienza']}"
+                          if k is not None else "nessun fattore: u_c assente"),
+        "U_w": (k * u_c) if (k is not None and u_c is not None) else None,
         "budget_base_w": pre["budget_base_w"],
-        "soglia_w": pre["budget_base_w"] + K_COVERAGE_DICHJARATO * u_c,
+        "soglia_w": pre["budget_base_w"],
         "componenti": componenti,
         "u_A": u_a,
         "potenze_nette_w": potenze,
@@ -1089,6 +1156,55 @@ def _risoluzione_timer_sessione() -> Optional[float]:
     except (TypeError, ValueError):
         return None
     return f if math.isfinite(f) and f > 0.0 else None
+
+
+def _verdetto_primario(analysis: Mapping, budget_w: float) -> Dict:
+    """Il verdetto che DECIDE: |bias_w| <= budget a scala Tc, con il quorum.
+
+    Dichiarato nel piano come ``criterio_primario`` PRIMA dei dati. Condivide
+    con F.12 il filtro dei controlli e il quorum (``evaluate_gate`` li ha
+    gia' applicati: se il gate non e' eseguibile, nemmeno questo lo e');
+    cambia solo la soglia, che e' il budget misurato alla scala del controllo
+    invece della mediana dei budget per blocco derivati da finestre da 30 s.
+    Il verdetto F.12 storico non si tocca e viaggia in ``f12_status``.
+    """
+    status_f12 = analysis.get("status")
+    bias = analysis.get("bias_w")
+    base = {"criterio": CRITERIO_PRIMARIO, "soglia_w": float(budget_w),
+            "bias_w": bias, "quorum": analysis.get("quorum"),
+            "controls_usable_n": analysis.get("controls_usable_n"),
+            "f12_status": status_f12,
+            "criterio_storico_riportato": CRITERIO_STORICO_F12}
+    if status_f12 == "not-executable" or bias is None:
+        return {**base, "status": "not-executable", "margine_w": None,
+                "motivo": "gate non eseguibile (filtro/quorum di F.12): nessun "
+                          "bias da confrontare con il budget"}
+    margine = float(budget_w) - abs(float(bias))
+    ok = margine >= 0.0
+    return {**base, "status": "pass" if ok else "fail", "margine_w": margine,
+            "motivo": (f"|bias_w| = {abs(float(bias)):.6f} W "
+                       f"{'<=' if ok else '>'} budget_base_w a scala Tc = "
+                       f"{float(budget_w):.6f} W")}
+
+
+def _accettazione_guardata(bias_w, post: Mapping, budget_w: float) -> Dict:
+    """|bias| + U <= budget: regola con banda di guardia (JCGM 106:2012).
+
+    GRANDEZZA RIPORTATA, non il criterio: dice se il risultato resterebbe
+    conforme anche tenendo conto dell'incertezza della stima del bias.
+    """
+    u = post.get("U_w")
+    if bias_w is None or u is None:
+        return {"accettata": None, "bias_assoluto_w": None, "U_w": u,
+                "bias_piu_U_w": None, "budget_base_w": float(budget_w),
+                "nota": "bias o U non calcolabili: nessuna accettazione "
+                        "guardata. Grandezza riportata, non decide."}
+    totale = abs(float(bias_w)) + float(u)
+    return {"accettata": totale <= float(budget_w),
+            "bias_assoluto_w": abs(float(bias_w)), "U_w": float(u),
+            "bias_piu_U_w": totale, "budget_base_w": float(budget_w),
+            "nota": "|bias| + U <= budget (JCGM 106:2012). Grandezza "
+                    "riportata, non decide l'esito del gate."}
 
 
 def _verifica_piano() -> Dict:
@@ -1127,6 +1243,7 @@ def _verifica_piano() -> Dict:
         "budget_mode": BUDGET_MODE,
         "budget_n_terne": BUDGET_N_TERNE,
         "budget_matched_target_s": BUDGET_MATCHED_TARGET_S,
+        "criterio_primario": CRITERIO_PRIMARIO,
     }
     discosti = {chiave: (plan.get(chiave), valore)
                 for chiave, valore in attesi.items()
@@ -1816,9 +1933,9 @@ def cmd_execute(model: str, *, codecarbon: bool = False,
     print(f"[BUDGET] budget_base_w = {budget_w:.6f} W "
           f"(half_range {dettagli_budget['baseline']['half_range_pre_w']}, "
           f"half_drift {dettagli_budget['baseline']['half_drift_w']}) | "
-          f"u_c = {incertezza_pre['u_c']:.6f} W | soglia pre-registrata "
-          f"S = {incertezza_pre['soglia_w']:.6f} W "
-          f"(k = {incertezza_pre['k']}) -> {budget_path}", flush=True)
+          f"soglia pre-registrata del criterio primario ({CRITERIO_PRIMARIO}) "
+          f"= budget = {incertezza_pre['soglia_w']:.6f} W -> {budget_path}",
+          flush=True)
 
     # Registro diagnostico CodeCarbon: SOLO con il flag. L'import e' dentro
     # il ramo perche' senza flag il comportamento deve restare identico a
@@ -1974,6 +2091,8 @@ def cmd_execute(model: str, *, codecarbon: bool = False,
     analysis = q.to_dict()
     incertezza_post = _incertezza_con_au_controlli(incertezza_pre,
                                                    analysis["controls"])
+    incertezza_post["accettazione_guardata"] = _accettazione_guardata(
+        analysis.get("bias_w"), incertezza_post, budget_w)
     analysis.update({
         "pilot": "P4.4 gate",
         "model": model,
@@ -2036,6 +2155,10 @@ def cmd_execute(model: str, *, codecarbon: bool = False,
     analysis["incertezza"] = {"pre_esecuzione": incertezza_pre,
                               "post_controlli": incertezza_post}
     analysis["soglia_preregistrata_w"] = incertezza_pre["soglia_w"]
+    # Il verdetto che DECIDE (check H del piano). analysis["status"] resta il
+    # verdetto F.12 storico, invariato: i due si leggono accanto e il primo e'
+    # quello dichiarato prima dei dati.
+    analysis["verdetto_primario"] = _verdetto_primario(analysis, budget_w)
 
     _scrittura_atomica(ARCHIVE_DIR / ANALYSIS_NAME, analysis)
     _scrittura_atomica(ARCHIVE_DIR / FREEZE_NAME, analysis)
@@ -2203,6 +2326,13 @@ def _write_report(data: Dict) -> None:
         fh.write("\n")
         fh.write("## Risultato\n\n")
         fh.write(summary + "\n")
+        vp = data.get("verdetto_primario")
+        if vp:
+            fh.write(f"- VERDETTO PRIMARIO (decide) `{vp['criterio']}`: "
+                     f"**{vp['status']}** - {vp['motivo']}\n")
+            fh.write(f"- verdetto F.12 storico (riportato, non decide; "
+                     f"`{vp['criterio_storico_riportato']}`): "
+                     f"{vp['f12_status']}\n")
         pass_false = sum(1 for c in data["controls"]
                          if c["usable"] and c["block_pass"] is False)
         fh.write(f"- utilizzabili con block_pass=False: {pass_false}/"
@@ -2225,8 +2355,10 @@ def _write_report(data: Dict) -> None:
                      "e aggregato con le stesse regole del budget lungo "
                      "(`benchmark_v4.block_baseline`, F.1/F.4). Nessuna "
                      "riscalatura per Tc/30 e nessun contributo di "
-                     "CodeCarbon. Il verdetto resta quello di F.12 sul "
-                     "`bias_w` contro la mediana dei budget per blocco.\n\n")
+                     "CodeCarbon. Il criterio che decide e' dichiarato nel "
+                     "piano (`criterio_primario`): |bias_w| <= budget_base_w "
+                     "a scala Tc. Il verdetto F.12 storico (mediana dei "
+                     "budget per blocco) e' riportato accanto.\n\n")
             fh.write(f"- procedura: `{b_pre['budget_mode']}` | "
                      f"Tc = {b_pre['tc_duration_s']} s | "
                      f"{len(b_pre['unita_pre_w'])} unita' pre + "
@@ -2255,15 +2387,29 @@ def _write_report(data: Dict) -> None:
                 if not gruppo:
                     continue
                 fh.write(f"\n### u_c {nome}\n\n")
-                fh.write(f"- u_c = {gruppo['u_c']:.6f} W, k = {gruppo['k']}, "
-                         f"soglia S = budget + k*u_c = "
+                u_c_txt = (f"{gruppo['u_c']:.6f} W"
+                           if gruppo["u_c"] is not None else "assente (None)")
+                u_est = gruppo.get("U_w")
+                u_est_txt = (f"{u_est:.6f} W (k = {gruppo['k']:.4f}, "
+                             f"{gruppo.get('k_provenienza', '')})"
+                             if u_est is not None else "assente")
+                fh.write(f"- u_c = {u_c_txt}; U = {u_est_txt}; soglia del "
+                         f"criterio primario = budget = "
                          f"{gruppo['soglia_w']:.6f} W\n")
+                guard = gruppo.get("accettazione_guardata")
+                if guard:
+                    fh.write(f"- accettazione con banda di guardia "
+                             f"(riportata, non decide): {guard['accettata']} - "
+                             f"{guard['nota']}\n")
                 for componente, det in gruppo["componenti"].items():
                     valore = det["value"]
                     testo = (f"{valore:.6f} W"
                              if isinstance(valore, (int, float))
                              and not isinstance(valore, bool) else "assente")
-                    fh.write(f"  - {componente} = {testo} - "
+                    stato = ("INCLUSA" if det.get("inclusa") else "ESCLUSA")
+                    fh.write(f"  - {componente} = {testo} - tipo "
+                             f"{det.get('tipo', '?')}, {stato}: "
+                             f"{det.get('motivo', 'motivo non dichiarato')}; "
                              f"`{det['formula'] or 'non calcolabile'}`; "
                              f"fonte: {det['fonte']}\n")
             fh.write("\n### Assunzioni dichiarate\n\n")
@@ -2474,7 +2620,8 @@ def main(argv: Optional[Sequence[str]] = None) -> int:
             print(f"[ARRESTO] {e.code}", file=sys.stderr, flush=True)
             return 3
         mapping = {"pass": 0, "fail": 1, "not-executable": 2}
-        return mapping[r["status"]]
+        decide = (r.get("verdetto_primario") or {}).get("status", r["status"])
+        return mapping[decide]
     parser.error("seguono solo plan/execute")
     return 1
 
