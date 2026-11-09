@@ -157,7 +157,8 @@ class LocalEnergyResult:
     # attribuzione per processo NVIDIA (N/A se NVML non la espone)
     gpu_process_energy_j: Optional[float] = None
     # Punto 2: provenienza della potenza idle GPU usata nello scorporo
-    # ("calibrated" | "missing"); "" se la GPU dedicata non e' stata misurata.
+    # ("calibrated" | "identity-unavailable" | "invalid-baseline" | "device-changed");
+    # "" se la GPU dedicata non e' stata misurata.
     gpu_idle_provenance: str = ""
     igpu_energy_j: Optional[float] = None   # informativo, MAI sommato
     package_window_source: str = ""         # exact-counter | samples-fallback |

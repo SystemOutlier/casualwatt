@@ -1730,7 +1730,7 @@ class EnergySession:
                 "calibrazione idle GPU non eseguita: nessun monitor GPU "
                 f"disponibile. Causa: {cause}. La baseline resta non "
                 "calibrata e la riga la dichiara con "
-                "gpu_idle_provenance='missing'.")
+                "gpu_idle_provenance='identity-unavailable'.")
         if not getattr(gpu, "energy_counter", False):
             cause = str(getattr(gpu, "energy_counter_reason", "")
                         or "ragione non dichiarata")
@@ -1738,7 +1738,8 @@ class EnergySession:
                 "calibrazione idle GPU non eseguita: il contatore cumulativo "
                 f"non risponde ({cause}). Una potenza istantanea letta una "
                 "volta non e' la media di una finestra da "
-                f"{duration_s:.0f} s: il valore non si inventa.")
+                f"{duration_s:.0f} s: il valore non si inventa. La riga la "
+                "dichiara con gpu_idle_provenance='invalid-baseline'.")
 
         _clock = clock or time.monotonic
         _sleep = sleep or time.sleep

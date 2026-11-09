@@ -124,13 +124,13 @@ def test_msg_nessun_monitor():
 
 def test_msg_monitor_presente_ma_senza_contatore_cumulativo():
     """``available=True`` e ``energy_counter=False`` -> nomina la GPU e la
-    provenienza ``missing``, non dice che la macchina e' senza GPU."""
+    provenienza ``invalid-baseline``, non dice che la macchina e' senza GPU."""
     mon = _FakeGpuMonitor(available=True, counter=False, name="RTX 4060")
     msg = _gpu_idle_missing_message(mon)
     assert "GPU rilevata" in msg
     assert "RTX 4060" in msg
     assert "senza contatore cumulativo" in msg
-    assert "gpu_idle_provenance='missing'" in msg
+    assert "gpu_idle_provenance='invalid-baseline'" in msg
     # Non deve mai affermare che la macchina non ha una GPU
     assert "Nessun monitor GPU attivo" not in msg
 
