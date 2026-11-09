@@ -148,14 +148,60 @@ def test_git_head_non_antenato_blocca(monkeypatch, tmp_path):
 
 def test_git_head_assente_blocca(monkeypatch, tmp_path):
     """Un piano senza git_head non dichiara da quale commit viene: la
-    guardia non puo' passare su un'assenza."""
+    guardia non puo' passare su un'assenza. Il messaggio distingue
+    l'assenza dal diniego: il primo e' un piano scritto male (o scritto
+    senza git), il secondo e' una storia che non contiene quel commit."""
     _directories(monkeypatch, tmp_path)
     assert rg.main(["plan", "--date", "20261109"]) == 0
     piano = _piano(tmp_path)
     piano["git_head"] = ""
     _riscrivi(piano)
-    with pytest.raises(SystemExit, match="antenato"):
+    with pytest.raises(SystemExit, match="git_head del piano assente"):
         rg._verifica_piano()
+
+
+def test_git_non_eseguibile_nomina_la_causa(monkeypatch, tmp_path):
+    """Il caso osservato su questo host il 2026-11-09: dentro la cattura di
+    pytest la CreateProcess di Windows risponde OSError(22, winerror=50) e
+    git non parte affatto. Prima della separazione dei due stati la guardia
+    accusava 'la storia e' stata riscritta', che e' un'altra ipotesi e
+    manda chi legge a cercare nel posto sbagliato. Il blocco e' identico;
+    cambia solo l'accusa, che ora e' quella vera."""
+    _directories(monkeypatch, tmp_path)
+    assert rg.main(["plan", "--date", "20261109"]) == 0
+    monkeypatch.setattr(rg, "_git_antenato", lambda sha: False)
+    monkeypatch.setattr(rg, "_git_antenato_con_ragione", lambda sha: (
+        False, "git non eseguibile: OSError: [WinError 50] Richiesta non "
+               "supportata"))
+    with pytest.raises(SystemExit, match="git non eseguibile"):
+        rg._verifica_piano()
+
+
+def test_git_risponde_non_antenato_accusa_la_storia(monkeypatch, tmp_path):
+    """L'altro stato: git parte e risponde che quel commit non e' nella
+    storia. Qui l'accusa storica ('riscritta o altro repository') e' quella
+    giusta e deve restare; il messaggio tecnico di git non la sostituisce."""
+    _directories(monkeypatch, tmp_path)
+    assert rg.main(["plan", "--date", "20261109"]) == 0
+    monkeypatch.setattr(rg, "_git_antenato", lambda sha: False)
+    monkeypatch.setattr(rg, "_git_antenato_con_ragione",
+                        lambda sha: (False, "git esce con codice 1"))
+    with pytest.raises(SystemExit, match="storia e' stata riscritta"):
+        rg._verifica_piano()
+
+
+def test_plan_non_scritto_senza_provenienza(monkeypatch, tmp_path):
+    """cmd_plan con git muto non produce un plan.json con git_head vuoto:
+    sarebbe un documento pre-registrato senza collocazione nella storia, e
+    il suo difetto comparirebbe solo all'execute. L'archivio resta vuoto."""
+    _directories(monkeypatch, tmp_path)
+    monkeypatch.setattr(rg, "ARCHIVE_DIR", tmp_path / "archivio")
+    monkeypatch.setattr(rg, "_git_head", lambda: "")
+    monkeypatch.setattr(rg, "_git_provenienza", lambda: (
+        "", "git non eseguibile: OSError: [WinError 50]"))
+    with pytest.raises(SystemExit, match="non ha provenienza"):
+        rg.cmd_plan(rg.DEFAULT_MODEL)
+    assert not (rg.ARCHIVE_DIR / rg.PLAN_NAME).exists()
 
 
 def test_percorso_di_misura_mutato_blocca(monkeypatch, tmp_path):
@@ -202,10 +248,13 @@ def test_percorso_misura_copre_runner_e_catena():
 def test_preflight_reale_piano_terza_campagna(monkeypatch):
     """Ancoraggio all'artefatto tracciato: il piano congelato
     ``experiment_results/p44_gate_20261109/plan.json`` (commit f9bcb5916)
-    passa le guardie reali sull'albero corrente — data 20261109, 24
+    passa le QUATTRO guardie reali sull'albero corrente — data 20261109, 24
     blocchi / 12 coppie, quorum derivato 8, quiete 3/600, SHA del runner
     uguale a quello registrato, git_head dell'emenda antenato di HEAD con
-    percorso di misura invariato. Nessuna misura: sola lettura."""
+    percorso di misura invariato — e la verifica completa LO BLOCCA: il
+    piano precede i parametri di warm-up e della procedura di budget, che
+    il tool vuole dichiarati prima di misurare. Nessuna misura: sola
+    lettura. Il rifiuto e' l'esito atteso, non un difetto della guardia."""
     path = REPO / "experiment_results" / "p44_gate_20261109" / rg.PLAN_NAME
     piano = json.loads(path.read_text(encoding="utf-8"))
     assert piano["campaign_date"] == "20261109"
@@ -221,13 +270,38 @@ def test_preflight_reale_piano_terza_campagna(monkeypatch):
     # le guardie reali, senza fake: SHA del runner sul file vero e git vero
     assert rg._sha256(REPO / "cwEnergyModular" / "benchmark_v4.py") == \
         piano["runner_sha256"]
-    assert rg._git_antenato(piano["git_head"]) is True
+    # Le due asserzioni sotto aprono un processo git. Su questo host, dentro
+    # la cattura di pytest, la CreateProcess di Windows a volte non fa
+    # partire affatto il figlio (OSError errno 22 winerror 50, oppure errno 6
+    # winerror 6) e il fenomeno e' di SESSIONE, non di chiamata: misurato
+    # l'09-11-2026 in 10 tentativi consecutivi, o falliscono tutti o non ne
+    # fallisce nessuno, quindi un ritentare non c'entra niente. Nel frattempo
+    # git, invocato da terminale, risponde rc=0 che 498021d6 e' antenato di
+    # HEAD: il fatto ancorato e' vero, e' l'esecuzione dal processo figlio di
+    # pytest a non essere disponibile. Quando non lo e' si dichiara il salto
+    # con la sua ragione (stessa convenzione dei tre salti che chiedono un
+    # host Linux in tests/test_rapl.py); quando lo e', l'asserzione corre e
+    # coglie una storia riscritta o un piano di un altro repository.
+    antenato, ragione = rg._git_antenato_con_ragione(piano["git_head"])
+    if ragione.startswith("git non eseguibile"):
+        pytest.skip(f"git non eseguibile dal processo di test: {ragione}")
+    assert antenato is True
     assert rg._git_percorso_misura_mutato(piano["git_head"]) is False
-    # e la verifica completa, spostando i globali sul piano vero
+    # la verifica completa, sull'albero VERO: i globali che un test
+    # precedente ha spostato su tmp_path vanno rimessi qui, perche' la
+    # guardia sul git_head esegue git con cwd=REPO_ROOT e quella sullo SHA
+    # legge benchmark_v4.py da MODULE_DIR.
+    monkeypatch.setattr(rg, "REPO_ROOT", REPO)
+    monkeypatch.setattr(rg, "MODULE_DIR", REPO / "cwEnergyModular")
     monkeypatch.setattr(rg, "P44_DATE", "20261109")
     monkeypatch.setattr(rg, "ARCHIVE_DIR", path.parent)
     monkeypatch.setattr(rg, "N_COPPIE", 12)
     monkeypatch.setattr(rg, "N_BLOCCHI", 24)
     monkeypatch.setattr(rg, "SEED", piano["order_seed"])
-    verificato = rg._verifica_piano()
-    assert verificato["n_coppie"] == 12
+    # Il piano del 20261109 precede i parametri di warm-up e della
+    # procedura di budget: la guardia li vuole dichiarati PRIMA di misurare
+    # e quindi BLOCCA. Non e' un difetto delle quattro guardie qui sopra,
+    # che passano: e' il disegno non piu' completo, e serve un piano nuovo
+    # di data prima di eseguire (il congelato non si tocca).
+    with pytest.raises(SystemExit, match="warm-up"):
+        rg._verifica_piano()

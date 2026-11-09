@@ -254,6 +254,10 @@ def test_verifica_piano_rifiuta_quiete_assente_o_diversa(monkeypatch,
     si ferma sulle costanti mancanti, e anche su costanti cambiate dopo la
     dichiarazione."""
     monkeypatch.setattr(rg, "ARCHIVE_DIR", tmp_path)
+    # cmd_plan rifiuta di scrivere un piano senza provenienza (git_head):
+    # il soggetto qui e' la precondizione di quiete, quindi la provenienza
+    # e' iniettata e la guardia git e' verificata nel suo file.
+    monkeypatch.setattr(rg, "_git_head", lambda: "test-head")
     rg.cmd_plan(rg.DEFAULT_MODEL)
     path = tmp_path / rg.PLAN_NAME
     piano = json.loads(path.read_text(encoding="utf-8"))
@@ -272,10 +276,10 @@ def test_verifica_piano_rifiuta_quiete_assente_o_diversa(monkeypatch,
 
 def test_quiete_chiamata_prima_di_ogni_invocazione(monkeypatch, tmp_path):
     """Ordine: l'attesa precede OGNI chiamata a run_v4_benchmark, load e
-    control — 12 attese per 12 invocazioni, alternate. Una quiete
-    controllata una sola volta a inizio campagna non coprirebbe i blocchi
-    successivi, che e' esattamente dove il 2026-11-07 ha visto il carico
-    (5 controlli su 6 con background_load=True)."""
+    control — una quiete per ciascuna delle 12 invocazioni, nell'ordine.
+    Una quiete controllata una sola volta a inizio campagna non coprirebbe
+    i blocchi successivi, che e' esattamente dove il 2026-11-07 ha visto il
+    carico (5 controlli su 6 con background_load=True)."""
     import benchmark_v4 as v4
     from test_gate_p44_end_to_end import _installa
     monkeypatch.setattr(rg, "ARCHIVE_DIR", tmp_path / "archive")
@@ -283,6 +287,15 @@ def test_quiete_chiamata_prima_di_ogni_invocazione(monkeypatch, tmp_path):
     monkeypatch.setattr(rg, "DT_NOM_FROZEN", 0.05)
     monkeypatch.setattr(rg, "LOAD_M", 2)
     monkeypatch.setattr(rg, "LOAD_NUM_PREDICT", 2)
+    # Il soggetto di questo test e' l'ORDINE quiete/run, non la provenienza
+    # del piano: le tre seams del git vanno iniettate perche' il test non
+    # dipenda dalla capacita' del processo di far partire git (su questo host
+    # la CreateProcess di Windows a volte non la concede, e il fallimento
+    # sarebbe attribuito all'attesa invece che all'ambiente). La guardia su
+    # git_head ha il suo file: tests/test_preflight_gate_p44.py.
+    monkeypatch.setattr(rg, "_git_head", lambda: "test-head")
+    monkeypatch.setattr(rg, "_git_antenato", lambda sha: True)
+    monkeypatch.setattr(rg, "_git_percorso_misura_mutato", lambda sha: False)
     _installa(monkeypatch)
     ordine = []
     reale_quiete = rg._attendi_quiete
@@ -301,7 +314,14 @@ def test_quiete_chiamata_prima_di_ogni_invocazione(monkeypatch, tmp_path):
     monkeypatch.setattr(v4, "run_v4_benchmark", run_spia)
     assert rg.cmd_plan(rg.DEFAULT_MODEL) == 0
     rg.cmd_execute(rg.DEFAULT_MODEL)
-    assert ordine == ["quiete", "run"] * 12
+    # Tredici attese: una per le dodici invocazioni, piu' quella che
+    # precede la misura del fondo prima di ogni blocco (l'attesa che apre
+    # cmd_execute, davanti a _calcola_budget_pre_esecuzione). L'invariante
+    # resta quello per cui il test esiste: ogni "run" e' immediatamente
+    # preceduto dalla sua quiete, mai da un altro run.
+    assert ordine == ["quiete"] + ["quiete", "run"] * 12
+    assert all(ordine[i - 1] == "quiete"
+               for i, x in enumerate(ordine) if x == "run")
 
 
 def test_execute_registra_quiete_per_ogni_blocco(monkeypatch, tmp_path):
