@@ -1,10 +1,15 @@
-"""Test del McNemar appaiato."""
+"""Test del McNemar appaiato: costruzione della tabella di concordanza,
+selezione tra binomiale esatto e chi² con correzione di continuità,
+gestione degli esclusi, riduzione a una coppia per task e intervallo
+di Newcombe per la differenza di accuratezze."""
 
 
 from evaluation_runner import paired_mcnemar, record_verdict
 
 
 def test_basic_table_counts():
+    """Verifica il conteggio corretto delle quattro celle (a, b, c, d)
+    e del totale discordanti per una tabella 2x2 nota."""
     r = paired_mcnemar([1, 1, 0, 0, 1], [1, 0, 1, 0, 1])
     assert r["a"] == 2
     assert r["b"] == 1
@@ -15,6 +20,8 @@ def test_basic_table_counts():
 
 
 def test_indecis_when_no_discordant():
+    """Se b+c=0 la tabella è priva di discordanti: il test deve dichiarare
+    'indecis' con p_value_exact=1.0 e chi² non calcolato."""
     r = paired_mcnemar([1, 1, 0, 0], [1, 1, 0, 0])
     assert r["indecis"] is True
     assert r["discordant"] == 0
@@ -22,13 +29,16 @@ def test_indecis_when_no_discordant():
 
 
 def test_small_discordant_uses_exact():
-    # discordant < 10 → chi2 non calcolato
+    """Per discordanti < 10 il test esatto binomiale è l'unico valido:
+    chi² e p_value_chi2 devono essere None."""
     r = paired_mcnemar([1, 1, 0, 0, 1], [1, 0, 1, 0, 1] * 1)
     assert r["chi2"] is None
     assert r["p_value_chi2"] is None
 
 
 def test_large_discordant_computes_chi2():
+    """Per discordanti >= 10 il chi² con correzione di continuità deve
+    essere calcolato insieme al p-value esatto."""
     xs = [1] * 15 + [0] * 15
     ys = [0] * 15 + [1] * 15
     r = paired_mcnemar(xs, ys)
@@ -39,7 +49,9 @@ def test_large_discordant_computes_chi2():
 
 
 def test_indeterminate_excluded_and_counted():
-    # "correct"/"incorrect" vs None-like
+    """I verdetti 'indeterminate', 'missing' e None devono essere esclusi
+    dal conteggio determinato, conteggiati in n_excluded e dettagliati per
+    ragione in excluded_by_reason."""
     r = paired_mcnemar([1, 1, "indeterminate", "missing", None], [1, 1, 1, 1, 1])
     assert r["n_determinate"] == 2
     assert r["n_excluded"] == 3
@@ -48,6 +60,8 @@ def test_indeterminate_excluded_and_counted():
 
 
 def test_length_mismatch_raises():
+    """Lunghezze diverse tra le due liste di verdetti devono sollevare
+    ValueError: la McNemar richiede coppie perfettamente appaiate."""
     try:
         paired_mcnemar([1, 0], [1])
     except ValueError:
@@ -56,6 +70,8 @@ def test_length_mismatch_raises():
 
 
 def test_no_chance_correction():
+    """Disattivando la correzione (correction=False) il chi² deve essere
+    calcolato senza continuità, distinguendo il caso 'no' da 'yes'."""
     xs = [1] * 12 + [0] * 12
     ys = [0] * 12 + [1] * 12
     r = paired_mcnemar(xs, ys, correction=False)
