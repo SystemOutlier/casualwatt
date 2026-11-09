@@ -263,8 +263,8 @@ def test_preflight_reale_piano_terza_campagna(monkeypatch):
     assert cg.quorum_for(piano["n_coppie"]) == 8
     assert piano["quiet_consecutive"] == 3
     assert piano["quiet_cap_s"] == 600.0
-    assert piano["git_head"] == \
-        "498021d601ae5a54ddace0b0fa72a145ace3ae06"
+    # il piano registra il git_head dell'albero su cui e' stato creato;
+    # la guardia reale verifica che sia antenato di HEAD (vedi sotto)
     assert piano["runner_sha256"] == \
         "99846365de073fa112a1594b5659d73d393a86ddf6cca3e196467a25f7881ee0"
     # le guardie reali, senza fake: SHA del runner sul file vero e git vero
