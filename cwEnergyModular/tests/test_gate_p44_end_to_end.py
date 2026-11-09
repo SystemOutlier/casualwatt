@@ -268,16 +268,25 @@ def _installa(monkeypatch):
     # finestra a 0,5 s) e questi test accorciano Tc a 0,05 s: senza deroga
     # il tool fermerebbe GIUSTAMENTE la misura del fondo, e qui si vuole
     # provare l'orchestrazione, non il pavimento (che e' nei test dedicati).
-    # (2) La stabilizzazione post-carico legge ``v4.cooldown_power_w``, che
-    # su questa sessione restituirebbe la sentinella -1e6 J della finestra
-    # degradata: qui si dichiara una macchina gia' rientrata a 10,0 W con
-    # permanenza nulla, perche' la MECCANICA del criterio e' provata nei
-    # test dedicati, non qui.
+    # (2) La stabilizzazione post-carico legge DUE segnali sulla finestra:
+    #     ``v4.cooldown_power_w`` (che su questa sessione restituirebbe la
+    #     sentinella -1e6 J della finestra degradata) e
+    #     ``ms.total_cpu_samples``, gia' fake sopra a 1,0 % di media. Qui si
+    #     dichiara una macchina rientrata a 10,0 W e ferma all'1,0 % con
+    #     permanenza nulla, perche' la MECCANICA del criterio multisegnale e'
+    #     provata nei test dedicati, non qui.
     monkeypatch.setattr(rg, "BUDGET_FLOOR_FINESTRA_S", 0.0)
     monkeypatch.setattr(rg, "WARMUP_SUSTAIN_S", 0.0)
     monkeypatch.setattr(rg, "WARMUP_STEP_S", 0.0)
     monkeypatch.setattr(rg, "WARMUP_WINDOW_S", 0.05)
     monkeypatch.setattr(v4, "cooldown_power_w", lambda window_s: 10.0)
+    # (3) La temperatura del warm-up e' registrazione, non criterio: il ramo
+    # reale apre un subprocess (powershell + CIM) e sotto la cattura dei fd
+    # di pytest risponde l'OSError(22) noto dell'ambiente, non un numero.
+    # Qui si inietta una lettura valida perche' il record registri la fonte
+    # provata del ramo, non l'errore del runner dei test.
+    monkeypatch.setattr(rg, "_temperatura_cpu_c",
+                        lambda: (27.85, "fake:MSAcpi_ThermalZoneTemperature"))
     return fake, spediti, meta, targets
 
 
@@ -537,7 +546,7 @@ def test_report_mostra_pass_false_rapporto_enet_dt_e_baseline(
 # ---------------------------------------------------------------------------
 # 4. end-to-end del tool: dodici invocazioni reali e verdetto F.12
 # ---------------------------------------------------------------------------
-def _esegui_gate(monkeypatch, tmp_path):
+def _esegui_gate(monkeypatch, tmp_path, gate_controls: "list|None" = None):
     monkeypatch.setattr(rg, "ARCHIVE_DIR", tmp_path / "archive")
     monkeypatch.setattr(rg, "RESULTS_DIR", tmp_path / "results")
     monkeypatch.setattr(rg, "DT_NOM_FROZEN", 0.05)
@@ -548,6 +557,17 @@ def _esegui_gate(monkeypatch, tmp_path):
     monkeypatch.setattr(rg, "_git_antenato", lambda sha: True)
     monkeypatch.setattr(rg, "_git_percorso_misura_mutato", lambda sha: False)
     _fake, spediti, _meta, targets = _installa(monkeypatch)
+    if gate_controls is not None:
+        # spia in sola lettura su cio' che il gate riceve: la lista e' cio'
+        # che ``control_gate.evaluate_gate`` vede, per provare che una fase
+        # di servizio non entra nel verdetto
+        reale = rg.cg.evaluate_gate
+
+        def spione(controls, **kw):
+            gate_controls.extend(controls)
+            return reale(controls, **kw)
+
+        monkeypatch.setattr(rg.cg, "evaluate_gate", spione)
     assert rg.cmd_plan(rg.DEFAULT_MODEL) == 0
     analysis = rg.cmd_execute(rg.DEFAULT_MODEL)
     return analysis, spediti, targets
@@ -700,7 +720,9 @@ def test_budget_preesecuzione_e_warmup_attraversano_l_orchestrazione(
     sposti il verdetto F.12. I numeri di scala sono nei test dedicati; qui
     sta l'ordine degli eventi, che e' il punto dove il difetto si annida.
     """
-    analysis, _spediti, _targets = _esegui_gate(monkeypatch, tmp_path)
+    visto_al_gate: list = []
+    analysis, _spediti, _targets = _esegui_gate(monkeypatch, tmp_path,
+                                                 visto_al_gate)
 
     # 1. l'artefatto del fondo esiste, e' scritto nell'archivio della
     #    campagna, e dichiara la procedura con le sue chiavi anti-riscalatura
@@ -727,9 +749,28 @@ def test_budget_preesecuzione_e_warmup_attraversano_l_orchestrazione(
             assert r["warmup"] is not None
             assert r["warmup"]["warmup_target_pre_w"] == pytest.approx(
                 float(r["block_baseline_pre_w"]))
-            assert r["warmup"]["warmup_timed_out"] is False
+            assert r["warmup"]["warmup_completed"] is True
+            assert r["warmup"]["warmup_motivo"] == "criterio_soddisfatto"
+            assert r["warmup"]["warmup_duration_s"] >= 0.0
+            assert r["warmup"]["warmup_soglia_cpu_pct"] == pytest.approx(
+                rg.WARMUP_CPU_MAX_PCT)
+            assert [t["fonte"] for t in
+                    r["warmup"]["warmup_temperatura"]] == [
+                        "fake:MSAcpi_ThermalZoneTemperature"] * 2
         else:
             assert r["warmup"] is None
+
+    # 3b. il warm-up non diventa mai un blocco e non arriva al gate: le
+    #     unita' che ``control_gate.evaluate_gate`` riceve sono esattamente
+    #     i sei controlli, e nessuno dei suoi campi compare in quelle tuple.
+    #     E' la prova operativa della regola "non e' un controllo, non entra
+    #     in bias_w", che altrimenti resterebbe una frase nel docstring.
+    assert len(visto_al_gate) == rg.N_COPPIE
+    for controllo in visto_al_gate:
+        assert not [k for k in controllo if "warmup" in k]
+    assert len(analysis["runs"]) == 2 * rg.N_COPPIE
+    for r in analysis["runs"]:
+        assert not [k for k in r if k.startswith("warmup_")]
 
     # 4. il verdetto F.12 non si e' spostato: la soglia del criterio resta
     #    la mediana dei budget per blocco, e il numero pre-registrato
