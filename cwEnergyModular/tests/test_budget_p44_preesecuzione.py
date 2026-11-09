@@ -486,11 +486,15 @@ def test_componenti_u_c_ripetibili_a_mano():
     assert c["u_allineamento"]["value"] == pytest.approx(
         fondo * dev_max / dt_min)
     assert dev_max == pytest.approx(0.02)
-    assert inc["u_c"] == pytest.approx(math.sqrt(
-        c["u_rumore"]["value"] ** 2 + c["u_termico"]["value"] ** 2
-        + c["u_timer"]["value"] ** 2 + c["u_allineamento"]["value"] ** 2))
-    assert inc["soglia_w"] == pytest.approx(budget + 2.0 * inc["u_c"])
-    assert inc["k"] == rg.K_COVERAGE_DICHJARATO
+    # Nessuna componente indipendente dal budget prima dei controlli: u_c e'
+    # None (non zero) e la soglia e' il budget, NON budget + k * u_c.
+    # u_rumore e u_termico sono i due termini di budget_base_w: includerli
+    # avrebbe dato S >= 3 * budget (doppio conteggio).
+    assert inc["u_c"] is None
+    assert inc["soglia_w"] == pytest.approx(budget)
+    assert inc["k"] is None and inc["U_w"] is None
+    assert budget == pytest.approx(math.hypot(
+        c["u_rumore"]["value"], c["u_termico"]["value"]), abs=1e-6)
     assert inc["u_A"] is None
     assert "non calcolabile prima dei controlli" in inc["nota_u_A"]
     assert all(c[nome]["fonte"] for nome in c)
@@ -508,12 +512,11 @@ def test_u_timer_non_misurabile_resta_assente_non_zero():
     inc = rg._incertezza_pre_esecuzione(det, None)
     assert inc["componenti"]["u_timer"]["value"] is None
     assert "non misurabile" in inc["componenti"]["u_timer"]["fonte"]
-    altre = [inc["componenti"][n]["value"] for n in
-             ("u_rumore", "u_termico", "u_allineamento")]
-    assert inc["u_c"] == pytest.approx(math.sqrt(sum(v * v for v in altre)))
-    # se qualcuno sostituisse l'assenza con uno zero la soglia si
-    # restringerebbe: il test nomina l'effetto, non lo subisce
-    assert inc["soglia_w"] > det["budget_base_w"]
+    assert inc["componenti"]["u_timer"]["inclusa"] is False
+    # l'assenza non cambia la soglia (nessuna componente indipendente e'
+    # inclusa prima dei controlli) e non si trasforma in uno zero
+    assert inc["u_c"] is None
+    assert inc["soglia_w"] == pytest.approx(det["budget_base_w"])
 
 
 def test_u_A_arriva_dopo_sui_soli_controlli_utilizzabili():
@@ -531,13 +534,21 @@ def test_u_A_arriva_dopo_sui_soli_controlli_utilizzabili():
         {"usable": True, "e_net_j": 1.00, "dt_w_s": 0.0},    # dt non valido
     ]
     inc_post = rg._incertezza_con_au_controlli(inc_pre, controls)
-    assert inc_post["u_A"] == pytest.approx((0.10 - 0.04) / 2.0)
+    # u_A = s / sqrt(n) sulle potenze 0,10 e 0,04 W: s = 0,0424264, n = 2
+    assert inc_post["u_A"] == pytest.approx(0.03)
     assert inc_post["potenze_nette_w"] == [pytest.approx(0.10),
                                            pytest.approx(0.04)]
     assert inc_post["budget_base_w"] == inc_pre["budget_base_w"]
     assert inc_post["componenti"]["u_A"]["value"] == inc_post["u_A"]
-    assert "semi-ampiezza" in inc_post["componenti"]["u_A"]["formula"]
-    assert inc_post["u_c"] >= inc_pre["u_c"]
+    assert "s / sqrt(n)" in inc_post["componenti"]["u_A"]["formula"]
+    assert inc_post["componenti"]["u_A"]["tipo"] == "A"
+    assert inc_post["componenti"]["u_A"]["inclusa"] is True
+    # u_c = u_A (unica componente inclusa); U = t(0,975; 1) * u_c
+    assert inc_post["u_c"] == pytest.approx(0.03)
+    assert inc_post["k"] == pytest.approx(12.706, rel=1e-3)
+    assert inc_post["U_w"] == pytest.approx(12.706 * 0.03, rel=1e-3)
+    # la soglia del criterio primario non viene maggiorata
+    assert inc_post["soglia_w"] == inc_pre["budget_base_w"]
     assert inc_post["codecarbon_usato"] is False
 
 
@@ -961,3 +972,151 @@ def test_provenienza_permanenza_supera_il_tratto_continuo_del_transitorio():
             tratto = 0.0
     assert migliore == pytest.approx(1.09, abs=0.02)
     assert migliore < rg.WARMUP_SUSTAIN_S
+
+
+# ---------------------------------------------------------------------------
+# 7. criterio primario e uncertainty budget corretto (revisione 2026-11-09,
+#    secondo giro): niente doppio conteggio, tipo A come s / sqrt(n),
+#    componenti con tipo/inclusione/motivo, criterio dichiarato nel piano
+# ---------------------------------------------------------------------------
+def test_la_soglia_non_e_piu_budget_piu_k_u_c_doppio_conteggio():
+    """La forma rimossa dava S = budget + 2 * u_c con u_c che sommava
+    u_rumore e u_termico, cioe' i due termini di cui e' fatto il budget:
+    u_c >= budget e S >= 3 * budget. Qui si dimostra l'aritmetica e che il
+    tool NON la produce piu': con i numeri della seconda campagna (budget
+    0,117995 W, bias 0,125171 W) la forma rimossa avrebbe dato S >= 0,353985
+    W, cioe' un pass; la soglia del tool e' il budget, cioe' un fail."""
+    import gate_uncertainty as gu
+    budget = 0.117995
+    half_range, half_drift = 0.1, math.sqrt(budget ** 2 - 0.1 ** 2)
+    assert math.hypot(half_range, half_drift) == pytest.approx(budget)
+    u_c_vecchio = gu.calcola_u_c(dispersione_baseline=half_range,
+                                 margine_termico=half_drift)[0]
+    assert u_c_vecchio == pytest.approx(budget)
+    assert budget + 2.0 * u_c_vecchio >= 3.0 * budget - 1e-12
+    assert budget + 2.0 * u_c_vecchio > 0.125171          # avrebbe fatto passare
+    det = rg._calcola_budget_pre_esecuzione(
+        "short", _corpo(PRE, POST))[1]
+    inc = rg._incertezza_pre_esecuzione(det, 0.0156)
+    assert inc["soglia_w"] == pytest.approx(det["budget_base_w"])
+    assert inc["soglia_w"] < 3.0 * det["budget_base_w"]
+
+
+def test_ogni_componente_dichiara_tipo_inclusione_e_motivo():
+    """Per ogni componente, pre e post: valore, tipo A/B, inclusa True/False
+    e un motivo non vuoto. Un'esclusione e' una decisione dichiarata, non
+    un'assenza dal report."""
+    import gate_uncertainty as gu
+    det = rg._calcola_budget_pre_esecuzione(
+        "short", _budget_per_u_c(dt_offset=0.02))[1]
+    pre = rg._incertezza_pre_esecuzione(det, 0.0156)
+    post = rg._incertezza_con_au_controlli(pre, [
+        {"usable": True, "e_net_j": 0.3, "dt_w_s": 3.0},
+        {"usable": True, "e_net_j": 0.12, "dt_w_s": 3.0}])
+    for gruppo in (pre, post):
+        assert set(gruppo["componenti"]) >= {"u_rumore", "u_termico",
+                                             "u_timer", "u_allineamento"}
+        for nome, comp in gruppo["componenti"].items():
+            assert gu.valida_componente(nome, comp) == [], nome
+            assert comp["tipo"] in ("A", "B")
+            assert isinstance(comp["inclusa"], bool)
+            assert comp["motivo"].strip()
+    incluse_pre = [n for n, c in pre["componenti"].items() if c["inclusa"]]
+    incluse_post = [n for n, c in post["componenti"].items() if c["inclusa"]]
+    assert incluse_pre == []
+    assert incluse_post == ["u_A"]
+    # le escluse restano nel report con il loro valore informativo
+    assert pre["componenti"]["u_rumore"]["value"] is not None
+    assert pre["componenti"]["u_allineamento"]["inclusa"] is False
+
+
+def test_u_A_e_s_su_radice_di_n_e_decresce_con_n():
+    """Con la stessa dispersione, 12 controlli danno u_A piu' piccola di 4:
+    s / sqrt(n) decresce con n. La semi-ampiezza (max - min) / 2 non
+    decresceva, e il range cresce con n: con 12 coppie il gate sarebbe
+    stato piu' facile da passare che con 6."""
+    det = rg._calcola_budget_pre_esecuzione(
+        "short", _budget_per_u_c(dt_offset=0.02))[1]
+    pre = rg._incertezza_pre_esecuzione(det, 0.0156)
+
+    def ctrl(n):
+        return [{"usable": True, "e_net_j": 0.3 if i % 2 == 0 else 0.0,
+                 "dt_w_s": 3.0} for i in range(n)]
+
+    u4 = rg._incertezza_con_au_controlli(pre, ctrl(4))["u_A"]
+    u12 = rg._incertezza_con_au_controlli(pre, ctrl(12))["u_A"]
+    # potenze 0,10 / 0,00 W alternate: media 0,05, scarti +-0,05
+    assert u4 == pytest.approx(math.sqrt(4 * 0.05 ** 2 / 3) / math.sqrt(4))
+    assert u12 == pytest.approx(
+        math.sqrt(12 * 0.05 ** 2 / 11) / math.sqrt(12))
+    assert u12 < u4
+
+
+def test_piano_dichiara_il_criterio_primario_e_la_verifica_lo_confronta(
+        monkeypatch, tmp_path):
+    """Il criterio che decide e' scritto nel piano PRIMA dei dati (chiave e
+    check H) e _verifica_piano si ferma se manca o diverge: scegliere dopo
+    i dati fra due soglie sarebbe un grado di liberta' del ricercatore."""
+    monkeypatch.setattr(rg, "ARCHIVE_DIR", tmp_path)
+    monkeypatch.setattr(rg, "_git_head", lambda: "test-head")
+    rg.cmd_plan(rg.DEFAULT_MODEL)
+    path = tmp_path / rg.PLAN_NAME
+    piano = json.loads(path.read_text(encoding="utf-8"))
+    assert piano["criterio_primario"] == rg.CRITERIO_PRIMARIO
+    assert piano["criterio_storico_riportato"] == rg.CRITERIO_STORICO_F12
+    assert "decide" in piano["checks"]["H"].lower()
+    assert "Nessuna soglia del tipo budget + k * u_c" in piano["checks"]["H"]
+    assert all(isinstance(t, str) for t in piano["checks"].values())
+    piano["criterio_primario"] = "f12_mediana_budget_per_blocco_30s"
+    path.write_text(json.dumps(piano), encoding="utf-8")
+    with pytest.raises(SystemExit) as exc:
+        rg._verifica_piano()
+    assert "criterio_primario" in str(exc.value)
+    del piano["criterio_primario"]
+    path.write_text(json.dumps(piano), encoding="utf-8")
+    with pytest.raises(SystemExit) as exc2:
+        rg._verifica_piano()
+    assert "criterio_primario" in str(exc2.value)
+
+
+def test_verdetto_primario_pass_fail_e_non_eseguibile():
+    """Il criterio primario confronta |bias| con il budget a scala Tc e
+    ripete il quorum di F.12. Non e' F.12: puo' dare pass dove F.12 storico
+    da' fail (mismatch di scala), e il verdetto storico viaggia accanto."""
+    base = {"status": "fail", "bias_w": 0.125171, "quorum": 8,
+            "controls_usable_n": 12}
+    pass_ = rg._verdetto_primario(base, budget_w=0.20)
+    assert pass_["status"] == "pass"
+    assert pass_["f12_status"] == "fail"           # lo storico non si tocca
+    assert pass_["margine_w"] == pytest.approx(0.20 - 0.125171)
+    fail = rg._verdetto_primario(base, budget_w=0.10)
+    assert fail["status"] == "fail"
+    assert fail["margine_w"] < 0.0
+    bordo = rg._verdetto_primario({**base, "bias_w": 0.2}, budget_w=0.2)
+    assert bordo["status"] == "pass"               # <= come F.12
+    neg = rg._verdetto_primario({**base, "bias_w": -0.3}, budget_w=0.2)
+    assert neg["status"] == "fail"                 # valore assoluto
+    ne = rg._verdetto_primario(
+        {"status": "not-executable", "bias_w": None, "quorum": 8,
+         "controls_usable_n": 3}, budget_w=0.2)
+    assert ne["status"] == "not-executable"
+    assert ne["margine_w"] is None
+    for v in (pass_, fail, ne):
+        assert v["criterio"] == rg.CRITERIO_PRIMARIO
+        assert v["criterio_storico_riportato"] == rg.CRITERIO_STORICO_F12
+
+
+def test_accettazione_guardata_e_solo_riportata():
+    """|bias| + U <= budget: grandezza riportata (JCGM 106:2012), None se
+    bias o U non sono calcolabili. Non e' il criterio."""
+    post = {"U_w": 0.05}
+    ok = rg._accettazione_guardata(0.10, post, 0.20)
+    assert ok["accettata"] is True
+    assert ok["bias_piu_U_w"] == pytest.approx(0.15)
+    no = rg._accettazione_guardata(0.18, post, 0.20)
+    assert no["accettata"] is False
+    assert no["bias_piu_U_w"] == pytest.approx(0.23)
+    assert rg._accettazione_guardata(None, post, 0.2)["accettata"] is None
+    assert rg._accettazione_guardata(0.1, {"U_w": None},
+                                     0.2)["accettata"] is None
+    assert "non decide" in ok["nota"]
