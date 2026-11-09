@@ -151,6 +151,8 @@ REPO_ROOT = MODULE_DIR.parent
 sys.path.insert(0, str(MODULE_DIR))
 sys.path.insert(0, str(REPO_ROOT))
 
+import psutil  # noqa: E402
+
 import config  # noqa: E402
 import benchmark_v4 as v4  # noqa: E402
 import control_gate as cg  # noqa: E402
@@ -175,6 +177,7 @@ REPORT_NAME = "p44_gate_report.md"
 BLOCKS_JSON_NAME = "blocks_controllo.json"
 SERIES_NAME = "control_power_series.json"
 BUDGET_PREREG_NAME = "budget_preregistrato.json"
+WARMUP_LOG_NAME = "warmup_stabilizzazione.jsonl"
 DEFAULT_MODEL = "hf.co/sigmanih/Qwen-Qwen3-0.6B-GGUF-Q6_K:latest"
 K_MAX = 1                       # Emenda 8: sostituzione di un blocco
 DEFAULT_SEED = "gate-seed-20261107"  # campagna dichiarata; --seed per le altre
@@ -217,25 +220,67 @@ QUIET_CAP_S = 600.0             # tetto: oltre, SystemExit, mai in silenzio
 QUIET_POLL_S = 0.0              # ogni lettura e' gia' ~3 s di osservazione
                                 # (total_cpu_samples): nessuna pausa in piu'
 #
-# Warm-up post-carico (Revisione del Gate 2026-11-09): dopo OGNI blocco di
-# carico il tool attende un CRITERIO DI STABILIZZAZIONE MISURATO, non una
-# durata fissa: la potenza media su finestra osservata deve stare entro
-# WARMUP_TOLERANCE_W dalla baseline_pre_w del blocco di carico appena
-# chiuso per un tratto continuo di WARMUP_SUSTAIN_S (campioni a passo
-# WARMUP_STEP_S; un campione fuori tolleranza azzera il tratto, come il
-# cooldown P1.5). La durata fissa di 10 s NON era giustificata da nessuna
-# misura: qui il warm-up finisce quando la macchina dice di essere rientrata,
-# non quando scade un timer. Al tetto WARMUP_CAP_S senza rientro: SystemExit
-# ([ARRESTO]) — immettere un controllo su una macchina ancora in transitorio
-# sarebbe il difetto (residuo del carico nel bias) che questo warm-up esiste
-# per eliminare, e procedere in silenzio sarebbe un disegno diverso da
-# quello dichiarato.
+# Warm-up post-carico (Revisione del Gate 2026-11-09, secondo ciclo): criterio
+# MISURATO su due segnali contemporanei, non una durata fissa.
+#
+# Perche' i numeri non sono una convenzione. Le due popolazioni sono misurate
+# nella seconda campagna, lette il 2026-11-09 da
+# ``experiment_results/p44_gate_20261108/control_power_series.json`` (campioni
+# di contatore) e ``.../blocks_controllo.json`` (``baseline_pre_w`` di ogni
+# blocco), RIAGGREGATE alla scala che il criterio legge: finestre non
+# sovrapposte da ``WARMUP_WINDOW_S`` = 2 s ancorate a ``t0_mono`` del blocco,
+# potenza = delta del contatore / delta di tempo dentro la finestra,
+# cpu_percent = media dei campioni della finestra. ctrl-1, il primo blocco
+# della campagna, e' il transitorio (potenza per-campione 4,3858 / 3,9937 /
+# 3,4544 / 4,5059 W e ``cpu_percent`` 8,3 % al primo campione); ctrl-2..6 sono
+# i cinque stabilizzati. Sulle finestre:
+#   stabilizzati -> deviazione massima 0,3626 W, cpu media massima 1,000 %
+#   transitorio  -> finestra 1: 0,4802 W e 4,100 %
+#                   finestra 2: 0,7951 W e 1,800 %
+# Di qui le tre scelte, ciascuna stretta fra le due popolazioni:
+#   WARMUP_TOLERANCE_W = 0,5  -> sopra il massimo degli stabilizzati (0,3626),
+#                               sotto l'escursione del transitorio (0,7951)
+#   WARMUP_CPU_MAX_PCT  = 2,0 -> sopra il massimo degli stabilizzati (1,000),
+#                               sotto la prima finestra del transitorio (4,100)
+#   WARMUP_SUSTAIN_S    = 10  -> la massima sequenza CONTINUA dentro la banda
+#                               di potenza nel blocco in transitorio e' 1,09 s e
+#                               le sue oscillazioni riempiono l'intera finestra
+#                               da 2,94 s; 10 s chiedono 3,41 finestre Tc
+#                               (2,930748 s) consecutive e non sono piu' lasche
+#                               della persistenza gia' pretesa dalla quiete
+#                               P1.4 (tre letture da ~3 s).
+# I DUE segnali vanno dentro soglia nella STESSA finestra, e non e' un
+# rafforzamento: guardando le finestre sopra, la prima del transitorio e'
+# DENTRO la banda di potenza (0,4802 < 0,5) e fuori da quella di cpu, la
+# seconda e' viceversa. Nessuna delle due soglie da sola respinge il
+# transitorio per intero; insieme lo respingono su entrambe le finestre, e
+# su nessuna finestra dei cinque stabilizzati alcuna delle due scatta.
+# E' questa la ragione per cui la guardia non puo' stare sulla sola potenza.
+# Il tetto ``WARMUP_CAP_S`` ferma la campagna con ``SystemExit``: un controllo
+# immesso in transitorio rimetterebbe il residuo di carico dentro ``E_net``,
+# che e' esattamente il difetto che questa fase esiste per togliere.
+#
+# La temperatura NON e' un criterio, ed e' registrato perche' non lo e'. Su
+# questo host psutil 7.2.2 non espone ``sensors_temperatures`` (misurato
+# 2026-11-09: ``dir(psutil)`` da' ``sensors_battery`` e nessun ``sensors_*``
+# termico) e il thermal zone ACPI letto via CIM e' rimasto 3010 (= 27,85 C) su
+# sei letture a 5 s: nessuna deriva osservata, quindi nessuna soglia motivata;
+# inventarne una sarebbe la convenzione appena tolta. Il valore viene
+# REGISTRATO all'ingresso e all'uscita del warm-up, una sola letta per fase,
+# perche' lo spawn del lettore consuma CPU proprio mentre si osserva il
+# ``cpu_percent``: la registrazione servira' da evidenza per una soglia termica
+# di una campagna futura, non da guardia di questa. La lettura d'ingresso puo'
+# sporcare la PRIMA finestra di ``cpu_percent`` (costo misurato 0,26-0,33 s):
+# l'effetto e' solo conservativo perche' puo' azzerare un tratto gia' aperto e
+# mai chiuderlo su una macchina rumorosa.
 WARMUP_TOLERANCE_W = 0.5        # tolleranza di rientro dalla baseline [W]
-WARMUP_SUSTAIN_S = 10.0         # permanenza consecutiva entro tolleranza [s]
+WARMUP_CPU_MAX_PCT = 2.0        # media di finestra di cpu_percent [%]
+WARMUP_SUSTAIN_S = 10.0         # permanenza consecutiva dei DUE segnali [s]
 WARMUP_CAP_S = 60.0             # tetto: oltre, SystemExit, mai in silenzio
-WARMUP_STEP_S = 1.0             # passo fra i campioni di osservazione [s]
-WARMUP_WINDOW_S = 2.0           # finestra di potenza per campione [s]
-
+WARMUP_WINDOW_S = 2.0           # finestra osservata per campione [s]
+WARMUP_STEP_S = 0.0             # nessuna pausa in piu': la lettura di
+                                # ``cpu_percent`` SULLA finestra e' gia'
+                                # l'osservazione (come QUIET_POLL_S)
 
 
 def _sha256(path: Path) -> str:
@@ -439,6 +484,7 @@ def plan_payload() -> Dict:
         "quiet_consecutive": QUIET_CONSECUTIVE,
         "quiet_cap_s": QUIET_CAP_S,
         "warmup_tolerance_w": WARMUP_TOLERANCE_W,
+        "warmup_cpu_max_pct": WARMUP_CPU_MAX_PCT,
         "warmup_sustain_s": WARMUP_SUSTAIN_S,
         "warmup_cap_s": WARMUP_CAP_S,
         "warmup_step_s": WARMUP_STEP_S,
@@ -467,16 +513,40 @@ def plan_payload() -> Dict:
                   "background_load=False, una rumorosa azzera il conteggio; "
                   f"tetto {QUIET_CAP_S:g} s poi SystemExit. Parametro di "
                   "esecuzione lato tool: il criterio F.12 non cambia"),
-            "F": ("warm-up post-carico a CRITERIO MISURATO, dopo ogni blocco "
-                  f"di carico e prima del controllo della coppia: potenza "
-                  f"della finestra osservata di {WARMUP_WINDOW_S:g} s entro "
+            "F": ("warm-up post-carico a CRITERIO MISURATO su DUE segnali "
+                  "contemporanei, dopo ogni blocco di carico e prima del "
+                  f"controllo della coppia: sulla finestra osservata di "
+                  f"{WARMUP_WINDOW_S:g} s la potenza del contatore sta entro "
                   f"{WARMUP_TOLERANCE_W} W dalla baseline_pre_w del blocco "
-                  f"di carico, per {WARMUP_SUSTAIN_S:g} s continui "
-                  f"(passo {WARMUP_STEP_S:g} s, un campione fuori tolleranza "
-                  f"azzera il tratto); tetto {WARMUP_CAP_S:g} s poi "
-                  "SystemExit. Nessuna durata fissa: la forma precedente "
-                  "sleep(10 s) non era ancorata a nessuna misura ed era "
-                  "collocata PRIMA del carico, non dopo"),
+                  "di carico E la media di finestra di cpu_percent sta sotto "
+                  f"{WARMUP_CPU_MAX_PCT:g} %, per {WARMUP_SUSTAIN_S:g} s "
+                  "CONTINUI; un campione fuori soglia su uno qualunque dei "
+                  "due, o una lettura assente, azzera il tratto; la "
+                  "disuguaglianza e' stretta su entrambi. Passo "
+                  f"{WARMUP_STEP_S:g} s perche' la lettura di cpu_percent "
+                  "sulla finestra e' anche il passo (come QUIET_POLL_S). Tetto "
+                  f"{WARMUP_CAP_S:g} s poi SystemExit. Soglie PRE-REGISTRATE "
+                  "sui dati della campagna 20261108, letti il 2026-11-09 da "
+                  "experiment_results/p44_gate_20261108/"
+                  "control_power_series.json e blocks_controllo.json, "
+                  "riaggregati alla scala delle finestre del criterio: ogni "
+                  "finestra dei cinque controlli stabilizzati sta sotto "
+                  "0,3626 W dalla propria baseline e sotto 1,000 % di "
+                  "cpu_percent; il transitorio (ctrl-1) da' 0,4802 W con "
+                  "4,100 % alla prima finestra e 0,7951 W con 1,800 % alla "
+                  "seconda, per cui ciascuna delle due soglie ne respinge "
+                  "una finestra e sole le respingono entrambe. Temperatura "
+                  "REGISTRATA all'ingresso e all'uscita (psutil "
+                  "sensors_temperatures, poi MSAcpi_ThermalZoneTemperature "
+                  "via CIM) ma NON criterio: su questo host il primo canale "
+                  "non esiste e il secondo e' rimasto 3010 decikelvin su sei "
+                  "letture a 5 s, quindi nessuna deriva e nessuna soglia "
+                  "motivata. Il warm-up NON e' un controllo e non entra in "
+                  "bias_w: duration, motivo, serie e letture mancanti "
+                  "vanno in analysis.json, nel report e in "
+                  "warmup_stabilizzazione.jsonl. Nessuna durata fissa: la "
+                  "forma precedente sleep(10 s) non era ancorata a nessuna "
+                  "misura ed era collocata PRIMA del carico, non dopo"),
             "G": (f"budget di soglia PRE-ESECUZIONE con procedura "
                   f"{BUDGET_MODE.upper()}: {BUDGET_N_TERNE} unita' per "
                   "gruppo (pre e post, non sovrapposti) lette da "
@@ -1045,19 +1115,28 @@ def _verifica_piano() -> Dict:
     # coincidere con il seme dichiarato al plan, qualunque esso sia.
     if plan.get("order_seed") != SEED or plan.get("model") != DEFAULT_MODEL:
         raise SystemExit("seed o modello discostati dal piano dichiarato")
-    if (plan.get("quiet_consecutive") != QUIET_CONSECUTIVE
-            or plan.get("quiet_cap_s") != QUIET_CAP_S
-            or plan.get("warmup_tolerance_w") != WARMUP_TOLERANCE_W
-            or plan.get("warmup_sustain_s") != WARMUP_SUSTAIN_S
-            or plan.get("warmup_cap_s") != WARMUP_CAP_S
-            or plan.get("warmup_step_s") != WARMUP_STEP_S
-            or plan.get("warmup_window_s") != WARMUP_WINDOW_S
-            or plan.get("budget_mode") != BUDGET_MODE
-            or plan.get("budget_n_terne") != BUDGET_N_TERNE
-            or plan.get("budget_matched_target_s") != BUDGET_MATCHED_TARGET_S):
+    attesi = {
+        "quiet_consecutive": QUIET_CONSECUTIVE,
+        "quiet_cap_s": QUIET_CAP_S,
+        "warmup_tolerance_w": WARMUP_TOLERANCE_W,
+        "warmup_cpu_max_pct": WARMUP_CPU_MAX_PCT,
+        "warmup_sustain_s": WARMUP_SUSTAIN_S,
+        "warmup_cap_s": WARMUP_CAP_S,
+        "warmup_step_s": WARMUP_STEP_S,
+        "warmup_window_s": WARMUP_WINDOW_S,
+        "budget_mode": BUDGET_MODE,
+        "budget_n_terne": BUDGET_N_TERNE,
+        "budget_matched_target_s": BUDGET_MATCHED_TARGET_S,
+    }
+    discosti = {chiave: (plan.get(chiave), valore)
+                for chiave, valore in attesi.items()
+                if plan.get(chiave) != valore}
+    if discosti:
         raise SystemExit(
             "precondizione di quiete, warm-up o procedura di budget assenti "
-            "o diversi dal piano dichiarato: "
+            "o diversi dal piano dichiarato (dichiarato/atteso: "
+            + ", ".join(f"{c}: {p!r}/{a!r}"
+                        for c, (p, a) in discosti.items()) + "): "
             "il plan precede l'introduzione di questi parametri (o e' stato "
             "cambiato dopo). Ritirare plan.json e ripianificare PRIMA di "
             "misurare.")
@@ -1381,13 +1460,90 @@ def _attendi_quiete(*, consecutive: Optional[int] = None,
             "top_processes": top}
 
 
+def _temperatura_cpu_c() -> Tuple[Optional[float], str]:
+    """Temperatura CPU letta per REGISTRAZIONE, mai come criterio.
+
+    Perche' esiste senza decidere niente. Su questo host psutil 7.2.2 non
+    espone nessun ``sensors_*`` termico (misurato 2026-11-09: ``dir(psutil)``
+    da' ``sensors_battery`` e basta) e la thermal zone ACPI letta via CIM e'
+    rimasta 3010 decikelvin (= 27,85 C) su sei letture a 5 s: nessuna deriva
+    osservata, quindi nessuna soglia motivata. Una soglia inventata sarebbe la
+    convenzione che il warm-up misurato esiste per togliere, ma il numero va
+    comunque registrato perche' serva da evidenza a una campagna futura.
+
+    Catena dichiarata, col motivo quando non risponde: prima
+    ``psutil.sensors_temperatures`` (il canale che un host che lo espone
+    fornisce gia' in gradi), poi ``MSAcpi_ThermalZoneTemperature`` via CIM in
+    decikelvin. Il fallimento di entrambe restituisce ``(None, motivo)``, non
+    un sostituto: ``None`` qui vuol dire "non letta", non "fredda". Ogni
+    lettura costa 0,26-0,33 s di subprocess (misurato 2026-11-09), percio' la
+    si chiama due volte per fase e non per campione.
+    """
+    fonti: List[str] = []
+    sensori = getattr(psutil, "sensors_temperatures", None)
+    if callable(sensori):
+        try:
+            gruppi = sensori() or {}
+        except Exception as exc:
+            gruppi = {}
+            fonti.append(f"psutil: {type(exc).__name__}")
+        for nome, elenco in gruppi.items():
+            for sens in elenco or []:
+                try:
+                    valore = float(getattr(sens, "current"))
+                except (TypeError, ValueError):
+                    continue
+                if math.isfinite(valore) and valore > 0.0:
+                    return round(valore, 2), f"psutil:{nome}"
+        if not fonti:
+            fonti.append("psutil: nessuna lettura valida")
+    else:
+        fonti.append("psutil: sensors_temperatures assente")
+    try:
+        esito = subprocess.run(
+            ["powershell", "-NoProfile", "-Command",
+             "(Get-CimInstance -Namespace root/wmi "
+             "-ClassName MSAcpi_ThermalZoneTemperature).CurrentTemperature"],
+            capture_output=True, text=True, timeout=10.0)
+        raw = float((esito.stdout or "").strip())
+    except Exception as exc:
+        fonti.append(f"cim: {type(exc).__name__}")
+        return None, "; ".join(fonti)
+    if not math.isfinite(raw) or raw <= 0.0:
+        fonti.append(f"cim: valore non valido {esito.stdout!r}")
+        return None, "; ".join(fonti)
+    return round(raw / 10.0 - 273.15, 2), "cim:MSAcpi_ThermalZoneTemperature"
+
+
+def _registra_warmup(record: Mapping) -> None:
+    """Accoda il registro di una fase di stabilizzazione, SUBITO.
+
+    La fase puo' chiudersi su ``SystemExit`` (tetto) e un arresto non scrive
+    ``analysis.json``: senza questo file la durata effettiva di un warm-up
+    fallito resterebbe solo sullo stderr del terminale. Il registro e'
+    append-only e una riga per fase, perche' due warm-up della stessa
+    campagna non si sovrascrivano.
+    """
+    ARCHIVE_DIR.mkdir(parents=True, exist_ok=True)
+    with (ARCHIVE_DIR / WARMUP_LOG_NAME).open("a",
+                                              encoding="utf-8") as fh:
+        fh.write(json.dumps(dict(record), ensure_ascii=False) + "\n")
+
+
 def _stabilizza_post_carico(target_pre_w: Optional[float], *,
                             tolerance_w: Optional[float] = None,
+                            cpu_max_pct: Optional[float] = None,
                             sustain_s: Optional[float] = None,
                             cap_s: Optional[float] = None,
                             step_s: Optional[float] = None,
                             window_s: Optional[float] = None,
-                            campiona: Optional[Callable[[], Optional[float]]] = None,
+                            campiona_potenza: Optional[
+                                Callable[[], Optional[float]]] = None,
+                            campiona_cpu: Optional[
+                                Callable[[], Sequence[float]]] = None,
+                            legge_temperatura: Optional[Callable[
+                                [], Tuple[Optional[float], str]]] = None,
+                            registra: Optional[Callable[[Dict], None]] = None,
                             clock: Callable[[], float] = time.monotonic,
                             sleep: Callable[[float], None] = time.sleep,
                             on_log=None) -> Dict:
@@ -1402,11 +1558,38 @@ def _stabilizza_post_carico(target_pre_w: Optional[float], *,
     un criterio di stabilizzazione.
 
     Criterio (meccanica identica al cooldown P1.5, ``cooldown_to_baseline``):
-    la potenza media su finestra osservata di ``window_s`` sta entro
-    ``tolerance_w`` da ``target_pre_w`` — la ``baseline_pre_w`` del blocco di
-    carico appena chiuso — per un tratto CONTINUO di ``sustain_s``; un
-    campione fuori tolleranza (o una lettura assente) azzera il tratto. La
-    disuguaglianza e' stretta, come in P1.5.
+    DUE segnali osservati sulla STESSA finestra di ``window_s`` stanno entro
+    soglia -- la potenza media del contatore entro ``tolerance_w`` da
+    ``target_pre_w`` (la ``baseline_pre_w`` del blocco di carico appena
+    chiuso) e la media di finestra di ``cpu_percent`` sotto ``cpu_max_pct`` —
+    per un tratto CONTINUO di ``sustain_s``; un campione fuori soglia su
+    QUALSIASI dei due (o una lettura assente) azzera il tratto. La
+    disuguaglianza e' stretta su entrambi, come in P1.5: "a bordo" non
+    soddisfa.
+
+    Perche' due segnali e non uno solo, misurato: nella seconda campagna,
+    riaggregata il 2026-11-09 alla scala delle finestre del criterio (2 s
+    non sovrapposte, ``control_power_series.json`` + ``blocks_controllo.json``
+    della campagna 20261108), il blocco in transitorio (ctrl-1) da' deviazioni
+    di 0,4802 e 0,7951 W e medie di cpu_percent di 4,100 e 1,800 %: la prima
+    finestra e' DENTRO la banda di potenza e fuori da quella di cpu, la seconda
+    e' il contrario. Ogni finestra dei cinque stabilizzati sta sotto 0,3626 W
+    e sotto 1,000 %. Nessuna soglia sola respinge il transitorio per
+    intero; insieme lo respingono su entrambe le finestre. Provenienza e
+    disuguaglianze nel commento delle costanti e nel test di provenienza.
+
+    L'ordine delle due letture NON e' indifferente: ``cpu_percent`` si legge
+    per primo perche' la sua finestra e' ``[t, t+window_s]`` e blocca il
+    campione fino a ``t+window_s``; la potenza si legge subito dopo, quando
+    ``cooldown_power_w(window_s)`` copre ``[t+window_s-window_s, t+window_s]``
+    = la stessa finestra. Letta nell'ordine inverso sarebbero due intervalli
+    disgiunti e "stesso campione" sarebbe falso. Di qui ``step_s`` a zero:
+    l'osservazione della finestra E il passo, come in ``QUIET_POLL_S``.
+
+    La temperatura CPU e' registrata, non decide: ``legge_temperatura`` vale
+    all'ingresso e all'uscita della fase (due letture perche' lo spawn del
+    lettore consuma CPU proprio mentre si osserva ``cpu_percent``), e il suo
+    valore con la fonte o il motivo dell'assenza finisce nel registro.
 
     Al tetto ``cap_s`` senza rientro: ``SystemExit``, NON un prosiegui con
     un flag. Il cooldown puo' tornare con ``timed_out`` perche' il blocco e'
@@ -1414,16 +1597,37 @@ def _stabilizza_post_carico(target_pre_w: Optional[float], *,
     ancora partito e immetterlo su una macchina in transitorio ricreerebbe
     esattamente il difetto che questa fase esiste per eliminare. La quiete
     di precondizione ha la stessa scelta (tetto -> arresto) e la coerenza
-    fra le due e' voluta.
+    fra le due e' voluta. L'arresto non avviene pero' in silenzio sul
+    registro: ``registra`` viene invocata con il record terminale
+    (``warmup_completed=False``, ``warmup_motivo="tetto_raggiunto"``) PRIMA
+    di sollevare, perche' la durata di un warm-up fallito e' il dato che
+    serve a capire perche' la campagna si e' fermata.
 
-    ``campiona``/``clock``/``sleep`` sono iniettabili perche' la meccanica
-    dei limiti si verifica deterministicamente in test senza hardware; il
-    default legge ``v4.cooldown_power_w(window_s)``, la stessa fonte di
-    ``settle_idle`` e della calibrazione (contatore di package, non media
-    dei campioni).
+    ``campiona_potenza``/``campiona_cpu``/``legge_temperatura``/``registra``/
+    ``clock``/``sleep`` sono iniettabili perche' la meccanica dei limiti si
+    verifica deterministicamente in test senza hardware e senza subprocess; i
+    default leggono ``v4.cooldown_power_w(window_s)`` (la stessa fonte di
+    ``settle_idle`` e della calibrazione: contatore di package, non media dei
+    campioni) e ``ms.total_cpu_samples(window_s, window_s)``.
+
+    Restituisce il record della fase: ``warmup_completed``,
+    ``warmup_duration_s`` (misurata, non un parametro), ``warmup_motivo``
+    (``criterio_soddisfatto`` | ``tetto_raggiunto``), ``warmup_campioni``,
+    ``warmup_letture_mancanti``, ``warmup_target_pre_w``, le soglie
+    ``warmup_soglia_w``/``warmup_soglia_cpu_pct``, la finestra
+    ``warmup_finestra_s`` e le serie ``warmup_valori_w`` e
+    ``warmup_valori_cpu_pct``, che contengono TUTTA lettura valida, dentro o
+    fuori banda che sia (una lettura assente non entra in una serie: ha il suo
+    conteggio), oltre a ``warmup_temperatura``. Finisce nel
+    ``runs`` di ``analysis.json``, nel report e, in ogni caso, in
+    ``warmup_stabilizzazione.jsonl``. Non e' un
+    controllo e non entra in ``bias_w``: nessuna delle sue grandezze arriva a
+    ``control_gate.evaluate_gate``.
     """
     if tolerance_w is None:
         tolerance_w = WARMUP_TOLERANCE_W
+    if cpu_max_pct is None:
+        cpu_max_pct = WARMUP_CPU_MAX_PCT
     if sustain_s is None:
         sustain_s = WARMUP_SUSTAIN_S
     if cap_s is None:
@@ -1432,7 +1636,10 @@ def _stabilizza_post_carico(target_pre_w: Optional[float], *,
         step_s = WARMUP_STEP_S
     if window_s is None:
         window_s = WARMUP_WINDOW_S
-    read = campiona or (lambda: v4.cooldown_power_w(window_s))
+    leggi_potenza = campiona_potenza or (lambda: v4.cooldown_power_w(window_s))
+    leggi_cpu = campiona_cpu or (lambda: ms.total_cpu_samples(window_s,
+                                                              window_s))
+    leggi_temperatura = legge_temperatura or _temperatura_cpu_c
     log = on_log or (lambda m: None)
     try:
         target = float(target_pre_w)  # type: ignore[arg-type]
@@ -1446,56 +1653,124 @@ def _stabilizza_post_carico(target_pre_w: Optional[float], *,
             "baseline non esiste ne' il criterio ne' un sostituto, e la "
             "campagna si ferma invece di dormire un tempo a caso.")
 
+    def media_finestra(campioni_cpu) -> Optional[float]:
+        """Media dei campioni di ``cpu_percent`` sulla finestra osservata.
+
+        Non e' il massimo: la soglia 2,0 % e' definita sulle MEDIE di
+        finestra della seconda campagna (massimo 1,000 % nei cinque
+        stabilizzati, 4,100 % e 1,800 % nelle due finestre del transitorio),
+        quindi il segnale confrontato deve essere la stessa grandezza. Una
+        finestra che non ha restituito campioni e' una lettura assente, non
+        uno zero.
+        """
+        try:
+            valori_cpu = [float(x) for x in (campioni_cpu or [])]
+        except (TypeError, ValueError):
+            return None
+        if not valori_cpu:
+            return None
+        return sum(valori_cpu) / len(valori_cpu)
+
+    def lettura_termica(fase: str) -> Dict:
+        """Una riga del registro termico: valore, fonte o motivo."""
+        try:
+            valore, fonte = leggi_temperatura()
+        except Exception as exc:
+            valore, fonte = None, f"lettura {type(exc).__name__}"
+        return {"fase": fase, "temperatura_c": valore, "fonte": fonte}
+
     t0 = clock()
+    esito: Dict = {
+        "warmup_completed": False,
+        "warmup_motivo": "",
+        "warmup_duration_s": 0.0,
+        "warmup_campioni": 0,
+        "warmup_letture_mancanti": 0,
+        "warmup_target_pre_w": round(target, 6),
+        "warmup_soglia_w": tolerance_w,
+        "warmup_soglia_cpu_pct": cpu_max_pct,
+        "warmup_finestra_s": window_s,
+        "warmup_tetto_s": cap_s,
+        "warmup_permanenza_richiesta_s": sustain_s,
+        "warmup_valori_w": [],
+        "warmup_valori_cpu_pct": [],
+        "warmup_temperatura": [lettura_termica("ingresso")],
+    }
+    valori_w: List[float] = esito["warmup_valori_w"]
+    valori_cpu: List[float] = esito["warmup_valori_cpu_pct"]
     soddisfatta_dal: Optional[float] = None
-    campioni = 0
-    letture_mancanti = 0
-    valori: List[float] = []
     while True:
+        cpu_letti = media_finestra(leggi_cpu())
         ora = clock()
-        campioni += 1
-        potenza = read()
+        potenza = leggi_potenza()
+        esito["warmup_campioni"] += 1
         try:
             v = None if potenza is None else float(potenza)
         except (TypeError, ValueError):
-            v = float("nan")
+            v = None
+        fuori = []
+        mancante = False
         if v is None or not math.isfinite(v):
-            letture_mancanti += 1
-            soddisfatta_dal = None
-            log(f"[WARM-UP] campione {campioni}: lettura assente, tratto "
-                "di permanenza azzerato")
+            mancante = True
+            fuori.append("potenza assente")
         else:
-            valori.append(round(v, 6))
-            if abs(v - target) < tolerance_w:
-                if soddisfatta_dal is None:
-                    soddisfatta_dal = ora
-                if ora - soddisfatta_dal >= sustain_s:
-                    attesa = ora - t0
-                    log(f"[WARM-UP] rientro raggiunto dopo {attesa:.1f} s: "
-                        f"{sustain_s:g} s continui entro {tolerance_w} W da "
-                        f"P_pre={target:.3f} W ({campioni} campioni)")
-                    return {"warmup_wait_s": attesa,
-                            "warmup_campioni": campioni,
-                            "warmup_letture_mancanti": letture_mancanti,
-                            "warmup_target_pre_w": round(target, 6),
-                            "warmup_soglia_w": tolerance_w,
-                            "warmup_valori_w": valori,
-                            "warmup_timed_out": False}
-            else:
-                soddisfatta_dal = None
-                log(f"[WARM-UP] campione {campioni}: {v:.3f} W fuori da "
-                    f"{tolerance_w} W da {target:.3f} W, tratto azzerato")
+            # la serie registra CIO' CHE E' STATO LETTO, non solo il rientro:
+            # un'escursione fuori banda e' il dato che spiega perche' la fase
+            # non ha chiuso, e scriverla solo nel messaggio la perderebbe
+            valori_w.append(round(v, 6))
+            if abs(v - target) >= tolerance_w:
+                fuori.append(f"{v:.3f} W fuori da {tolerance_w} W da "
+                             f"{target:.3f} W")
+        if cpu_letti is None or not math.isfinite(cpu_letti):
+            mancante = True
+            fuori.append("cpu_percent assente")
+        else:
+            valori_cpu.append(round(cpu_letti, 6))
+            if cpu_letti >= cpu_max_pct:
+                fuori.append(f"{cpu_letti:.3f} % sopra {cpu_max_pct:g} %")
+        if fuori:
+            if mancante:
+                esito["warmup_letture_mancanti"] += 1
+            if soddisfatta_dal is not None:
+                fuori.append("tratto azzerato")
+            soddisfatta_dal = None
+            log(f"[WARM-UP] campione {esito['warmup_campioni']}: "
+                + "; ".join(fuori))
+        else:
+            if soddisfatta_dal is None:
+                soddisfatta_dal = ora
+            if ora - soddisfatta_dal >= sustain_s:
+                attesa = ora - t0
+                esito["warmup_completed"] = True
+                esito["warmup_motivo"] = "criterio_soddisfatto"
+                esito["warmup_duration_s"] = round(attesa, 6)
+                esito["warmup_temperatura"].append(lettura_termica("uscita"))
+                log(f"[WARM-UP] rientro raggiunto dopo {attesa:.1f} s: "
+                    f"{sustain_s:g} s continui con potenza entro "
+                    f"{tolerance_w} W da P_pre={target:.3f} W e cpu sotto "
+                    f"{cpu_max_pct:g} % ({esito['warmup_campioni']} campioni)")
+                if registra is not None:
+                    registra(dict(esito))
+                return esito
         durato = clock() - t0
         if durato >= cap_s:
+            esito["warmup_motivo"] = "tetto_raggiunto"
+            esito["warmup_duration_s"] = round(durato, 6)
+            esito["warmup_temperatura"].append(lettura_termica("uscita"))
+            if registra is not None:
+                registra(dict(esito))
             raise SystemExit(
                 f"[WARM-UP] tetto {cap_s:g} s raggiunto senza {sustain_s:g} "
                 f"s continui entro {tolerance_w} W da P_pre={target:.3f} W "
-                f"(campioni={campioni}, letture mancanti={letture_mancanti}, "
-                f"ultimi valori={valori[-5:]}): la macchina non e' rientrata "
-                "dal carico. Il controllo NON parte — procedere in silenzio "
-                "sarebbe immettere un residuo di carico nel bias che il gate "
-                "deve misurare.")
-        sleep(max(min(step_s, cap_s - durato), 0.0))
+                f"e sotto {cpu_max_pct:g} % di cpu_percent "
+                f"(campioni={esito['warmup_campioni']}, letture mancanti="
+                f"{esito['warmup_letture_mancanti']}, ultimi valori "
+                f"w={valori_w[-5:]} cpu={valori_cpu[-5:]}): la macchina non "
+                "e' rientrata dal carico. Il controllo NON parte — procedere "
+                "in silenzio sarebbe immettere un residuo di carico nel bias "
+                "che il gate deve misurare.")
+        if step_s:
+            sleep(max(min(step_s, cap_s - durato), 0.0))
 
 
 def cmd_execute(model: str, *, codecarbon: bool = False,
@@ -1558,6 +1833,22 @@ def cmd_execute(model: str, *, codecarbon: bool = False,
         probe.avvia()
 
     runs: List[Dict] = []
+
+    def _registrar_warmup(blocco: Mapping, block_id: str):
+        """Chiude il registro di una fase con l'identita' del blocco.
+
+        Serve perche' ``warmup_stabilizzazione.jsonl`` deve restare leggibile
+        anche quando la fase si arresta al tetto e ``analysis.json`` non viene
+        scritto: senza l'identita' una riga del registro non direbbe a quale
+        coppia appartiene la durata che riporta.
+        """
+        def _reg(record: Dict) -> None:
+            record.update({"index": blocco["index"], "label": blocco["label"],
+                           "arm": blocco["arm"], "pair_id": blocco["pair_id"],
+                           "block_id": block_id})
+            _registra_warmup(record)
+        return _reg
+
     v4.export_summary_csv = wrapper
     v4._run_control_window = wrapper_cw
     try:
@@ -1601,10 +1892,14 @@ def cmd_execute(model: str, *, codecarbon: bool = False,
             # target e' quel numero letto dal riepilogo reale, non una
             # costante: se il blocco non lo ha prodotto, la stabilizzazione
             # non ha un criterio e il tool si ferma (vedi la funzione).
+            # Il registro passa da ``registra`` perche' la fase puo'
+            # chiudersi su SystemExit, e un arresto non scrive analysis: la
+            # durata di un warm-up fallito resta cosi' leggibile.
             warmup: Optional[Dict] = None
             if b["arm"] == "load":
                 warmup = _stabilizza_post_carico(
                     rec.get("baseline_pre_w"),
+                    registra=_registrar_warmup(b, rec.get("block_id", "")),
                     on_log=lambda m: print(m, flush=True))
             run_rec = {
                 "index": b["index"], "label": b["label"], "arm": b["arm"],
@@ -1687,11 +1982,19 @@ def cmd_execute(model: str, *, codecarbon: bool = False,
         "geometry": GEOMETRY,
         "quiet_precondition": {"consecutive": QUIET_CONSECUTIVE,
                                "cap_s": QUIET_CAP_S},
+        "warmup_precondition": {
+            "tolerance_w": WARMUP_TOLERANCE_W,
+            "cpu_max_pct": WARMUP_CPU_MAX_PCT,
+            "sustain_s": WARMUP_SUSTAIN_S,
+            "cap_s": WARMUP_CAP_S,
+            "window_s": WARMUP_WINDOW_S,
+            "step_s": WARMUP_STEP_S},
         "runs": runs,
         "results_csv": str(rows_path),
         "block_summary_csv": str(blocks_path),
         "blocks_controllo_json": str(ARCHIVE_DIR / BLOCKS_JSON_NAME),
         "control_power_series_json": str(ARCHIVE_DIR / SERIES_NAME),
+        "warmup_log_jsonl": str(ARCHIVE_DIR / WARMUP_LOG_NAME),
         "budget_preregistrato_json": str(budget_path),
         "series_counts": {s["block_id"]: s["n_samples"] for s in serie},
         "run_ids": [r["run_id"] for r in runs],
@@ -2045,6 +2348,46 @@ def _write_report(data: Dict) -> None:
                 f"- {r['label']} ({r['arm']}): attesa={attesa_txt}, "
                 f"letture={r.get('quiet_letture', 'n/d')}, top-5 alla "
                 f"partenza: {top_txt}\n")
+        fh.write("\n## Warm-up post-carico (criterio misurato)\n\n")
+        w = data.get("warmup_precondition") or {}
+        fh.write(
+            "Dopo OGNI blocco di carico e prima del controllo della coppia. "
+            f"Finestra osservata di {w.get('window_s', WARMUP_WINDOW_S):g} s; "
+            "la fase chiude quando, SULLA STESSA finestra, la potenza resta "
+            f"entro {w.get('tolerance_w', WARMUP_TOLERANCE_W)} W dalla "
+            "baseline_pre_w del blocco di carico E la media di "
+            f"cpu_percent resta sotto "
+            f"{w.get('cpu_max_pct', WARMUP_CPU_MAX_PCT):g} % per "
+            f"{w.get('sustain_s', WARMUP_SUSTAIN_S):g} s continui; un "
+            "campione fuori soglia su uno dei due, o una lettura assente, "
+            f"azzera il tratto. Al tetto {w.get('cap_s', WARMUP_CAP_S):g} s "
+            "la campagna si ferma (SystemExit). La temperatura CPU e' "
+            "registrata all'ingresso e all'uscita e NON decide: su questo "
+            "host non esiste canale termico con deriva misurata. Il warm-up "
+            "NON e' un controllo e non entra in ``bias_w`` ne' in "
+            "``evaluate_gate``; le soglie sono pre-registrate sui dati della "
+            "campagna 20261108 (commento delle costanti nel tool).\n\n")
+        for r in data["runs"]:
+            fase = r.get("warmup")
+            if not fase:
+                continue
+            term = "; ".join(
+                f"{t.get('fase')}={t.get('temperatura_c')} C "
+                f"({t.get('fonte')})"
+                for t in fase.get("warmup_temperatura") or []) or "nessuna"
+            fh.write(
+                f"- {r['label']} ({r['pair_id']}): completed="
+                f"{fase.get('warmup_completed')}, durata="
+                f"{fase.get('warmup_duration_s')} s, motivo='"
+                f"{fase.get('warmup_motivo')}', campioni="
+                f"{fase.get('warmup_campioni')}, letture mancanti="
+                f"{fase.get('warmup_letture_mancanti')}, target="
+                f"{fase.get('warmup_target_pre_w')} W, soglia="
+                f"{fase.get('warmup_soglia_w')} W / "
+                f"{fase.get('warmup_soglia_cpu_pct')} %, "
+                f"ultimi W={fase.get('warmup_valori_w', [])[-4:]}, "
+                f"ultimi %={fase.get('warmup_valori_cpu_pct', [])[-4:]}, "
+                f"temperatura: {term}\n")
         if data.get("bias_jtok_pct"):
             lo, hi = data["bias_jtok_pct"]
             fh.write("\n## Rapporto J/token (F.12, grandezza riportata)\n\n")
@@ -2070,6 +2413,8 @@ def _write_report(data: Dict) -> None:
                  f"{data['blocks_controllo_json']}\n")
         fh.write(f"- serie di potenza grezza dei controlli (JSON): "
                  f"{data.get('control_power_series_json', '')}\n")
+        fh.write(f"- registro stabilizzazione post-carico (JSONL, una riga "
+                 f"per fase): {data.get('warmup_log_jsonl', '')}\n")
         fh.write(f"- run ids: {', '.join(data['run_ids'])}\n")
         fh.write(f"- git head: {data['git_head']}\n")
         fh.write(f"- runner sha256: {data['runner_sha256']}\n")

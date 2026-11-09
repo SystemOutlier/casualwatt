@@ -35,10 +35,20 @@ Che cosa verifica:
      qualunque misura;
   5. le componenti di u_c pre-esecuzione, ciascuna riproducibile a mano
      dalla formula che la dichiara, con le durate osservate realmente lette;
-  6. il warm-up post-carico come criterio misurato: permanenza continua,
-     azzeramento del tratto su campione fuori tolleranza o lettura assente,
-     disuguaglianza stretta, tetto che ferma la campagna, e target preso
-     dalla baseline del blocco di carico.
+  6. il warm-up post-carico come criterio misurato su DUE segnali nella
+     stessa finestra (potenza del contatore entro ``tolerance_w`` dalla
+     baseline e media di finestra di ``cpu_percent`` sotto ``cpu_max_pct``):
+     permanenza continua, azzeramento del tratto su campione fuori soglia di
+     UN qualunque dei due o su lettura assente, disuguaglianza stretta su
+     entrambi, tetto che ferma la campagna registrando prima il record,
+     temperatura registrata all'ingresso e all'uscita senza decidere niente,
+     e target preso dalla baseline del blocco di carico;
+  7. la provenienza delle due soglie: le finestre del criterio sono
+     ricalcolate sugli artefatti tracciati della seconda campagna
+     (``control_power_series.json`` + ``blocks_controllo.json``) e le
+     disuguaglianze documentate nel modulo devono essere quelle che escono
+     dal ricalcolo — comprese le due finestre opposte del transitorio, che
+     è ciò che rende necessario il secondo segnale.
 
 Che cosa NON verifica: il criterio F.12 in se'
 (``test_control_gate_p45.py``), l'orchestrazione del tool
@@ -343,6 +353,7 @@ def test_piano_porta_la_procedura_di_budget_e_il_warmup():
     assert piano["budget_matched_target_s"] == rg.BUDGET_MATCHED_TARGET_S
     assert piano["budget_floor_finestra_s"] == rg.BUDGET_FLOOR_FINESTRA_S
     assert piano["warmup_tolerance_w"] == rg.WARMUP_TOLERANCE_W
+    assert piano["warmup_cpu_max_pct"] == rg.WARMUP_CPU_MAX_PCT
     assert piano["warmup_sustain_s"] == rg.WARMUP_SUSTAIN_S
     assert piano["warmup_cap_s"] == rg.WARMUP_CAP_S
     assert piano["warmup_step_s"] == rg.WARMUP_STEP_S
@@ -386,6 +397,35 @@ def test_verifica_piano_rifiuta_la_procedura_diversa_da_quella_dichiarata(
     path.write_text(json.dumps(piano2), encoding="utf-8")
     with pytest.raises(SystemExit):
         rg._verifica_piano()
+
+
+def test_verifica_piano_rifiuta_warmup_cpu_max_diverso(monkeypatch,
+                                                       tmp_path):
+    """La soglia di ``cpu_percent`` e' un numero del disegno quanto la
+    tolleranza di potenza: se il piano ne dichiara una e il codice ne applica
+    un'altra, la campagna gira con un criterio diverso da quello
+    pre-registrato, e la cosa si vede solo dopo i dati. Qui la guardia deve
+    fermarla PRIMA, sulla chiave specifica, e deve farlo anche quando la
+    chiave manca del tutto (un piano vecchio non conosce il secondo
+    segnale)."""
+    monkeypatch.setattr(rg, "ARCHIVE_DIR", tmp_path)
+    monkeypatch.setattr(rg, "_git_head", lambda: "test-head")
+    rg.cmd_plan(rg.DEFAULT_MODEL)
+    path = tmp_path / rg.PLAN_NAME
+    piano = json.loads(path.read_text(encoding="utf-8"))
+    piano["warmup_cpu_max_pct"] = 99.0
+    path.write_text(json.dumps(piano), encoding="utf-8")
+    with pytest.raises(SystemExit) as exc:
+        rg._verifica_piano()
+    assert "warmup_cpu_max_pct" in str(exc.value)
+    assert "warm-up" in str(exc.value)
+
+    piano2 = json.loads(path.read_text(encoding="utf-8"))
+    del piano2["warmup_cpu_max_pct"]
+    path.write_text(json.dumps(piano2), encoding="utf-8")
+    with pytest.raises(SystemExit) as exc2:
+        rg._verifica_piano()
+    assert "warmup_cpu_max_pct" in str(exc2.value)
 
 
 def test_artefatto_del_budget_e_completo_di_assunzioni(tmp_path, monkeypatch):
@@ -515,7 +555,7 @@ def test_u_A_assente_con_un_solo_controllo_utilizzabile():
 
 
 # ---------------------------------------------------------------------------
-# 5. warm-up post-carico: criterio misurato, non durata fissa
+# 5. warm-up post-carico: criterio misurato su DUE segnali nella finestra
 # ---------------------------------------------------------------------------
 class _Orologio:
     def __init__(self, passo=1.0):
@@ -531,75 +571,143 @@ class _Orologio:
         self.t += s
 
 
-def _campiona(valori):
+def _sequenza(valori, nome):
+    """Lettore che consuma una lettura per chiamata e grida se ne chiede una
+    piu' di quante il test ne abbia dichiarate."""
     seq = list(valori)
 
     def read():
         if not seq:
-            raise AssertionError("il warm-up ha letto piu' campioni del dichiarato")
+            raise AssertionError(
+                f"il warm-up ha letto piu' campioni di {nome} del dichiarato")
         return seq.pop(0)
 
     return read
 
 
-def test_warmup_si_compone_dopo_la_permanenza_continua():
-    """Il criterio chiede ``sustain_s`` CONTINUI entro tolleranza dal
-    target: quattro campioni a passo 1 s chiudono una permanenza di 3 s,
-    e il tempo atteso e' il tempo reale della stabilizzazione — non 10 s
-    di default."""
-    orologio = _Orologio(passo=1.0)
+def _stabilizza(target, potenze, cpu_finestre, *, tolerance_w=0.5,
+                cpu_max_pct=2.0, sustain_s=3.0, cap_s=60.0, passo=1.0,
+                temperatura=(27.85, "fake:MSAcpi_ThermalZoneTemperature"),
+                registri=None, orologio=None, termiche=None) -> dict:
+    """Esegue il criterio con TUTTE le sorgenti iniettate.
+
+    Potenza, ``cpu_percent``, temperatura, orologio, sonno e registro sono
+    parametri: nessun test di questa sezione tocca la macchina reale, e
+    ``legge_temperatura`` e' iniettato proprio perche' il ramo vero apre un
+    ``subprocess`` (powershell + CIM), che sotto la cattura dei fd di pytest e'
+    un'``OSError(22)`` nota e non un fallimento del criterio.
+    """
+    orologio = orologio if orologio is not None else _Orologio(passo=passo)
+    chiamate_termiche: list = []
+
+    def leggi_temperatura():
+        chiamate_termiche.append(orologio.t)
+        return temperatura
+
+    finestre_cpu = [[] if c is None else [c] for c in cpu_finestre]
     esito = rg._stabilizza_post_carico(
-        10.0, tolerance_w=0.5, sustain_s=3.0, cap_s=60.0, step_s=1.0,
-        window_s=2.0, campiona=_campiona([10.4, 10.4, 10.4, 10.4]),
+        target, tolerance_w=tolerance_w, cpu_max_pct=cpu_max_pct,
+        sustain_s=sustain_s, cap_s=cap_s, step_s=passo, window_s=2.0,
+        campiona_potenza=_sequenza(potenze, "potenza"),
+        campiona_cpu=_sequenza(finestre_cpu, "cpu_percent"),
+        legge_temperatura=leggi_temperatura,
+        registra=(registri.append if registri is not None else None),
         clock=orologio.now, sleep=orologio.sleep)
-    assert esito["warmup_wait_s"] == pytest.approx(3.0)
+    if termiche is not None:
+        termiche.extend(chiamate_termiche)
+    return esito
+
+
+def test_warmup_si_compone_dopo_la_permanenza_continua_dei_due_segnali():
+    """Il criterio chiede ``sustain_s`` CONTINUI con entrambi i segnali entro
+    soglia: quattro campioni a passo 1 s chiudono una permanenza di 3 s. La
+    durata registrata e' il tempo reale della stabilizzazione, non un
+    parametro: la forma fissa ``sleep(10)`` avrebbe dormito 7 s piu' del
+    necessario su questa macchina gia' rientrata."""
+    esito = _stabilizza(10.0, [10.4, 10.4, 10.4, 10.4], [1.0, 1.0, 1.0, 1.0])
+    assert esito["warmup_completed"] is True
+    assert esito["warmup_motivo"] == "criterio_soddisfatto"
+    assert esito["warmup_duration_s"] == pytest.approx(3.0)
+    assert esito["warmup_duration_s"] != rg.WARMUP_SUSTAIN_S
     assert esito["warmup_campioni"] == 4
-    assert esito["warmup_timed_out"] is False
     assert esito["warmup_target_pre_w"] == 10.0
     assert esito["warmup_soglia_w"] == 0.5
-    assert orologio.dormito == [1.0, 1.0, 1.0]
+    assert esito["warmup_soglia_cpu_pct"] == 2.0
+    assert esito["warmup_finestra_s"] == 2.0
+    assert esito["warmup_tetto_s"] == 60.0
+    assert esito["warmup_permanenza_richiesta_s"] == 3.0
+    assert esito["warmup_valori_w"] == [10.4] * 4
+    assert esito["warmup_valori_cpu_pct"] == [1.0] * 4
+    assert esito["warmup_letture_mancanti"] == 0
 
 
-def test_warmup_campione_fuori_tolleranza_azzera_il_tratto():
-    """La permanenza e' continua: un campione fuori tolleranza riparte da
-    zero, come il ``satisfied_since`` del cooldown P1.5. Qui il rientro
-    costa 5 s invece dei 3 s minimi, e il registro lo dice."""
-    orologio = _Orologio(passo=1.0)
-    esito = rg._stabilizza_post_carico(
-        10.0, tolerance_w=0.5, sustain_s=3.0, cap_s=60.0, step_s=1.0,
-        window_s=2.0,
-        campiona=_campiona([10.4, 20.0, 10.4, 10.4, 10.4, 10.4]),
-        clock=orologio.now, sleep=orologio.sleep)
+def test_warmup_cpu_fuori_soglia_azzera_il_tratto_con_potenza_in_banda():
+    """E' il caso della PRIMA finestra di ctrl-1: potenza rientrata (dev
+    0,48 W < 0,5) e cpu al 4,1 % sopra la soglia. Un criterio solo sulla
+    potenza avrebbe chiuso qui e avrebbe immesso il controllo in transitorio.
+    Il tratto si azzera e l'escursione resta nella serie, perche' la serie
+    registra quel che e' stato letto, non solo quel che e' passato."""
+    esito = _stabilizza(10.0, [10.4, 10.4, 10.4, 10.4, 10.4],
+                        [4.1, 1.0, 1.0, 1.0, 1.0])
+    assert esito["warmup_completed"] is True
+    assert esito["warmup_campioni"] == 5
+    assert esito["warmup_duration_s"] == pytest.approx(4.0)
+    assert 4.1 in esito["warmup_valori_cpu_pct"]
+    assert esito["warmup_valori_w"] == [10.4] * 5
+
+
+def test_warmup_potenza_fuori_tolleranza_azzera_il_tratto_con_cpu_in_banda():
+    """E' il caso della SECONDA finestra di ctrl-1: cpu all'1,8 % (sotto 2,0)
+    e deviazione di 0,80 W sopra la tolleranza. Un criterio solo sulla cpu
+    avrebbe chiuso li'. La permanenza e' continua su entrambi, quindi il
+    rientro costa 5 s invece dei 3 s minimi e il registro lo dice."""
+    esito = _stabilizza(10.0, [10.4, 20.0, 10.4, 10.4, 10.4, 10.4],
+                        [1.0, 1.0, 1.0, 1.0, 1.0, 1.0])
     assert esito["warmup_campioni"] == 6
-    assert esito["warmup_wait_s"] == pytest.approx(5.0)
+    assert esito["warmup_duration_s"] == pytest.approx(5.0)
     assert 20.0 in esito["warmup_valori_w"]
 
 
 def test_warmup_lettura_assente_azzera_il_tratto_e_si_dichiara():
-    """Una lettura assente non e' "il campione mancava, il tratto vale":
-    il tratto si azzera e il conteggio delle letture mancanti resta
+    """Una lettura di potenza assente non e' "il campione mancava, il tratto
+    vale": il tratto si azzera e il conteggio delle letture mancanti resta
     nell'artefatto, perche' e' un segnale diagnostico su quel blocco."""
-    orologio = _Orologio(passo=1.0)
-    esito = rg._stabilizza_post_carico(
-        10.0, tolerance_w=0.5, sustain_s=2.0, cap_s=60.0, step_s=1.0,
-        window_s=2.0,
-        campiona=_campiona([10.4, None, 10.4, 10.4, 10.4]),
-        clock=orologio.now, sleep=orologio.sleep)
+    esito = _stabilizza(10.0, [10.4, None, 10.4, 10.4, 10.4],
+                        [1.0, 1.0, 1.0, 1.0, 1.0], sustain_s=2.0)
     assert esito["warmup_letture_mancanti"] == 1
-    assert esito["warmup_wait_s"] == pytest.approx(4.0)
+    assert esito["warmup_duration_s"] == pytest.approx(4.0)
+    assert None not in esito["warmup_valori_w"]
+    assert len(esito["warmup_valori_w"]) == 4
 
 
-def test_warmup_disuguaglianza_stretta_come_p1_5():
-    """Il campione esattamente al bordo della tolleranza NON soddisfa il
-    criterio: la disuguaglianza e' stretta in ``cooldown_to_baseline`` e
-    qui si mantiene la stessa convenzione, perche' "entro" e "a bordo"
-    sono due criteri diversi e uno dei due deve essere scritto."""
+def test_warmup_finestra_cpu_senza_campioni_non_diventa_uno_zero():
+    """``total_cpu_samples`` torna la lista dei campioni della finestra: una
+    lista vuota significa "nessun campione", non "macchina ferma allo 0 %".
+    Mista per zero su una finestra vuota darebbe 0,0 % e chiuderebbe il tratto
+    proprio quando il canale non ha risposto."""
+    esito = _stabilizza(10.0, [10.4, 10.4, 10.4, 10.4],
+                        [None, 1.0, 1.0, 1.0], sustain_s=2.0)
+    assert esito["warmup_letture_mancanti"] == 1
+    assert esito["warmup_duration_s"] == pytest.approx(3.0)
+    assert 0.0 not in esito["warmup_valori_cpu_pct"]
+    assert esito["warmup_valori_cpu_pct"] == [1.0, 1.0, 1.0]
+
+
+@pytest.mark.parametrize("potenze,cpu_finestre", [
+    ([10.5] * 5, [1.0] * 5),
+    ([10.4] * 5, [2.0] * 5),
+], ids=["potenza-al-bordo", "cpu-al-bordo"])
+def test_warmup_disuguaglianza_stretta_su_ogni_segnale(potenze, cpu_finestre):
+    """Il campione esattamente AL bordo della sua soglia NON soddisfa il
+    criterio: la disuguaglianza e' stretta in ``cooldown_to_baseline`` (P1.5)
+    e vale identica per entrambi i segnali qui, perche' "entro" e "a bordo"
+    sono due criteri diversi e uno dei due deve essere scritto. Con soli
+    valori a bordo la fase non chiude mai e il tetto ferma la campagna."""
     orologio = _Orologio(passo=1.0)
-    with pytest.raises(SystemExit):
-        rg._stabilizza_post_carico(
-            10.0, tolerance_w=0.5, sustain_s=0.0, cap_s=3.0, step_s=1.0,
-            window_s=2.0, campiona=_campiona([10.5, 10.5, 10.5, 10.5]),
-            clock=orologio.now, sleep=orologio.sleep)
+    with pytest.raises(SystemExit) as exc:
+        _stabilizza(10.0, potenze, cpu_finestre, sustain_s=0.0, cap_s=3.0,
+                    orologio=orologio)
+    assert "tetto" in str(exc.value)
 
 
 def test_warmup_tetto_ferma_la_campagna():
@@ -608,40 +716,248 @@ def test_warmup_tetto_ferma_la_campagna():
     dichiara, ma qui il blocco successivo non e' ancora partito e
     immetterlo in transitorio rimetterebbe il residuo di carico dentro
     ``E_net`` — il difetto che questa fase esiste per togliere."""
-    orologio = _Orologio(passo=1.0)
     with pytest.raises(SystemExit) as exc:
-        rg._stabilizza_post_carico(
-            10.0, tolerance_w=0.5, sustain_s=5.0, cap_s=4.0, step_s=1.0,
-            window_s=2.0,
-            campiona=_campiona([11.0, 11.0, 11.0, 11.0, 11.0, 11.0]),
-            clock=orologio.now, sleep=orologio.sleep)
+        _stabilizza(10.0, [11.0] * 8, [5.0] * 8, sustain_s=5.0, cap_s=4.0)
     assert "tetto" in str(exc.value)
     assert "NON parte" in str(exc.value)
+
+
+def test_warmup_tetto_registra_prima_di_arrestarsi():
+    """L'arresto non avviene in silenzio sul registro. ``registra`` riceve il
+    record terminale PRIMA del ``SystemExit``: una campagna fermata non scrive
+    ``analysis.json``, e la durata di un warm-up fallito e' il dato che serve
+    a capire perche' si e' fermata. Il record e' lo stesso che sarebbe
+    scritto in chiusura, con ``warmup_completed`` a ``False``."""
+    registri: list = []
+    with pytest.raises(SystemExit):
+        _stabilizza(10.0, [11.0] * 8, [5.0] * 8, sustain_s=5.0, cap_s=4.0,
+                    registri=registri)
+    assert len(registri) == 1
+    record = registri[0]
+    assert record["warmup_completed"] is False
+    assert record["warmup_motivo"] == "tetto_raggiunto"
+    assert record["warmup_duration_s"] == pytest.approx(4.0)
+    assert record["warmup_campioni"] == 5
+
+
+def test_warmup_si_compone_registra_il_record_di_chiusura():
+    """Il registro non e' una cosa del solo percorso di arresto: la fase
+    chiusa scrive lo stesso record che finisce nel ``runs`` di
+    ``analysis.json``, perche' il JSONL e' la prova append-only della
+    durata effettiva, non un derivato del report."""
+    registri: list = []
+    esito = _stabilizza(10.0, [10.4] * 4, [1.0] * 4, registri=registri)
+    assert len(registri) == 1
+    assert registri[0]["warmup_motivo"] == "criterio_soddisfatto"
+    assert registri[0]["warmup_completed"] is True
+    assert registri[0]["warmup_duration_s"] == esito["warmup_duration_s"]
+
+
+def test_warmup_temperatura_letta_due_volte_e_registrata_con_la_fonte():
+    """La temperatura si legge all'ingresso e all'uscita della fase, NON per
+    campione: lo spawn del lettore costa 0,26-0,33 s (misurato 2026-11-09) e
+    consuma CPU proprio mentre si osserva ``cpu_percent``. Le due letture con
+    la loro fonte finiscono nel record, per servire da evidenza a una soglia
+    termica di una campagna futura."""
+    termiche: list = []
+    esito = _stabilizza(10.0, [10.4] * 4, [1.0] * 4, termiche=termiche)
+    assert len(termiche) == 2
+    assert [r["fase"] for r in esito["warmup_temperatura"]] == ["ingresso",
+                                                                "uscita"]
+    assert [r["temperatura_c"] for r in esito["warmup_temperatura"]] == [27.85,
+                                                                        27.85]
+    assert all(r["fonte"] == "fake:MSAcpi_ThermalZoneTemperature"
+               for r in esito["warmup_temperatura"])
+
+
+def test_warmup_temperatura_assente_si_dichiara_e_non_decide():
+    """Temperatura illeggibile: ``(None, motivo)`` registrato, nessun
+    sostituto (non 0,0 C, non l'ultima lettura valida) e nessun effetto sul
+    criterio, che chiude identico. E' la forma operativa di "se disponibile"
+    senza fallback silenzioso, e la stessa forma in cui il canale termico
+    risponde su questo host."""
+    esito = _stabilizza(10.0, [10.4] * 4, [1.0] * 4,
+                        temperatura=(None, "psutil: nessuna lettura valida; "
+                                           "cim: FileNotFoundError"))
+    assert esito["warmup_completed"] is True
+    assert esito["warmup_duration_s"] == pytest.approx(3.0)
+    assert [r["temperatura_c"] for r in esito["warmup_temperatura"]] == [None,
+                                                                        None]
+    assert "nessuna lettura valida" in esito["warmup_temperatura"][0]["fonte"]
 
 
 def test_warmup_senza_baseline_di_carico_non_ha_criterio():
     """Il target e' la ``baseline_pre_w`` del blocco di carico: senza di
     quella non esiste ne' il criterio ne' un sostituto, e il tool si ferma
     invece di dormire un tempo a caso. Tre forme di assenza: None, zero e
-    stringa vuota."""
+    stringa vuota, e il nan."""
     for target in (None, 0.0, "", float("nan")):
         with pytest.raises(SystemExit) as exc:
-            rg._stabilizza_post_carico(
-                target, tolerance_w=0.5, sustain_s=0.0, cap_s=5.0,
-                step_s=1.0, window_s=2.0,
-                campiona=_campiona([10.0]), clock=_Orologio().now,
-                sleep=lambda s: None)
+            _stabilizza(target, [10.0], [1.0])
         assert "nessun target" in str(exc.value)
 
 
 def test_warmup_default_pre_registrati_coerenti():
-    """I default sono parametri di protocollo: la tolleranza deve essere
-    piu' stretta della soglia di stabilita' di F.12 (1,0 W) o il warm-up
-    accetterebbe un rientro che il gate scarterebbe, e il tetto deve
-    superare la permanenza richiesta di almeno due passi."""
+    """I default sono parametri di protocollo, e la loro coerenza e'
+    aritmetica: la tolleranza deve essere piu' stretta della soglia di
+    stabilita' di F.12 (1,0 W) o il warm-up accetterebbe un rientro che il
+    gate scarterebbe; la soglia di cpu deve essere un numero positivo e il
+    tetto deve superare la permanenza richiesta; il passo e' zero perche'
+    l'osservazione della finestra E il passo."""
     assert 0.0 < rg.WARMUP_TOLERANCE_W < 1.0
+    assert rg.WARMUP_CPU_MAX_PCT > 0.0
     assert rg.WARMUP_SUSTAIN_S > 0.0
     assert rg.WARMUP_CAP_S > rg.WARMUP_SUSTAIN_S + rg.WARMUP_STEP_S
     assert rg.WARMUP_WINDOW_S > 0.0
+    assert rg.WARMUP_STEP_S == 0.0
     # la durata fissa non esiste piu' nel modulo: rimossa, non messa da parte
     assert not hasattr(rg, "WARMUP_DURATION_S")
+
+
+# ---------------------------------------------------------------------------
+# 6. provenienza delle due soglie: ricalcolate, non dichiarate a memoria
+# ---------------------------------------------------------------------------
+# Gli artefatti della SECONDA campagna, tracciati e non riscritti: la serie
+# di potenza per blocco di controllo (campioni di contatore con
+# ``cpu_percent``) e i riepiloghi di blocco con la ``baseline_pre_w``. Sono
+# la stessa evidenza citata nel commento delle costanti
+# (tools/run_gate_p44.py, blocco "Warm-up post-carico") e in ``checks["F"]``
+# del piano, e qui si rileggono per ricalcolarle alla scala del criterio.
+_ARTEFATTI_P44_20261108 = (Path(__file__).resolve().parents[2]
+                           / "experiment_results" / "p44_gate_20261108")
+
+
+def _finestre_del_criterio(entry: dict, target_pre_w: float,
+                           window_s: float) -> list:
+    """Riaggrega la serie di un blocco alla scala che il criterio osserva.
+
+    La meccanica e' quella di ``_stabilizza_post_carico``, non una
+    scorciatoia: finestre NON sovrapposte da ``window_s`` ancorate a
+    ``t0_mono``, potenza = delta del contatore / delta di tempo fra il primo
+    e l'ultimo campione dentro la finestra (media del contatore, non
+    interpolazione fra finestre), ``cpu_percent`` = MEDIA dei campioni della
+    finestra. Una finestra con un solo campione dentro non ha un delta del
+    contatore al suo interno, quindi non e' osservabile dalla stessa
+    meccanica (il criterio legge il contatore sulla finestra e non lo
+    interpola oltre i bordi): viene esclusa, e il conteggio dei campioni di
+    ciascuna finestra resta nel risultato.
+    """
+    t0 = float(entry["t0_mono"])
+    campioni = sorted(entry["samples"], key=lambda s: float(s["t"]))
+    if not campioni:
+        return []
+    n_finestre = int((float(campioni[-1]["t"]) - t0) // window_s) + 1
+    finestre: list = []
+    for i in range(n_finestre):
+        inizio = t0 + i * window_s
+        dentro = [s for s in campioni if inizio <= float(s["t"])
+                  < inizio + window_s]
+        if len(dentro) < 2:
+            continue
+        t_a, t_b = float(dentro[0]["t"]), float(dentro[-1]["t"])
+        potenza = ((float(dentro[-1]["package_energy_j"])
+                    - float(dentro[0]["package_energy_j"])) / (t_b - t_a))
+        cpu = sum(float(s["cpu_percent"]) for s in dentro) / len(dentro)
+        finestre.append({"n_campioni": len(dentro),
+                         "potenza_w": round(potenza, 6),
+                         "deviazione_w": abs(potenza - target_pre_w),
+                         "cpu_medio_pct": cpu})
+    return finestre
+
+
+def _due_popolazioni():
+    """Serie + baseline dei sei controlli, divisi fra il blocco in
+    transitorio (ctrl-1, il primo della campagna) e i cinque stabilizzati."""
+    serie = json.loads((_ARTEFATTI_P44_20261108
+                        / "control_power_series.json").read_text(
+                            encoding="utf-8"))
+    blocchi = json.loads((_ARTEFATTI_P44_20261108
+                          / "blocks_controllo.json").read_text(
+                              encoding="utf-8"))
+    pre = {b["block_id"]: float(b["baseline_pre_w"]) for b in blocchi}
+    stabilizzati: list = []
+    transitorio: list = []
+    for entry in serie:
+        finestra = _finestre_del_criterio(entry, pre[entry["block_id"]],
+                                          rg.WARMUP_WINDOW_S)
+        (transitorio if "__ctrl-1__" in entry["block_id"]
+         else stabilizzati).extend(finestra)
+    assert len(transitorio) == 2 and len(stabilizzati) >= 5
+    return stabilizzati, transitorio
+
+
+def test_provenienza_soglie_la_popolazione_stabilizzata_osserva_le_costanti():
+    """Le due soglie non sono convenienze: ricalcolando le finestre del
+    criterio sugli artefatti della seconda campagna, NESSUNA finestra dei
+    cinque controlli stabilizzati scatta su NESSUNO dei due segnali. Se
+    ricadi qui e una finestra scatta, la soglia e' stata scritta a memoria
+    e il warm-up fermerebbe un blocco che il gate usera'."""
+    stabilizzati, _transitorio = _due_popolazioni()
+    dev_max = max(f["deviazione_w"] for f in stabilizzati)
+    cpu_max = max(f["cpu_medio_pct"] for f in stabilizzati)
+    assert dev_max == pytest.approx(0.3626, abs=5e-4)
+    assert cpu_max == pytest.approx(1.000, abs=5e-4)
+    assert dev_max < rg.WARMUP_TOLERANCE_W
+    assert cpu_max < rg.WARMUP_CPU_MAX_PCT
+
+
+def test_provenienza_soglie_il_transitorio_occupa_due_finestre_opposte():
+    """Il re-lookup dei numeri citati nel commento delle costanti e in
+    ``checks["F"]``: ctrl-1 da' 0,48 W con 4,1 % alla prima finestra e 0,80
+    W con 1,8 % alla seconda. Ciascuna delle due finestre e' dentro la banda
+    di un segnale e fuori da quella dell'altro, e le due soglie stanno
+    strette fra le due popolazioni: questo e' il test che le soglie sono
+    derivazione, non gusti."""
+    _stabilizzati, transitorio = _due_popolazioni()
+    dev = [f["deviazione_w"] for f in transitorio]
+    cpu = [f["cpu_medio_pct"] for f in transitorio]
+    assert dev[0] == pytest.approx(0.4802, abs=5e-4)
+    assert cpu[0] == pytest.approx(4.100, abs=5e-4)
+    assert dev[1] == pytest.approx(0.7951, abs=5e-4)
+    assert cpu[1] == pytest.approx(1.800, abs=5e-4)
+    # prima finestra: potenza DENTRO, cpu FUORI
+    assert dev[0] < rg.WARMUP_TOLERANCE_W
+    assert cpu[0] >= rg.WARMUP_CPU_MAX_PCT
+    # seconda finestra: potenza FUORI, cpu DENTRO
+    assert dev[1] >= rg.WARMUP_TOLERANCE_W
+    assert cpu[1] < rg.WARMUP_CPU_MAX_PCT
+    # ciascuna soglia e' stretta fra le due popolazioni
+    assert rg.WARMUP_TOLERANCE_W < max(dev)
+    assert rg.WARMUP_CPU_MAX_PCT < max(cpu)
+
+
+def test_provenienza_permanenza_supera_il_tratto_continuo_del_transitorio():
+    """``WARMUP_SUSTAIN_S`` e' la terza scelta ancorata agli stessi dati:
+    nella sola potenza, la massima sequenza CONTINUA di campioni di
+    contatore entro la tolleranza dentro il blocco in transitorio e' ~1,09 s
+    (i due campioni centrali su quattro), e il blocco dura 2,94 s. Una
+    permanenza di 10 s — circa tre finestre ``Tc`` e non piu' lasca della
+    persistenza gia' pretesa dalla quiete P1.4 — non la attraversa. Se la
+    permanenza scendesse sotto il tratto, il warm-up chiuderebbe in
+    transitorio e il criterio multisegnale sarebbe decorativo."""
+    serie = json.loads((_ARTEFATTI_P44_20261108
+                        / "control_power_series.json").read_text(
+                            encoding="utf-8"))
+    blocchi = json.loads((_ARTEFATTI_P44_20261108
+                          / "blocks_controllo.json").read_text(
+                              encoding="utf-8"))
+    entry = [e for e in serie if "__ctrl-1__" in e["block_id"]][0]
+    target = {b["block_id"]: float(b["baseline_pre_w"]) for b in blocchi}[
+        entry["block_id"]]
+    campioni = sorted(entry["samples"], key=lambda s: float(s["t"]))
+    deviazioni = []
+    for a, b in zip(campioni, campioni[1:]):
+        dt = float(b["t"]) - float(a["t"])
+        potenza = (float(b["package_energy_j"])
+                   - float(a["package_energy_j"])) / dt
+        deviazioni.append((abs(potenza - target), dt))
+    tratto = 0.0
+    migliore = 0.0
+    for deviazione, dt in deviazioni:
+        if deviazione < rg.WARMUP_TOLERANCE_W:
+            tratto += dt
+            migliore = max(migliore, tratto)
+        else:
+            tratto = 0.0
+    assert migliore == pytest.approx(1.09, abs=0.02)
+    assert migliore < rg.WARMUP_SUSTAIN_S
