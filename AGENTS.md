@@ -192,21 +192,20 @@ l'identita' illeggibile il token `missing` non e' piu' prodotto, e con esso lo
 stato legittimo "mai calibrato" -- la FASE 3 del pannello GUI e la prosa che
 distingue "nessun monitor" da "monitor senza contatore" vanno rilette quando quel
 lavoro si chiude. **Quel lavoro si e' chiuso la sera del 07-11** (fixture
-allineate al contratto di identita', 73 test GPU verdi) e la conseguenza allora
-prevista oggi e' misurata: `gpu_idle_provenance = "missing"` **non e' piu'
-raggiungibile in produzione**. Il token esiste solo come valore iniziale a
-`energy/local_energy.py:1081`, e ogni ramo dell'`if/elif/else` a `:1082-1101` lo
-sovrascrive -- `calibrated`, `invalid-baseline`, `device-changed`,
-`identity-unavailable` -- prima che `:1103` lo pubblichi. Restano pero' cinque
-testi che lo promettono ancora: il commento del vocabolario a `:160`
-(`("calibrated" | "missing")`), la docstring `energy/energy_session.py:1733` e i
-tre messaggi del pannello `gui/benchmark_panel.py:36`, `:47`, `:680` (con il
-commento storico a `:650`). Nessuno dei **1142** node id legge quei testi:
-`tests/test_energy_corrections.py:180`, `:191`, `:200`, `:208` asseriscono
-`identity-unavailable`, `calibrated` e la stringa vuota, quindi la suite e' verde
-su un vocabolario che la prosa dell'interfaccia non racconta piu'. E' un debito di
-sincronizzazione fra messaggio e codice, non un errore di calcolo, e si chiude
-decidendo quale token debba dire "mai calibrato" -- non spostando una soglia. Gli
+allineate al contratto di identita', 73 test GPU verdi): il token per "mai calibrato"
+e' `identity-unavailable`, non `missing`. `gpu_idle_provenance = "missing"`
+**non e' piu' prodotto da nessun ramo di produzione**: il commento del vocabolario a
+`energy/local_energy.py:160` ora dichiara
+`("calibrated" | "identity-unavailable" | "invalid-baseline" | "device-changed")`,
+la docstring `energy/energy_session.py:1733` e i tre messaggi del pannello
+`gui/benchmark_panel.py:36`, `:47`, `:680` (con il commento storico a `:650`)
+dichiarano tutti `identity-unavailable` per il ramo identita' illeggibile e
+`invalid-baseline` per il ramo monitor senza contatore cumulativo. Nessuno dei
+**1142** node id legge quei testi: `tests/test_energy_corrections.py:180`, `:191`,
+`:200`, `:208` asseriscono `identity-unavailable`, `calibrated` e la stringa vuota.
+Il debito di sincronizzazione fra messaggio e codice e' chiuso decidendo quale
+token debba dire "mai calibrato": `identity-unavailable`, non `missing` -- non
+spostando una soglia. Gli
 **845** raccolti con **0 falliti** del 05-11
 restano la fotografia di un altro albero; il conteggio rigenerato e' quello del
 09-11 in testa a questo file. La tesi e' ricompilata due volte il 06-11: dopo la
