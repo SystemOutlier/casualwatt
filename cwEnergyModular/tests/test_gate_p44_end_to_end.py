@@ -86,6 +86,10 @@ class _SessioneGate:
         self.t = T0
         self.j = 1000.0
         self.ts = 1_000_000_000
+        # La porta delle finestre idle: e' da qui che il gate misura il fondo
+        # pre-esecuzione, e deve essere la STESSA sessione dei bordi perche'
+        # nella realta' e' lo stesso contatore di package.
+        self._source = _PortaIdle(self)
 
     def start(self):
         pass
@@ -138,6 +142,40 @@ class _SessioneGate:
         # sentinella: con bordi validi l'energia arriva dai contatori ai bordi;
         # se questo valore comparisse in una riga, il percorso e' degradato
         return -1.0e6
+
+
+class _PortaIdle:
+    """Le finestre idle lette dal budget pre-esecuzione.
+
+    Perche' queste potenze. Il gate misura tre unita' pre e tre post della
+    stessa durata di un controllo e le aggrega con ``block_baseline``: con
+    le terne PRE = (9.9, 10.0, 10.1) e POST = (10.3, 10.4, 10.5) il numero
+    che ne esce e' ``hypot(0.1, 0.2) = 0,223607 W``, esattamente ``BW`` e
+    esattamente la soglia mediana che F.12 calcola sui blocchi. Non e' un
+    valore di comodo: e' aritmetica dichiarata, e se il tool applicasse un
+    fattore di scala o aggregasse in modo diverso il numero divergerebbe.
+
+    ``durata`` richiesta e durata osservata coincidono perche' qui si prova
+    la regola di aggregazione, non il pavimento del primitivo reale
+    (``energy_session.py:672`` porta la finestra a 0,5 s: ``_installa``
+    dichiara il pavimento 0 perche' il fake non ce l'ha).
+    """
+
+    method = "emi-counter"
+    last_read_error = ""
+
+    def __init__(self, sessione):
+        self.sessione = sessione
+        self.letture = 0
+        self.potenze = list(PRE) + list(POST)
+
+    def read_idle_window_j(self, durata_s):
+        durata_s = float(durata_s)
+        if self.letture >= len(self.potenze):
+            self.letture = 0
+        p = self.potenze[self.letture]
+        self.letture += 1
+        return (p * durata_s, durata_s, self.method)
 
 
 def _resp(i):
@@ -224,6 +262,22 @@ def _installa(monkeypatch):
                 "reason": "cooldown fake"}
 
     monkeypatch.setattr(v4, "cooldown_to_baseline", fake_cd)
+
+    # Lato tool, Revisione del Gate 2026-11-09. (1) Il fake non ha il
+    # pavimento di ``read_idle_window_j`` (energy_session.py:672 porta la
+    # finestra a 0,5 s) e questi test accorciano Tc a 0,05 s: senza deroga
+    # il tool fermerebbe GIUSTAMENTE la misura del fondo, e qui si vuole
+    # provare l'orchestrazione, non il pavimento (che e' nei test dedicati).
+    # (2) La stabilizzazione post-carico legge ``v4.cooldown_power_w``, che
+    # su questa sessione restituirebbe la sentinella -1e6 J della finestra
+    # degradata: qui si dichiara una macchina gia' rientrata a 10,0 W con
+    # permanenza nulla, perche' la MECCANICA del criterio e' provata nei
+    # test dedicati, non qui.
+    monkeypatch.setattr(rg, "BUDGET_FLOOR_FINESTRA_S", 0.0)
+    monkeypatch.setattr(rg, "WARMUP_SUSTAIN_S", 0.0)
+    monkeypatch.setattr(rg, "WARMUP_STEP_S", 0.0)
+    monkeypatch.setattr(rg, "WARMUP_WINDOW_S", 0.05)
+    monkeypatch.setattr(v4, "cooldown_power_w", lambda window_s: 10.0)
     return fake, spediti, meta, targets
 
 
@@ -374,6 +428,9 @@ def test_verifica_piano_blocca_il_codice_cambiato_dopo_la_dichiarazione(
     misurare: un disegno modificato dopo la dichiarazione sarebbe scoperto
     solo sui dati."""
     monkeypatch.setattr(rg, "ARCHIVE_DIR", tmp_path)
+    # cmd_plan non scrive un piano senza provenienza: il soggetto di questo
+    # test e' il seed/manomissione, la guardia su git_head ha il suo file.
+    monkeypatch.setattr(rg, "_git_head", lambda: "test-head")
     rg.cmd_plan(rg.DEFAULT_MODEL)
     piano = json.loads((tmp_path / rg.PLAN_NAME).read_text(encoding="utf-8"))
     assert piano["n_blocchi"] == 12 and piano["n_coppie"] == 6
@@ -486,6 +543,10 @@ def _esegui_gate(monkeypatch, tmp_path):
     monkeypatch.setattr(rg, "DT_NOM_FROZEN", 0.05)
     monkeypatch.setattr(rg, "LOAD_M", 2)
     monkeypatch.setattr(rg, "LOAD_NUM_PREDICT", 2)
+    monkeypatch.setattr(rg, "_git_head", lambda: "test-head")
+    monkeypatch.setattr(rg, "_sha256", lambda path: "test-sha")
+    monkeypatch.setattr(rg, "_git_antenato", lambda sha: True)
+    monkeypatch.setattr(rg, "_git_percorso_misura_mutato", lambda sha: False)
     _fake, spediti, _meta, targets = _installa(monkeypatch)
     assert rg.cmd_plan(rg.DEFAULT_MODEL) == 0
     analysis = rg.cmd_execute(rg.DEFAULT_MODEL)
@@ -621,6 +682,76 @@ def test_execute_si_ferma_se_il_piano_non_e_pianificato(monkeypatch,
     dichiarato e' esattamente il difetto che P4.4 requisito 5 vuole impedire."""
     monkeypatch.setattr(rg, "ARCHIVE_DIR", tmp_path / "archive")
     monkeypatch.setattr(rg, "RESULTS_DIR", tmp_path / "results")
+    monkeypatch.setattr(rg, "_git_head", lambda: "test-head")
+    monkeypatch.setattr(rg, "_sha256", lambda path: "test-sha")
+    monkeypatch.setattr(rg, "_git_antenato", lambda sha: True)
+    monkeypatch.setattr(rg, "_git_percorso_misura_mutato", lambda sha: False)
     _installa(monkeypatch)
     with pytest.raises(SystemExit):
         rg.cmd_execute(rg.DEFAULT_MODEL)
+
+
+def test_budget_preesecuzione_e_warmup_attraversano_l_orchestrazione(
+        monkeypatch, tmp_path):
+    """La revisione del gate del 2026-11-09 tocca la regia, non solo i
+    moduli: qui si verifica che il fondo venga misurato prima che esista un
+    solo blocco di questa campagna, che il warm-up sta' DOPO l'invocazione di
+    carico e sul target letto da quel blocco, e che nessuna delle due cose
+    sposti il verdetto F.12. I numeri di scala sono nei test dedicati; qui
+    sta l'ordine degli eventi, che e' il punto dove il difetto si annida.
+    """
+    analysis, _spediti, _targets = _esegui_gate(monkeypatch, tmp_path)
+
+    # 1. l'artefatto del fondo esiste, e' scritto nell'archivio della
+    #    campagna, e dichiara la procedura con le sue chiavi anti-riscalatura
+    path = Path(analysis["budget_preregistrato_json"])
+    assert path == rg.ARCHIVE_DIR / rg.BUDGET_PREREG_NAME
+    assert path.exists()
+    fondo = json.loads(path.read_text(encoding="utf-8"))["budget_preregistrato"]
+    assert fondo["budget_mode"] == rg.BUDGET_MODE
+    assert fondo["tc_duration_s"] == pytest.approx(0.05)
+    assert fondo["n_finestre_usate"] == 6
+    assert fondo["scala_30_s_applicata"] is False
+    assert fondo["codecarbon_usato"] is False
+    assert fondo["budget_base_w"] == pytest.approx(BW, abs=1e-6)
+
+    # 2. il fondo precede i blocchi: l'unico ordine in cui una soglia
+    #    pre-registrata ha significato
+    mtime_fondo = path.stat().st_mtime_ns
+    mtime_blocchi = (rg.ARCHIVE_DIR / rg.BLOCKS_JSON_NAME).stat().st_mtime_ns
+    assert mtime_fondo <= mtime_blocchi
+
+    # 3. warm-up: presente sui soli carichi, con il target del blocco stesso
+    for r in analysis["runs"]:
+        if r["arm"] == "load":
+            assert r["warmup"] is not None
+            assert r["warmup"]["warmup_target_pre_w"] == pytest.approx(
+                float(r["block_baseline_pre_w"]))
+            assert r["warmup"]["warmup_timed_out"] is False
+        else:
+            assert r["warmup"] is None
+
+    # 4. il verdetto F.12 non si e' spostato: la soglia del criterio resta
+    #    la mediana dei budget per blocco, e il numero pre-registrato
+    #    viaggia accanto come incertezza dichiarata
+    assert analysis["bias_threshold_w"] == pytest.approx(BW)
+    assert analysis["budget_pre_esecuzione"]["budget_base_w"] == \
+        pytest.approx(analysis["bias_threshold_w"], abs=1e-6)
+    inc = analysis["incertezza"]
+    assert set(inc) == {"pre_esecuzione", "post_controlli"}
+    assert inc["pre_esecuzione"]["u_A"] is None
+    assert inc["post_controlli"]["u_A"] == pytest.approx(0.0)
+    assert analysis["soglia_preregistrata_w"] == pytest.approx(
+        inc["pre_esecuzione"]["soglia_w"])
+    assert analysis["status"] == "pass"
+
+    # 5. il report rende leggibile la soglia e le sue componenti: la
+    #    tracciabilita' chiesta dalla revisione non deve vivere solo nel
+    #    JSON. Le formule sono nel testo, accanto ai valori.
+    report = (rg.ARCHIVE_DIR / rg.REPORT_NAME).read_text(encoding="utf-8")
+    assert "## Budget pre-registrato e incertezza" in report
+    assert "scala 30 s applicata = False" in report
+    assert "CodeCarbon usato = False" in report
+    assert "### u_c pre-esecuzione" in report
+    assert "half_range_pre_w = (max - min) / 2 sulle unita' pre" in report
+    assert rg.BUDGET_PREREG_NAME in report

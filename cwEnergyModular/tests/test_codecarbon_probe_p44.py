@@ -375,6 +375,10 @@ def _fake_engine_gate(monkeypatch, tmp_path, sottocartella,
     monkeypatch.setattr(rg, "LOAD_M", 2)
     monkeypatch.setattr(rg, "LOAD_NUM_PREDICT", 2)
     _installa(monkeypatch)
+    monkeypatch.setattr(rg, "_git_antenato", lambda sha: True)
+    monkeypatch.setattr(rg, "_git_head", lambda: "test-head")
+    monkeypatch.setattr(rg, "_sha256", lambda path: "test-sha")
+    monkeypatch.setattr(rg, "_git_percorso_misura_mutato", lambda sha: False)
     assert rg.cmd_plan(rg.DEFAULT_MODEL) == 0
     return rg.cmd_execute(rg.DEFAULT_MODEL, codecarbon=codecarbon)
 

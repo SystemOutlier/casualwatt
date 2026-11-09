@@ -174,14 +174,26 @@ FREEZE_NAME = "gate_result_frozen.json"
 REPORT_NAME = "p44_gate_report.md"
 BLOCKS_JSON_NAME = "blocks_controllo.json"
 SERIES_NAME = "control_power_series.json"
+BUDGET_PREREG_NAME = "budget_preregistrato.json"
 DEFAULT_MODEL = "hf.co/sigmanih/Qwen-Qwen3-0.6B-GGUF-Q6_K:latest"
 K_MAX = 1                       # Emenda 8: sostituzione di un blocco
 DEFAULT_SEED = "gate-seed-20261107"  # campagna dichiarata; --seed per le altre
 SEED = DEFAULT_SEED             # requisito 3: seme del disegno, dichiarato
-DEFAULT_BUDGET_MODE = "short"    # "short", "long", "matched" (revisione gate)
+DEFAULT_BUDGET_MODE = "short"    # "short" | "matched" (revisione gate 2026-11-09)
 BUDGET_MODE = DEFAULT_BUDGET_MODE
-DEFAULT_BUDGET_MODE = "short"    # "short", "long", "matched" (revisione gate)
-BUDGET_MODE = DEFAULT_BUDGET_MODE
+# Regola di aggregazione del budget pre-esecuzione: TERNE di finestre idle
+# (3 pre + 3 post), la stessa struttura di P1.3/P1.5 applicata alla scala
+# della finestra, senza fattori di scala da 30 s.
+BUDGET_N_TERNE = 3               # ripetizioni per gruppo (pre e post)
+BUDGET_MATCHED_TARGET_S = 30.0   # durata equivalente dell'aggregato (matched)
+# Pavimento del primitivo di lettura: ``energy_session.py:672`` porta la
+# finestra richiesta a ``max(duration_s, 0.5)``. Chiedere una finestra piu'
+# breve e' FISICAMENTE impossibile su questo canale, quindi una procedura a
+# scala Tc con Tc sotto il pavimento non e' eseguibile: non si prende il
+# valore di 0,5 s spacciandolo per Tc: sarebbe ancora una volta una
+# grandezza letta su una scala e dichiarata su un'altra. Il Tc congelato
+# (2,930748 s) e' sopra il pavimento.
+BUDGET_FLOOR_FINESTRA_S = 0.5
 DT_NOM_FROZEN = 2.930748        # pilota P2.9, requisito 5: congelato
 GEOMETRY = "12,32"              # requisito 4: punto operativo di P3.5
 NUM_CTX = 8192
@@ -200,16 +212,29 @@ BLOCKS_PER_POINT = 1            # un blocco per invocazione: due bracci non
 # il flag nel verbale ma parte comunque. Questa e' una precondizione di
 # ESECUZIONE, lato tool: il criterio F.12, le soglie e il disegno non si
 # muovono, e il runner non cambia comportamento.
-#
-# Warm-up post-carico (Revisione del Gate, Commit 3): dopo ogni blocco di 
-# carico, viene inserita una fase di stabilizzazione non conteggiata come
-# controllo. Evita che il primo controllo post-carico (ctrl-1) domini il
-# bias aggregato. Il warm-up e' di durata fissa e registrato con un flag.
 QUIET_CONSECUTIVE = 3           # letture consecutive non rumorose per partire
 QUIET_CAP_S = 600.0             # tetto: oltre, SystemExit, mai in silenzio
 QUIET_POLL_S = 0.0              # ogni lettura e' gia' ~3 s di osservazione
                                 # (total_cpu_samples): nessuna pausa in piu'
-WARMUP_DURATION_S = 10.0        # durata fissa della stabilizzazione post-carico
+#
+# Warm-up post-carico (Revisione del Gate 2026-11-09): dopo OGNI blocco di
+# carico il tool attende un CRITERIO DI STABILIZZAZIONE MISURATO, non una
+# durata fissa: la potenza media su finestra osservata deve stare entro
+# WARMUP_TOLERANCE_W dalla baseline_pre_w del blocco di carico appena
+# chiuso per un tratto continuo di WARMUP_SUSTAIN_S (campioni a passo
+# WARMUP_STEP_S; un campione fuori tolleranza azzera il tratto, come il
+# cooldown P1.5). La durata fissa di 10 s NON era giustificata da nessuna
+# misura: qui il warm-up finisce quando la macchina dice di essere rientrata,
+# non quando scade un timer. Al tetto WARMUP_CAP_S senza rientro: SystemExit
+# ([ARRESTO]) — immettere un controllo su una macchina ancora in transitorio
+# sarebbe il difetto (residuo del carico nel bias) che questo warm-up esiste
+# per eliminare, e procedere in silenzio sarebbe un disegno diverso da
+# quello dichiarato.
+WARMUP_TOLERANCE_W = 0.5        # tolleranza di rientro dalla baseline [W]
+WARMUP_SUSTAIN_S = 10.0         # permanenza consecutiva entro tolleranza [s]
+WARMUP_CAP_S = 60.0             # tetto: oltre, SystemExit, mai in silenzio
+WARMUP_STEP_S = 1.0             # passo fra i campioni di osservazione [s]
+WARMUP_WINDOW_S = 2.0           # finestra di potenza per campione [s]
 
 
 
@@ -229,20 +254,50 @@ def _scrittura_atomica(path: Path, payload) -> None:
     tmp.replace(path)
 
 
-def _git_head() -> str:
+def _git_esegui(args: Sequence[str]) -> Tuple[Optional[int], str, str]:
+    """Esegue git nel repository del piano: (codice, stdout, ragione).
+
+    ``codice`` e' ``None`` quando il processo non parte affatto (git
+    mancante, timeout, o la CreateProcess che su questo host risponde
+    ``OSError(22, ..., winerror=50)`` se chiamata dalla cattura di pytest).
+    I due stati non sono lo stesso evento e non hanno la stessa colpevole:
+    ``git`` che esce diverso da zero e' una risposta (la storia non contiene
+    quel commit), ``git`` che non parte e' una guardia non decidibile. Il
+    fail-closed e' identico — nessuna delle due passa — ma la ragione
+    stampata deve essere quella vera.
+    """
     try:
-        out = subprocess.run(
-            ["git", "rev-parse", "HEAD"], cwd=str(REPO_ROOT),
-            capture_output=True, text=True, timeout=20)
-        return out.stdout.strip() if out.returncode == 0 else ""
-    except Exception:
-        return ""
+        out = subprocess.run(["git", *args], cwd=str(REPO_ROOT),
+                             capture_output=True, text=True, timeout=20)
+    except Exception as exc:  # noqa: BLE001 - non decidibile, non "falso"
+        return None, "", f"git non eseguibile: {type(exc).__name__}: {exc}"
+    if out.returncode != 0:
+        stderr = (out.stderr or "").strip()
+        return (out.returncode, out.stdout,
+                stderr or f"git esce con codice {out.returncode}")
+    return 0, out.stdout, ""
+
+
+def _git_provenienza() -> Tuple[str, str]:
+    """(sha di HEAD, ragione): la testa del repository al momento del plan."""
+    codice, out, ragione = _git_esegui(["rev-parse", "HEAD"])
+    return ((out.strip(), "") if codice == 0 else ("", ragione))
+
+
+def _git_head() -> str:
+    return _git_provenienza()[0]
 
 
 # Il percorso di misura che il piano congela con ``git_head``: il runner e
 # la catena dei contatori. Il tool del gate puo' ricevere estensioni neutre
 # dichiarate (es. il probe diagnostico CodeCarbon); QUESTO percorso no.
 PERCORSO_MISURA = ("cwEnergyModular/benchmark_v4.py", "cwEnergyModular/energy")
+
+
+def _git_antenato_con_ragione(sha: str) -> Tuple[bool, str]:
+    codice, _, ragione = _git_esegui(
+        ["merge-base", "--is-ancestor", sha, "HEAD"])
+    return (True, "") if codice == 0 else (False, ragione)
 
 
 def _git_antenato(sha: str) -> bool:
@@ -254,13 +309,7 @@ def _git_antenato(sha: str) -> bool:
     il piano). Se git non risponde, False: una guardia non verificabile
     non passa in silenzio.
     """
-    try:
-        out = subprocess.run(
-            ["git", "merge-base", "--is-ancestor", sha, "HEAD"],
-            cwd=str(REPO_ROOT), capture_output=True, text=True, timeout=20)
-        return out.returncode == 0
-    except Exception:
-        return False
+    return _git_antenato_con_ragione(sha)[0]
 
 
 def _git_percorso_misura_mutato(da_sha: str) -> Optional[bool]:
@@ -271,16 +320,9 @@ def _git_percorso_misura_mutato(da_sha: str) -> Optional[bool]:
     committate al tool del gate non entrano, e il runner e' ancorato anche
     dal suo SHA-256 registrato nel piano (guardia separata).
     """
-    try:
-        out = subprocess.run(
-            ["git", "diff", "--name-only", f"{da_sha}..HEAD", "--",
-             *PERCORSO_MISURA],
-            cwd=str(REPO_ROOT), capture_output=True, text=True, timeout=20)
-        if out.returncode != 0:
-            return None
-        return bool(out.stdout.strip())
-    except Exception:
-        return None
+    codice, out, _ = _git_esegui(
+        ["diff", "--name-only", f"{da_sha}..HEAD", "--", *PERCORSO_MISURA])
+    return None if codice != 0 else bool(out.strip())
 
 
 def _imposta_data(data: str) -> None:
@@ -396,7 +438,15 @@ def plan_payload() -> Dict:
         # lo rifiuta invece di scoprirlo sui dati.
         "quiet_consecutive": QUIET_CONSECUTIVE,
         "quiet_cap_s": QUIET_CAP_S,
-        "warmup_duration_s": WARMUP_DURATION_S,
+        "warmup_tolerance_w": WARMUP_TOLERANCE_W,
+        "warmup_sustain_s": WARMUP_SUSTAIN_S,
+        "warmup_cap_s": WARMUP_CAP_S,
+        "warmup_step_s": WARMUP_STEP_S,
+        "warmup_window_s": WARMUP_WINDOW_S,
+        "budget_mode": BUDGET_MODE,
+        "budget_n_terne": BUDGET_N_TERNE,
+        "budget_matched_target_s": BUDGET_MATCHED_TARGET_S,
+        "budget_floor_finestra_s": BUDGET_FLOOR_FINESTRA_S,
         "geometry": GEOMETRY,
         "checks": {
             "A": (f"{N_BLOCCHI} blocchi in {N_COPPIE} coppie; ogni coppia: "
@@ -417,6 +467,34 @@ def plan_payload() -> Dict:
                   "background_load=False, una rumorosa azzera il conteggio; "
                   f"tetto {QUIET_CAP_S:g} s poi SystemExit. Parametro di "
                   "esecuzione lato tool: il criterio F.12 non cambia"),
+            "F": ("warm-up post-carico a CRITERIO MISURATO, dopo ogni blocco "
+                  f"di carico e prima del controllo della coppia: potenza "
+                  f"della finestra osservata di {WARMUP_WINDOW_S:g} s entro "
+                  f"{WARMUP_TOLERANCE_W} W dalla baseline_pre_w del blocco "
+                  f"di carico, per {WARMUP_SUSTAIN_S:g} s continui "
+                  f"(passo {WARMUP_STEP_S:g} s, un campione fuori tolleranza "
+                  f"azzera il tratto); tetto {WARMUP_CAP_S:g} s poi "
+                  "SystemExit. Nessuna durata fissa: la forma precedente "
+                  "sleep(10 s) non era ancorata a nessuna misura ed era "
+                  "collocata PRIMA del carico, non dopo"),
+            "G": (f"budget di soglia PRE-ESECUZIONE con procedura "
+                  f"{BUDGET_MODE.upper()}: {BUDGET_N_TERNE} unita' per "
+                  "gruppo (pre e post, non sovrapposti) lette da "
+                  "read_idle_window_j alla scala del controllo e aggregate "
+                  "da benchmark_v4.block_baseline (F.1/F.4). "
+                  + ("Nessun fattore di scala da 30 s: il fondo e' misurato "
+                     "su finestre di Tc."
+                     if BUDGET_MODE == "short" else
+                     f"Aggregato di "
+                     f"{math.ceil(BUDGET_MATCHED_TARGET_S / DT_NOM_FROZEN)} "
+                     "finestre Tc consecutive per unita' "
+                     f"(somma(delta_j)/somma(dt_s) = "
+                     f"{BUDGET_MATCHED_TARGET_S:g} s nominali): nessun "
+                     "campione singolo vale come budget e nessun fattore "
+                     "di scala.")
+                  + " CodeCarbon non interviene ne' in correzione ne' in "
+                    "calibrazione del budget: e' solo registro diagnostico "
+                    "aperto dal flag --codecarbon"),
         },
         "deviazioni_dichiarate": [
             f"{N_BLOCCHI} invocazioni = {N_BLOCCHI} preparazioni di stato "
@@ -447,6 +525,18 @@ def cmd_plan(model: str) -> int:
     ARCHIVE_DIR.mkdir(parents=True, exist_ok=True)
     RESULTS_DIR.mkdir(parents=True, exist_ok=True)
     plan = plan_payload()
+    # Un piano senza provenienza non e' un piano pre-registrato: e' un
+    # documento che nessuno puo' collocare su una storia del codice. Il
+    # fallimento di git va detto qui, all'atto della scrittura, perche' il
+    # sintomo ritardo all'execute (guardia su git_head) accusa la storia di
+    # essere stata riscritta, che e' un'altra cosa.
+    if not plan["git_head"]:
+        _, ragione = _git_provenienza()
+        raise SystemExit(
+            "il piano non puo' essere scritto: git non risponde a "
+            f"rev-parse HEAD ({ragione or 'codice diverso da zero'}). "
+            "Un plan.json senza git_head non ha provenienza e le guardie "
+            "pre-flight non potrebbero deciderlo.")
     _scrittura_atomica(ARCHIVE_DIR / PLAN_NAME, plan)
     print("[OK] piano scritto:", ARCHIVE_DIR / PLAN_NAME)
     for b in plan["blocks"]:
@@ -460,45 +550,475 @@ def cmd_plan(model: str) -> int:
     return 0
 
 
-def _stima_budget_short(baseline_pre_w: float, dt_W: float) -> float:
-    """Stima il budget di fondo su finestra corta (stessa durata del controllo).
-    In questo modello semplificato, assume che il fondo sia stazionario:
-    B_short = B_long * (dt_W / 30.0).
+# ---------------------------------------------------------------------------
+# Budget pre-esecuzione (Revisione del Gate 2026-11-09): il fondo di
+# incertezza contro cui il bias del controllo va deciso e' MISURATO sulla
+# scala del controllo, non ricavato per riscalatura del budget lungo. La
+# forma B_short = B_long * (Tc / 30) e' stata rimossa: non e' una stima del
+# fondo sulla scala breve, e' un coefficiente arbitrario applicato a una
+# grandezza misurata su un'altra scala, e nessuna misura lo giustifica.
+#
+# Le due procedure ammesse (BUDGET_MODE) condividono il primitivo di lettura
+# ``SESSION._source.read_idle_window_j(durata_s)`` -- lo stesso di
+# ``calibrate_idle`` e di ``tools/audit_idle_p63.py``, quindi il contatore di
+# package, non un integrale di campioni -- e la stessa regola di aggregazione
+# del budget lungo: ``benchmark_v4.block_baseline`` (P1.5-P1.7, F.1/F.4),
+# chiamata verbatim su terne di potenze.
+#
+#   short:   terne di finestre idle di durata nominale Tc (3 pre + 3 post),
+#            budget = hypot(half_range_pre_w, half_drift_w) a scala Tc.
+#   matched: N = ceil(BUDGET_MATCHED_TARGET_S / Tc) finestre Tc CONSECUTIVE
+#            aggregate per gruppo in un aggregato la cui durata nominale
+#            reacha i 30 s equivalenti; l'aggregato vale
+#            somma(delta_j) / somma(dt_s), che e' la potenza dell'aggregato
+#            e non la media delle potenze delle sue finestre; 3 aggregati pre
+#            + 3 aggregati post, poi block_baseline verbatim. Un singolo
+#            campione breve non e' mai il budget: il budget e' l'aggregato.
+#
+# In entrambi i casi: nessuna soglia, nessun coefficiente da 30 s a Tc, e
+# CodeCarbon non interviene ne' in correzione ne' in calibrazione (e' solo
+# registro diagnostico, ``--codecarbon``). Il numero si produce PRIMA dei
+# blocchi e viene scritto nel suo artefatto; ``_verifica_piano`` ha gia'
+# registrato la procedura nel piano.
+# ---------------------------------------------------------------------------
+def _sessione_misura():
+    """La sessione energetica del runner, risolta alla chiamata.
+
+    Non un'istanza locale: e' la stessa di ``benchmark_v4.SESSION`` che i
+    blocchi usano, cosi' il fondo su cui si calcola la soglia e' letto dal
+    canale che produrra' i joule dei controlli. Si risolve qui, e non si
+    importa una volta, perche' il runner la sostituisce all'avvio del run.
     """
-    return baseline_pre_w * (float(dt_W) / 30.0)
+    return v4.SESSION
 
 
-def _stima_budget_matched(baseline_pre_w: float, dt_W: float) -> float:
-    """Stima il budget aggregando finestre brevi fino a 30 s equivalenti.
-     la proiezione finale resta sulla scala T_c.
+def _finestra_idle(sessione, durata_s: float, etichetta: str) -> Dict:
+    """Una finestra idle di durata nominale ``durata_s`` letta dal contatore.
+
+    ``read_idle_window_j`` ritorna ``None`` quando il canale non esprime una
+    lettura: il budget e' una misura, quindi qui la campagna si ferma con la
+    ragione, invece di degradare a un numero derivato da altro. Un delta
+    negativo non viene clampato a zero (regola "nessun troncamento"): viene
+    dichiarato e ferma la misura, perche' su una finestra idle un decremento
+    del contatore non e' un fondo, e' un reset.
     """
-    return baseline_pre_w * (float(dt_W) / 30.0)
+    src = sessione._source
+    lettura = src.read_idle_window_j(durata_s)
+    if lettura is None:
+        causa = getattr(src, "last_read_error", "") or (
+            f"metodo attivo: {getattr(src, 'method', 'non dichiarato')!r} "
+            "(nessun backend a contatore reale)")
+        raise SystemExit(
+            f"[BUDGET] finestra {etichetta}: nessun contatore di energia del "
+            f"package leggibile ({causa}). Il budget pre-esecuzione e' una "
+            "misura del fondo sulla scala del controllo: senza contatore la "
+            "campagna non parte, e non viene usato niente al suo posto.")
+    delta_j, dt_s, canale = lettura
+    delta_j, dt_s = float(delta_j), float(dt_s)
+    if not (math.isfinite(delta_j) and math.isfinite(dt_s)):
+        raise SystemExit(
+            f"[BUDGET] finestra {etichetta}: lettura non finita "
+            f"(delta_j={delta_j!r}, dt_s={dt_s!r}).")
+    if dt_s <= 0.0:
+        raise SystemExit(
+            f"[BUDGET] finestra {etichetta}: dt_s={dt_s} non positivo; una "
+            "finestra senza durata non ha potenza.")
+    if delta_j < 0.0:
+        raise SystemExit(
+            f"[BUDGET] finestra {etichetta}: contatore decrescente "
+            f"(delta_j={delta_j:.6f} J su {dt_s:.6f} s). Su una finestra idle "
+            "un decremento e' un reset del registro, non un fondo: il valore "
+            "non si clampa e la misura si ferma.")
+    return {"label": etichetta, "delta_j": delta_j, "dt_s": dt_s,
+            "power_w": delta_j / dt_s, "channel": canale,
+            "durata_nominale_s": float(durata_s)}
 
 
-def _stima_budget(baseline_pre_w: float, dt_W: float, mode: str) -> float:
-    """Stima il budget di fondo in base alla modalita' scelta nel piano.
-    - 'long': budget su 30 s (attuale, incoerente con T_c).
-    - 'short': stima su finestra di durata dt_W (coerente).
-    - 'matched': aggregazione di finestre brevi fino a 30 s equivalenti.
+def _gruppo_finestre(sessione, durata_s: float, n: int,
+                     etichetta: str) -> List[Dict]:
+    """n finestre idle consecutive, stessa durata nominale."""
+    return [_finestra_idle(sessione, durata_s, f"{etichetta}-{i + 1}")
+            for i in range(int(n))]
+
+
+def _aggregato_consecutivo(finestre: List[Dict], etichetta: str) -> Dict:
+    """Potenza di un aggregato di finestre consecutive.
+
+    ``somma(delta_j) / somma(dt_s)``: l'energia totale divisa il tempo totale.
+    NON e' la media delle potenze delle finestre -- le finestre hanno durate
+    osservate diverse e una media semplice darebbe peso uguale a campioni di
+    durata diversa, mentre qui l'aggregato conta per la sua energia.
     """
-    if mode == "long":
-        return baseline_pre_w
-    if mode in ("short", "matched"):
-        return baseline_pre_w * (float(dt_W) / 30.0)
-    raise ValueError(f"modalita' budget non valida: {mode}")
+    delta = sum(f["delta_j"] for f in finestre)
+    dt = sum(f["dt_s"] for f in finestre)
+    if dt <= 0.0:
+        raise SystemExit(f"[BUDGET] aggregato {etichetta}: dt totale {dt}")
+    return {"label": etichetta, "power_w": delta / dt, "delta_j": delta,
+            "dt_s": dt,
+            "durata_nominale_s": sum(f["durata_nominale_s"] for f in finestre),
+            "n_finestre": len(finestre),
+            "finestre": [f["label"] for f in finestre],
+            "canali": sorted({str(f["channel"]) for f in finestre})}
 
 
-def _stima_budget(baseline_pre_w: float, dt_W: float, mode: str) -> float:
-    """Stima il budget di fondo in base alla modalita' scelta nel piano.
-    - 'long': budget su 30 s (attuale, incoerente con T_c).
-    - 'short': stima su finestre della stessa durata del controllo.
-    - 'matched': aggregazione di finestre brevi fino a 30 s equivalenti.
+def _budget_da_termine(b: Dict, etichetta: str) -> float:
+    """``budget_base_w`` di ``block_baseline``, pretendendo il numero.
+
+    ``block_baseline`` lascia le celle non calcolabili vuote (non zero): se
+    la cella del budget e' vuota significa che le terne non erano terne, e
+    procedere con un budget assente sarebbe decidere il gate senza soglia.
     """
-    if mode == "long":
-        return baseline_pre_w
-    if mode in ("short", "matched"):
-        return baseline_pre_w * (float(dt_W) / 30.0)
-    raise ValueError(f"modalita' budget non valida: {mode}")
+    valore = b.get("budget_base_w")
+    if valore == "" or valore is None:
+        raise SystemExit(
+            f"[BUDGET] {etichetta}: block_baseline non ha prodotto "
+            "budget_base_w (terna non completa). Il gate non parte senza "
+            "soglia misurata.")
+    return float(valore)
+
+
+def _calcola_budget_pre_esecuzione(mode: str, sessione) -> Tuple[float, Dict]:
+    """Budget del gate misurato PRIMA dei blocchi, alla scala del controllo.
+
+    Ritorna ``(budget_w, dettagli)``. ``budget_w`` e' in watt, come il
+    ``bias_w`` di F.12 e come i ``budget_base_w`` per blocco: nessuna
+    conversione fra scale, quindi nessuna riscalatura.
+    """
+    if mode not in ("short", "matched"):
+        raise SystemExit(
+            f"[BUDGET] BUDGET_MODE = {mode!r} non ammesso: le procedure "
+            "pre-registrate sono 'short' e 'matched'.")
+    tc = float(DT_NOM_FROZEN)
+    if tc <= 0.0:
+        raise SystemExit(f"[BUDGET] DT_NOM_FROZEN = {tc} non positivo")
+    if tc < BUDGET_FLOOR_FINESTRA_S:
+        raise SystemExit(
+            f"[BUDGET] Tc = {tc:g} s sotto il pavimento del primitivo "
+            f"({BUDGET_FLOOR_FINESTRA_S:g} s, energy_session.py:672): la "
+            "finestra breve non esiste su questo canale. La procedura a "
+            "scala Tc non e' eseguibile e non si accettano i 0,5 s del "
+            "pavimento come se fossero Tc.")
+    n_terne = int(BUDGET_N_TERNE)
+    if n_terne < 2:
+        raise SystemExit(
+            f"[BUDGET] BUDGET_N_TERNE = {n_terne}: una semi-ampiezza su un "
+            "solo campione non e' una misura di dispersione")
+
+    canali: set = set()
+    if mode == "short":
+        pre = _gruppo_finestre(sessione, tc, n_terne, "pre")
+        post = _gruppo_finestre(sessione, tc, n_terne, "post")
+        unita_pre, unita_post = pre, post
+        n_per_aggregato = 1
+        durata_aggregato_s = tc
+        n_finestre_totali = len(pre) + len(post)
+    else:
+        n_per_aggregato = max(2, math.ceil(
+            float(BUDGET_MATCHED_TARGET_S) / tc))
+        unita_pre, unita_post = [], []
+        pre, post = [], []
+        for g in range(n_terne):
+            chunk_pre = _gruppo_finestre(sessione, tc, n_per_aggregato,
+                                         f"pre-g{g + 1}")
+            pre.extend(chunk_pre)
+            unita_pre.append(_aggregato_consecutivo(
+                chunk_pre, f"agg-pre-{g + 1}"))
+        for g in range(n_terne):
+            chunk_post = _gruppo_finestre(sessione, tc, n_per_aggregato,
+                                          f"post-g{g + 1}")
+            post.extend(chunk_post)
+            unita_post.append(_aggregato_consecutivo(
+                chunk_post, f"agg-post-{g + 1}"))
+        durata_aggregato_s = n_per_aggregato * tc
+        n_finestre_totali = len(pre) + len(post)
+
+    for f in pre + post:
+        canali.add(str(f["channel"]))
+    if len(canali) > 1:
+        raise SystemExit(
+            f"[BUDGET] canali misti nella misura del fondo: {sorted(canali)}. "
+            "Un budget composto da letture di origine diversa non e' una "
+            "misura, e non si decide una soglia con esso.")
+
+    b = v4.block_baseline([f["power_w"] for f in unita_pre],
+                          [f["power_w"] for f in unita_post])
+    budget_w = _budget_da_termine(b, mode)
+
+    dettagli = {
+        "budget_mode": mode,
+        "tc_duration_s": tc,
+        "n_terne": n_terne,
+        "n_per_aggregato": n_per_aggregato,
+        "durata_aggregato_s": durata_aggregato_s,
+        "n_finestre_usate": n_finestre_totali,
+        "durata_totale_misura_s": n_finestre_totali * tc,
+        "canale": sorted(canali)[0],
+        "finestre_pre": pre,
+        "finestre_post": post,
+        "unita_pre_w": [f["power_w"] for f in unita_pre],
+        "unita_post_w": [f["power_w"] for f in unita_post],
+        "baseline": b,
+        "budget_base_w": budget_w,
+        "regola_aggregazione": (
+            "benchmark_v4.block_baseline (P1.5-P1.7, F.1/F.4) chiamata "
+            "verbatim sulle unita' di durata "
+            + ("Tc" if mode == "short" else "aggregato")
+            + "; pre_range/2 e |dP|/2 in quadratura"),
+        "scala_30_s_applicata": False,
+        "codecarbon_usato": False,
+        "assunzioni": [
+            "il fondo e' letto dal contatore di package "
+            "(read_idle_window_j), lo stesso canale di calibrate_idle e "
+            "dell'audit P6.3: non e' un integrale di campioni",
+            f"le {n_terne} unita' pre e le {n_terne} post sono misurate in "
+            "due gruppi consecutivi non sovrapposti: dP e' la deriva fra i "
+            "due gruppi, come in P1.5, e non si assume nulla",
+            "un delta negativo o una lettura assente fermano la misura: "
+            "nessun clamp a zero e nessuna degradazione silenziosa",
+            "budget_base_w e' un proxy conservativo di incertezza standard, "
+            "non una deviazione standard (P4.12: con n = 3 non si stima "
+            "una varianza) e la quadratura non e' un limite massimo "
+            "garantito (P1.7)",
+            "la procedura e' pre-registrata nel piano (budget_mode) e "
+            "verificata da _verifica_piano PRIMA di qualunque misura",
+        ],
+    }
+    if mode == "matched":
+        dettagli["aggregati_pre"] = unita_pre
+        dettagli["aggregati_post"] = unita_post
+        dettagli["assunzioni"].append(
+            f"aggregato = {n_per_aggregato} finestre Tc consecutive, "
+            f"somma(delta_j)/somma(dt_s) = {durata_aggregato_s:.3f} s "
+            f"nominali (obiettivo "
+            f"{BUDGET_MATCHED_TARGET_S:g} s): nessun campione singolo vale "
+            "come budget")
+    return budget_w, dettagli
+
+
+def _scrivi_budget_preregistrato(budget_w: float, dettagli: Dict) -> Path:
+    """L'artefatto della soglia: nasce prima dei blocchi, e il nome lo dice."""
+    payload = {"budget_preregistrato": {
+        "budget_base_w": budget_w,
+        "calcolato_utc": _dt.datetime.now(_dt.timezone.utc).isoformat(
+            timespec="seconds"),
+        **dettagli}}
+    _scrittura_atomica(ARCHIVE_DIR / BUDGET_PREREG_NAME, payload)
+    return ARCHIVE_DIR / BUDGET_PREREG_NAME
+
+
+# ---------------------------------------------------------------------------
+# Incertezza combinata: le componenti si DIMOSTRANO dai dati misurati, non
+# si elencano come esempi. Ogni componente porta il numero, la formula con
+# cui quel numero e' stato ottenuto e la fonte del numero (quale misura,
+# quale campo, quale modulo). Una componente non calcolabile resta None con
+# la sua ragione: None non e' zero, e sommare uno zero inventato restringe
+# la soglia senza fondamento (regola "nessun fallback silenzioso").
+#
+# Le quattro componenti qui sotto sono tutte calcolabili PRIMA dei controlli
+# perche' nascono dalla misura del fondo: e' quella la soglia pre-registrata.
+# u_A (dispersione fra i controlli) non puo' che venire dopo, e arriva come
+# quinta componente in un secondo numero dichiarato accanto, non in luogo del
+# primo. CodeCarbon non interviene su nessuna delle cinque: e' registro
+# diagnostico e la sua scala e' lo stesso registro 0x611 (caveat nel probe).
+# ---------------------------------------------------------------------------
+K_COVERAGE_DICHJARATO = 2.0   # fattore di copertura, dichiarato prima dei dati
+
+
+def _deviazione_allineamento(unita: List[Dict]) -> float:
+    """Massimo scostamento fra durata osservata e nominale di un'unita'.
+
+    Semi-ampiezza conservativa, non deviazione standard: con poche unita' non
+    si stima una varianza (P4.12) e qui serve un bordo, non una sigma.
+    """
+    deviations = [abs(float(u["dt_s"]) - float(u["durata_nominale_s"]))
+                  for u in unita]
+    if not deviations:
+        raise SystemExit("[U_C] nessuna unita' misurata: niente allineamento")
+    return max(deviations)
+
+
+def _incertezza_pre_esecuzione(dettagli_budget: Dict,
+                               risoluzione_timer_s: Optional[float]) -> Dict:
+    """u_c pre-esecuzione con le sue componenti tracciabili.
+
+    Il denominatore delle componenti temporali e' la durata osservata minima
+    delle unita' del fondo: usare il minimo rende la conversione la piu'
+    sfavorevole delle osservate, quindi conservativa; il valore assoluto della
+    potenza da scalare e' la baseline del fondo stesso (mediana delle unita'
+    pre), perche' e' quella la potenza su cui l'errore di tempo agisce.
+    """
+    b = dettagli_budget["baseline"]
+    # Le unita' cui applicare le componenti temporali sono quelle che sono
+    # entrate in block_baseline: in 'short' le finestre Tc lette dal
+    # contatore, in 'matched' gli aggregati consecutivi. Non le finestre
+    # singole del matched, perche' li' il denominatore di ogni potenza e'
+    # la somma dei dt dell'aggregato.
+    if dettagli_budget["budget_mode"] == "matched":
+        unita = (list(dettagli_budget["aggregati_pre"])
+                 + list(dettagli_budget["aggregati_post"]))
+    else:
+        unita = (list(dettagli_budget["finestre_pre"])
+                 + list(dettagli_budget["finestre_post"]))
+    fondo_w = float(b["baseline_pre_w"])
+    dt_min_s = min(float(u["dt_s"]) for u in unita)
+    dev_allineamento_s = _deviazione_allineamento(unita)
+
+    componenti: Dict[str, Dict] = {}
+    durata_unita_s = (float(dettagli_budget["durata_aggregato_s"])
+                      if dettagli_budget["budget_mode"] == "matched"
+                      else float(dettagli_budget["tc_duration_s"]))
+    componenti["u_rumore"] = {
+        "value": float(b["half_range_pre_w"]),
+        "formula": "half_range_pre_w = (max - min) / 2 sulle unita' pre",
+        "fonte": (f"misura del fondo pre-esecuzione ({dettagli_budget['budget_mode']}), "
+                  f"{dettagli_budget['n_terne']} unita' di "
+                  f"{durata_unita_s:g} s nominali, canale "
+                  f"{dettagli_budget['canale']}"),
+    }
+    componenti["u_termico"] = {
+        "value": float(b["half_drift_w"]),
+        "formula": "half_drift_w = |mediana(post) - mediana(pre)| / 2",
+        "fonte": ("stessa misura del fondo: i due gruppi non sovrapposti "
+                  "dell'attesa di stabilizzazione, come P1.5"),
+    }
+    if risoluzione_timer_s is None:
+        componenti["u_timer"] = {
+            "value": None,
+            "formula": None,
+            "fonte": ("probe_cpu_time_resolution non misurabile su questo "
+                      "host: la componente resta assente, non vale zero"),
+        }
+        u_timer = None
+    else:
+        u_timer = fondo_w * (float(risoluzione_timer_s) / 2.0) / dt_min_s
+        componenti["u_timer"] = {
+            "value": u_timer,
+            "formula": ("P_fondo * (mezza risoluzione dei cpu_times) / "
+                        "min(dt osservato): l'errore di tempo agisce sul "
+                        "denominatore della potenza"),
+            "fonte": (f"CasualWattLocalEnergyProfiler.probe_cpu_time_resolution()"
+                      f" = {float(risoluzione_timer_s):.4f} s, stesso "
+                      "chiamante del runner (benchmark_v4.py:2635)"),
+        }
+    u_all = fondo_w * dev_allineamento_s / dt_min_s
+    componenti["u_allineamento"] = {
+        "value": u_all,
+        "formula": ("P_fondo * max|dt_osservato - dt_nominale| / "
+                    "min(dt osservato): bordo temporale fra finestra chiesta "
+                    "e finestra effettivamente letta dal contatore"),
+        "fonte": (f"unita' della misura del fondo: {len(unita)} unita', "
+                  f"deviazione massima {dev_allineamento_s:.6f} s su "
+                  f"nominale {durata_unita_s:g} s"),
+    }
+
+    u_c, _ = gu.calcola_u_c(
+        dispersione_controlli=None,
+        risoluzione_timer=componenti["u_timer"]["value"],
+        dispersione_baseline=componenti["u_rumore"]["value"],
+        margine_termico=componenti["u_termico"]["value"],
+        incertezza_allineamento=componenti["u_allineamento"]["value"])
+    return {
+        "quando": "pre_esecuzione",
+        "u_c": u_c,
+        "k": K_COVERAGE_DICHJARATO,
+        "budget_base_w": float(dettagli_budget["budget_base_w"]),
+        "soglia_w": float(dettagli_budget["budget_base_w"])
+                      + K_COVERAGE_DICHJARATO * u_c,
+        "componenti": componenti,
+        "u_A": None,
+        "nota_u_A": ("non calcolabile prima dei controlli: richiede le potenze "
+                     "nette dei blocchi di controllo, che non esistono ancora"),
+        "codecarbon_usato": False,
+    }
+
+
+def _potenze_netta_dei_controlli(controls: Sequence[Mapping]) -> List[float]:
+    """E_net/dt_W per ogni controllo utilizzabile, in watt.
+
+    Sono i controlli DI F.12, con lo stesso filtro `usable` gia' applicato
+    dal gate: la dispersione non si calcola su una popolazione diversa da
+    quella che ha prodotto il bias, perche' due insiemi diversi darebbero
+    due numeri non confrontabili fra loro.
+    """
+    out: List[float] = []
+    for c in controls:
+        if not c.get("usable"):
+            continue
+        try:
+            dt = float(c.get("dt_w_s"))
+            e = float(c.get("e_net_j"))
+        except (TypeError, ValueError):
+            continue
+        if dt > 0.0 and math.isfinite(dt) and math.isfinite(e):
+            out.append(e / dt)
+    return out
+
+
+def _incertezza_con_au_controlli(pre: Dict, controls: Sequence[Mapping]) -> Dict:
+    """Lo stesso u_c con la quinta componente, quando i controlli esistono.
+
+    u_A e la semi-ampiezza della dispersione fra blocchi di controllo, non la
+    deviazione standard delle terne di baseline: P4.12 vieta una sigma a
+    n = 3 sulle ripetizioni dello stesso blocco; qui l'unita' statistica
+    e' il blocco e i blocchi sono N_COPPIE, e il numero resta descrittivo
+    (regola del linguaggio dell'incertezza) e non sostituisce il bias di F.12.
+    """
+    potenze = _potenze_netta_dei_controlli(controls)
+    if len(potenze) < 2:
+        u_a = None
+        fonte_a = (f"controlli utilizzabili con dt_W valido: {len(potenze)}; "
+                   "serve almeno una coppia di blocchi per una dispersione "
+                   "fra blocchi")
+    else:
+        stats = _statistiche_descrittive(potenze)
+        half_amplitude = (max(potenze) - min(potenze)) / 2.0
+        u_a = half_amplitude
+        fonte_a = (f"potenze nette dei {len(potenze)} controlli utilizzabili: "
+                   f"max {max(potenze):.6f} W, min {min(potenze):.6f} W, "
+                   f"semi-ampiezza {half_amplitude:.6f} W; SD campionaria di "
+                   f"riferimento {stats['sd']} (descrittiva fra blocchi, non "
+                   "usata come incertezza)")
+    componenti = dict(pre["componenti"])
+    componenti["u_A"] = {
+        "value": u_a,
+        "formula": ("(max - min) / 2 sulle potenze nette dei controlli "
+                    "utilizzabili: semi-ampiezza conservativa fra blocchi"),
+        "fonte": fonte_a,
+    }
+    u_c, _ = gu.calcola_u_c(
+        dispersione_controlli=u_a,
+        risoluzione_timer=componenti["u_timer"]["value"],
+        dispersione_baseline=componenti["u_rumore"]["value"],
+        margine_termico=componenti["u_termico"]["value"],
+        incertezza_allineamento=componenti["u_allineamento"]["value"])
+    return {
+        "quando": "post_controlli",
+        "u_c": u_c,
+        "k": K_COVERAGE_DICHJARATO,
+        "budget_base_w": pre["budget_base_w"],
+        "soglia_w": pre["budget_base_w"] + K_COVERAGE_DICHJARATO * u_c,
+        "componenti": componenti,
+        "u_A": u_a,
+        "potenze_nette_w": potenze,
+        "codecarbon_usato": False,
+    }
+
+
+def _risoluzione_timer_sessione() -> Optional[float]:
+    """Il tick dei cpu_times MISURATO, con la stessa chiamata del runner.
+
+    Non un numero d'esempio: il valore e' osservato su questo host, e None
+    vuol dire "non misurabile", che nella somma in quadratura resta assente.
+    """
+    try:
+        val = v4.CasualWattLocalEnergyProfiler.probe_cpu_time_resolution()
+    except Exception:  # noqa: BLE001 - non misurabile e' un esito, non un guasto
+        return None
+    try:
+        f = float(val)
+    except (TypeError, ValueError):
+        return None
+    return f if math.isfinite(f) and f > 0.0 else None
 
 
 def _verifica_piano() -> Dict:
@@ -527,9 +1047,17 @@ def _verifica_piano() -> Dict:
         raise SystemExit("seed o modello discostati dal piano dichiarato")
     if (plan.get("quiet_consecutive") != QUIET_CONSECUTIVE
             or plan.get("quiet_cap_s") != QUIET_CAP_S
-            or plan.get("warmup_duration_s") != WARMUP_DURATION_S):
+            or plan.get("warmup_tolerance_w") != WARMUP_TOLERANCE_W
+            or plan.get("warmup_sustain_s") != WARMUP_SUSTAIN_S
+            or plan.get("warmup_cap_s") != WARMUP_CAP_S
+            or plan.get("warmup_step_s") != WARMUP_STEP_S
+            or plan.get("warmup_window_s") != WARMUP_WINDOW_S
+            or plan.get("budget_mode") != BUDGET_MODE
+            or plan.get("budget_n_terne") != BUDGET_N_TERNE
+            or plan.get("budget_matched_target_s") != BUDGET_MATCHED_TARGET_S):
         raise SystemExit(
-            "precondizione di quiete o warm-up assenti o diversi dal piano dichiarato: "
+            "precondizione di quiete, warm-up o procedura di budget assenti "
+            "o diversi dal piano dichiarato: "
             "il plan precede l'introduzione di questi parametri (o e' stato "
             "cambiato dopo). Ritirare plan.json e ripianificare PRIMA di "
             "misurare.")
@@ -553,12 +1081,22 @@ def _verifica_piano() -> Dict:
             "ripianificare PRIMA di misurare, oppure ripristinare il "
             "runner dichiarato.")
     head_dichiarato = plan.get("git_head") or ""
-    if not head_dichiarato or not _git_antenato(head_dichiarato):
+    if not head_dichiarato:
         raise SystemExit(
-            f"git_head del piano ({head_dichiarato or 'assente'}) non e' "
-            "un antenato del commit corrente: la storia e' stata riscritta "
-            "o il piano arriva da un altro repository. Mi fermo PRIMA di "
-            "misurare.")
+            "git_head del piano assente: il piano non porta la testa del "
+            "repository al momento della scrittura, quindi la guardia non ha "
+            "un termine di confronto. Mi fermo PRIMA di misurare.")
+    if not _git_antenato(head_dichiarato):
+        # La sola chiamata a git serve per dire PERCHE': il booleano non
+        # distingue "git risponde che non lo e'" da "git non parte", e le
+        # due cose hanno colpevoli diversi. Il run si ferma comunque.
+        _, ragione = _git_antenato_con_ragione(head_dichiarato)
+        accusa = (ragione if ragione.startswith("git non eseguibile") else
+                  "la storia e' stata riscritta o il piano arriva da un altro "
+                  "repository")
+        raise SystemExit(
+            f"git_head del piano ({head_dichiarato}) non risulta antenato di "
+            f"HEAD ({accusa}). Mi fermo PRIMA di misurare.")
     mutato = _git_percorso_misura_mutato(head_dichiarato)
     if mutato is None:
         raise SystemExit(
@@ -843,6 +1381,123 @@ def _attendi_quiete(*, consecutive: Optional[int] = None,
             "top_processes": top}
 
 
+def _stabilizza_post_carico(target_pre_w: Optional[float], *,
+                            tolerance_w: Optional[float] = None,
+                            sustain_s: Optional[float] = None,
+                            cap_s: Optional[float] = None,
+                            step_s: Optional[float] = None,
+                            window_s: Optional[float] = None,
+                            campiona: Optional[Callable[[], Optional[float]]] = None,
+                            clock: Callable[[], float] = time.monotonic,
+                            sleep: Callable[[float], None] = time.sleep,
+                            on_log=None) -> Dict:
+    """Warm-up post-carico come criterio MISURATO, non come durata fissa.
+
+    Perche' la forma fissa e' stata tolta. ``time.sleep(10.0)`` dopo il
+    blocco di carico chiudeva una fase il cui termine non dipendeva da
+    niente: se la macchina rientrava in 2 s si perdevano 8 s, se non ci
+    rientrava in 10 s il controllo partiva lo stesso in transitorio — e il
+    residuo del carico finiva dentro ``E_net`` del controllo, cioe' dentro
+    la grandezza che il gate deve stimare a residuo nullo. Un timer non e'
+    un criterio di stabilizzazione.
+
+    Criterio (meccanica identica al cooldown P1.5, ``cooldown_to_baseline``):
+    la potenza media su finestra osservata di ``window_s`` sta entro
+    ``tolerance_w`` da ``target_pre_w`` — la ``baseline_pre_w`` del blocco di
+    carico appena chiuso — per un tratto CONTINUO di ``sustain_s``; un
+    campione fuori tolleranza (o una lettura assente) azzera il tratto. La
+    disuguaglianza e' stretta, come in P1.5.
+
+    Al tetto ``cap_s`` senza rientro: ``SystemExit``, NON un prosiegui con
+    un flag. Il cooldown puo' tornare con ``timed_out`` perche' il blocco e'
+    gia' definito e il flag lo dichiara; qui il blocco successivo NON e'
+    ancora partito e immetterlo su una macchina in transitorio ricreerebbe
+    esattamente il difetto che questa fase esiste per eliminare. La quiete
+    di precondizione ha la stessa scelta (tetto -> arresto) e la coerenza
+    fra le due e' voluta.
+
+    ``campiona``/``clock``/``sleep`` sono iniettabili perche' la meccanica
+    dei limiti si verifica deterministicamente in test senza hardware; il
+    default legge ``v4.cooldown_power_w(window_s)``, la stessa fonte di
+    ``settle_idle`` e della calibrazione (contatore di package, non media
+    dei campioni).
+    """
+    if tolerance_w is None:
+        tolerance_w = WARMUP_TOLERANCE_W
+    if sustain_s is None:
+        sustain_s = WARMUP_SUSTAIN_S
+    if cap_s is None:
+        cap_s = WARMUP_CAP_S
+    if step_s is None:
+        step_s = WARMUP_STEP_S
+    if window_s is None:
+        window_s = WARMUP_WINDOW_S
+    read = campiona or (lambda: v4.cooldown_power_w(window_s))
+    log = on_log or (lambda m: None)
+    try:
+        target = float(target_pre_w)  # type: ignore[arg-type]
+    except (TypeError, ValueError):
+        target = float("nan")
+    if not math.isfinite(target) or target <= 0.0:
+        raise SystemExit(
+            f"[WARM-UP] nessun target di rientro valido "
+            f"(baseline_pre_w = {target_pre_w!r}): il criterio di "
+            "stabilizzazione e' una distanza da una baseline misurata; senza "
+            "baseline non esiste ne' il criterio ne' un sostituto, e la "
+            "campagna si ferma invece di dormire un tempo a caso.")
+
+    t0 = clock()
+    soddisfatta_dal: Optional[float] = None
+    campioni = 0
+    letture_mancanti = 0
+    valori: List[float] = []
+    while True:
+        ora = clock()
+        campioni += 1
+        potenza = read()
+        try:
+            v = None if potenza is None else float(potenza)
+        except (TypeError, ValueError):
+            v = float("nan")
+        if v is None or not math.isfinite(v):
+            letture_mancanti += 1
+            soddisfatta_dal = None
+            log(f"[WARM-UP] campione {campioni}: lettura assente, tratto "
+                "di permanenza azzerato")
+        else:
+            valori.append(round(v, 6))
+            if abs(v - target) < tolerance_w:
+                if soddisfatta_dal is None:
+                    soddisfatta_dal = ora
+                if ora - soddisfatta_dal >= sustain_s:
+                    attesa = ora - t0
+                    log(f"[WARM-UP] rientro raggiunto dopo {attesa:.1f} s: "
+                        f"{sustain_s:g} s continui entro {tolerance_w} W da "
+                        f"P_pre={target:.3f} W ({campioni} campioni)")
+                    return {"warmup_wait_s": attesa,
+                            "warmup_campioni": campioni,
+                            "warmup_letture_mancanti": letture_mancanti,
+                            "warmup_target_pre_w": round(target, 6),
+                            "warmup_soglia_w": tolerance_w,
+                            "warmup_valori_w": valori,
+                            "warmup_timed_out": False}
+            else:
+                soddisfatta_dal = None
+                log(f"[WARM-UP] campione {campioni}: {v:.3f} W fuori da "
+                    f"{tolerance_w} W da {target:.3f} W, tratto azzerato")
+        durato = clock() - t0
+        if durato >= cap_s:
+            raise SystemExit(
+                f"[WARM-UP] tetto {cap_s:g} s raggiunto senza {sustain_s:g} "
+                f"s continui entro {tolerance_w} W da P_pre={target:.3f} W "
+                f"(campioni={campioni}, letture mancanti={letture_mancanti}, "
+                f"ultimi valori={valori[-5:]}): la macchina non e' rientrata "
+                "dal carico. Il controllo NON parte — procedere in silenzio "
+                "sarebbe immettere un residuo di carico nel bias che il gate "
+                "deve misurare.")
+        sleep(max(min(step_s, cap_s - durato), 0.0))
+
+
 def cmd_execute(model: str, *, codecarbon: bool = False,
                 codecarbon_interval: Optional[float] = None) -> Dict:
     plan = _verifica_piano()
@@ -859,6 +1514,36 @@ def cmd_execute(model: str, *, codecarbon: bool = False,
 
     reale, wrapper, catturati = _cattura_riepiloghi()
     reale_cw, wrapper_cw, serie = _cattura_serie_controllo()
+
+    # Budget PRE-registrato (Revisione del Gate 2026-11-09): la soglia si
+    # misura qui, prima che esista un solo blocco di questa campagna, e su
+    # una macchina gia' quieta (la precondizione vale anche per il fondo: un
+    # fondo misurato a macchina carica sarebbe un budget gonfiato dal carico,
+    # cioe' la stessa contaminazione che il gate deve dimostrare assente).
+    # Il modo e' quello dichiarato nel piano e verificato sopra: short o
+    # matched, e in entrambi i casi il numero viene da finestre lette dal
+    # contatore alla scala del controllo, NON da una riscalatura del budget
+    # lungo per Tc/30 (formula rimossa) e NON da CodeCarbon.
+    print("[BUDGET] precondizione di quiete prima della misura del fondo",
+          flush=True)
+    quiete_fondo = _attendi_quiete(on_log=lambda m: print(m, flush=True))
+    print(f"[BUDGET] procedura dichiarata: {BUDGET_MODE} "
+          f"(Tc = {DT_NOM_FROZEN:g} s, {BUDGET_N_TERNE} unita' per gruppo)",
+          flush=True)
+    risoluzione_timer = _risoluzione_timer_sessione()
+    budget_w, dettagli_budget = _calcola_budget_pre_esecuzione(
+        BUDGET_MODE, _sessione_misura())
+    budget_path = _scrivi_budget_preregistrato(budget_w, dettagli_budget)
+    incertezza_pre = _incertezza_pre_esecuzione(dettagli_budget,
+                                                risoluzione_timer)
+    print(f"[BUDGET] fondo: pre {dettagli_budget['unita_pre_w']} W | "
+          f"post {dettagli_budget['unita_post_w']} W", flush=True)
+    print(f"[BUDGET] budget_base_w = {budget_w:.6f} W "
+          f"(half_range {dettagli_budget['baseline']['half_range_pre_w']}, "
+          f"half_drift {dettagli_budget['baseline']['half_drift_w']}) | "
+          f"u_c = {incertezza_pre['u_c']:.6f} W | soglia pre-registrata "
+          f"S = {incertezza_pre['soglia_w']:.6f} W "
+          f"(k = {incertezza_pre['k']}) -> {budget_path}", flush=True)
 
     # Registro diagnostico CodeCarbon: SOLO con il flag. L'import e' dentro
     # il ramo perche' senza flag il comportamento deve restare identico a
@@ -894,13 +1579,7 @@ def cmd_execute(model: str, *, codecarbon: bool = False,
             # Precondizione PRIMA di ogni invocazione, load E control:
             # una macchina carica non parte (check E del piano).
             quiet = _attendi_quiete(on_log=lambda m: print(m, flush=True))
-            
-            # Warm-up post-carico (Revisione del Gate, Commit 3): 
-            # dopo ogni blocco di carico, inseriamo una fase di stabilizzazione.
-            if b["arm"] == "load":
-                print(f"[WARM-UP] stabilizzazione post-carico: {WARMUP_DURATION_S} s...", flush=True)
-                time.sleep(WARMUP_DURATION_S)
-            
+
             # Il tracker avvolge la sola invocazione: l'overhead di
             # start()/stop() (~1 s per blocco, misurato l'08-11) resta
             # FUORI da run_v4_benchmark e il probe lo dichiara nel suo
@@ -915,6 +1594,18 @@ def cmd_execute(model: str, *, codecarbon: bool = False,
                 if probe is not None:
                     probe.chiudi_blocco()
             rec = dict(catturati[-1]) if catturati else {}
+            # Warm-up post-carico MISURATO (Revisione del Gate 2026-11-09):
+            # sta DOPO l'invocazione di carico e PRIMA che la coppia prosegua
+            # verso il controllo, perche' cio' che si attende e' il rientro
+            # della macchina verso la baseline del blocco appena chiuso. Il
+            # target e' quel numero letto dal riepilogo reale, non una
+            # costante: se il blocco non lo ha prodotto, la stabilizzazione
+            # non ha un criterio e il tool si ferma (vedi la funzione).
+            warmup: Optional[Dict] = None
+            if b["arm"] == "load":
+                warmup = _stabilizza_post_carico(
+                    rec.get("baseline_pre_w"),
+                    on_log=lambda m: print(m, flush=True))
             run_rec = {
                 "index": b["index"], "label": b["label"], "arm": b["arm"],
                 "pair_id": b["pair_id"], "run_id": summary["run_id"],
@@ -932,6 +1623,7 @@ def cmd_execute(model: str, *, codecarbon: bool = False,
                 "quiet_top_processes": quiet["top_processes"],
                 "background_load_before": summary.get("background_load_before"),
                 "background_load_after": summary.get("background_load_after"),
+                "warmup": warmup,
             }
             runs.append(run_rec)
             if summary.get("errors"):
@@ -976,22 +1668,17 @@ def cmd_execute(model: str, *, codecarbon: bool = False,
               flush=True)
     _scrittura_atomica(ARCHIVE_DIR / SERIES_NAME, serie)
     q = cg.evaluate_gate(controls, n_pairs=N_COPPIE)
-    
-    # Revisione del Gate (Commit 2): calcolo della soglia scientifica S = B_matched + k * u_c.
-    # La soglia di cg.evaluate_gate (mediana del budget) è usata per il verdetto F.12,
-    # ma qui calcoliamo la versione rivista per l'analysis e il report.
-    k_coverage = 2.0
-    # Componenti u_c (valori pre-registrati o derivati)
-    u_c, componenti = gu.calcola_u_c(
-        dispersione_controlli=None, # Calcolato a posteriori se disponibile
-        risoluzione_timer=0.0005,     # Esempio: 0.5 ms
-        dispersione_baseline=0.01,    # Esempio: 10 mW
-        margine_termico=0.02,         # Esempio: 20 mW
-        incertezza_allineamento=0.001 # Esempio: 1 mW
-    )
-    s_scientific = q.bias_threshold_w + (k_coverage * u_c) if q.bias_threshold_w else None
-    
+
+    # Il verdetto F.12 resta quello congelato (mediana dei budget per
+    # blocco, quorum, chain_status): non si sposta qui. Accanto, e dichiarata
+    # come tale, viaggia la soglia di copertura calcolata sul fondo
+    # pre-registrato: la prima con u_A assente perche' i controlli non
+    # esistevano ancora, la seconda con la quinta componente quando i
+    # controlli ci sono. Nessuna delle due sostituisce l'altra, e nessuna
+    # delle due passa da CodeCarbon.
     analysis = q.to_dict()
+    incertezza_post = _incertezza_con_au_controlli(incertezza_pre,
+                                                   analysis["controls"])
     analysis.update({
         "pilot": "P4.4 gate",
         "model": model,
@@ -1005,6 +1692,7 @@ def cmd_execute(model: str, *, codecarbon: bool = False,
         "block_summary_csv": str(blocks_path),
         "blocks_controllo_json": str(ARCHIVE_DIR / BLOCKS_JSON_NAME),
         "control_power_series_json": str(ARCHIVE_DIR / SERIES_NAME),
+        "budget_preregistrato_json": str(budget_path),
         "series_counts": {s["block_id"]: s["n_samples"] for s in serie},
         "run_ids": [r["run_id"] for r in runs],
         "git_head": _git_head(),
@@ -1020,11 +1708,32 @@ def cmd_execute(model: str, *, codecarbon: bool = False,
         # di evaluate_gate e' gia' scritto e non legge questo ramo. Senza
         # flag la chiave non esiste e l'analysis e' byte-identica a oggi.
         analysis["codecarbon"] = riepilogo_probe
-    
-    # Revisione del Gate (Commit 2): aggiunta della soglia scientifica e dell'incertezza.
-    analysis["soglia_scientifica"] = s_scientific
-    analysis["incertezza_combinata"] = {"u_c": u_c, "componenti": componenti}
-    
+
+    # Soglia di copertura sul fondo pre-registrato, con le componenti
+    # dimostrate. E' una grandezza riportata, non il criterio F.12: la
+    # riga qui sotto serve a chi legge per verificare il conto, non a
+    # decidere l'esito.
+    analysis["budget_pre_esecuzione"] = {
+        "budget_mode": BUDGET_MODE,
+        "budget_base_w": budget_w,
+        "tc_duration_s": DT_NOM_FROZEN,
+        "n_finestre_usate": dettagli_budget["n_finestre_usate"],
+        "n_per_aggregato": dettagli_budget["n_per_aggregato"],
+        "durata_aggregato_s": dettagli_budget["durata_aggregato_s"],
+        "canale": dettagli_budget["canale"],
+        "unita_pre_w": dettagli_budget["unita_pre_w"],
+        "unita_post_w": dettagli_budget["unita_post_w"],
+        "baseline": dettagli_budget["baseline"],
+        "assunzioni": dettagli_budget["assunzioni"],
+        "scala_30_s_applicata": False,
+        "codecarbon_usato": False,
+        "risoluzione_timer_s": risoluzione_timer,
+        "quiete_pre_fondo_s": quiete_fondo["quiet_wait_s"],
+    }
+    analysis["incertezza"] = {"pre_esecuzione": incertezza_pre,
+                              "post_controlli": incertezza_post}
+    analysis["soglia_preregistrata_w"] = incertezza_pre["soglia_w"]
+
     _scrittura_atomica(ARCHIVE_DIR / ANALYSIS_NAME, analysis)
     _scrittura_atomica(ARCHIVE_DIR / FREEZE_NAME, analysis)
     _write_report(analysis)
@@ -1202,6 +1911,63 @@ def _write_report(data: Dict) -> None:
                      f"{data['bias_threshold_w']:.6f} W\n\n")
         else:
             fh.write("- bias non calcolato: gate non eseguibile\n\n")
+        b_pre = data.get("budget_pre_esecuzione")
+        inc = data.get("incertezza") or {}
+        if b_pre:
+            fh.write("## Budget pre-registrato e incertezza "
+                     "(grandezza riportata, NON il criterio F.12)\n\n")
+            fh.write("La soglia nasce qui, PRIMA che esista un solo blocco "
+                     "di questa campagna: il fondo e' letto dal contatore di "
+                     "package su finestre della durata nominale del controllo "
+                     "e aggregato con le stesse regole del budget lungo "
+                     "(`benchmark_v4.block_baseline`, F.1/F.4). Nessuna "
+                     "riscalatura per Tc/30 e nessun contributo di "
+                     "CodeCarbon. Il verdetto resta quello di F.12 sul "
+                     "`bias_w` contro la mediana dei budget per blocco.\n\n")
+            fh.write(f"- procedura: `{b_pre['budget_mode']}` | "
+                     f"Tc = {b_pre['tc_duration_s']} s | "
+                     f"{len(b_pre['unita_pre_w'])} unita' pre + "
+                     f"{len(b_pre['unita_post_w'])} post | "
+                     f"{b_pre['n_per_aggregato']} finestre Tc per unita' "
+                     f"({b_pre['durata_aggregato_s']:.6f} s nominali) | "
+                     f"{b_pre['n_finestre_usate']} finestre lette in tutto | "
+                     f"canale `{b_pre['canale']}`\n")
+            fh.write(f"- potenze unita' pre = {b_pre['unita_pre_w']} W, "
+                     f"post = {b_pre['unita_post_w']} W\n")
+            base = b_pre["baseline"]
+            fh.write(f"- mediana pre (baseline del fondo) = "
+                     f"{base['baseline_pre_w']} W | half_range_pre_w = "
+                     f"{base['half_range_pre_w']} W | half_drift_w = "
+                     f"{base['half_drift_w']} W\n")
+            fh.write(f"- budget_base_w = {b_pre['budget_base_w']:.6f} W | "
+                     f"scala 30 s applicata = "
+                     f"{b_pre['scala_30_s_applicata']} | CodeCarbon usato = "
+                     f"{b_pre['codecarbon_usato']} | timer = "
+                     f"{b_pre['risoluzione_timer_s']} s | quiete pre-fondo = "
+                     f"{b_pre['quiete_pre_fondo_s']:.1f} s\n")
+            for nome, gruppo in (("pre-esecuzione",
+                                  inc.get("pre_esecuzione")),
+                                 ("post-controlli",
+                                  inc.get("post_controlli"))):
+                if not gruppo:
+                    continue
+                fh.write(f"\n### u_c {nome}\n\n")
+                fh.write(f"- u_c = {gruppo['u_c']:.6f} W, k = {gruppo['k']}, "
+                         f"soglia S = budget + k*u_c = "
+                         f"{gruppo['soglia_w']:.6f} W\n")
+                for componente, det in gruppo["componenti"].items():
+                    valore = det["value"]
+                    testo = (f"{valore:.6f} W"
+                             if isinstance(valore, (int, float))
+                             and not isinstance(valore, bool) else "assente")
+                    fh.write(f"  - {componente} = {testo} - "
+                             f"`{det['formula'] or 'non calcolabile'}`; "
+                             f"fonte: {det['fonte']}\n")
+            fh.write("\n### Assunzioni dichiarate\n\n")
+            for assunzione in b_pre["assunzioni"]:
+                fh.write(f"- {assunzione}\n")
+            fh.write(f"\n- artefatto: "
+                     f"`{data.get('budget_preregistrato_json', '')}`\n\n")
         fh.write("## Blocchi di controllo\n\n")
         run_per_blocco = {r.get("block_id", ""): r
                           for r in data.get("runs", [])}
