@@ -67,7 +67,8 @@ sonda. La suite resta a **608**: quel commit non aggiunge test.
 La suite e' riverificata al **05-11-2026**, dopo i test del valutatore entrati su
 `emenda-8` con `52e1d77c` e `180f8638` (id parametrizzati) e dopo i due punti GPU
 del backlog EMInote: `calibrate_gpu_idle` (`energy/energy_session.py`, che assegna
-`idle_gpu_power_w`, il campo che `energy/local_energy.py:931` legge e che nessun
+`idle_gpu_power_w`, il campo che `energy/local_energy.py:931` legge (ri-ancorato
+il 09-11: `:1068`) e che nessun
 percorso di produzione riempiva) e il termine GPU condizionale di `settle_idle`
 (stessa sessione, con la dichiarazione in `notes` dal runner). La raccolta e' a
 **822** node id (`819 + 3`), **801** dei quali preesistevano a questi due punti --
@@ -137,7 +138,9 @@ tocca, mentre `RUN_METADATA_COLUMNS` resta a **30** nomi: la colonna
 (`casualwatt_csv_export.py:343-357` la conta oggi, e il generatore
 `tools/dump_schema_latex.py --macros` restituisce `nColonneMetadati=30`); le
 coordinate dei quattro schemi sono righe 17-204 / 212-227 / 229-237 /
-343-361. L'Appendice A rigenerata lo stesso giorno da
+343-361. La quarta chiusura e' **357**, misurata il 09-11: il blocco
+`RUN_METADATA_COLUMNS` apre a 343 e si chiude a 357, e il `:343-357` piu' su in
+questo paragrafo era gia' corretto. L'Appendice A rigenerata lo stesso giorno da
 `tools/dump_schema_latex.py` porta $174$ + $30$, $77$ di riga + $1$ di metadato
 `nuova`, $28$ `vuota`, header $99$ e $29$: le $174$ + $30$ e l'$1$ di metadato
 `nuova` della riga datata 04-11 restano in piedi come storia datata, non vengono
@@ -188,14 +191,76 @@ una conseguenza di vocabolario che i tre `P2` stanno esattamente testando: con
 l'identita' illeggibile il token `missing` non e' piu' prodotto, e con esso lo
 stato legittimo "mai calibrato" -- la FASE 3 del pannello GUI e la prosa che
 distingue "nessun monitor" da "monitor senza contatore" vanno rilette quando quel
-lavoro si chiude. Gli **845** raccolti con **0 falliti** del 05-11
-restano la fotografia di un altro albero, finche' quel lavoro non e' chiuso e il
-conteggio non e' rigenerato. La tesi e' ricompilata due volte il 06-11: dopo la
+lavoro si chiude. **Quel lavoro si e' chiuso la sera del 07-11** (fixture
+allineate al contratto di identita', 73 test GPU verdi) e la conseguenza allora
+prevista oggi e' misurata: `gpu_idle_provenance = "missing"` **non e' piu'
+raggiungibile in produzione**. Il token esiste solo come valore iniziale a
+`energy/local_energy.py:1081`, e ogni ramo dell'`if/elif/else` a `:1082-1101` lo
+sovrascrive -- `calibrated`, `invalid-baseline`, `device-changed`,
+`identity-unavailable` -- prima che `:1103` lo pubblichi. Restano pero' cinque
+testi che lo promettono ancora: il commento del vocabolario a `:160`
+(`("calibrated" | "missing")`), la docstring `energy/energy_session.py:1733` e i
+tre messaggi del pannello `gui/benchmark_panel.py:36`, `:47`, `:680` (con il
+commento storico a `:650`). Nessuno dei **1142** node id legge quei testi:
+`tests/test_energy_corrections.py:180`, `:191`, `:200`, `:208` asseriscono
+`identity-unavailable`, `calibrated` e la stringa vuota, quindi la suite e' verde
+su un vocabolario che la prosa dell'interfaccia non racconta piu'. E' un debito di
+sincronizzazione fra messaggio e codice, non un errore di calcolo, e si chiude
+decidendo quale token debba dire "mai calibrato" -- non spostando una soglia. Gli
+**845** raccolti con **0 falliti** del 05-11
+restano la fotografia di un altro albero; il conteggio rigenerato e' quello del
+09-11 in testa a questo file. La tesi e' ricompilata due volte il 06-11: dopo la
 rigenerazione dell'Appendice A (`pdflatex`, `biber`, `pdflatex` x2) il log da'
 **195 pagine, 0 `Overfull \hbox`, 0 riferimenti indefiniti** -- lo stesso numero
 ancorato il 04-11 -- e dopo l'allineamento dei capitoli con le macro **196** con
 gli stessi **0** e **0**; i due `main.toc` non sono stati confrontati, quindi la
 pagina in piu' non e' localizzata e resta una misurazione, non un diff.
+La **suite, l'Appendice D e gli ancoraggi del percorso di misura** sono
+riverificati al **09-11-2026**, sull'albero che porta il gate P4.4 eseguito, la
+Quindicesima emenda sul budget di soglia (`270167db8`), il probe CodeCarbon
+(`425d44980`) e il warm-up a criterio misurato (`c51c0ff9a`). L'Appendice D
+rigenerata con `tools/dump_tests_latex.py` raccoglie **1142** node id con
+**1139 passati e 4 saltati** e **0 falliti** (eseguita 1143 perche' lo skip di
+modulo non compare in `--collect-only`); rieseguendo la stessa raccolta da un
+processo in cui `git` non e' eseguibile i saltati diventano **5**, perche'
+`tests/test_preflight_gate_p44.py:287` si autodichiara: non e' un verde in meno,
+e' la guardia che non pu' girare, e la fotografia va letta con questa
+dipendenza. Il delta dai **993** del 07-11 e' di **+149**, chiuso per file:
+**144** entrano con nove file nuovi tutti in `tests/`
+(`test_budget_p44_preesecuzione` 38, `test_quiet_gate_p44` 27,
+`test_gate_p44_end_to_end` 15, `test_preflight_gate_p44` 15,
+`test_codecarbon_probe_p44` 14, `test_pairs_gate_p44` 14,
+`test_compare_codecarbon_gate_p44` 8, `test_pilot_p29_tool` 7,
+`test_nonce_opzionale_v4` 6) e **5** in `tests/test_paired_mcnemar.py`
+(8 -> 13); nessun file e' uscito e nessuna riga e' sparita. La ripartizione e'
+**834** in `tests/` e **308** alla radice di `cwEnergyModular/` (gli stessi
+**308** del 05-11 file per file -- 168, 23, 26, 59, 2, 8, 22 -- quindi nessuno
+dei sette file della radice ha cambiato test). I
+conteggi della prosa, col parser del generatore: **885** funzioni per
+`(percorso, classe, nome)`, **884** ignorando la classe, **839** monoriga +
+**303** righe parametrizzate come le stampa il parser, che sono **834 + 308**
+con la regola delle appartenenze; **51** famiglie parametrizzate in **23** file,
+**71** file di test (64 in `tests/`, 7 alla radice). Le righe con parametro
+vuoto `[]`, che il parser conta fra le monoriga, ora sono **cinque** e non due
+(`test_controllo_p44_v4.py::test_senza_dt_nominale_il_controllo_non_parte` in
+una famiglia da 6, `test_cooldown_v4.py::test_riferimento_non_valido_rende_il_cooldown_non_eseguibile`
+da 7, `test_gate_p44_end_to_end.py::test_date_non_valida_rifiutata_prima_di_scrivere`
+da 4, `test_metodo_ammissibile.py::test_stato_non_di_misura_produce_none` da 3,
+`test_quiet_gate_p44.py::test_seed_vuoto_o_di_soli_spazi_rifiutato` da 2) e la
+regola di appartenenza e' quella gia' usata il 04-11. Copertura docstring
+**1134** righe documentate su **1142**: le otto scoperte sono sempre le stesse
+funzioni di `tests/test_paired_mcnemar.py` (13 `test_`, 8 senza docstring) e il
+debito non si e' mosso perche' i cinque node id entrati li hanno tutti; le
+intestazioni di modulo in corsivo sono **68** su **71** e i tre file senza
+restano `test_evaluation_runner.py`, `test_mudilab_adapter.py`,
+`test_robust_evaluator.py`. I tre salti RAPL stanno ancora in
+`tests/test_rapl.py:43` e il quarto in `tests/test_cloud_proxy_and_mapping.py:46`.
+Il conteggio dei file tracciati e' riverificato lo stesso giorno:
+`cwEnergyModular/tools/` e' a **18** file (non 15: sono entrati
+`codecarbon_probe.py` con `425d44980`, `compare_codecarbon_gate.py` con
+`6e0d9dab5` e `gate_uncertainty.py` con `270167db8`), `experiment_results/` a
+**271** ($251$ in radice, $20$ nelle cinque cartelle di campagna), e gli script
+`.py` alla radice restano **36**.
 Se un ancoraggio non torna, il file e' stantio: va corretto, non ignorato.
 
 Fonti primarie, in ordine di autorita':
@@ -292,8 +357,13 @@ node id stanno in `tests/test_control_gate_p45.py`. Il secondo punto fissa che
 il riepilogo del controllo entra nello schema P5 **senza allargarlo**: le
 quantita' `control_*` non hanno una colonna, `BLOCK_SUMMARY_COLUMNS` resta a 34
 nomi e `block_kind`/`pair_id` identificano il blocco nel file consegnato
-(`tests/test_controllo_p44_v4.py`). Il terzo chiude il contratto fra i due
-moduli: sei blocchi passati per `run_block` vero, con la sola identita' di
+(`tests/test_controllo_p44_v4.py`). Il `34` di quella frase era sbagliato nel
+numero, non nella deriva: contato il 09-11 importando il modulo,
+`BLOCK_SUMMARY_COLUMNS` ha **36** nomi, e 36 sono anche a `9f888717a`, il commit
+del 26-10 che ha congelato lo schema P5. La sostanza della frase regge perche'
+nessuno dei `control_*` entra fra quei 36: `block_kind` e `pair_id` stanno li'
+gia' e sono quelli che identificano il blocco. Il terzo chiude il contratto fra
+i due moduli: sei blocchi passati per `run_block` vero, con la sola identita' di
 coppia rietichettata, alimentano `evaluate_gate` e danno `pass` con
 `bias_w = 0,1 W` contro la soglia 0,223607 W -- se un nome di campo divergesse
 (`control_e_net_j`, `control_dt_w_s`, `pre_range_w`, `dP`, `budget_base_w`) il
@@ -312,6 +382,18 @@ righe, prompt `c-001`) -- mediana 0,4102935 s, tre volte 1,2308805 s -- sono
 esecuzioni di blocco di un altro run del 06-11 sera, non il pilota che il
 requisito nomina. Il numero c'e', la sua provenienza no, e una durata inventata
 sarebbe un disegno diverso da quello congelato scoperto solo dopo i dati.
+**Questa ultima frase non e' piu' vera al 09-11-2026** e sta qui come fotografia
+del 07-11: `dt_nominal_s` e' stato congelato dal pilota P2.9 a 2,930748 s
+(`experiment_results/p29_pilot_20261107/dt_nominal_frozen.json`) e il gate e'
+stato eseguito due volte, entrambe con verdetto `fail` di F.12:
+`experiment_results/p44_gate_20261107/analysis.json` da' `|bias_w| = 0,479571 W`
+contro `mediana_c(budget_base_w) = 0,262324 W` con 4 controlli utilizzabili su 6,
+e `experiment_results/p44_gate_20261108/analysis.json` da' `0,125171 W` contro
+`0,117995 W` con 6 su 6 (quorum 4 in entrambe, e `chain_status` vuoto in
+entrambe perche' il quorum e' raggiunto: la dichiarazione di catene e' il ramo
+*sotto* quorum, non il verdetto). Il verbale della notte del 07-11 resta esatto su cio' che
+affermava allora, e la suite che citava -- **993** -- e' la fotografia di quel
+commit: quella vigente e' nei due paragrafi in testa a questo file.
 
 Conformita' dei metodi sul percorso di misura (07-11-2026, notte). Un audit
 contro P1.3, P1.4 e P1.5 ha trovato fedeli la calibrazione (tre repliche,
@@ -339,7 +421,10 @@ avviata.
 
 Eccezione dichiarata al congelamento, ora **chiusa** da Emenda 8 (2026-10-26):
 la **forma di combinazione** di `budget_base_w` e' la **quadratura**
-(`hypot` di `half_range_pre_w` e `half_drift_w`, `energy/benchmark_v4.py::block_baseline`),
+(`hypot` di `half_range_pre_w` e `half_drift_w`,
+`benchmark_v4.py:1010`, la formula in docstring a `:1021`; percorso **non**
+`energy/benchmark_v4.py` -- il runner sta alla radice di `cwEnergyModular/`, e
+questa riga lo nominava male: ri-ancoraggio del 09-11-2026),
 adottato come covarianza/semi-ampiezze combinate, non come limite massimo
 garantito — e **non** la somma aritmetica. L'impegno verso la campagna principale
 era rinviato ai dati del pilota P2.9; il pilota e' eseguito (0,000304 kg CO2eq
@@ -373,13 +458,15 @@ stanno solo le regole che un agente puo' violare senza accorgersene.
   lettura via PawnIO **richiede un processo elevato**: da token UAC filtrato o
   SAFER `pawnio_open` risponde `0x80070005` e la ragione e' `access_denied`
   (misurato il 28-10-2026). EMI non ha questo requisito. Il canale va scritto per
-  riga in `energy_calculation_method` (`energy/local_energy.py:151`), la finestra
+  riga in `energy_calculation_method` (`energy/local_energy.py:174`), la finestra
   in `package_window_source` (`exact-counter | samples-fallback | counter-invalid
-  | unavailable`, `:140-141`; `counter-invalid` dal 02-11-2026, `9fa9a44c`, e con un
+  | unavailable`, `:163-164`; `counter-invalid` dal 02-11-2026, `9fa9a44c`, e con un
   **secondo** trigger dal 04-11-2026 -- `b3b12ffe`, vedi la regola del registro fermo),
-  l'origine della baseline in `idle_provenance` (`:142`) e, dalla v4, in
-  `baseline_backend` — campo del protocollo P1.3, non ancora presente nel codice.
-  Il flag `external_counter` (`:156`, D14) dice se quel numero viene da un canale
+  l'origine della baseline in `idle_provenance` (`:165`) e, dalla v4, in
+  `baseline_backend` — campo del protocollo P1.3, non ancora presente nel codice
+  (verificato il 09-11-2026: `grep` di `baseline_backend` sotto `cwEnergyModular/`
+  da' zero colpi).
+  Il flag `external_counter` (`:179`, D14) dice se quel numero viene da un canale
   **esterno** alla catena: vero solo per `energy-file` (`CW_ENERGY_FILE`), falso
   per EMI, PawnIO, RAPL e per le catene GPU. Serve a escludere le righe
   dell'override con un filtro booleano, non confrontando l'etichetta.
@@ -404,17 +491,18 @@ stanno solo le regole che un agente puo' violare senza accorgersene.
   NVML -> AMD SMI per la stessa scheda, e i due non girano mai in parallelo.
   **La scheda dentro un backend si seleziona per indice, e l'indice 0 non e'
   una scelta implicita** (dal 03-11-2026): `_gpu_indice_richiesto`
-  (`energy/energy_session.py:1471`) legge argomento esplicito, poi
-  `CW_GPU_INDEX`, poi "non dichiarato"; `_selezione_device` (`:1496`) apre
+  (`energy/energy_session.py:1882`) legge argomento esplicito, poi
+  `CW_GPU_INDEX`, poi "non dichiarato"; `_selezione_device` (`:1907-1926`) apre
   l'indice richiesto e, se e' fuori intervallo, **non apre la scheda 0** —
   misurare una scheda e scrivere la riga come se fosse quella richiesta e' un
   numero attribuito male, non un degrado. Con un solo device l'indice 0 non e'
   un'assunzione e non produce nota; con piu' device e nessuna selezione la riga
   lo dice per via sua (`device_note`, appendice in `notes`,
-  `energy/local_energy.py:851-853`, lo schema P5 resta 174 nomi). Un
+  `energy/local_energy.py:988-990`, lo schema P5 resta 174 nomi). Un
   `CW_GPU_INDEX` non numerico e' un errore dichiarato, non un "non dichiarato".
   L'indice e' una **posizione nell'elenco del backend che ha risposto**
-  (`nvmlDeviceGetHandleByIndex`, `amdsmi_get_processor_handles`), non un ID del
+  (`nvmlDeviceGetHandleByIndex` `energy_session.py:1976`,
+  `amdsmi_get_processor_handles` `:2263`), non un ID del
   produttore: lo stesso numero su vendor diversi non e' lo stesso silicon. Il
   runner non ha un flag per l'indice — la via di produzione oggi e'
   `CW_GPU_INDEX`, perche' la sessione chiama `_open_gpu_monitor()` senza
@@ -422,16 +510,22 @@ stanno solo le regole che un agente puo' violare senza accorgersene.
   **Il ramo per processo non ha una durata da usare, e deve dirlo.**
   `gpu_process_energy_j` vale N/A nella quasi totalita' dei casi, perche' il
   binding NVML installato espone i campioni di `nvmlDeviceGetProcessUtilization`
-  come `(pid, timeStamp, smUtil, memUtil, encUtil)` -- **nessun intervallo per
-  processo** (`pynvml.py:1755-1761`, letto il 04-11-2026). Senza durata non
-  esiste frazione del tempo di finestra da scalare all'energia board: **non si
+  come `(pid, timeStamp, smUtil, memUtil, encUtil, decUtil)` -- **nessun intervallo
+  per processo** (`pynvml.py:1755-1763`, riletto il 09-11-2026). Il file non e'
+  nel repository: e' quello del pacchetto `pynvml` installato accanto
+  all'interprete che esegue la suite (su questa macchina
+  `pythoncore-3.15-64/Lib/site-packages/pynvml.py`), quindi l'ancoraggio e'
+  una verifica datata su un ambiente, non un riferimento del repo: va riaperto
+  su un'altra macchina. Senza durata non esiste frazione del tempo di finestra
+  da scalare all'energia board: **non si
   inventa un intervallo** e non si sposta il ramo su un'altra unita' di misura.
-  Ogni `None` di `process_energy_j` (`energy_session.py:1648`) scrive la **propria**
-  ragione in `process_energy_reason` (inizializzata a `:1569, :1683`) e
-  `local_energy.py:989` porta quella stringa nella riga: una formula fissa per
+  Ogni `None` di `process_energy_j` (`energy_session.py:2102`) scrive la **propria**
+  ragione in `process_energy_reason` (inizializzata a `:2005`, `:2137`, con i rami
+  a `:2139-2178`) e
+  `local_energy.py:1171-1173` porta quella stringa nella riga: una formula fissa per
   tutti i rami era falsa, perche' il ramo piu' frequente non e' un problema di
-  NVML bensi' `_last_window_board_active_j`, letto via `getattr` e mai assegnato
-  da nessun percorso. Il campo resta **informativo**: non entra in
+  NVML bensi' `_last_window_board_active_j`, letto via `getattr` a
+  `energy_session.py:2186` e mai assegnato da nessun percorso. Il campo resta **informativo**: non entra in
   `gpu_energy_attributed_j` e non sostituisce l'attribuzione whole-device. Limite
   dichiarato del ramo che funziona: i campioni vengono dagli **ultimi 10 s** di
   storia NVML, non da `[t_start, t_end]`, quindi la frazione non e' sulla finestra
@@ -473,8 +567,10 @@ stanno solo le regole che un agente puo' violare senza accorgersene.
 - **Un registro fermo ai bordi non e' una finestra da 0 J.** Il record EMI porta
   il timestamp del contatore in unita' da 100 ns (`energy/emi_backend.py:31`,
   esposto come `ts_100ns` a `:588`; solo EMI lo ha -- PawnIO risponde `None`,
-  `energy/energy_session.py:888` e `:903`). Se i due bordi leggono **lo stesso
-  record** (`ts_edge1 <= ts_edge0`, `energy/local_energy.py:461-471`, da
+  `energy/energy_session.py:902` per il ramo EMI e `:917` per il `None` di
+  PawnIO, con la dichiarazione nella docstring di `energy_session.py:882`).
+  Se i due bordi leggono **lo stesso
+  record** (`ts_edge1 <= ts_edge0`, `energy/local_energy.py:486-500`, da
   `b3b12ffe` del 04-11-2026) l'incremento nullo non e' una misura: e' una lettura
   non avanzata, e la finestra va `counter-invalid` con `active_valid = False`, non
   `exact-counter` con `package_energy_raw_j = 0.0`. Nello stesso colpo la riga non
@@ -488,29 +584,33 @@ stanno solo le regole che un agente puo' violare senza accorgersene.
   che esiste.
 - **Nessun troncamento.** Gli incrementi negativi si conservano: sul ramo CPU il
   flag di riga e' `active_valid` con i valori grezzi `package_energy_raw_j` e
-  `active_energy_raw_j` (`energy/local_energy.py:603-604`, `:622-633`; colonne
-  nel schema a `casualwatt_csv_export.py:118`), e a livello di blocco resta il
-  flag `negative_increment` (`benchmark_v4.py:1694`, colonna di riepilogo). **Il
+  `active_energy_raw_j` (dichiarazioni `energy/local_energy.py:130`, `:136`,
+  `:141`; assegnazioni `:628-629` e `:645-647`; `active_valid` calcolata a
+  `:765-770`; colonne nel schema a `casualwatt_csv_export.py:118`), e a livello
+  di blocco resta il
+  flag `negative_increment` (`benchmark_v4.py:2221`, colonna di riepilogo). **Il
   debito di metodo dichiarato il 24-10 e' chiuso al 02-11-2026 da `cd881e6b`**:
   i tre clamp a zero che la produzione applicava (`:512`, `:530`, `:548`
   nell'antesistema) non esistono piu' — l'integrale di fallback somma `cur -
-  prev` senza `max` (`local_energy.py:578-581`), `package_energy_j` e' il valore
-  firmato (`:603`) e `active = active_raw` (`:621`), con la nota che nomina il
-  negativo quando c'e' (`:634-639`). **Anche il quarto clamp, quello del percorso
+  prev` senza `max` (`local_energy.py:601-607`), `package_energy_j` e' il valore
+  firmato (`:628`) e `active = active_raw` (`:646-647`), con la nota che nomina il
+  negativo quando c'e' (`:771-776`). **Anche il quarto clamp, quello del percorso
   a campioni, cade il 04-11-2026 con `86bba6a8`**:
-  `package_energy_exact_between` (`energy/energy_session.py:1188`) restituiva
+  `package_energy_exact_between` (`energy/energy_session.py:1237`) restituiva
   `max(base, 0.0)` -- e lo applicava anche dopo la sottrazione delle
   sottofinestre escluse, quindi un reset fra i campioni diventava una finestra da
   `+X` J invece che da `-X` J -- e ora restituisce il delta firmato in entrambi i
-  rami. **Le coordinate di questo elenco sono del 04-11 (sera), dopo i ~40 righe
-  di guardie aggiunte da `b3b12ffe` e `86bba6a8`**: i valori citati a `:539`,
-  `:561`, `:579`, `:592-597`, `:620`, `:637`, `:672`, `:683-684` dell'ancoraggio
-  del 02-11 sono gli stessi codici piu' su di quelle righe, e chi corregge di
-  nuovo le guardie deve re-indirizzarli. Resta clampato cio' che **non e' energia**:
-  i delta di tempo CPU (`:662`, `:665`, `:679`) perche' un contatore di secondi che
-  torna indietro e' un reset, e la quota dove viene usata (`:726`) perche' il
-  rapporto grezzo `share_raw` e' conservato a `:746-747` con le anomalie dichiarate
-  (`:712-718`, `:725`). La regola non nasce con la v4: era gia' DP-A nella
+  rami. **Le coordinate di questo elenco sono ri-ancorate il 09-11-2026**, dopo
+  le guardie di `b3b12ffe` e `86bba6a8` e dopo la crescita del modulo dei giorni
+  successivi: chi corregge di nuovo le guardie deve re-indirizzarle, perche'
+  sono gli stessi codici piu' su di quelle righe. I tre siti che oggi scrivono
+  `counter-invalid` sono `:468` (delta negativo ai bordi), `:492` (registro fermo
+  sullo stesso record) e `:555` (delta negativo sul percorso a campioni).
+  Resta clampato cio' che **non e' energia**:
+  i delta di tempo CPU (`:799`, `:802`, `:816`) perche' un contatore di secondi che
+  torna indietro e' un reset, e la quota dove viene usata (`:863`) perche' il
+  rapporto grezzo `share_raw` e' conservato a `:883-885` con le anomalie dichiarate
+  (`:842-855`, `:862`). La regola non nasce con la v4: era gia' DP-A nella
   specifica `METODI_E_FORMULE.md` del 21-10
   (`Ê_att = E_pkg^raw − E_base`, "firmata, mai clampata"), documento che sta in
   `Tesi-latex/` e quindi **fuori da git**: la
@@ -519,7 +619,9 @@ stanno solo le regole che un agente puo' violare senza accorgersene.
   specifica; la frase che lo affermava era stantia ed e' stata sostituita da
   questa dichiarazione. Uno zero legittimo e' dichiarato, non inventato: baseline non
   calibrata -> `baseline_energy_j = 0` con `idle_provenance = "uncalibrated"`
-  (`energy/local_energy.py:380-390`).
+  (`energy/local_energy.py:405-415`, dove `P_idle` e' posto a 0 con la
+  provenienza, e `baseline_energy_j` eredita lo zero da `:640-641`; il campo e'
+  dichiarato a `:165`).
 - **Linguaggio dell'incertezza.** "Semi-range conservativi", mai "deviazione
   standard": con `n = 3` non si stima una varianza. Nessun `sqrt(...)` del
   protocollo e' una propagazione di varianza: sono combinazioni in quadratura di
@@ -541,25 +643,38 @@ stanno solo le regole che un agente puo' violare senza accorgersene.
   il range. Un indicatore ridondante suggerisce che esista una sigma stimata.
 - **`acc_comp` non e' un'accuratezza.** E' un indice descrittivo a pesi su tre
   componenti di natura eterogenea (`acc_links`, `judge/5`, coseno nel regime A) e
-  la sua scala non e' omogenea: il numeratore di `ece_per_joule` mischia un
-  punteggio 0-1 con una media su scala 0-5. L'accuratezza primaria resta
+  la sua scala non e' omogenea: mescola un punteggio 0-1 con una media su scala
+  0-5. L'accuratezza primaria resta
   `is_correct` (1/0/N/A) e in ogni ramo si determina **prima** di `acc_comp`
-  (`evaluator.py:400` e `:406`, `:507` e `:508`, `:535` e `:537`, `:580-597` e
-  `:610`, `:665` e `:667`). Il nome storico "accuracy composita" era ambiguo e la
+  (`evaluator.py:400` e `:406`, `:504` e `:505`, `:513` e `:514`, `:521` e
+  `:522`, `:526` e `:527`, `:546` e `:548`, `:591`/`:600`/`:608` e `:621`,
+  `:676` e `:678` -- le ultime due coppie sono i quattro rami di `number` e
+  quello di `short_text` entrati con `8cba343cc`, che hanno aggiunto le
+  determinazioni `None` del riferimento non valido e dell'estrazione
+  indeterminata). Il nome storico "accuracy composita" era ambiguo e la
   rinomina **non** ha toccato lo schema P5: il ruolo della riga sta in `notes`
-  (`RUOLO_COMPOSITO` / `RUOLO_BINARIA`, `evaluator.py:238-245`, appese a `:414`,
-  `:524`, `:548`, `:617`, `:673`) e nelle etichette dei grafici
+  (`RUOLO_COMPOSITO` `evaluator.py:230-233` / `RUOLO_BINARIA` `:234-237`,
+  appese a `:414`,
+  `:535`, `:559`, `:628`, `:684`) e nelle etichette dei grafici
   (`genera_grafici_tesi.py`), non in una colonna nuova. Sui rami `number` e
   `short_text` `acc_comp` **coincide** con `float(is_correct)`: non e' un'eccezione
-  da annotare, e' la definizione del ramo.
+  da annotare, e' la definizione del ramo. La frase che legava questa scala
+  non omogenea al «numeratore di `ece_per_joule`» era vera al 04-11 e non lo e'
+  piu' dal 05-11 (`9de43925c`): `ece_per_joule` e' scritto `"N/A"` senza
+  calcolo (`benchmark_unified.py:653`) e la nota accanto dice espressamente che
+  `acc_comp` «resta un indice descrittivo indipendente, non un numeratore di
+  efficienza energetica» (`:654-655`). Il divieto di presentare `acc_comp` come
+  accuratezza non cambia; cambia che il numeratore deprecato non c'e' piu'.
 - **L'unita' statistica di un benchmark ripetuto e' il task, non la riga.**
   Ripetere la stessa richiesta a temperatura zero non aggiunge un grado di
   liberta'; la variabilita' da coprire e' fra task diversi. Accanto all'intervallo
   di Wilson a livello di riga si pubblica un **bootstrap a livello di task**
   (percentile 2,5-97,5, 2000 ricampioni, seed `20261104`:
-  `evaluation_runner.py:14-20`, chiave `accuracy_cluster_bootstrap_95` a `:565`, e
-  `robust_evaluator.py:490-510`, dove `task_ids` arriva come argomento perche'
-  `EvaluationResult` non porta l'identita' del task). Nei tre casi in cui non e'
+  `evaluation_runner.py:14-15`, chiave `accuracy_cluster_bootstrap_95` a `:565`, e
+  `robust_evaluator.py:459-479` con `n_effective_tasks` a `:513`, dove `task_ids`
+  arriva come argomento perche' `EvaluationResult` non porta l'identita' del task).
+  Coordinate ri-ancorate il 09-11-2026: `490-510` era la firma della stessa
+  funzione prima della crescita del file. Nei tre casi in cui non e'
   calcolabile l'intervallo resta **`None` con la ragione dichiarata**: identita'
   del task non registrata, un solo task distinto (varianza zero per costruzione non
   e' evidenza), righe senza id escluse dal ricampiono ma conteggiate nella nota. Se
@@ -588,11 +703,20 @@ stanno solo le regole che un agente puo' violare senza accorgersene.
 ## Comandi di verifica
 
 ```
-pytest cwEnergyModular          # 993 raccolti: 990 passati, 4 saltati, 0 falliti
-                                # (07-11 notte, dopo P1.4; eseguito 994 per lo
-                                # skip di modulo, che non compare in
-                                # --collect-only)
-                                # storia datata: 977 raccolti / 974 passati (07-11
+pytest cwEnergyModular          # 1142 raccolti: 1139 passati, 4 saltati, 0 falliti
+                                # (09-11 sera, dopo i 149 node id delle tre
+                                # campagne P4.4, del warm-up misurato e di P2.9;
+                                # eseguito 1143 per lo skip di modulo, che non
+                                # compare in --collect-only). Quinta variante: con
+                                # `git` non eseguibile dal processo di test sale a
+                                # 5 saltati, perche' la guardia di
+                                # tests/test_preflight_gate_p44.py:287 si dichiara
+                                # non eseguibile invece di fallire -- il conteggio
+                                # dei salti e' una proprieta' dell'host, non del
+                                # tree.
+                                # storia datata: 993 raccolti / 990 passati (07-11
+                                # notte, dopo P1.4; eseguito 994 per lo skip di
+                                # modulo); 977 raccolti / 974 passati (07-11
                                 # notte, prima dello stato macchina P1.4); 976 raccolti / 973 passati (07-11
                                 # notte, prima del test di contratto); 943 raccolti / 940 passati
                                 # (07-11 sera); 906 raccolti / 903 passati
@@ -661,13 +785,19 @@ controllo segue un run.
   EMI), `energy/energy_session.py` (canali, integrazione di
   finestra, interpolazione ai bordi), `energy/local_energy.py` (campi per riga),
   `casualwatt_csv_export.py` (`CSV_COLUMNS`, righe 17-204 — 174 nomi;
-  `BLOCK_SUMMARY_COLUMNS`, 212-227; `POINT_SUMMARY_COLUMNS`, 229-237;
-  `RUN_METADATA_COLUMNS`, 343-361 — **30** nomi (la colonna
+  `BLOCK_SUMMARY_COLUMNS`, 212-227 — **36** nomi; `POINT_SUMMARY_COLUMNS`,
+  229-237 — **19** nomi;
+  `RUN_METADATA_COLUMNS`, 343-357 — **30** nomi (la colonna
   `ollama_version` promessa il 06-11 non e' mai entrata nel codice; il generatore
   `tools/dump_schema_latex.py --macros` conta 30, e il CSV di riferimento ne ha
   29 nell'header); nessuna migrazione perche'
   l'header dei metadati e' scritto una volta sola), e il
-  runner v4 `benchmark_v4.py` (sequenza di blocco di P1.5). Accanto al runner,
+  runner v4 `benchmark_v4.py` (sequenza di blocco di P1.5). I quattro conti e le
+  quattro coordinate sono ri-ancorate il 09-11-2026 importando il modulo e
+  leggendo le righe di definizione: `BLOCK_SUMMARY_COLUMNS` aveva **36** nomi gia'
+  al congelamento di P5 (`9f888717a`), quindi il "34" che questo file ripeteva dal
+  07-11 era un errore di trascrizione nella prosa, non una crescita del codice;
+  `RUN_METADATA_COLUMNS` chiude a **357** e non a 361 per la stessa ragione. Accanto al runner,
   `machine_state.py` porta gli obblighi di stato macchina di P1.4 (residenza su
   `/api/ps`, warm-up, top-5 e CPU totale, alimentazione, GUI LHM): e' codice
   del percorso di misura, non un modulo di analisi, e non tocca lo schema.
@@ -707,7 +837,15 @@ controllo segue un run.
   e direttamente in `cwEnergyModular/` (`test_answer_type_evaluation.py`, 40;
   `test_synthetic_window.py`, 2; `test_validazione_valutazione.py`, 22;
   `test_robust_evaluator.py`, 19; `test_mudilab_adapter.py`, 26;
-  `test_evaluation_runner.py`, 6); 493 + 115 = 608. Gli ultimi tre sono il criterio
+  `test_evaluation_runner.py`, 6); 493 + 115 = 608. La ripartizione **currente**,
+  misurata il 09-11-2026 con `pytest --collect-only -q` file per file, e' **834**
+  in `tests/` e **308** alla radice, e i sette numeri della riga sopra restano
+  storia datata: alla radice sono gli stessi **308** del 05-11, file per file
+  (`test_answer_type_evaluation.py` 168, `test_evaluation_runner.py` 23,
+  `test_mudilab_adapter.py` 26, `test_robust_evaluator.py` 59,
+  `test_synthetic_window.py` 2, `test_tool_provenance.py` 8,
+  `test_validazione_valutazione.py` 22) -- nessuno dei sette ha cambiato test, e
+  tutta la crescita e' dentro `tests/`. Gli ultimi tre sono il criterio
   robusto del valutatore, entrato il 04-11 con `cf6aca71` e `6b1dccb8`: e' il
   secondo criterio di quella valutazione, non un dominio nuovo della misura, e non
   tocca ne' il valore misurato ne' la scala del contatore. Diciotto delle loro
@@ -854,6 +992,26 @@ controllo segue un run.
   parser, che sono **490 + 118** con la regola delle appartenenze usata in questo
   file (le due righe ``[]`` tornano nelle famiglie da 7 e da 3); famiglie 24 in
   12 file, 48 file; delta $587 \to 608 = +21$.
+  **Rigenerata una settima volta il 09-11-2026**, sull'albero delle tre campagne
+  P4.4, del pilota P2.9, del probe CodeCarbon e del warm-up a criterio misurato:
+  **1142** node id, **1139 passati**, **4 saltati**, **0 falliti**, docstring
+  **1134 su 1142**, intestazioni di modulo in corsivo **68 su 71**, nessuna riga
+  `\textbf{fallito}`, `\textbf{errore}` o `n/eseguito`. Il delta dai **993** del
+  07-11 notte e' di **+149** ed e' chiuso per file nel paragrafo in testa a questo
+  documento, che riporta anche la ripartizione **834 + 308**, i conteggi del parser
+  (**885** funzioni, **839** monoriga + **303** parametrizzate = **834 + 308** per
+  appartenenze, **51** famiglie in **23** file, **71** file) e le cinque righe con
+  parametro vuoto ``[]`` che il parser conta fra le monoriga. Le `\paragraph` di
+  file sono **72** -- una per ciascuno dei **71** file di test piu' la sezione
+  "Motivi dei salti", che nella versione precedente era la sessantatreesima di
+  63, su 62 file -- e i quattro
+  saltati sono dichiarati dal generatore su due siti: `tests/test_rapl.py:43`
+  (tre, chiedono un host Linux) e `tests/test_cloud_proxy_and_mapping.py:46`
+  (uno, `ecologits` non installato). La copia sostituita -- **993** node id, 990
+  passati, 4 saltati, docstring 985/993, 63 `\paragraph` -- e' conservata fuori
+  dal repo e fuori da git, perche' il generato vive in `Tesi-latex/`: senza di
+  lei il confronto fra le due fotografie sarebbe fatto a memoria, e la
+  scomparsa di una riga si vedrebbe solo come ammanco aritmetico.
   **Il 03-11 anche il testo della tesi e' stato allineato a quel conteggio**: i
   paragrafi che dichiaravano $294$ node id, $291$ verdi, $237$ funzioni,
   ``ventisei file``, la decomposizione per file e l'ancoraggio di
@@ -921,13 +1079,31 @@ controllo segue un run.
   Il testo dei capitoli che parlava di $113$
   colonne \`e allineato a $174$ (cap.\,5, sezione costo in euro), e con lui gli
   ancoraggi di `benchmark_unified.py` spostati dalla crescita del runner: durate di
-  fase `:189-190, 238-239`, conversione e scorporo del giudice `:430-456, 941-970`,
-  enumerazione per richiesta `:914-915` (con `energy_session.py:814-824`), metriche
-  derivate `:605-684` e gate `f1_triples` `:674-682`, template cloud `:515, 549`
-  (nota `:541-548`, etichetta scritta dal branch `:1267-1269, 1279`), salto del
-  ramo cloud `:1113-1115`. La correzione del template cloud ha ora anche
+  fase `:197-198, 246-247`, conversione e scorporo del giudice `:446-473` e
+  `:1105-1145`,
+  enumerazione per richiesta `:971-972` (con `energy_session.py:828-839`, l'albero
+  del motore ricostruito a ogni richiesta), metriche
+  derivate `:634-800` e gate `f1_triples` `:734-748`, template cloud
+  `:542-543, 568`
+  (nota `:560-566`, etichetta scritta dal branch `:1425-1431, 1443`), salto del
+  ramo cloud `:1274-1275`. La correzione del template cloud ha ora anche
   l'ancoraggio storico del commit `1f55ca90` (23-10-2026) accanto a quello di
-  riga.
+  riga. **Queste nove coordinate sono ri-ancorate il 09-11-2026** perche'
+  l'elenco sopra portava ancora i valori del 04-11 -- durate di fase
+  `:189-190, 238-239`, giudice `:430-456, 941-970`, enumerazione `:914-915` (con
+  `energy_session.py:814-824`),
+  derivate `:605-684`, `f1_triples` `:674-682`, template `:515, 549` con nota
+  `:541-548` ed etichetta `:1267-1269, 1279`, salto cloud `:1113-1115` -- e il
+  file nel frattempo e' cresciuto (1598 righe) per `8cba343cc`, `9de43925c` e
+  `0a7019271`. Sulla stessa rilettura, la riga che legava `ece_per_joule` alla
+  scala di `acc_comp` e' oggi un riferimento a un campo deprecato: `ece_per_joule`
+  e' scritto `"N/A"` senza calcolo (`:653`) con la nota accanto (`:654`), e il
+  campo non ha piu' un numeratore. Resta da segnalare, e non corretto qui perche'
+  e' commento di codice e non prosa di questo file: la nota interna a `:563`
+  continua a citare `benchmark_unified.py:1113-1115` come il punto che fa SKIP
+  senza chiave API, mentre quel salto sta a `:1274-1275` -- un ancoraggio stantio
+  dentro il sorgente, che nessuno dei 1142 node id misura perche' nessuna
+  asserzione legge quel commento.
   I cinque boxes che stavano nel log del 03-11 (4 in
   `capitoli/cap04_architettura_implementazione.tex` righe 125-141, i token
   `librehardwaremonitor-energy`, `nvml-power-integral`, `amdsmi-power-integral`,
@@ -949,12 +1125,19 @@ controllo segue un run.
   una frase in `cap06_conclusioni_sviluppi.tex` (riga 162: il ramo multi-device e'
   [I] con [V] da fare, provato solo contro `pynvml` e `amdsmi` finti). Le tre
   aggiunte non introducono claim nuovi: ripetono in prosa ancoraggi gia' nel codice
-  (`energy_session.py:1471-1493`, `:1496-1515`, `:1559`, `:1783-1787`, `:1804`,
-  `:765`, `local_energy.py:851-853`, `casualwatt_csv_export.py:35`) -- e sono
-  quelle del 04-11 (sera), perche' i ~70 righe aggiunte da `4b922db6` dentro
-  `_GPUMonitor` hanno spostato in basso tutto il ramo AMD: le coordinate del 04-11
+  (`energy_session.py:1882-1905` la lettura dell'indice, `:1907-1926` la selezione
+  del device, `:1944` e `:2244` le due inizializzazioni di `device_note`, `:1971`
+  e `:2272` i due rami che la scrivono, `:2237-2241` la nota AMD sul fatto che
+  l'indice e' una posizione nell'elenco, `:765` la chiamata senza argomento,
+  `local_energy.py:988-990`, `casualwatt_csv_export.py:35`) -- e sono
+  ri-ancorate il 09-11-2026. Quelle precedenti nominavano `1471-1493`,
+  `1496-1515`, `1559`, `1783-1787`, `1804`, `851-853`: erano le coordinate del
+  04-11 (sera), perche' i ~70 righe aggiunte da `4b922db6` dentro `_GPUMonitor`
+  avevano gia' spostato in basso tutto il ramo AMD, e le coordinate del 04-11
   mattina (`1465-1487`, `1490-1509`, `1553`, `1716-1720`, `1737`, `809-811`)
-  indicano lo stesso codice.
+  indicano lo stesso codice; da allora il contratto di identita' GPU ha aggiunto
+  `_gpu_identity` (`:1819`) e la calibrazione con identità, spostando il ramo di
+  altre ~410 righe. Il codice indicato e' lo stesso; cambia dove sta.
   I conteggi non si aggiornano a mano: si rigenera dopo ogni test aggiunto, rimosso
   o rinominato. La verifica del conteggio al 28-10 e' in
   `experiment_results/appD_conteggio_20261028.md`.
@@ -977,10 +1160,14 @@ controllo segue un run.
   protocollo va tracciato**, perche' un'analisi non tracciata e' un numero che
   nessuno puo' rigenerare. Le sonde usa-e-getta non citate da nulla sono in
   `.gitignore`.
-- `cwEnergyModular/tools/` — **15** file tracciati (conteggio `git ls-files`,
+- `cwEnergyModular/tools/` — **18** file tracciati (conteggio `git ls-files`,
   non un elenco a vista; la riga diceva 11 e ne mancavano tre:
-  `audit_idle_p63.py`, `run_gate_p44.py`, `run_pilot_p29.py`; il quindicesimo e'
-  `mcnemar_report.py`, entrato l'08-11-2026 con il suo commit). I generatori del
+  `audit_idle_p63.py`, `run_gate_p44.py`, `run_pilot_p29.py`; il quindicesimo era
+  `mcnemar_report.py`, entrato l'08-11-2026 con il suo commit, e il conteggio
+  **15** e' rimasto scritto li' mentre il sesto turno di P4.4 ne portava altri
+  tre: `codecarbon_probe.py` con `425d44980`, `compare_codecarbon_gate.py` con
+  `6e0d9dab5` e `gate_uncertainty.py` con `270167db8`. Conteggio riverificato il
+  09-11-2026). I generatori del
   materiale LaTeX (Appendici A, D, E), l'analisi di cadenza EMI, la validazione
   HWiNFO e le tre sonde PawnIO (`fetch_pawnio_modules.py` scarica e verifica i moduli della
   release con hash pinnato, `pawnio_probe.py` confronta il contatore con EMI e
@@ -1004,9 +1191,13 @@ controllo segue un run.
   esclusi per ragione; dichiara **INDECISO** quando `b+c=0` e la cautela sopra il
   10% di coppie escluse. Non tocca la misura e non tocca lo schema CSV. Il
   conteggio di questa riga e' `git ls-files`, non un elenco a vista.
-- `experiment_results/` — dati sperimentali e analisi, tracciati (220 file: 219 in
-  radice, 1 in `codecarbon_four_way/`; riverificati il 04-11-2026, dopo `244d1c2f`,
-  che porta l'analisi Monte Carlo di P6.4). I
+- `experiment_results/` — dati sperimentali e analisi, tracciati (271 file: 251 in
+  radice e 20 nelle cinque cartelle di campagna -- `codecarbon_four_way/` 1,
+  `p29_pilot_20261107/` 7, `p44_gate_20261107/` 5, `p44_gate_20261108/` 6,
+  `p44_gate_20261109/` 1; riverificati il 09-11-2026 con `git ls-files`). Il
+  **220** (219 + 1) della riverifica del 04-11 era corretto a quella data e
+  restava in piedi finche' i tre turni di P4.4 e il pilota P2.9 non hanno portato
+  i loro artefatti. I
   protocolli congelati stanno qui. Un artefatto nuovo entra con il proprio commit
   e con la propria analisi. Il gruppo `pawnio_probe_20261028*` (due run di
   confronto, due A-B-A, tre token di privilegio, l'analisi) e' l'evidenza sotto
