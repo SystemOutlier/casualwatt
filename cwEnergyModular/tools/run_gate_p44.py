@@ -1175,7 +1175,8 @@ def _verdetto_primario(analysis: Mapping, budget_w: float) -> Dict:
             "controls_usable_n": analysis.get("controls_usable_n"),
             "f12_status": status_f12,
             "criterio_storico_riportato": CRITERIO_STORICO_F12}
-    if status_f12 == "not-executable" or bias is None:
+    bias_finito = (bias is not None and math.isfinite(float(bias)))
+    if status_f12 == "not-executable" or not bias_finito:
         return {**base, "status": "not-executable", "margine_w": None,
                 "motivo": "gate non eseguibile (filtro/quorum di F.12): nessun "
                           "bias da confrontare con il budget"}
