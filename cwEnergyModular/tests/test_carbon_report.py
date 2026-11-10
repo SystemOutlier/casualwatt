@@ -14,8 +14,10 @@ import pytest
 from carbon_report import (
     JOULE_PER_KWH,
     CarbonFactors,
+    CarbonRowResult,
     estimate_emissions_kg,
     joule_to_kwh,
+    report_carbon,
 )
 
 
@@ -67,3 +69,61 @@ def test_pue_non_valido_rifiutato():
     """PUE non finito o <=0 e' un errore dichiarato."""
     with pytest.raises(ValueError):
         CarbonFactors(grid_intensity_kg_per_kwh=0.3, grid_source="ISPRA", pue=0.0)
+
+
+def _provenance():
+    return {"input_csv": "in.csv", "input_csv_sha256": "abc",
+            "energy_column": "ollama_active_energy_j", "generated_utc": "2026-11-10T00:00:00+00:00"}
+
+
+def test_report_aggrega_sole_righe_valide():
+    """Il totale somma le sole righe ok; le escluse sono conteggiate con ragione."""
+    factors = CarbonFactors(0.5, "ISPRA", pue=1.2)
+    rows = [{"ollama_active_energy_j": "360000"},
+            {"ollama_active_energy_j": ""},
+            {"ollama_active_energy_j": "nan"}]
+    s = report_carbon(rows, factors, energy_column="ollama_active_energy_j",
+                      input_provenance=_provenance())
+    assert s["label"] == "stima"
+    assert s["measured"]["n_rows"] == 3
+    assert s["measured"]["n_ok"] == 1
+    assert s["measured"]["n_excluded"] == 2
+    assert s["measured"]["energy_j_total"] == pytest.approx(360000.0)
+    assert s["estimate"]["emissions_kg"] == pytest.approx(0.06)
+    assert sum(s["measured"]["excluded_reasons"].values()) == 2
+
+
+def test_report_energia_negativa_conservata():
+    """Un delta negativo resta firmato, non clampato: l'emissione puo' essere negativa."""
+    factors = CarbonFactors(0.5, "ISPRA", pue=1.0)
+    rows = [{"ollama_active_energy_j": "-360000"}]
+    s = report_carbon(rows, factors, energy_column="ollama_active_energy_j",
+                      input_provenance=_provenance())
+    assert s["measured"]["n_ok"] == 1
+    assert s["measured"]["energy_j_total"] == pytest.approx(-360000.0)
+    assert s["estimate"]["emissions_kg"] == pytest.approx(-0.05)
+
+
+def test_report_riga_esclusa_ha_ragione():
+    """Ogni esclusione dichiara la sua ragione, non sparisce in silenzio."""
+    factors = CarbonFactors(0.5, "ISPRA")
+    rows = [{"ollama_active_energy_j": "abc"}, {"ollama_active_energy_j": "inf"}]
+    s = report_carbon(rows, factors, energy_column="ollama_active_energy_j",
+                      input_provenance=_provenance())
+    assert s["measured"]["n_ok"] == 0
+    statuses = [r["status"] for r in s["rows"]]
+    assert statuses == ["excluded", "excluded"]
+    assert all(r["reason"] for r in s["rows"])
+
+
+def test_report_provenance_e_label():
+    """La provenance porta sha256, fattori con fonte e etichetta 'stima'."""
+    factors = CarbonFactors(0.3, "ISPRA 2025")
+    s = report_carbon([{"ollama_active_energy_j": "3600000"}], factors,
+                      energy_column="ollama_active_energy_j",
+                      input_provenance=_provenance())
+    assert s["label"] == "stima"
+    assert s["provenance"]["input_csv_sha256"] == "abc"
+    assert s["provenance"]["module"] == "carbon_report"
+    assert s["factors"]["grid_source"] == "ISPRA 2025"
+    assert s["factors"]["pue"] == 1.0
