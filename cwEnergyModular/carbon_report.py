@@ -118,3 +118,40 @@ def report_carbon(rows: Iterable[dict], factors: CarbonFactors, *,
                        "formula": "E_J/3.6e6 * PUE * grid"},
         "rows": [asdict(r) for r in results],
     }
+
+
+def render_latex(summary: dict, factors: CarbonFactors) -> str:
+    """Template LaTeX alla ML CO2 Impact: formula, fattori dichiarati con
+    fonte, misurato e stimato distinti. Pronto per la tesi."""
+    m = summary["measured"]
+    e = summary["estimate"]
+    lines = [
+        "% Report carbonio di sola analisi -- etichetta: stima",
+        "\\subsection{Emissioni carbonio (stima)}",
+        "L'energia misurata e' convertita in kWh e moltiplicata per i fattori dichiarati:",
+        "\\begin{equation}",
+        "\\text{Emissioni} = \\frac{E_J}{3.6\\times 10^6} \\times \\text{PUE} \\times \\text{intensita' di rete}",
+        "\\end{equation}",
+        "\\begin{itemize}",
+        f"  \\item Energia misurata: {m['energy_j_total']:.3f} J = {m['energy_kwh_total']:.6f} kWh "
+        f"({m['n_ok']} righe valide, {m['n_excluded']} escluse)",
+        f"  \\item PUE: {factors.pue:.3f} ({factors.pue_source})",
+        f"  \\item Intensita' di rete: {factors.grid_intensity_kg_per_kwh:.4f} kg CO2eq/kWh ({factors.grid_source})",
+        f"  \\item Emissioni (stima): {e['emissions_kg']:.6f} kg CO2eq",
+        "\\end{itemize}",
+        "I fattori sono assunzioni dichiarate; la scala assoluta del contatore non e' arbitrata "
+        "senza un wattmetro AC/DC esterno.",
+    ]
+    return "\n".join(lines)
+
+
+def illustrative_equivalences(emissions_kg: float, factors_eq: dict) -> list:
+    """Equivalenze divulgative (km auto, ...), solo con fattori dichiarati e
+    marcate 'illustrativo'. factors_eq: label -> {'kg_per_unit': float, 'unit': str}."""
+    out = []
+    for label, spec in factors_eq.items():
+        f = spec.get("kg_per_unit")
+        unit = spec.get("unit", "")
+        if isinstance(f, (int, float)) and math.isfinite(f) and f > 0:
+            out.append(f"{emissions_kg / f:.3f} {unit} ({label}, illustrativo)")
+    return out

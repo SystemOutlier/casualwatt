@@ -16,7 +16,9 @@ from carbon_report import (
     CarbonFactors,
     CarbonRowResult,
     estimate_emissions_kg,
+    illustrative_equivalences,
     joule_to_kwh,
+    render_latex,
     report_carbon,
 )
 
@@ -127,3 +129,35 @@ def test_report_provenance_e_label():
     assert s["provenance"]["module"] == "carbon_report"
     assert s["factors"]["grid_source"] == "ISPRA 2025"
     assert s["factors"]["pue"] == 1.0
+
+
+def test_latex_contiene_formula_parametri_e_stima():
+    """Il template LaTeX dichiara formula, fattori con fonte e l'etichetta
+    'stima': e' il pezzo pronto per la tesi, distinto dalla misura."""
+    factors = CarbonFactors(0.3, "ISPRA 2025", pue=1.0)
+    s = report_carbon([{"ollama_active_energy_j": "3600000"}], factors,
+                      energy_column="ollama_active_energy_j",
+                      input_provenance=_provenance())
+    tex = render_latex(s, factors)
+    assert "stima" in tex
+    assert "Energia misurata" in tex
+    assert "ISPRA 2025" in tex
+    assert "PUE" in tex
+    assert "3.6" in tex  # la conversione J -> kWh nella formula
+
+
+def test_equivalenze_solo_con_fattori_dichiarati():
+    """Le equivalenze sono illustrative e solo con fattori dichiarati."""
+    eq = {"auto": {"kg_per_unit": 0.12, "unit": "km"}}
+    out = illustrative_equivalences(0.06, eq)
+    assert len(out) == 1
+    assert "illustrativo" in out[0]
+    assert "km" in out[0]
+    assert illustrative_equivalences(0.06, {}) == []
+
+
+def test_equivalenze_fattore_non_valido_saltato():
+    """Un fattore illustrativo nullo/non finito non produce una riga."""
+    eq = {"x": {"kg_per_unit": 0.0, "unit": "u"},
+          "y": {"kg_per_unit": float("nan"), "unit": "v"}}
+    assert illustrative_equivalences(0.06, eq) == []
