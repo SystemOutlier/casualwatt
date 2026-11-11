@@ -603,8 +603,10 @@ stanno solo le regole che un agente puo' violare senza accorgersene.
   le guardie di `b3b12ffe` e `86bba6a8` e dopo la crescita del modulo dei giorni
   successivi: chi corregge di nuovo le guardie deve re-indirizzarle, perche'
   sono gli stessi codici piu' su di quelle righe. I tre siti che oggi scrivono
-  `counter-invalid` sono `:468` (delta negativo ai bordi), `:492` (registro fermo
-  sullo stesso record) e `:555` (delta negativo sul percorso a campioni).
+  `counter-invalid` sono `:469` (delta negativo ai bordi), `:493` (registro fermo
+  sullo stesso record) e `:556` (delta negativo sul percorso a campioni), coordinate
+  ri-verificate l'11-11-2026: quelle del 09-11 indicavano la riga adiacente, non
+  quella che assegna il token.
   Resta clampato cio' che **non e' energia**:
   i delta di tempo CPU (`:799`, `:802`, `:816`) perche' un contatore di secondi che
   torna indietro e' un reset, e la quota dove viene usata (`:863`) perche' il
