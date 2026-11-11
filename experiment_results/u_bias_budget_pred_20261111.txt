@@ -1,0 +1,102 @@
+# Propagazione del bias di F.12 in budget_pred_b — output del probe
+
+Data: 2026-11-11. Driver: `u_bias_budget_pred_probe.py` (radice del repo).
+Albero: ramo `fix/p44-metrologico-20261109`, con il WIP dell'altro modello
+ancora nel working tree (`evaluation_runner.py`, `robust_evaluator.py`),
+non committato. Suite misurata sullo stesso albero: 1162 passed, 5 skipped.
+
+Ingressi (artefatti congelati, letti e non riscritti):
+- `experiment_results/p44_gate_20261107/analysis.json` (git_head e
+  runner_sha256 dentro il file)
+- `experiment_results/p44_gate_20261108/analysis.json` (idem)
+- `experiment_results/p29_pilot_20261107/dt_nominal_frozen.json`
+- `cwEnergyModular/tools/gate_uncertainty.py` (validatore di produzione,
+  commit `b268da512`)
+
+Output sotto: verbatim del probe, 6 verifiche, esito complessivo 6/6.
+
+==========================================================================
+Banda di bias_w dei due gate P4.4 e propagazione in budget_pred_b
+==========================================================================
+1. I due artefatti congelati
+   order_seed   : gate-seed-20261107 (identico)
+   geometria    : 12,32 | modello hf.co/sigmanih/Qwen-Qwen3-0.6B-GGUF-Q6_K:latest
+   dt_nominal_s : 2.930748 s (congelata dal pilota P2.9)
+   07-11: status=fail executable=True  utilizzabili 4/6, quorum 4
+          bias_w=0.479571 W  soglia=0.262324 W  ambiente: rumoroso (2 controlli scartati da |dP| > 1 W)
+   08-11: status=fail executable=True  utilizzabili 6/6, quorum 4
+          bias_w=0.125171 W  soglia=0.117995 W  ambiente: quieto (precondizione verificata)
+   esito: PASSA — stesso disegno, due esecuzioni, entrambe fail del
+          criterio (quorum raggiunto: non e' una non-eseguibilita';
+          la differenza e' l'ambiente, non il protocollo)
+
+2. Rigenerazione di bias_w = Σ E_net,c / Σ Δt_W,c (solo utilizzabili)
+   07-11: rigenerato 0.479571328328171 W  riportato 0.479571328328171 W  scarto 0.0e+00
+   08-11: rigenerato 0.125171258402592 W  riportato 0.125171258402592 W  scarto 0.0e+00
+   esito: PASSA — la definizione congelata riproduce il valore
+          riportato in entrambi gli artefatti
+
+3. Rigenerazione della soglia = mediana_c(budget_base_w,c)
+   07-11: rigenerata 0.262323500000000 W  riportata 0.262323500000000 W  scarto 0.0e+00
+   08-11: rigenerata 0.117995000000000 W  riportata 0.117995000000000 W  scarto 0.0e+00
+   esito: PASSA — `statistics.median` sui soli utilizzabili
+          riproduce la soglia (con n pari e' la media dei due
+          centrali: 0,222563 e 0,302084 l'07-11; 0,033178 e
+          0,202812 l'08-11)
+
+4. La banda dichiarata fra le due esecuzioni
+   banda di bias_w: [0.125171 ; 0.479571] W   rapporto 3.83 volte
+   segno: entrambi positivi — il residuo netto dei controlli e'
+         positivo in entrambe le esecuzioni, quindi la baseline
+         sottostima la potenza durante la finestra e l'energia
+         pubblicata risulta sovrastimata, in entrambi gli ambienti
+   estremo conservativo (quello che entra nel budget): 0.479571 W
+   traduzione 07-11: |bias|·6/·11 = [2.877428 ; 5.275285] % di J/token (riportata [2.877428 ; 5.275285], scarto 0.0e+00)
+   traduzione 08-11: |bias|·6/·11 = [0.751028 ; 1.376884] % di J/token (riportata [0.751028 ; 1.376884], scarto 0.0e+00)
+   esito: PASSA — segno concorde e traduzione in unita' di metrica
+          riprodotta; grandezza riportata, non soglia
+
+5. Δt̄_W,b: durata nominale congelata vs media misurata
+   dt_nominal_s = 2.930748 s (regola: P4.4 requisito 5, protocollo_v4_20261024.md)
+   07-11: media misurata 2.938566 s su 4 controlli utilizzabili, scarto relativo 2.67e-03 (tolleranza 5e-03)
+   08-11: media misurata 2.931486 s su 6 controlli utilizzabili, scarto relativo 2.52e-04 (tolleranza 5e-03)
+   esito: PASSA — la stima pre-campagna e' ancorata a un numero
+          congelato e la media misurata degli utilizzabili la
+          conferma: la finestra di controllo attende il nominale.
+          Lo scostamento del 07-11 viene dal controllo con
+          cooldown fuori tempo (Δt_W = 2,960884 s), dichiarato
+          nell'artefatto (`block_cooldown_timeout = true`).
+
+6. Propagazione u_bias,b = |bias_w| · Δt̄_W,b in budget_pred_b
+   stima pre-campagna (Δt̄ = dt_nominal_s = 2.930748 s):
+     estremo 08-11 : 0.125171 W × 2.930748 s = 0.366845 J
+     estremo 07-11 : 0.479571 W × 2.930748 s = 1.405503 J
+   con la media misurata delle finestre di ciascun run:
+     07-11: 0.479571 W × 2.938566 s = 1.409252 J
+     08-11: 0.125171 W × 2.931486 s = 0.366938 J
+   quando i blocchi della campagna esisteranno, Δt̄_W,b sara' la
+   media per blocco di `duration_s`, la stessa grandezza di
+   u_base,b (protocollo :1890-1905): il numero qui sopra e' una
+   STIMA dichiarata, non una misura.
+   componente dichiarata per `combina_incluse`:
+     {"value": 1.405503, "tipo": "B", "inclusa": true,
+      "motivo": "..."}  — tipo B: l'informazione viene dai
+     gate, non da ripetizioni del blocco b (GUM, JCGM 100:2008)
+   validatore di produzione: 0 errori di forma
+   combinazione in quadratura con un u_edge segnaposto: 1.668963 J = hypot(1.405503, 0,9) = 1.668963 J
+   esito: PASSA — la forma e' accettata dal validatore di produzione
+          e il termine entra in quadratura, non in somma
+
+==========================================================================
+esito complessivo: 6/6 verifiche superate
+==========================================================================
+
+Dichiarazione per la campagna principale (percorso (b) di P4.5):
+* entrambi i fail sono conservati, con la provenienza di ciascuno
+  (git_head e runner_sha256 nei due `analysis.json`);
+* il bias entra in `budget_pred_b` come `u_bias,b = |bias_w| ·
+  Δt̄_W,b` con l'estremo conservativo della banda, dichiarato come
+  STIMA di tipo B finche' i blocchi della campagna non definiscono
+  il proprio Δt̄_W,b;
+* la validazione di F.12 NON e' superata: l'anello 4 di P4.9 cede,
+  `chain_status` resta `bias_declared` e nessuna riga e' `validated`.
