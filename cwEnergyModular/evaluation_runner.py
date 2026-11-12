@@ -8,7 +8,7 @@ import random
 import statistics
 from collections import Counter
 from pathlib import Path
-from typing import Any, Iterable, Mapping, Optional
+from typing import Any, Iterable, Mapping, Optional, Union
 
 # Bootstrap a cluster: il seme e' fissato perche' l'intervallo deve essere
 # rigenerabile dalla stessa riga, non un numero diverso a ogni esecuzione.
@@ -17,6 +17,17 @@ BOOTSTRAP_RESAMPLES = 2000
 
 
 _TASK_NOTE_PREFIX = "CW_TASK_ID_V1="
+
+
+def _finite_energy(value: Any) -> Optional[float]:
+    """Parse and validate a finite energy value from a CSV cell."""
+    if value in (None, "", "N/A"):
+        return None
+    try:
+        parsed = float(value)
+    except (TypeError, ValueError, OverflowError):
+        return None
+    return parsed if math.isfinite(parsed) else None
 
 
 def _task_id(value: Any) -> Optional[str]:
@@ -63,6 +74,130 @@ def record_verdict(record: Mapping[str, Any]) -> str:
     value = str(record.get("is_correct", "")).strip().lower()
     return "correct" if value in ("1", "1.0", "true") else (
         "incorrect" if value in ("0", "0.0", "false") else "indeterminate")
+
+
+# Vocabolario chiuso dei motivi di N/A (piano.DOCX Parte 2, §3.1): quattro
+# stati, non testo libero. Gli alias legacy sono ricondotti a questi.
+CANONICAL_NONE_REASONS = ("judge_abstained", "judge_uncalibrated",
+                          "evaluation_failed", "human_review_required")
+
+_NONE_REASON_ALIASES = {
+    "extraction_failed": "evaluation_failed",
+    "human_gate_blocked": "human_review_required",
+    "judge_abstained": "judge_abstained",
+    "judge_uncalibrated": "judge_uncalibrated",
+    "evaluation_failed": "evaluation_failed",
+    "human_review_required": "human_review_required",
+}
+
+_SCORING_NOTE_PREFIX = "CW_SCORING_V1="
+
+
+def canonical_none_reason(reason: Any) -> str:
+    """Riconduce un motivo di N/A al vocabolario canonico; stringa vuota resta vuota.
+
+    Un motivo assente non e' un motivo dichiarato: restituire "" invece di
+    inventare "evaluation_failed" conserva la differenza fra "non registrato"
+    e "fallito". Gli alias legacy (extraction_failed, human_gate_blocked) sono
+    mappati; un token gia' canonico o sconosciuto passa invariato.
+    """
+    text = str(reason or "").strip()
+    if not text:
+        return ""
+    return _NONE_REASON_ALIASES.get(text, text)
+
+
+def _is_correct_bool(record: Mapping[str, Any]) -> Optional[bool]:
+    """Forma booleana a tre stati del verdetto: true/false/null (mai unscored)."""
+    verdict = record_verdict(record)
+    return True if verdict == "correct" else (
+        False if verdict == "incorrect" else None)
+
+
+def final_verdict(record: Mapping[str, Any]) -> str:
+    """Verdetto dichiarato a quattro stati, separato da is_correct (tre stati).
+
+    correct/incorrect/indeterminate vengono dal verdetto registrato. Un ramo
+    bloccato dal gate di calibrazione (judge_uncalibrated) resta ``unscored``:
+    il giudice non e' stato chiamato perche' il ramo non e' validato, quindi
+    non e' un fallimento dello scoring ma una non-valutazione (§7.1 del piano).
+    Confondere i due stati attribuirebbe al modello un errore che non ha
+    commesso.
+    """
+    verdict = record_verdict(record)
+    if verdict == "indeterminate":
+        if canonical_none_reason(record.get("verdict_none_reason")) == "judge_uncalibrated":
+            return "unscored"
+    return verdict
+
+
+def notes_with_scoring_block(record: Mapping[str, Any]) -> str:
+    """Serializza il blocco di scoring CW_SCORING_V1 nella colonna notes (P5).
+
+    Come CW_TASK_ID_V1, si sostituisce solo il proprio metadato e il testo
+    delle note originali resta intatto: lo schema CSV congelato non si allarga.
+    Il blocco e' JSON machine-recoverable, non prosa.
+    """
+    notes = record.get("notes", "")
+    text = "; ".join(str(n) for n in notes) if isinstance(notes, (list, tuple)) else str(notes or "")
+    block = {
+        "final_verdict": final_verdict(record),
+        "is_correct": _is_correct_bool(record),
+        "scoring_method": str(record.get("scoring_method", "")).strip(),
+        "none_reason": canonical_none_reason(record.get("verdict_none_reason")),
+    }
+    lines = [line for line in text.splitlines() if not line.startswith(_SCORING_NOTE_PREFIX)]
+    lines.append(_SCORING_NOTE_PREFIX + json.dumps(block, ensure_ascii=True, sort_keys=True))
+    return "\n".join(lines)
+
+
+def record_scoring_block(record: Mapping[str, Any]) -> Optional[dict[str, Any]]:
+    """Rilegge il blocco di scoring dalle notes; None se assente o illeggibile.
+
+    None e non un dict vuoto: un dizionario vuoto sembrerebbe uno scoring
+    registrato quando non lo e'.
+    """
+    for line in str(record.get("notes", "")).splitlines():
+        if line.startswith(_SCORING_NOTE_PREFIX):
+            try:
+                return json.loads(line[len(_SCORING_NOTE_PREFIX):])
+            except (ValueError, TypeError):
+                return None
+    return None
+
+
+def _eligible_energy_value(row: Mapping[str, Any], energy_key: str) -> Optional[float]:
+    """Energia consumata eleggibile per il numeratore di ECPC, oppure None.
+
+    Stessa regola del ciclo principale di ``summarize_records``: valore finito
+    non negativo, senza flag invalidante, con finestra di contatore valida. Un
+    ``energy_j`` generico senza flag e' accettato per compatibilita' (la
+    validita' metrologica non e' provata, ma la riga non e' esclusa); una riga
+    unificata senza ``active_valid`` e' esclusa perche' non verificabile. La
+    regola vive in un solo posto perche' il totale complessivo e quello per
+    categoria non possono divergere sulla stessa riga.
+    """
+    raw = row.get(energy_key)
+    if raw in (None, "", "N/A"):
+        return None
+    value = _finite_energy(raw)
+    if value is None or value < 0:
+        return None
+    flags = {key: str(row[key]).strip().lower()
+             for key in ("energy_valid", "active_valid") if key in row}
+    rejected = any(flag in ("false", "0", "0.0") for flag in flags.values())
+    unknown = any(flag not in ("true", "1", "1.0", "false", "0", "0.0")
+                  for flag in flags.values())
+    unified = energy_key == "end_to_end_energy_j"
+    unverified = unknown or (unified and "active_valid" not in flags) or not flags
+    if rejected:
+        return None
+    if str(row.get("package_window_source", "")).strip().lower() in (
+            "counter-invalid", "unavailable"):
+        return None
+    if unknown or (unified and unverified):
+        return None
+    return value
 
 
 def cluster_bootstrap_interval(pairs: Iterable[tuple[int, Any]],
@@ -444,12 +579,23 @@ def attach_energy(record: Mapping[str, Any], energy_j: Optional[float],
 
 def summarize_records(records: Iterable[Mapping[str, Any]],
                       cluster_key: str = "task_id",
-                      energy_key: str = "energy_j") -> dict[str, Any]:
+                      energy_key: str = "energy_j",
+                      category_key: str = "category") -> dict[str, Any]:
     """Aggrega verdetti ed energia disponibile di TUTTI i tentativi.
 
     Il costo per corretta e' somma energia / tutte le corrette, non la media
     dell'energia delle sole corrette. Le mediane restano diagnostiche firmate.
     `cluster_key` identifica il task: B7 non ammette identita' parziali nel CI.
+    
+    Nuovo: calcola ECPC e campi di validazione per categoria (stratificati per
+    `category_key`). Per ogni categoria restituisce:
+    - ecpc_j / ecpc_model_j: energia del modello su TUTTE le righe / corrette
+    - ecpc_system_j: (E_model + E_judge)/corrette, solo se il giudice e' misurato
+      su ogni riga; ecpc_status dice complete | partial | unavailable
+    - ECPC_verified: somma energia / corrette dove lo scoring e' deterministico
+    - ECPC_conditional: somma energia / corrette dove lo scoring e' LLM Judge
+    - scoring_coverage: frazione di righe determinate (is_correct != null)
+    - judge_validation_status: validated | unvalidated | gated | failed
     """
     rows = list(records)
     verdicts = Counter(str(record_verdict(row)) for row in rows)
@@ -457,17 +603,8 @@ def summarize_records(records: Iterable[Mapping[str, Any]],
                    in ("correct", "incorrect")]
     correct = sum(record_verdict(row) == "correct"
                   for row in determinate)
-    def finite_measurement(row: Mapping[str, Any], key: str) -> Optional[float]:
-        value = row.get(key)
-        if value in (None, "", "N/A"):
-            return None
-        try:
-            parsed = float(value)
-        except (TypeError, ValueError, OverflowError):
-            return None
-        return parsed if math.isfinite(parsed) else None
 
-    energy_values = [(row, finite_measurement(row, energy_key)) for row in rows]
+    energy_values = [(row, _finite_energy(row.get(energy_key))) for row in rows]
     # Diagnostica: anche negativi e valori con flag invalidante restano visibili.
     energies = [value for _, value in energy_values if value is not None]
     correct_energies = [value for row, value in energy_values
@@ -523,7 +660,7 @@ def summarize_records(records: Iterable[Mapping[str, Any]],
         "zero correct answers" if not correct else "", energy_reason) if reason)
     ratio = total_energy / correct if correct and total_energy is not None else None
     durations = [value for row in rows
-                 if (value := finite_measurement(row, "duration_s")) is not None]
+                 if (value := _finite_energy(row.get("duration_s"))) is not None]
     n_determinate = len(determinate)
     accuracy = correct / n_determinate if n_determinate else None
     if n_determinate:
@@ -556,6 +693,173 @@ def summarize_records(records: Iterable[Mapping[str, Any]],
         if cluster["interval"] is not None else
         f"intervallo a livello di task non calcolabile: {cluster['reason']}"
     )
+    # --- Category-stratified ECPC with validation fields ---
+    # Group rows by category
+    from collections import defaultdict
+    cat_rows = defaultdict(list)
+    for row in rows:
+        cat = str(row.get(category_key, "unknown"))
+        cat_rows[cat].append(row)
+    
+    category_results = {}
+    for cat, cat_rows_list in cat_rows.items():
+        # Determinate rows in this category
+        cat_determinate = [r for r in cat_rows_list if record_verdict(r) in ("correct", "incorrect")]
+        cat_correct = sum(1 for r in cat_determinate if record_verdict(r) == "correct")
+        cat_n_determinate = len(cat_determinate)
+        
+        # ECPC = somma dell'energia di TUTTE le righe eleggibili (errori e
+        # indeterminati inclusi) / numero di corrette. L'eleggibilita' usa lo
+        # stesso helper del totale complessivo: una riga non puo' essere
+        # eleggibile di la' e non eleggibile qui.
+        cat_total_energy = 0.0
+        cat_eligible_count = 0
+        cat_eligible_rows = []
+        for row in cat_rows_list:
+            value = _eligible_energy_value(row, energy_key)
+            if value is not None:
+                cat_total_energy += value
+                cat_eligible_count += 1
+                cat_eligible_rows.append((row, value))
+
+        cat_total_energy = cat_total_energy if cat_eligible_count > 0 else None
+        cat_correct_with_energy = sum(1 for r in cat_rows_list
+                                       if record_verdict(r) == "correct"
+                                       and _eligible_energy_value(r, energy_key) is not None)
+
+        # ECPC primario (solo modello): energia del modello per corretta.
+        cat_ecpc = cat_total_energy / cat_correct if cat_correct and cat_total_energy is not None else None
+
+        # Il bootstrap ricampiona lo STESSO estimando del punto stimato: pairs
+        # su TUTTE le righe eleggibili, con indicatore 1/0, non sulle sole
+        # corrette (che darebbero un rapporto diverso e un cluster in meno).
+        ecpc_pairs = [(1 if record_verdict(row) == "correct" else 0,
+                       value, record_task_id(row))
+                      for row, value in cat_eligible_rows]
+        
+        # Use taxonomy_ecpc's bootstrap function
+        ecpc_bootstrap = None
+        if ecpc_pairs:
+            try:
+                from taxonomy_ecpc import _ecpc_bootstrap
+                ecpc_bootstrap = _ecpc_bootstrap(ecpc_pairs)
+            except ImportError:
+                ecpc_bootstrap = {"interval": None, "reason": "taxonomy_ecpc module not available", 
+                                 "n_effective_tasks": 0, "n_rows": len(ecpc_pairs)}
+        
+        # Stratify by scoring_method for validation regimes
+        cat_verified_energy = []
+        cat_conditional_energy = []
+        cat_unvalidated_energy = []
+        cat_failed_energy = []
+        cat_scoring_methods = Counter()
+        cat_judge_statuses = Counter()
+        cat_human_ref_available = 0
+        
+        for row, value in [(r, _finite_energy(r.get(energy_key))) for r in cat_rows_list]:
+            if value is None or value < 0:
+                continue
+            scoring_method = str(row.get("scoring_method", "none")).strip().lower()
+            judge_status = str(row.get("judge_validation_status", "unvalidated")).strip().lower()
+            human_ref = row.get("human_reference_available", False)
+            if human_ref:
+                cat_human_ref_available += 1
+            cat_scoring_methods[scoring_method] += 1
+            cat_judge_statuses[judge_status] += 1
+            
+            if scoring_method == "deterministic" and record_verdict(row) == "correct":
+                cat_verified_energy.append(value)
+            elif scoring_method == "llm_judge" and record_verdict(row) == "correct":
+                cat_conditional_energy.append(value)
+            elif judge_status == "validated" and record_verdict(row) == "correct":
+                cat_conditional_energy.append(value)
+            elif judge_status in ("gated", "failed") and record_verdict(row) == "correct":
+                cat_failed_energy.append(value)
+            elif record_verdict(row) == "correct":
+                cat_unvalidated_energy.append(value)
+        
+        cat_correct_verified = sum(1 for r in cat_rows_list 
+                                   if record_verdict(r) == "correct" 
+                                   and str(r.get("scoring_method", "")).strip().lower() == "deterministic")
+        cat_correct_conditional = sum(1 for r in cat_rows_list 
+                                      if record_verdict(r) == "correct" 
+                                      and str(r.get("scoring_method", "")).strip().lower() in ("llm_judge", "human_calibrated"))
+        
+        ecpc_verified = (sum(cat_verified_energy) / cat_correct_verified 
+                        if cat_correct_verified and cat_verified_energy else None)
+        ecpc_conditional = (sum(cat_conditional_energy) / cat_correct_conditional
+                           if cat_correct_conditional and cat_conditional_energy else None)
+        
+        # Coverage = #{is_correct != null}/N: frazione di righe determinate,
+        # non frazione di righe con un'energia o un metodo dichiarato (§9 P0 #4).
+        scoring_coverage = cat_n_determinate / len(cat_rows_list) if cat_rows_list else 0
+
+        # ECPC_status distingue un totale definitivo da un subtotale (§9 P0 #5).
+        if cat_ecpc is None:
+            ecpc_status = "unavailable"
+        elif cat_eligible_count == len(cat_rows_list):
+            ecpc_status = "complete"
+        else:
+            ecpc_status = "partial"
+
+        # ECPC_system = (E_model + E_judge)/N_correct, secondario: si calcola
+        # solo se OGNI riga ha un'energia del giudice finita. Assumere zero per
+        # l'energia mancante sottostimerebbe il costo di sistema (§9 P1 #8).
+        judge_values = [_finite_energy(r.get("judge_energy_j")) for r in cat_rows_list]
+        judge_present = [v for v in judge_values if v is not None]
+        judge_energy_total = sum(judge_present) if judge_present else None
+        n_judge_missing = sum(1 for v in judge_values if v is None)
+        if cat_ecpc is not None and n_judge_missing == 0 and judge_energy_total is not None:
+            ecpc_system = (cat_total_energy + judge_energy_total) / cat_correct
+            ecpc_system_reason = ""
+        elif cat_ecpc is None:
+            ecpc_system = None
+            ecpc_system_reason = "no correct answers or no eligible model energy"
+        else:
+            ecpc_system = None
+            ecpc_system_reason = (f"judge energy missing for {n_judge_missing} row(s): "
+                                  "ECPC_system would assume zero for the missing judge energy")
+        
+        # Overall judge validation status for category
+        if cat_judge_statuses.get("failed", 0) > 0:
+            judge_validation_status = "failed"
+        elif cat_judge_statuses.get("gated", 0) > 0:
+            judge_validation_status = "gated"
+        elif cat_judge_statuses.get("validated", 0) > 0:
+            judge_validation_status = "validated"
+        else:
+            judge_validation_status = "unvalidated"
+        
+        category_results[cat] = {
+            "n_total": len(cat_rows_list),
+            "n_determinate": cat_n_determinate,
+            "n_correct": cat_correct,
+            "n_correct_with_eligible_energy": cat_correct_with_energy,
+            "accuracy_on_determinate": cat_correct / cat_n_determinate if cat_n_determinate else None,
+            "total_energy_j": round(cat_total_energy, 6) if cat_total_energy is not None else None,
+            "eligible_energy_rows": cat_eligible_count,
+            "ecpc_j": round(cat_ecpc, 6) if cat_ecpc is not None else None,
+            "ecpc_status": ecpc_status,
+            "ecpc_model_j": round(cat_ecpc, 6) if cat_ecpc is not None else None,
+            "ecpc_system_j": round(ecpc_system, 6) if ecpc_system is not None else None,
+            "ecpc_system_reason": ecpc_system_reason,
+            "judge_energy_total_j": round(judge_energy_total, 6) if judge_energy_total is not None else None,
+            "ecpc_cluster_bootstrap_95": ecpc_bootstrap["interval"] if ecpc_bootstrap else None,
+            "ecpc_bootstrap_note": ecpc_bootstrap["reason"] if ecpc_bootstrap and ecpc_bootstrap["interval"] is None else 
+                                    (f"cluster bootstrap: n_effective_tasks={ecpc_bootstrap['n_effective_tasks']}, "
+                                     f"n_rows={ecpc_bootstrap['n_rows']}, resamples={ecpc_bootstrap['resamples']}, "
+                                     f"seed={ecpc_bootstrap['seed']}" if ecpc_bootstrap and ecpc_bootstrap["interval"] is not None else ""),
+            "ecpc_verified": round(ecpc_verified, 6) if ecpc_verified is not None else None,
+            "ecpc_conditional": round(ecpc_conditional, 6) if ecpc_conditional is not None else None,
+            "scoring_coverage": round(scoring_coverage, 6),
+            "scoring_methods": dict(cat_scoring_methods),
+            "judge_validation_status": judge_validation_status,
+            "judge_statuses": dict(cat_judge_statuses),
+            "human_reference_available": cat_human_ref_available,
+            "n_correct_verified": cat_correct_verified,
+            "n_correct_conditional": cat_correct_conditional,
+        }
+    
     return {
         "n_total": len(rows),
         "n_determinate": n_determinate,
@@ -605,6 +909,18 @@ def summarize_records(records: Iterable[Mapping[str, Any]],
         "missing_energy_rate": 1 - len(available) / len(rows) if rows else None,
         "n_invalid_or_missing_duration": len(rows) - len(durations),
         "missing_duration_rate": 1 - len(durations) / len(rows) if rows else None,
+        # New category-stratified fields
+        "categories": category_results,
+        # Selective prediction / coverage reporting
+        "verdict_coverage": len(determinate) / len(rows) if rows else None,
+        "verdict_accuracy_covered": correct / len(determinate) if determinate else None,
+        "verdict_none_count": sum(record_verdict(row) == "indeterminate" for row in rows),
+        "verdict_none_reason": dict(Counter(
+            canonical_none_reason(row.get("verdict_none_reason")) or "unknown"
+            for row in rows
+            if record_verdict(row) == "indeterminate"
+        )),
+        "verdict_none_reason_note": "Counts of 'indeterminate' verdicts by canonical reason (judge_abstained, judge_uncalibrated, evaluation_failed, human_review_required); legacy aliases are mapped, an absent reason is 'unknown'.",
     }
 
 
