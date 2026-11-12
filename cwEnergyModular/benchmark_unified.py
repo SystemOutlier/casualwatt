@@ -503,6 +503,9 @@ def _basic_record(run_id, session_id, model_name, model_label, provider, mode,
         # testo esatto generato dal modello (verifica manuale errori/allucinazioni)
         "model_response": "",
         "is_correct": _na_or(evalres.is_correct),
+        # motivo canonico dell'N/A (gate di calibrazione, §6): non e' una colonna
+        # CSV (schema P5 congelato), vive nel record e nel blocco CW_SCORING_V1.
+        "verdict_none_reason": getattr(evalres, "none_reason", ""),
         "causal_accuracy": _na_or(evalres.causal_accuracy),
         "explanation_quality": _na_or(evalres.explanation_quality),
         "cosine_similarity": _na_or(evalres.cosine_sim),

@@ -64,6 +64,11 @@ class EvaluationResult:
     missing_facts: tuple[str, ...] = ()
     forbidden_facts: tuple[str, ...] = ()
     diagnostics: Mapping[str, Any] = field(default_factory=dict)
+    # --- Campi di validazione scoring (Fase 0) ---
+    scoring_method: str = ""                    # deterministic | llm_judge | human_calibrated | none
+    human_reference_available: bool = False     # se esiste ground truth umano per questo item
+    judge_validation_status: str = "unvalidated" # unvalidated | validated | gated | failed
+    validation_alpha: Optional[float] = None    # Krippendorff alpha per il ramo (se calibrato)
 
     def to_dict(self) -> dict[str, Any]:
         return asdict(self)
@@ -238,18 +243,26 @@ def _evaluate_number(answer: str, contract: Mapping[str, Any]) -> EvaluationResu
     expected = [parse_numeric_literal(item) for item in accepted]
     if not expected or any(item is None for item in expected):
         return _result("indeterminate", None, 0.0, "number_contract_missing",
-                       "number", diagnostics={"reason": "invalid numeric reference"})
+                       "number", diagnostics={"reason": "invalid numeric reference"},
+                       scoring_method="deterministic", human_reference_available=False,
+                       judge_validation_status="unvalidated", validation_alpha=None)
 
     extraction = extract_numeric_answer(answer)
     if extraction.status == "empty":
         return _result("indeterminate", None, 0.0, "number_answer_absent",
-                       "number", diagnostics={"reason": extraction.reason})
+                       "number", diagnostics={"reason": extraction.reason},
+                       scoring_method="deterministic", human_reference_available=False,
+                       judge_validation_status="unvalidated", validation_alpha=None)
     if extraction.status == "no_number":
         return _result("incorrect", 0.0, 0.99, "number_no_answer",
-                       "number", diagnostics={"reason": extraction.reason})
+                       "number", diagnostics={"reason": extraction.reason},
+                       scoring_method="deterministic", human_reference_available=False,
+                       judge_validation_status="unvalidated", validation_alpha=None)
     if extraction.quantity is None:
         return _result("indeterminate", None, 0.0, "number_ambiguous",
-                       "number", diagnostics={"reason": extraction.reason})
+                       "number", diagnostics={"reason": extraction.reason},
+                       scoring_method="deterministic", human_reference_available=False,
+                       judge_validation_status="unvalidated", validation_alpha=None)
     actual = extraction.quantity
     absolute = _to_float(contract.get("absolute_tolerance", 1e-9))
     relative = _to_float(contract.get("relative_tolerance", 1e-6))
@@ -264,6 +277,8 @@ def _evaluate_number(answer: str, contract: Mapping[str, Any]) -> EvaluationResu
         diagnostics={"absolute_tolerance": absolute,
                       "relative_tolerance": relative,
                       "dimension": actual.dimension},
+        scoring_method="deterministic", human_reference_available=False,
+        judge_validation_status="unvalidated", validation_alpha=None,
     )
 
 
@@ -280,7 +295,9 @@ def _evaluate_short_text(answer: str, contract: Mapping[str, Any]) -> Evaluation
     accepted = _accepted_texts(contract)
     if not accepted:
         return _result("indeterminate", None, 0.0, "short_text_contract_missing",
-                       "short_text", diagnostics={"reason": "no text reference"})
+                       "short_text", diagnostics={"reason": "no text reference"},
+                       scoring_method="deterministic", human_reference_available=False,
+                       judge_validation_status="unvalidated", validation_alpha=None)
     normalized_answer = normalize_text(answer)
     # Un alias che si normalizza a vuoto non e' una risposta cercabile: senza
     # l'esclusione il pattern `\b\b` combacia con il primo confine di parola e
@@ -292,7 +309,9 @@ def _evaluate_short_text(answer: str, contract: Mapping[str, Any]) -> Evaluation
         return _result("indeterminate", None, 0.0, "short_text_contract_missing",
                        "short_text",
                        diagnostics={"reason": "accepted_answers have no normalized text",
-                                    "accepted_answers": accepted})
+                                    "accepted_answers": accepted},
+                       scoring_method="deterministic", human_reference_available=False,
+                       judge_validation_status="unvalidated", validation_alpha=None)
     matched = tuple(item for item, norm in usable
                     if _contains_fact(normalized_answer, norm))
     ok = bool(matched)
@@ -301,6 +320,8 @@ def _evaluate_short_text(answer: str, contract: Mapping[str, Any]) -> Evaluation
         "short_text_token_boundary_match", "short_text",
         matched_answers=matched,
         diagnostics={"accepted_answers": accepted},
+        scoring_method="deterministic", human_reference_available=False,
+        judge_validation_status="unvalidated", validation_alpha=None,
     )
 
 
@@ -310,7 +331,9 @@ def _evaluate_free_text(answer: str, contract: Mapping[str, Any]) -> EvaluationR
     if not required and not forbidden:
         return _result("indeterminate", None, 0.0, "free_text_contract_missing",
                        "free_text",
-                       diagnostics={"reason": "no verifiable facts declared"})
+                       diagnostics={"reason": "no verifiable facts declared"},
+                       scoring_method="deterministic", human_reference_available=False,
+                       judge_validation_status="unvalidated", validation_alpha=None)
 
     normalized = normalize_text(answer)
     missing = tuple(item for item in required
@@ -339,6 +362,8 @@ def _evaluate_free_text(answer: str, contract: Mapping[str, Any]) -> EvaluationR
         diagnostics={"required_count": len(required), "present_count": present,
                      "minimum_required_facts": minimum, "locally_negated_facts": negated,
                      "semantic_entailment_verified": False},
+        scoring_method="deterministic", human_reference_available=False,
+        judge_validation_status="unvalidated", validation_alpha=None,
     )
 
 
@@ -347,21 +372,29 @@ def _evaluate_interval(answer: str, contract: Mapping[str, Any]) -> EvaluationRe
     upper = _to_float(contract.get("upper", contract.get("expected_upper")))
     if lower is None or upper is None or lower > upper:
         return _result("indeterminate", None, 0.0, "interval_contract_invalid",
-                       "interval", diagnostics={"reason": "invalid bounds"})
+                       "interval", diagnostics={"reason": "invalid bounds"},
+                       scoring_method="deterministic", human_reference_available=False,
+                       judge_validation_status="unvalidated", validation_alpha=None)
     match = _INTERVAL_RE.search(answer or "")
     if not match:
         # Same rule as ``number_answer_absent``: an empty answer carries no
         # interval to miss, so it is an unmeasured run rather than a wrong one.
         if not _text(answer):
             return _result("indeterminate", None, 0.0, "interval_answer_absent",
-                           "interval", diagnostics={"reason": "empty answer, nothing to score"})
+                           "interval", diagnostics={"reason": "empty answer, nothing to score"},
+                           scoring_method="deterministic", human_reference_available=False,
+                           judge_validation_status="unvalidated", validation_alpha=None)
         return _result("incorrect", 0.0, 0.98, "interval_not_found",
-                       "interval", diagnostics={"reason": "interval not found"})
+                       "interval", diagnostics={"reason": "interval not found"},
+                       scoring_method="deterministic", human_reference_available=False,
+                       judge_validation_status="unvalidated", validation_alpha=None)
     actual_lower, actual_upper = (_to_float(match.group(1)),
                                   _to_float(match.group(2)))
     if actual_lower is None or actual_upper is None or actual_lower > actual_upper:
         return _result("incorrect", 0.0, 0.98, "interval_invalid",
-                       "interval", diagnostics={"answer": match.group(0)})
+                       "interval", diagnostics={"answer": match.group(0)},
+                       scoring_method="deterministic", human_reference_available=False,
+                       judge_validation_status="unvalidated", validation_alpha=None)
     absolute = float(contract.get("absolute_tolerance", 1e-9))
     relative = float(contract.get("relative_tolerance", 0.0))
     lower_ok = _numeric_match(actual_lower, lower, absolute, relative)
@@ -375,6 +408,8 @@ def _evaluate_interval(answer: str, contract: Mapping[str, Any]) -> EvaluationRe
                      "actual_lower": actual_lower, "actual_upper": actual_upper,
                      "lower_match": lower_ok, "upper_match": upper_ok,
                      "absolute_tolerance": absolute},
+        scoring_method="deterministic", human_reference_available=False,
+        judge_validation_status="unvalidated", validation_alpha=None,
     )
 
 
@@ -383,7 +418,9 @@ def _evaluate_label(answer: str, contract: Mapping[str, Any]) -> EvaluationResul
     actual = normalize_text(answer)
     if not expected:
         return _result("indeterminate", None, 0.0, "label_contract_missing",
-                       "label")
+                       "label",
+                       scoring_method="deterministic", human_reference_available=False,
+                       judge_validation_status="unvalidated", validation_alpha=None)
     # Labels are categorical: surrounding explanation is not accepted unless
     # the contract explicitly allows it.
     allowed = bool(contract.get("allow_explanation", False))
@@ -392,7 +429,9 @@ def _evaluate_label(answer: str, contract: Mapping[str, Any]) -> EvaluationResul
     return _result("correct" if ok else "incorrect", 1.0 if ok else 0.0,
                    0.99, "label_exact_match", "label",
                    extracted_answer=answer.strip(),
-                   diagnostics={"expected_label": expected})
+                   diagnostics={"expected_label": expected},
+                   scoring_method="deterministic", human_reference_available=False,
+                   judge_validation_status="unvalidated", validation_alpha=None)
 
 
 def _evaluate_structured(answer: Any, contract: Mapping[str, Any]) -> EvaluationResult:
@@ -404,7 +443,9 @@ def _evaluate_structured(answer: Any, contract: Mapping[str, Any]) -> Evaluation
     expected = contract.get("expected", contract.get("schema"))
     if not isinstance(answer, Mapping) or not isinstance(expected, Mapping):
         return _result("indeterminate", None, 0.0, "structured_contract_invalid",
-                       "structured")
+                       "structured",
+                       scoring_method="deterministic", human_reference_available=False,
+                       judge_validation_status="unvalidated", validation_alpha=None)
     missing = []
     mismatched = {}
     for key, value in expected.items():
@@ -417,6 +458,8 @@ def _evaluate_structured(answer: Any, contract: Mapping[str, Any]) -> Evaluation
         "correct" if ok else "incorrect", 1.0 if ok else 0.0, 0.99,
         "structured_exact_match", "structured",
         diagnostics={"missing": missing, "mismatched": mismatched},
+        scoring_method="deterministic", human_reference_available=False,
+        judge_validation_status="unvalidated", validation_alpha=None,
     )
 
 

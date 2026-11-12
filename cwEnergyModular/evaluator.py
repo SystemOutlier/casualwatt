@@ -213,6 +213,10 @@ class EvaluationResult:
     # --- answer_type e extracted_answer (nuovi) ---
     answer_type: str = "auto"                 # number | short_text | free_text | auto
     extracted_answer: Optional[str] = NA      # numero estratto (per number) o alternativa trovata (per short_text)
+    # motivo canonico dell'N/A (judge_abstained | judge_uncalibrated |
+    # evaluation_failed | human_review_required); vuoto se la riga e' valutata.
+    # Il gate di calibrazione umana lo scrive "judge_uncalibrated" (§6).
+    none_reason: str = ""
 
 
 _CAUSE_RE = re.compile(r"\bcaus(?:e|es|ed|ing|al|ality)\b", re.IGNORECASE)
@@ -421,7 +425,8 @@ def evaluate_response(text: str, is_tool: bool = False,
                       evaluated_model: str = "",
                       judge_fn=None,
                       answer_type: str = "auto",
-                      use_semantic: bool = False) -> EvaluationResult:
+                      use_semantic: bool = False,
+                      judge_gated: bool = False) -> EvaluationResult:
     """Valutazione UNIVERSALE.
 
     mode:
@@ -441,6 +446,12 @@ def evaluate_response(text: str, is_tool: bool = False,
                   il benchmark (risparmio energetico). La valutazione semantica
                   va fatta POST-HOC con semantic_judge.py. Se True, abilita il
                   giudizio semantico con embedding (solo per uso post-hoc).
+    judge_gated: se True, il ramo senza GT (REGIME B) e' bloccato dal gate di
+                 calibrazione umana (§6): is_correct=None con motivo
+                 "judge_uncalibrated", giudice NON chiamato. Il chiamante risolve
+                 il flag per ramo (human_calibration_gate.judge_gated_flags);
+                 i rami deterministici del REGIME A non sono toccati, perche' la
+                 loro is_correct viene dalla GT, non dal giudice.
     Non solleva MAI eccezioni.
     """
     # Robustezza: normalizza input None/NaN/empty
@@ -630,6 +641,23 @@ def evaluate_response(text: str, is_tool: bool = False,
 
     # ----------------- REGIME B: senza GT -> LLM-as-a-Judge -----------------
     res.eval_mode = "causal_agent_eval"
+    # Gate di calibrazione umana (§6): se il giudice non e' validato su questo
+    # ramo, is_correct e' derivato da un giudice non calibrato e non puo' essere
+    # pubblicato. Il ramo resta NON VALUTATO (nessun giudice chiamato, nessun
+    # acc_comp): non e' un fallimento dello scoring, e' scoring bloccato a monte.
+    if judge_gated:
+        res.eval_method = "judge_gated"
+        res.is_correct = NA
+        res.none_reason = "judge_uncalibrated"
+        res.judge_score = NA
+        res.explanation_quality = NA
+        res.acc_comp = None
+        res.notes.append(
+            "regime B gated: giudice non calibrato su questo ramo "
+            "(judge_gated=true); is_correct=N/A con motivo judge_uncalibrated, "
+            "giudice non chiamato, nessuna accuratezza pubblicata"
+        )
+        return res
     res.eval_method = "llm_judge(ollama,T=0)+triple_f1(self-consistency)"
     res.cosine_sim = NA               # MAI forzato: N/A nel CSV
     res.semantic_similarity = NA      # idem: nessuna GT da confrontare
