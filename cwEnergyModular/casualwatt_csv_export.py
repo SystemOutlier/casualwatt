@@ -31,6 +31,11 @@ CSV_COLUMNS: List[str] = [
     # energia locale CPU
     "package_energy_j", "idle_power_w", "baseline_energy_j",
     "active_energy_j", "ollama_active_energy_j", "cpu_time_share",
+    # v4-TTFT: separazione TTFT vs generazione (ripartizione del valore di riga)
+    "ttft_available", "ttft_s",
+    "package_energy_ttft_j", "package_energy_generation_j",
+    "baseline_energy_ttft_j", "baseline_energy_generation_j",
+    "active_energy_ttft_j", "active_energy_generation_j",
     # energia GPU
     "gpu_available", "gpu_device_index", "gpu_board_energy_j",
     "gpu_energy_attributed_j", "gpu_utilization_share",
