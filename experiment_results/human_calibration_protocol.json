@@ -1,0 +1,294 @@
+{
+  "protocol_version": "2.0",
+  "date": "2026-11-11",
+  "anchors_reverified": "2026-11-12 (Fase 4 della revisione correttiva): le coordinate di riga citate dalla versione 2.0 erano stantie per la crescita di human_calibration_gate.py e evaluation_runner.py. Corrette le coordinate, non i comportamenti che descrivono. Corretti anche tre nomi di campo inesistenti: n_items_per_stratum (ora n_items e n_pairable, campi reali di StratumAgreement), ecpc_value (ora ecpc_j), accuracy_covered (ora verdict_accuracy_covered). 2026-11-13 (P3, preregistrazione del riepilogo dei tre stati dell'Opzione A): la crescita di human_calibration_gate.py non e' uniforme (+3 su verifica_a e verifica_b, +7 su integrate_experiment_status, +24 su calibration_sample_template, crescita interna a verifica_b per i pavimenti e i criteri) aveva reso stantii anche gli ancoraggi del 12-11; sono stati corretti per contenuto, non per shift, verificando ogni coordinata sui sorgenti (AST per gli span, lettura della riga per i puntatori). Corretto il nome del campo di Gate 3: 'experiment_status' non esiste nel codice, il riepilogo scrive 'integrated_status' (tools/calibration_gate_summary.py). Dichiarato in output_artifacts il nuovo artefatto calibration_gate_summary.json con il suo produttore. Gli ancoraggi di span file.py::fun (A-B) sono bloccati dal test tests/test_protocol_output_artifacts.py; quelli puntuali restano verificati per contenuto.",
+  "description": "Protocollo pre-registrato per la validazione dello scoring (Fase 0 CasualWatt). Due verifiche distinte e non intercambiabili: affidabilita' delle annotazioni umane (Verifica A) e validita' del giudice LLM rispetto al riferimento umano adjudicato (Verifica B). Il gate energetico (P4.9, Gate 1) e' indipendente e non e' toccato da questo protocollo.",
+  "spec_reference": "Decisione operativa Fase 0 (allegato 1c16c95f-a9b1-489d-8c03-bc8c403e5561.txt): correzioni 1, 2, 6; istruzioni finali 5, 6; deliverable 1-5.",
+  "supersedes": "protocol_version 1.0 (primary krippendorff_alpha_ordinal, gate unico alpha>=0.8): difforme dalle correzioni 1 e 2 della specifica e dal codice human_calibration_gate.py.",
+  "strata": [
+    {
+      "name": "number",
+      "description": "Risposte numeriche finite (es. 42, 3.14, 1.5 kg)",
+      "target_items": 14,
+      "evaluation_method": "deterministic_tolerance_match",
+      "criterion_anchor": "Valutatore PRIMARIO evaluator.py::compare_numbers (92-107): tolleranza 1e-6; per GT!=0 differenza relativa <1e-6, per GT=0 valore assoluto della risposta <1e-6; quantita' finite e dimensionalmente compatibili, percentuali e simboli SI convertiti prima del confronto. NON il valutatore robusto secondario (robust_evaluator.py:267-268, absolute_tolerance 1e-9 + relative_tolerance 1e-6): i suoi parametri non si trasferiscono al primario."
+    },
+    {
+      "name": "short_text",
+      "description": "Risposte testuali brevi <= 6 parole (es. nomi, date, definizioni)",
+      "target_items": 13,
+      "evaluation_method": "normalized_containment"
+    },
+    {
+      "name": "free_text",
+      "description": "Risposte aperte, ragionamento, spiegazioni",
+      "target_items": 13,
+      "evaluation_method": "llm_judge_threshold_ge_4"
+    }
+  ],
+  "total_items": 40,
+  "pilot_declaration": "I 40 item sono un pilota, non la numerosita' definitiva: l'intervallo bootstrap di alpha dice quanto pesa la numerosita'. Se la precisione dell'intervallo e' insufficiente per decidere la soglia, si raccoglie un campione aggiuntivo prima di congelare i criteri; non si sposta la soglia dopo aver visto i dati.",
+  "annotators": 2,
+  "annotator_blinding": {
+    "model_identity": true,
+    "energy_consumption": true,
+    "llm_judge_verdict": true,
+    "framework": true
+  },
+  "adjudication": {
+    "enabled": true,
+    "trigger": "annotator_disagreement",
+    "method": "third_annotator_or_consensus_discussion",
+    "rule": "Un disaccordo senza adjudication NON produce un riferimento consolidato: il giudice non puo' essere validato contro un riferimento che non esiste."
+  },
+  "rubric": {
+    "labels": ["Correct", "Incorrect", "Indeterminate"],
+    "level_of_measurement": "nominal",
+    "ordinal_hierarchy": null,
+    "definitions": {
+      "Correct": "Risposta sostanzialmente corretta rispetto alla ground truth / criteri dichiarati",
+      "Incorrect": "Risposta errata, contraddice la ground truth o contiene errori fattuali",
+      "Indeterminate": "Non e' possibile stabilire con sufficiente certezza (risposta ambigua, incompleta, ground truth insufficiente)"
+    },
+    "nominal_note": "Le etichette sono categoriali nominali: Indeterminate NON e' un livello intermedio tra Correct e Incorrect, e' un esito non determinabile. Nessuna gerarchia ordinale Correct > Indeterminate > Incorrect (specifica, correzione 2).",
+    "required_justification": true,
+    "justification_max_chars": 200
+  },
+  "verifica_a": {
+    "what": "Affidabilita' delle annotazioni umane: accordo tra Annotatore 1 e Annotatore 2. NON misura la validita' del giudice LLM.",
+    "comparison": "annotator_1 vs annotator_2",
+    "level_of_measurement": "nominal",
+    "primary_metric": "krippendorff_alpha_nominal",
+    "threshold_alpha": 0.8,
+    "alpha_role": "alpha >= 0.8 e' condizione NECESSARIA per usare il riferimento umano come gold standard, NON criterio sufficiente per abilitare il giudice (specifica, correzione 1, riga 21).",
+    "min_pairable_items": 3,
+    "min_admissible_fraction": 0.5,
+    "min_numerosity_role": "Pavimento di numerosita' per strato, preregistrato con la soglia e non spostato dai dati: sotto 3 item pairable il ramo e' insufficient_data, non validated. Tre osservazioni sono il minimo che il protocollo richiede per riportare un aggregato (P4.12, terna di osservazioni). Il pavimento e' fail-closed: puo' solo abbassare uno stato, mai alzarlo, e i record malformati esclusi non devono potere restringere il campione valido fino a un residuo senza che il gate lo dica. Le metriche restano riportate (un alpha 1,0 su due item e' un dato vero, non un verdetto). code_anchor: human_calibration_gate.py:76 (MIN_PAIRABLE_ITEMS), verifica_a :339-342 (ramo del pavimento di numerosita').",
+    "min_admissible_fraction_role": "Pavimento sulla frazione ammissibile, preregistrato con la soglia e non spostato dai dati: se le coppie pairable sono meno della frazione minima dei record attribuiti allo strato, il ramo e' insufficient_data anche con alpha sopra soglia. Chiude l'esposizione misurata dall'audit avversariale (E1 sul sequenza, E3 sul ramo): i denominatori del gate sono sempre il sottoinsieme ammissibile -- trattamento metrologicamente corretto, un record difettoso non si converte -- ma prima di questo pavimento nessun criterio condizionava il verdetto alla frazione esclusa, quindi un campione con 27 record esclusi su 30 e 3 superstiti in accordo perfetto passava. Fail-closed: puo' solo abbassare uno stato, mai alzarlo. La frazione di ogni sequenza e' esposta in admissible_fractions e la guardia sulle sequenze (record fuori dagli strati) vive in run_scoring_validation_gate. code_anchor: human_calibration_gate.py:75-84 (MIN_ADMISSIBLE_FRACTION), verifica_a :340-345, run_scoring_validation_gate :903-910 (frazioni delle sequenze) e :939-950 (guardia di sequenza).",
+    "metrics_prescribed_by_spec": [
+      "krippendorff_alpha_nominal",
+      "cohen_kappa_nominal",
+      "percent_agreement",
+      "confusion_matrix",
+      "class_distribution"
+    ],
+    "metrics_implemented_by_gate": [
+      "alpha_nominal",
+      "alpha_ci_95",
+      "kappa_nominal",
+      "percent_agreement",
+      "disagreements",
+      "class_distribution",
+      "n_items",
+      "n_pairable"
+    ],
+    "metrics_not_yet_implemented": [],
+    "kappa_nominal_note": "Cohen's kappa nominale ORA prodotto dal gate (gap metrico chiuso): cohen_kappa_nominal (human_calibration_gate.py:180-209), esposto in StratumAgreement.kappa_nominal (:223) con la ragione di non calcolabilita' in kappa_reason (:224). Metrica complementare riportata, NON criterio di accettazione: non modifica passed, che resta determinato dalla soglia su alpha (Opzione 1). None se le coppie pairable sono meno di due o se p_e = 1 (una sola classe nominale, nessuna variabilita' attesa dal caso); il valore non e' clampato. Classi nominali effettivamente presenti (correct, incorrect, indeterminate quando osservato), nessuna gerarchia ordinale. spec_anchor: correzione 2 (riga 26); tabella Verifica A (riga 18).",
+    "partial_metrics_note": "La matrice di confusione fra annotatori non e' esposta come oggetto esplicito: il gate produce disagreements (conteggi a1->a2) e class_distribution (margini dell'annotatore 1), che ne coprono l'informazione ma non sono una matrice nominale completa. Da dichiarare come parziale, non come gap bloccante.",
+    "ci_method": "item-level bootstrap percentile 2.5-97.5",
+    "bootstrap_seed": 20261104,
+    "bootstrap_resamples": 2000,
+    "bootstrap_seed_anchor": "evaluation_runner.py:25-26 (BOOTSTRAP_SEED, BOOTSTRAP_RESAMPLES)",
+    "code_anchor": "human_calibration_gate.py::verifica_a (234-360); krippendorff_alpha level='nominal' con raise su level diverso (94-151, raise 108-112); cohen_kappa_nominal (183-212); StratumAgreement (215-231)"
+  },
+  "verifica_b": {
+    "what": "Validita' del giudice LLM: accordo tra giudice e riferimento umano consolidato dopo adjudication, su campione INDIPENDENTE da quello di calibrazione.",
+    "comparison": "judge_verdict vs riferimento umano adjudicato",
+    "independent_sample": true,
+    "independence_rule": "Nessuna sovrapposizione di task_id col campione di calibrazione: una sovrapposizione e' un errore dichiarato (ValueError), non un'avvertenza.",
+    "acceptance_criteria": {
+      "min_precision_correct": null,
+      "min_recall_correct": null,
+      "max_fp_rate": null,
+      "min_accuracy": null,
+      "min_coverage": null
+    },
+    "fail_closed": "Criteri null = non preregistrati = gate non eseguibile: il giudice non e' promosso con soglie inventate al momento. I valori definitivi dipendono dalla distribuzione dei task e si fissano prima dei dati.",
+    "min_decided_items": 3,
+    "min_admissible_fraction": 0.5,
+    "min_numerosity_role": "Pavimento di numerosita' per strato, preregistrato con i criteri e non spostato dai dati: sotto 3 verdetti decisi le metriche sono calcolabili ma non giudicabili, e il solo criterio fallito e' insufficient_numerosity -- un fp_rate None su un item solo non e' assenza di falsi positivi, e' assenza di casi. Il pavimento non giudica precision/recall/accuracy su un campione che non le supporta. Fail-closed: puo' solo abbassare uno stato, mai alzarlo. code_anchor: human_calibration_gate.py:74 (MIN_DECIDED_ITEMS), verifica_b :638 (ramo insufficient_numerosity).",
+    "min_admissible_fraction_role": "Pavimento sulla frazione ammissibile, preregistrato con i criteri e non spostato dai dati: se gli item con riferimento adjudicato utilizzabile sono meno della frazione minima dei record attribuiti allo strato, il ramo e' insufficient_data anche con metriche brillanti sui superstiti, perche' quelle metriche descrivono il residuo delle esclusioni e non il campione. Il denominatore della frazione e' n_records_in_stratum (campo esposto in JudgeValidity per ricostruire la frazione), non n_items: senza quel campo la frazione non sarebbe ricostruibile dal solo output. Il criterio fallito e' insufficient_admissible_fraction, in failed_criteria accanto a insufficient_numerosity quando entrambi i pavimenti aprono. Fail-closed: puo' solo abbassare uno stato, mai alzarlo. code_anchor: human_calibration_gate.py:78-87 (MIN_ADMISSIBLE_FRACTION), verifica_b :640-641, JudgeValidity.n_records_in_stratum :493, ScoringValidationGateResult.admissible_fractions :705.",
+    "metrics_prescribed_by_spec": [
+      "accuracy",
+      "precision_per_class",
+      "recall_per_class",
+      "f1_per_class",
+      "false_positives",
+      "false_negatives",
+      "abstention_rate"
+    ],
+    "metrics_implemented_by_gate": [
+      "confusion",
+      "accuracy",
+      "precision_correct",
+      "recall_correct",
+      "precision_incorrect",
+      "recall_incorrect",
+      "f1_correct",
+      "f1_incorrect",
+      "fp_rate",
+      "abstention_rate",
+      "coverage",
+      "accuracy_ci_95",
+      "precision_correct_ci_95",
+      "recall_correct_ci_95",
+      "fp_rate_ci_95"
+    ],
+    "metrics_not_yet_implemented": [],
+    "f1_per_class_note": "F1 per classe ORA prodotto dal gate (gap metrico chiuso): _f1 (human_calibration_gate.py:470-482), esposto in JudgeValidity.f1_correct (:503) e f1_incorrect (:504) con la ragione di non calcolabilita' in f1_reason (:505). F1 = 2*P*R/(P+R) dalle precision/recall gia' calcolate, senza toccarne i denominatori. Metrica riportata, NON criterio di accettazione: non modifica passed ne' failed_criteria (Opzione 1). None se precision o recall non sono definite o se P+R = 0 (classe senza veri positivi). Classi solo {correct, incorrect}: un riferimento indeterminate e' escluso e un verdetto indeterminate del giudice e' un'astensione, non una classe. spec_anchor: tabella Verifica B (riga 19).",
+    "partial_metrics_note": "Falsi positivi: fp_rate = IC/(IC+II) esplicito, piu' il conteggio IC nella matrice. Falsi negativi: conteggio CI presente nella matrice di confusione; il tasso FN non e' un campo nominato ma e' derivabile da recall_correct (FN rate = 1 - recall_correct). Matrice di confusione esplicita (confusion[reference][correct|incorrect|abstained]).",
+    "confusion_matrix_note": "Per la Verifica B la matrice di confusione NON e' un requisito letterale aggiuntivo della specifica: la riga 19 (Validita' del giudice) nomina accuracy, precision, recall, F1 per classe, falsi positivi, falsi negativi e tasso di astensione, non la matrice. La matrice e' la rappresentazione degli stessi conteggi che la specifica prescrive (FP = IC, FN = CI, astensioni): il gate la costruisce come confusion[reference][correct|incorrect|abstained] (human_calibration_gate.py:591-592, 604-607) e ne legge FP/FN, quindi non aggiunge un requisito oltre quelli prescritti. La matrice di confusione e' invece requisito letterale per la Verifica A (riga 18).",
+    "code_anchor": "human_calibration_gate.py::verifica_b (518-683); JudgeAcceptanceCriteria (419-453); adjudicated_reference (363-411); _f1 (473-485); JudgeValidity (489-515)"
+  },
+  "diagnostics": {
+    "purpose": "Il gate non si limita a non produrre un numero falso: dice PERCHE' non puo' produrlo. Le categorie sono distinte e non intercambiabili; un record difettoso e' escluso dal calcolo e contato, mai convertito e mai promosso.",
+    "codes": {
+      "ok": "record che ha prodotto il confronto (coppie pairable in Verifica A, verdetti decisi in Verifica B)",
+      "insufficient_data": "dati corretti ma troppo pochi: sotto il pavimento preregistrato (min_pairable_items, min_decided_items, min_admissible_fraction)",
+      "invalid_schema": "record non conforme allo schema canonico: riga non-oggetto, campo annotations non-oggetto, answer_type assente o fuori dagli strati misurati",
+      "invalid_label": "etichetta fuori dal vocabolario ammesso, incluse le maiuscole, che NON vengono convertite in minuscolo",
+      "missing_annotation": "annotatore richiesto assente (None)",
+      "unscored": "riferimento umano non producibile (disaccordo senza adjudication): item non confrontabile, escluso dalla matrice"
+    },
+    "quinto_codice_insufficient_data": "insufficient_data non e' un sesto codice accanto agli altri cinque: e' il quinto codice di DIAGNOSTIC_CODES e va tenuto distinto da unscored. insufficient_data conta record corretti ma troppo pochi per un verdetto (sotto un pavimento preregistrato); unscored conta record per cui il riferimento umano non e' producibile (disaccordo senza adjudication) o il verdetto del giudice e' assente. Sono cause diverse su popolazioni diverse: il primo dice 'il campione non basta', il secondo dice 'il confronto non esiste'. Confonderli trasformerebbe un campione troppo piccolo in un riferimento mancante e viceversa.",
+    "insufficient_data_verdetto_non_conteggio": "insufficient_data compare a due livelli, che non vanno confusi: (a) codice per-record nei dict diagnostics dei due rami (1 se il ramo e' sotto il pavimento di numerosita', 0 altrimenti -- un flag di ramo contato una volta, non un conteggio di record); (b) stato di verdetto dello strato in scoring_status_per_stratum, prodotto dallo stesso pavimento e dal pavimento sulla frazione ammissibile. Nel caso (a) insufficient_data non compete con ok per gli stessi record: un record sotto pavimento continua a essere contato in ok dal proprio ramo, perche' ha comunque prodotto il confronto.",
+    "verdict_tokens_non_codici_diagnostici": "insufficient_numerosity e insufficient_admissible_fraction NON sono codici di DIAGNOSTIC_CODES e non entrano nei dict diagnostics: sono token di failed_criteria (Verifica B) e ragioni di mancato pass (Verifica A, in StratumAgreement.reason), cioe' criteri di verdetto preregistrati. Aggiungerli ai codici per-record li farebbe sembrare difetti del dato, mentre sono regole di giudizio sul campione.",
+    "reconstructibility": "La causa di ogni esclusione e' sempre ricostruibile dall'output del gate, senza riaprire i dati: per record dai dict diagnostics di ramo (conteggio per causa, con la regola di prevalenza invalid_schema su unscored); per ramo da StratumAgreement.reason, JudgeValidity.failed_criteria, JudgeValidity.n_records_in_stratum e dalle frazioni esposte in ScoringValidationGateResult.admissible_fractions (calibrazione e validazione); per sequenza da n_calibration_items e n_validation_items confrontati con la somma dei record attribuiti agli strati, piu' il dettaglio in notes. Un record escluso dal denominatore non scompare dal resoconto: il denominatore del verdetto e' sempre il sottoinsieme ammissibile, e la quota esclusa resta esposta accanto al verdetto che essa condiziona.",
+    "counting_rule": "Un record non viene contato due volte nella stessa categoria. Le cause di sequenza -- riga non-oggetto, record fuori dagli strati, riferimento non costruito -- non appartengono ad alcuno strato: il loro conteggio authoritative e' a livello di gate, non la somma dei dict per strato, perche' con tre strati un solo record sembrerebbe tre difetti. Le cause di sequenza sono mutuamente esclusive, con precedenza invalid_schema su unscored: un record fuori perimetro e senza riferimento e' invalid_schema una volta sola. Le cause di contenuto (invalid_label, missing_annotation) possono invece toccare lo stesso record, perche' sono fatti distinti.",
+    "per_stratum_vs_sequence": "unscored nel dict di un ramo conta due cause attribuibili a quel ramo -- verdetto del giudice assente, e riferimento che il record stesso dichiara inutilizzabile -- mentre un riferimento non allegato (il gate non e' riuscito a costruirlo) e' contato una volta a livello di gate.",
+    "fail_closed_note": "La diagnostica non cambia i denominatori ne' passed; gli stati per ramo li muove solo il pavimento di numerosita', che e' regola di verdetto preregistrata, non informazione additiva.",
+    "fail_closed_note_floors": "Dal 2026-11-11 i pavimenti preregistrati sono tre -- min_pairable_items, min_decided_items, min_admissible_fraction -- e tutti e tre muovono lo stato del ramo senza cambiare i denominatori ne' passed. Il denominatore di una metrica resta sempre il sottoinsieme ammissibile (un record difettoso non si converte); il pavimento sulla frazione ammissibile condiziona il verdetto alla quota di record esclusi, cosi' che il gate non possa risultare scientificamente completo semplicemente perche' i record problematici sono stati tolti dal denominatore.",
+    "code_anchor": "human_calibration_gate.py:66-67 (DIAGNOSTIC_CODES), verifica_a :308-315, verifica_b :624-634, run_scoring_validation_gate :885-901 (conteggi) e :903-910, :939-950 (frazioni e guardia di sequenza)"
+  },
+  "gate_separation": {
+    "energy_gate": {
+      "name": "Gate 1 (P4.9)",
+      "question": "La misura energetica e' valida?",
+      "output": "energy_chain_status",
+      "independent": true,
+      "note": "Non toccato da questo protocollo. Un'energia misurata correttamente non e' invalidata perche' il giudice non e' calibrato."
+    },
+    "scoring_gate": {
+      "name": "Gate 2",
+      "question": "L'etichetta di correttezza e' affidabile?",
+      "output": "scoring_status",
+      "per_stratum": true,
+      "producer": "human_calibration_gate.py::run_scoring_validation_gate (798-1035)"
+    },
+    "integrated_gate": {
+      "name": "Gate 3",
+      "question": "L'esperimento e' pubblicabile?",
+      "output": "integrated_status",
+      "producer": "human_calibration_gate.py::integrate_experiment_status (1038-1052)",
+      "rule": "Combina energy_chain_status e scoring_status senza cancellare l'informazione originaria."
+    },
+    "scoring_status_per_stratum_values": [
+      "validated",
+      "human_agreement_failed",
+      "criteria_not_registered",
+      "insufficient_data",
+      "judge_uncalibrated"
+    ],
+    "scoring_status_semantics_note": "insufficient_data e human_agreement_failed non sono la stessa causa: insufficient_data dice che il campione non basta per un verdetto ( Verifica A sotto min_pairable_items, Verifica B sotto min_decided_items, nessun item nello strato, frazione ammissibile sotto min_admissible_fraction su un ramo o su una sequenza), human_agreement_failed dice che il campione c'e' e gli annotatori non concordano (alpha sotto soglia). Collassarle direbbe 'gli annotatori non concordano' a un ramo con due soli item, e 'dati insufficienti' a un ramo con meta' item discordanti. code_anchor: human_calibration_gate.py:912-937 (ciclo degli stati) e :939-950 (guardia di sequenza).",
+    "scoring_status_overall_values": ["validated", "partially_validated", "not_validated"],
+    "example": {
+      "energy_chain_status": "validated",
+      "scoring_status": "partially_validated",
+      "integrated_status": "partially_validated"
+    },
+    "validated_rule": "Un ramo e' 'validated' solo se Verifica A supera la soglia E Verifica B supera i criteri preregistrati. Un buon accordo umano non dimostra automaticamente la validita' del giudice.",
+    "validated_token_caveat": "Il token software scoring_status='validated' (human_calibration_gate.py::run_scoring_validation_gate, :935-936) certifica SOLO che Verifica A supera la soglia alpha e Verifica B supera i cinque criteri preregistrati (precision_correct, recall_correct, fp_rate, accuracy, coverage). NON certifica il completamento scientifico della procedura: kappa nominale (Verifica A) e F1 per classe (Verifica B) sono ora prodotti dal gate come metriche riportate, ma il token validated NON dipende dalla loro disponibilita'. Un ramo 'validated' resta scientificamente incompleto finche' kappa_nominal, f1_correct e f1_incorrect non sono disponibili (non-None) per quel ramo: una calibrazione a classe sola ha kappa None (p_e = 1) e una validazione senza una classe ha F1 None per la classe non testata. 'validated' e' condizione necessaria, non sufficiente, per dichiarare completa la validazione (si veda completion_rule). Il token non e' prodotto quando un pavimento preregistrato apre -- numerosita' o frazione ammissibile, su ramo o su sequenza -- e non e' prodotto quando una frazione ammissibile di sequenza sta sotto il pavimento: in quel caso nessun ramo e' promosso, qualunque siano le metriche sui superstiti."
+  },
+  "verdict_model": {
+    "deterministic_verdict": ["correct", "incorrect", "indeterminate"],
+    "judge_verdict": ["correct", "incorrect", "indeterminate", "not_called", "gated"],
+    "final_verdict": ["correct", "incorrect", "indeterminate", "unscored"],
+    "is_correct": ["true", "false", "null"],
+    "rules": [
+      "Se il gate deterministico produce correct o incorrect, il giudice non viene invocato.",
+      "Se produce indeterminate, il giudice viene invocato solo se il ramo e' validato.",
+      "Se il ramo non e' validato, final_verdict = unscored e is_correct = null.",
+      "unscored non deve mai essere convertito in incorrect."
+    ],
+    "code_anchor": "evaluation_runner.py::final_verdict (127-141), _is_correct_bool (120-124); evaluator.py::judge_gated default False (429), ramo gated (648-657)",
+    "implementation_note": "final_verdict e is_correct sono esposti per-record nel blocco CW_SCORING_V1 (evaluation_runner.py:144-158, campi del blocco a :153-158). deterministic_verdict e judge_verdict NON sono campi per-record separati: judge_verdict esiste solo come input della Verifica B (human_calibration_gate.py:597). Gap B3, decisione architetturale separata, non risolta in questa fase."
+  },
+  "coverage_definition": {
+    "experiment_scoring_coverage": "#{i : is_correct_i != null} / N",
+    "experiment_scoring_coverage_note": "Quota di item dell'esperimento con un giudizio binario disponibile (deterministico, o giudice su ramo validato), non quota con un qualche verdetto: indeterminate esplicito NON e' coperto. E' la coverage della correzione 4 della specifica.",
+    "experiment_scoring_coverage_anchor": "evaluation_runner.py:805 (campo scoring_coverage, per categoria), :925 (campo verdict_coverage, aggregato)",
+    "judge_decision_coverage": "n_decided / n_items = 1 - abstention_rate",
+    "judge_decision_coverage_note": "Quota di item del campione INDIPENDENTE di validazione su cui il giudice ha prodotto un verdetto deciso (correct/incorrect), non astenuto. Grandezza della Verifica B: numeratore, denominatore e popolazione differiscono dalla coverage d'esperimento (qui n_items sono gli item con riferimento adjudicato nel campione di validazione, non le righe dell'esperimento).",
+    "judge_decision_coverage_anchor": "human_calibration_gate.py:618 (coverage = n_decided/n_items), 617 (abstention_rate)",
+    "min_coverage_applies_to": "judge_decision_coverage",
+    "min_coverage_note": "Il criterio di accettazione min_coverage della Verifica B (JudgeAcceptanceCriteria) soglia la judge_decision_coverage (human_calibration_gate.py:663-664), NON la experiment_scoring_coverage. Le due coverage non sono intercambiabili: una soglia sull'una non e' una soglia sull'altra."
+  },
+  "accuracy_definition": {
+    "experiment_accuracy_covered": "#{i : is_correct_i = true} / #{i : is_correct_i != null}",
+    "experiment_accuracy_covered_note": "Accuratezza dell'esperimento condizionata agli item con giudizio binario (accuracy_covered della correzione 4 della specifica).",
+    "experiment_accuracy_covered_anchor": "evaluation_runner.py:926 (campo verdict_accuracy_covered)",
+    "judge_accuracy": "(CC + II) / n_decided",
+    "judge_accuracy_note": "Accuratezza del giudice della Verifica B, calcolata sui soli verdetti decisi (CC = correct->correct, II = incorrect->incorrect) contro il riferimento adjudicato del campione indipendente. Non e' l'accuracy_covered dell'esperimento: numeratore, denominatore e popolazione differiscono.",
+    "judge_accuracy_anchor": "human_calibration_gate.py:611 (accuracy = (cc+ii)/n_decided)",
+    "min_accuracy_applies_to": "judge_accuracy",
+    "min_accuracy_note": "Il criterio di accettazione min_accuracy della Verifica B soglia la judge_accuracy (human_calibration_gate.py:661-662), NON la experiment_accuracy_covered."
+  },
+  "ecpc_phase_boundary": {
+    "scope": "Questo protocollo di Fase 0 copre i prerequisiti della validazione dello scoring (riferimento umano, Verifica A, Verifica B, stati separati). Il calcolo dell'ECPC e dei suoi indicatori appartiene alla fase successiva di analisi, non a questa pre-registrazione.",
+    "next_phase_fields": ["ecpc_j", "ecpc_model_j", "ecpc_system_j", "ecpc_status", "ecpc_verified", "n_total", "n_correct", "verdict_none_count", "scoring_coverage", "verdict_accuracy_covered"],
+    "ecpc_status_definition": "complete (tutti gli item con is_correct binario) | partial (alcuni item unscored) | unavailable (nessuna risposta corretta o ramo non validato).",
+    "ecpc_status_anchor": "evaluation_runner.py:808-813 (logica ecpc_status), :852 (campo categoria)",
+    "ecpc_verified_anchor": "evaluation_runner.py:798 (ecpc_verified = energia verificata / corrette verificata), :862 (campo categoria)",
+    "note": "Le definizioni di coverage e accuracy in questo protocollo servono a disambiguare le metriche della Verifica B; la loro produzione, insieme all'ECPC, e' output del runner nella fase di analisi. Un ECPC partial non e' definitivo: l'energia degli item unscored resta nel numeratore ma non nel denominatore (correzione 5 della specifica)."
+  },
+  "sample": {
+    "canonical_schema": [
+      "task_id",
+      "category",
+      "answer_type",
+      "model_response",
+      "expected",
+      "response_typology",
+      "annotations",
+      "adjudicated"
+    ],
+    "canonical_schema_anchor": "human_calibration_gate.py::calibration_sample_template (1186-1207). Il gate legge answer_type (verifica_a :272, verifica_b :572), annotator_1/annotator_2 (verifica_a :289-290, adjudicated_reference :378-379), adjudicated (adjudicated_reference :392), task_id (adjudicated_reference :380): nel template annotations e' un oggetto {annotator_1, annotator_2}.",
+    "current_artifact": "experiment_results/human_calibration_sample.jsonl",
+    "current_artifact_status": "fixture_sintetico",
+    "current_artifact_schema": ["item_id", "stratum", "query", "ground_truth", "model_response", "difficulty", "expected_verdict"],
+    "current_artifact_note": "40 item stratificati 14/13/13 con expected_verdict preassegnato (es. HC-001 'Quanto fa 5*5-4?' -> Correct). NON sono annotazioni umane indipendenti e cieche. Lo schema diverge da quello canonico e il campione NON e' consumabile dal gate senza mappatura. Utile solo per verificare l'infrastruttura.",
+    "expected_verdict_rule": "expected_verdict NON deve essere trasformato automaticamente in adjudicated: un'etichetta preassegnata non equivale a un giudizio umano indipendente.",
+    "real_sample_requirement": "Il campione destinato alla vera calibrazione va preparato e annotato secondo lo schema canonico, conservando provenienza e cecita' delle annotazioni. Il campione reale e' da preparare; le annotazioni umane cieche sono da eseguire."
+  },
+  "pre_registration": {
+    "pre_registration_commit": null,
+    "mechanism": "manifest_successivo_non_circolare",
+    "manifest_artifact": "experiment_results/fase0_manifest.json",
+    "manifest_fields": ["protocol_path", "protocol_blob_sha1", "freeze_commit_sha1", "freeze_date"],
+    "note": "Il protocollo NON contiene il proprio hash di commit (dipendenza circolare: il commit dipende dal contenuto, non viceversa). Il protocol_blob_sha1 si calcola prima del commit (git hash-object) e identifica il contenuto congelato; il freeze_commit_sha1 e la freeze_date si registrano nel manifest, committato DOPO il protocollo. Il manifest non e' creato in questa fase: manca il commit di congelamento.",
+    "freeze_rule": "Questo protocollo DEVE essere committato PRIMA di iniziare l'annotazione. Qualsiasi modifica successiva al contenuto congelato invalida la pre-registrazione."
+  },
+  "open_gaps_blocking_completion": [],
+  "pre_registered_floors": {
+    "elenco": [
+      {"name": "min_pairable_items", "value": 3, "scope": "verifica_a, per strato: coppie pairable", "code_anchor": "human_calibration_gate.py:76, verifica_a :339-342"},
+      {"name": "min_decided_items", "value": 3, "scope": "verifica_b, per strato: verdetti decisi del giudice", "code_anchor": "human_calibration_gate.py:74, verifica_b :638"},
+      {"name": "min_admissible_fraction", "value": 0.5, "scope": "verifica_a (coppie pairable / record dello strato), verifica_b (item con riferimento utilizzabile / record dello strato) e le due sequenze (record negli strati / record totali)", "code_anchor": "human_calibration_gate.py:78-87, verifica_a :340-345, verifica_b :640-641, run_scoring_validation_gate :903-910 e :939-950"}
+    ],
+    "not_power_guarantee": "I pavimenti sono condizioni tecniche minime fail-closed, non garanzie di potenza statistica ne' di affidabilita' della stima. n = 3 non stima una varianza (P4.12) e non dimostra che tre osservazioni bastino a una stima scientificamente affidabile: il pavimento impedisce di accettare campioni troppo piccoli, non dimostra la sufficienza del campione. La potenza resta una proprieta' del disegno, dichiarata separatamente; il template del gate la nomina esplicitamente (l'intervallo bootstrap di alpha dice quanto pesa la numerosita', human_calibration_gate.py:1090-1099), e un pilota con numerosita' insufficiente si chiude raccogliendo un campione aggiuntivo prima di congelare i criteri, non spostando la soglia.",
+    "fail_closed": "Ogni pavimento puo' solo abbassare uno stato: il ramo diventa insufficient_data, mai promosso a validated. I valori sono preregistrati con la soglia e non si spostano dopo aver visto i dati.",
+    "abstention_declared_limitation": "Limite dichiarato, non coperto dal pavimento sulla frazione ammissibile: le astensioni del giudice (judge_verdict = not_called/gated, o un verdict indeterminato) non sono un difetto del dato ma un comportamento del giudice, governato dal criterio preregistrato min_coverage sulla judge_decision_coverage. Il pavimento sulla frazione ammissibile guarda quindi all'ammissibilita' dei record (schema, strato, riferimento) e non alla quota di verdetti decisi: con 27 astensioni su 30 e min_coverage preregistrato a 0 il ramo resta validated. Regola di igiene della preregistrazione che ne discende: min_coverage non va preregistrato a 0 (ne' a un valore che renda la coverage non vincolante), perche' una soglia a zero trasforma il criterio in una tautologia. La distinzione semantica fra astensione, riferimento mancante e record fuori perimetro va conservata: sono cause diverse, con popolazioni diverse, e la loro ricostruzione resta nei dizionari diagnostics.",
+    "separation_of_conditions": "Questo protocollo tiene separate tre condizioni: (1) conformita' dell'implementazione al protocollo -- verificata dal codice e dai test; (2) validita' operativa del protocollo -- i criteri sono applicabili e fail-closed; (3) validita' scientifica dimostrata su dati reali -- richiede annotazioni umane reali, verdetti del giudice, campione indipendente e criteri preregistrati, e non e' dimostrata da questo documento. Un gate che sa dichiarare quando non puo' valutare un risultato ha la proprieta' (1) e (2); non per questo il metodo di valutazione e' scientificamente valido."
+  },
+  "completion_rule": "I due gap metrici (kappa nominale, F1 per classe) sono ora chiusi sul lato implementazione: il gate li produce come metriche riportate (Opzione 1). La validazione NON puo' essere dichiarata completa finche' kappa_nominal, f1_correct e f1_incorrect non sono DISPONIBILI (non-None) per il ramo, oltre al token validated: la loro disponibilita' e' condizione necessaria aggiuntiva per il completamento scientifico, ma non modifica il pass/fail di validated. Una calibrazione a classe sola (kappa None, p_e = 1) o una validazione senza una classe (F1 None per la classe non testata) lascia il ramo scientificamente incompleto anche se validated. Verifica A e Verifica B restano distinte anche nel report finale: un buon accordo umano non dimostra la validita' del giudice, e un giudice non e' affidabile solo perche' supera una soglia di accordo umano.",
+  "output_artifacts": [
+    "human_calibration_annotations.jsonl (schema canonico, annotazioni cieche consolidate)",
+    "human_calibration_agreement_report.json (Verifica A: affidabilita' umana)",
+    "human_calibration_judge_comparison.json (Verifica B: validita' del giudice)",
+    "calibration_gate_summary.json (riepilogo dei tre stati dell'Opzione A, prodotto da tools/calibration_gate_summary.py: Gate 1 energy_chain_status letto dall'artefatto della campagna con digest, Gate 2 scoring_status per strato da run_scoring_validation_gate, Gate 3 integrated_status da integrate_experiment_status; verifica pre-campagna e sorgente dei flag judge_gated_* per evaluator.py, senza introdurre metriche proprie)",
+    "fase0_manifest.json (registrazione del congelamento, successiva)"
+  ],
+  "random_seed": 20261111,
+  "random_seed_note": "Seed di selezione del campione (protocollo). Il seed del bootstrap di Verifica A e' 20261104 (codice), distinto.",
+  "notes": "Protocollo riscritto per conformita' alla Decisione operativa Fase 0. Le metriche prescritte dalla specifica sono tutte elencate e ora prodotte dal gate: kappa nominale (Verifica A) e F1 per classe (Verifica B) sono implementati come metriche riportate (Opzione 1), la cui disponibilita' (non-None) e' condizione necessaria per il completamento scientifico ma che non modificano il token validated. I gap metrici aperti sono chiusi; restano separati i gap B1-B6 (decisioni architetturali) e la calibrazione scientifica, che richiede annotazioni umane reali, verdetti del giudice, campione indipendente e criteri preregistrati. Dal 2026-11-13 il riepilogo calibration_gate_summary.json e' un output preregistrato di questo protocollo: prodotto da tools/calibration_gate_summary.py, riepiloga i tre stati (Gate 1 energy_chain_status letto dall'artefatto della campagna, Gate 2 scoring_status per strato, Gate 3 integrated_status combinato) senza sovrapporli e senza introdurre metriche proprie; i flag judge_gated_* che porta a evaluator.py escono dal gate e non cambiano il comportamento del valutatore quando il gate non ha girato. Questo protocollo resta NON congelato (pre_registration_commit null) fino alla verifica dell'implementazione e alla successiva ricalibrazione."
+}
