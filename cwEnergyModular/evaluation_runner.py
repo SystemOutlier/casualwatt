@@ -10,6 +10,16 @@ from collections import Counter
 from pathlib import Path
 from typing import Any, Iterable, Mapping, Optional, Union
 
+# Import evaluation schema for structured export
+from evaluation_schema import (
+    EVALUATION_RESULT_COLUMNS,
+    EVALUATION_SUMMARY_COLUMNS,
+    export_evaluation_results,
+    export_evaluation_summary,
+    compute_pass_at_k_unbiased,
+    wilson_ci,
+)
+
 # Bootstrap a cluster: il seme e' fissato perche' l'intervallo deve essere
 # rigenerabile dalla stessa riga, non un numero diverso a ogni esecuzione.
 BOOTSTRAP_SEED = 20261104
@@ -962,6 +972,150 @@ def summarize_unified_records(records: Iterable[Mapping[str, Any]]) -> list[dict
         )
         results.append(result)
     return results
+
+
+def export_evaluation_results_from_records(
+    records: Iterable[Mapping[str, Any]],
+    path: Path,
+    run_id: str = "",
+    model_name: str = "",
+    mode: str = "a"
+) -> int:
+    """
+    Esporta i record di valutazione nel formato EVALUATION_RESULT_COLUMNS.
+    Collega per run_id, task_id, batch_id, point_id al CSV energetico.
+    """
+    from datetime import datetime
+    eval_records = []
+    for row in records:
+        eval_rec = {
+            "run_id": run_id or row.get("run_id", ""),
+            "session_id": row.get("session_id", ""),
+            "batch_id": row.get("batch_id", ""),
+            "point_id": row.get("point_id", ""),
+            "task_id": row.get("task_id", ""),
+            "task_type": "factual",  # default, overridden below
+            "prompt_id": row.get("prompt_id", ""),
+            "model_name": model_name or row.get("model_name", ""),
+            "model_label": row.get("model_label", ""),
+            "provider": row.get("provider", ""),
+            "prompt": row.get("prompt", row.get("question", "")),
+            "ground_truth": row.get("ground_truth", ""),
+            "model_response": row.get("model_response", row.get("response", row.get("text", ""))),
+            "extracted_answer": row.get("extracted_answer", ""),
+            "tests_total": row.get("tests_total", 0),
+            "tests_passed": row.get("tests_passed", 0),
+            "pass_rate": row.get("pass_rate", 0.0),
+            "pass_at_1": 1 if row.get("passed", row.get("is_correct") in (1, 1.0, True, "1", "true")) else 0,
+            "pass_at_k": 1 if row.get("passed", row.get("is_correct") in (1, 1.0, True, "1", "true")) else 0,
+            "k_value": 1,
+            "pass_at_k_unbiased": 1.0 if row.get("passed", row.get("is_correct") in (1, 1.0, True, "1", "true")) else 0.0,
+            "compile_rate": row.get("compile_rate", 0.0),
+            "runtime_success_rate": row.get("runtime_success_rate", 0.0),
+            "factual_claims": row.get("factual_claims", 0),
+            "factual_correct": row.get("factual_correct", 0),
+            "factual_incorrect": row.get("factual_incorrect", 0),
+            "factual_unverifiable": row.get("factual_unverifiable", 0),
+            "factual_accuracy": row.get("factual_accuracy", 0.0),
+            "factual_precision": row.get("factual_precision", 0.0),
+            "factual_recall": row.get("factual_recall", 0.0),
+            "factual_f1": row.get("factual_f1", 0.0),
+            "human_score": row.get("human_score", ""),
+            "human_score_raw": row.get("human_score_raw", ""),
+            "llm_judge_score": row.get("llm_judge_score", row.get("acc_comp", "")),
+            "llm_judge_model": row.get("llm_judge_model", row.get("judge_model", "")),
+            "rubric_scores": row.get("rubric_scores", ""),
+            "rubric_schema": row.get("rubric_schema", ""),
+            "wilson_ci_lower": row.get("wilson_ci_lower", ""),
+            "wilson_ci_upper": row.get("wilson_ci_upper", ""),
+            "bootstrap_ci_lower": row.get("bootstrap_ci_lower", ""),
+            "bootstrap_ci_upper": row.get("bootstrap_ci_upper", ""),
+            "n_effective_tasks": row.get("n_effective_tasks", 1),
+            "mcnemar_p_exact": row.get("mcnemar_p_exact", ""),
+            "mcnemar_ci_lower": row.get("mcnemar_ci_lower", ""),
+            "mcnemar_ci_upper": row.get("mcnemar_ci_upper", ""),
+            "mcnemar_verdict": row.get("mcnemar_verdict", ""),
+            "energy_scope": row.get("energy_scope", "attributed"),
+            "energy_per_task_j": row.get("energy_per_task_j", row.get("end_to_end_energy_j", "")),
+            "energy_per_token_j": row.get("energy_per_token_j", row.get("energy_per_total_token_j", "")),
+            "latency_ms": row.get("latency_ms", round(row.get("duration_s", 0) * 1000) if row.get("duration_s") else ""),
+            "timestamp": row.get("timestamp", datetime.utcnow().isoformat() + "Z"),
+            "run_mode": row.get("run_mode", "single"),
+            "seed": row.get("seed", ""),
+            "notes": row.get("notes", ""),
+            "eval_method": row.get("eval_method", row.get("eval_mode", "")),
+            "eval_version": row.get("eval_version", ""),
+            "ground_truth_source": row.get("ground_truth_source", ""),
+        }
+        # Infer task_type
+        if row.get("tests_total", 0) > 0:
+            eval_rec["task_type"] = "coding"
+        elif row.get("factual_claims", 0) > 0:
+            eval_rec["task_type"] = "factual"
+        elif row.get("rubric_scores"):
+            eval_rec["task_type"] = "quality"
+        else:
+            eval_rec["task_type"] = "reasoning"
+        eval_records.append(eval_rec)
+    
+    return export_evaluation_results(eval_records, path, mode=mode)
+
+
+def export_evaluation_summary_from_results(
+    summary: Mapping[str, Any],
+    path: Path,
+    run_id: str = "",
+    model_name: str = "",
+    mode: str = "a"
+) -> int:
+    """
+    Esporta il riepilogo aggregato nel formato EVALUATION_SUMMARY_COLUMNS.
+    """
+    from datetime import datetime
+    wilson = summary.get("accuracy_wilson_95")
+    cluster = summary.get("accuracy_cluster_bootstrap_95")
+    summary_rec = {
+        "run_id": run_id or summary.get("run_id", ""),
+        "model_name": model_name or summary.get("model_name", ""),
+        "model_label": summary.get("model_label", ""),
+        "task_type": summary.get("task_type", ""),
+        "n_tasks": summary.get("n_tasks", summary.get("n_total", 0)),
+        "n_tasks_evaluated": summary.get("n_tasks_evaluated", summary.get("n_determinate", 0)),
+        "pass_at_1_mean": summary.get("pass_at_1_mean", ""),
+        "pass_at_k_mean": summary.get("pass_at_k_mean", ""),
+        "pass_at_k_unbiased_mean": summary.get("pass_at_k_unbiased_mean", ""),
+        "compile_rate_mean": summary.get("compile_rate_mean", ""),
+        "runtime_success_rate_mean": summary.get("runtime_success_rate_mean", ""),
+        "factual_accuracy_mean": summary.get("factual_accuracy_mean", summary.get("accuracy_on_determinate", "")),
+        "factual_precision_mean": summary.get("factual_precision_mean", ""),
+        "factual_recall_mean": summary.get("factual_recall_mean", ""),
+        "factual_f1_mean": summary.get("factual_f1_mean", ""),
+        "human_score_mean": summary.get("human_score_mean", ""),
+        "human_score_ci_lower": summary.get("human_score_ci_lower", ""),
+        "human_score_ci_upper": summary.get("human_score_ci_upper", ""),
+        "llm_judge_score_mean": summary.get("llm_judge_score_mean", ""),
+        "llm_judge_agreement": summary.get("llm_judge_agreement", ""),
+        "accuracy_mean": summary.get("accuracy_mean", summary.get("accuracy_on_determinate", "")),
+        "wilson_ci_lower": summary.get("wilson_ci_lower", wilson[0] if wilson else ""),
+        "wilson_ci_upper": summary.get("wilson_ci_upper", wilson[1] if wilson else ""),
+        "bootstrap_ci_lower": summary.get("bootstrap_ci_lower", cluster[0] if cluster else ""),
+        "bootstrap_ci_upper": summary.get("bootstrap_ci_upper", cluster[1] if cluster else ""),
+        "n_effective_tasks": summary.get("n_effective_tasks", summary.get("n_effective_tasks", "")),
+        "energy_per_task_j_mean": summary.get("energy_per_task_j_mean", summary.get("median_energy_j", "")),
+        "energy_per_task_j_median": summary.get("energy_per_task_j_median", summary.get("median_energy_j", "")),
+        "energy_per_token_j_mean": summary.get("energy_per_token_j_mean", ""),
+        "latency_ms_mean": summary.get("latency_ms_mean", round(summary.get("median_duration_s", 0) * 1000) if summary.get("median_duration_s") else ""),
+        "latency_ms_median": summary.get("latency_ms_median", round(summary.get("median_duration_s", 0) * 1000) if summary.get("median_duration_s") else ""),
+        "paired_with_model": summary.get("paired_with_model", ""),
+        "mcnemar_p_exact": summary.get("mcnemar_p_exact", ""),
+        "mcnemar_ci_lower": summary.get("mcnemar_ci_lower", ""),
+        "mcnemar_ci_upper": summary.get("mcnemar_ci_upper", ""),
+        "mcnemar_verdict": summary.get("mcnemar_verdict", ""),
+        "delta_accuracy": summary.get("delta_accuracy", ""),
+        "timestamp": datetime.utcnow().isoformat() + "Z",
+        "notes": summary.get("notes", ""),
+    }
+    return export_evaluation_summary([summary_rec], path, mode=mode)
 
 
 def _median(values: list[float]) -> Optional[float]:
