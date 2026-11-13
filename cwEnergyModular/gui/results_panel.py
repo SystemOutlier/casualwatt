@@ -3,8 +3,10 @@
 gui/results_panel.py — Pannello 3: risultati (sez. 4.3).
 
 Tabella Treeview dei record dal CSV, pulsanti Apri CSV / Esporta CSV /
-Aggiorna e due grafici Canvas opzionali: energia vs accuratezza e
+Aggiorna, Pulisci e due grafici Canvas opzionali: energia vs accuratezza e
 energia vs ECE (acc_comp per joule), disegnati senza matplotlib.
+
+Include selezione colonne visibili tramite checkbox.
 """
 from __future__ import annotations
 
@@ -13,7 +15,7 @@ import subprocess
 import sys
 import tkinter as tk
 from tkinter import filedialog, messagebox, ttk
-from typing import List
+from typing import List, Dict
 
 CSV_VIEW_COLUMNS = [
     ("model_label", "Modello", 170),
@@ -44,6 +46,31 @@ CSV_VIEW_COLUMNS = [
 
 # massimo di caratteri mostrati nella colonna "Risposta Modello"
 RESPONSE_PREVIEW_CHARS = 120
+
+# Gruppi logici per i checkbox di selezione colonne
+COLUMN_GROUPS = {
+    "Identificativi": [
+        "model_label", "mode", "prompt_id", "test_source"
+    ],
+    "Token e Latenza": [
+        "duration_s", "input_tokens", "output_tokens", "total_tokens"
+    ],
+    "Energia Locale": [
+        "local_energy_j", "network_energy_j", "cloud_energy_j", "end_to_end_energy_j",
+        "energy_per_output_token_j"
+    ],
+    "Valutazione": [
+        "semantic_similarity", "lexical_similarity", "eval_mode",
+        "causal_accuracy", "answer_type", "extracted_answer",
+        "ece_per_joule", "epcl_j_per_link"
+    ],
+    "Risposta": [
+        "model_response"
+    ],
+}
+
+# Colonne sempre visibili (non deselezionabili)
+ALWAYS_VISIBLE = {"model_label", "prompt_id"}
 
 
 def _preview_response(raw) -> str:
@@ -125,13 +152,47 @@ class ResultsPanel(ttk.LabelFrame):
     def __init__(self, master, **kw):
         super().__init__(master, text="Risultati", **kw)
 
+        # ---- Barra superiore: azioni ----
         top = ttk.Frame(self)
         top.pack(fill="x", padx=6, pady=4)
         ttk.Button(top, text="Aggiorna", command=self.refresh).pack(side="left", padx=2)
         ttk.Button(top, text="Apri CSV", command=self.open_csv).pack(side="left", padx=2)
         ttk.Button(top, text="Esporta CSV", command=self.export_csv).pack(side="left", padx=2)
+        ttk.Button(top, text="Pulisci", command=self.clear).pack(side="left", padx=2)
         self.status = ttk.Label(top, text="—", foreground="gray")
         self.status.pack(side="right")
+
+        # ---- Selezione colonne (checkbox) ----
+        col_frame = ttk.LabelFrame(self, text="Colonne visibili")
+        col_frame.pack(fill="x", padx=6, pady=(0, 4))
+        self._col_vars: Dict[str, tk.BooleanVar] = {}
+        # Griglia 2 righe x N colonne per gruppi compatti
+        col_grid = ttk.Frame(col_frame)
+        col_grid.pack(fill="x", padx=4, pady=4)
+        col_grid.columnconfigure(0, weight=1)
+        col_grid.columnconfigure(1, weight=1)
+
+        groups = list(COLUMN_GROUPS.items())
+        mid = (len(groups) + 1) // 2
+        for row_idx in range(2):
+            for col_idx in range(2):
+                idx = row_idx * mid + col_idx
+                if idx >= len(groups):
+                    break
+                group_name, col_ids = groups[idx]
+                grp = ttk.LabelFrame(col_grid, text=group_name)
+                grp.grid(row=row_idx, column=col_idx, sticky="nsew", padx=4, pady=2)
+                for cid in col_ids:
+                    if cid not in [c for c, _, _ in CSV_VIEW_COLUMNS]:
+                        continue
+                    label = next((lbl for c, lbl, _ in CSV_VIEW_COLUMNS if c == cid), cid)
+                    var = tk.BooleanVar(value=(cid not in ALWAYS_VISIBLE))
+                    self._col_vars[cid] = var
+                    cb = ttk.Checkbutton(grp, text=label, variable=var,
+                                         command=self._on_column_toggle)
+                    cb.pack(side="left", padx=6, pady=2)
+                    if cid in ALWAYS_VISIBLE:
+                        cb.configure(state="disabled")
 
         mid = ttk.Frame(self)
         mid.pack(fill="both", expand=True, padx=6, pady=(0, 4))
@@ -246,6 +307,53 @@ class ResultsPanel(ttk.LabelFrame):
         txt.insert("1.0", text)
         txt.configure(state="disabled")
         self._hide_tip()
+
+    def _on_column_toggle(self):
+        """Aggiorna visibilità colonne del Treeview in base ai checkbox."""
+        # Ricostruisci la lista colonne visibili
+        visible_cols = [cid for cid, var in self._col_vars.items() if var.get()]
+        # Aggiungi colonne sempre visibili
+        for cid in ALWAYS_VISIBLE:
+            if cid not in visible_cols:
+                visible_cols.insert(0, cid)  # model_label e prompt_id all'inizio
+        # Riconfigura il Treeview
+        self.tree["columns"] = visible_cols
+        # Nascondi tutte le colonne, poi mostra solo quelle visibili
+        for cid, _, _ in CSV_VIEW_COLUMNS:
+            if cid in visible_cols:
+                self.tree.column(cid, width=next(w for c, _, w in CSV_VIEW_COLUMNS if c == cid),
+                                 anchor="w" if cid in ("model_label", "prompt_id", "test_source", "model_response") else "e")
+                self.tree.heading(cid, text=next(lbl for c, lbl, _ in CSV_VIEW_COLUMNS if c == cid))
+            else:
+                self.tree.column(cid, width=0, stretch=False)
+        # Ri-renderizza le righe con i valori corretti
+        self._rerender_rows()
+
+    def _rerender_rows(self):
+        """Ri-disegna le righe del Treeview con solo le colonne visibili."""
+        visible_cols = [cid for cid, var in self._col_vars.items() if var.get()]
+        for cid in ALWAYS_VISIBLE:
+            if cid not in visible_cols:
+                visible_cols.insert(0, cid)
+        self.tree.delete(*self.tree.get_children())
+        color_idx = 0
+        prev_model = None
+        for r in self._rows_cache:
+            vals = [_fmt_cell(cid, r.get(cid, "")) for cid in visible_cols]
+            model = r.get("model_label", "")
+            if prev_model is not None and model != prev_model:
+                color_idx = (color_idx + 1) % len(self._model_colors)
+            tag = f"model_group_{color_idx}"
+            self.tree.insert("", "end", values=vals, tags=(tag,))
+            prev_model = model
+
+    def clear(self):
+        """Cancella i risultati visualizzati (non tocca il file CSV)."""
+        self.tree.delete(*self.tree.get_children())
+        self._rows_cache.clear()
+        self.canvas_acc.delete("all")
+        self.canvas_ece.delete("all")
+        self.status.config(text="pannello pulito")
 
     # ---------------------------------------------------------------- actions
     def refresh(self):

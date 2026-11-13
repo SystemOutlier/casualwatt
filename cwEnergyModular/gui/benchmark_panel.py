@@ -24,6 +24,23 @@ import tkinter as tk
 from tkinter import ttk
 from typing import List, Optional, Tuple
 
+# Etichetta GUI -> mode di test_source.load_test_source per i formati file.
+FILE_FORMAT_MODES = {
+    "CSV": "csv",
+    "JSON / JSONL": "json",
+    "Excel (.xlsx)": "excel",
+    "Parquet": "parquet",
+    "YAML": "yaml",
+}
+# Estensioni per il file dialog, per formato.
+FILE_FORMAT_EXTS = {
+    "CSV": [("CSV", "*.csv"), ("TSV", "*.tsv")],
+    "JSON / JSONL": [("JSON/JSONL", "*.json *.jsonl")],
+    "Excel (.xlsx)": [("Excel", "*.xlsx")],
+    "Parquet": [("Parquet", "*.parquet")],
+    "YAML": [("YAML", "*.yaml *.yml")],
+}
+
 
 def _gpu_idle_missing_message(gpu_mon) -> str:
     """Messaggio di baseline GPU non calibrabile, distinto per causa.
@@ -195,29 +212,57 @@ class BenchmarkPanel(ttk.Frame):
 
         self.var_test_mode = tk.StringVar(value="csv")
         rb_csv = ttk.Radiobutton(
-            src, text="Dataset Esterno (File CSV)", value="csv",
+            src, text="Dataset Esterno (File)", value="csv",
             variable=self.var_test_mode, command=self._on_test_mode_change,
         )
         rb_manual = ttk.Radiobutton(
             src, text="Prompt Manuale", value="manual",
             variable=self.var_test_mode, command=self._on_test_mode_change,
         )
+        rb_hf = ttk.Radiobutton(
+            src, text="Hugging Face", value="hf",
+            variable=self.var_test_mode, command=self._on_test_mode_change,
+        )
         rb_csv.grid(row=0, column=0, sticky="w", padx=6, pady=(2, 0))
         rb_manual.grid(row=0, column=1, sticky="w", padx=12, pady=(2, 0))
+        rb_hf.grid(row=0, column=2, sticky="w", padx=12, pady=(2, 0))
 
-        # --- A) fila CSV: entry percorso + Sfoglia + info parsing ------------
+        # --- A) fila file: formato + entry percorso + Sfoglia + info ---------
         self.csv_frame = ttk.Frame(src)
-        self.csv_frame.grid(row=1, column=0, columnspan=2, sticky="ew", padx=6, pady=2)
+        self.csv_frame.grid(row=1, column=0, columnspan=3, sticky="ew", padx=6, pady=2)
+        self.var_file_format = tk.StringVar(value="CSV")
+        ttk.Label(self.csv_frame, text="Formato:").pack(side="left", padx=(0, 4))
+        self.fmt_combo = ttk.Combobox(
+            self.csv_frame, textvariable=self.var_file_format, state="readonly",
+            values=list(FILE_FORMAT_MODES.keys()), width=14,
+        )
+        self.fmt_combo.pack(side="left", padx=(0, 6))
+        self.fmt_combo.bind("<<ComboboxSelected>>", lambda e: self._on_format_change())
         self.var_csv_path = tk.StringVar(value="")
         self.csv_entry = ttk.Entry(self.csv_frame, textvariable=self.var_csv_path)
         self.csv_entry.pack(side="left", fill="x", expand=True, padx=(0, 4))
         ttk.Button(self.csv_frame, text="Sfoglia...", width=10,
                    command=self.browse_csv).pack(side="left")
-        self.csv_info = ttk.Label(src, text="Nessun CSV caricato. Colonne attese: "
+        self.csv_info = ttk.Label(src, text="Nessun file caricato. Colonne attese: "
                                             "prompt (o text/question/input/query); opzionale "
                                             "ground_truth (o expected_result).",
                                   foreground="gray")
-        self.csv_info.grid(row=2, column=0, columnspan=2, sticky="w", padx=8, pady=(0, 2))
+        self.csv_info.grid(row=2, column=0, columnspan=3, sticky="w", padx=8, pady=(0, 2))
+
+        # --- C) fila Hugging Face: nome dataset + split + config -------------
+        self.hf_frame = ttk.Frame(src)
+        self.var_hf_dataset = tk.StringVar(value="")
+        self.var_hf_split = tk.StringVar(value="test")
+        self.var_hf_config = tk.StringVar(value="")
+        ttk.Label(self.hf_frame, text="Dataset:").pack(side="left", padx=(0, 4))
+        ttk.Entry(self.hf_frame, textvariable=self.var_hf_dataset, width=28).pack(side="left", padx=(0, 8))
+        ttk.Label(self.hf_frame, text="Split:").pack(side="left", padx=(0, 4))
+        ttk.Entry(self.hf_frame, textvariable=self.var_hf_split, width=10).pack(side="left", padx=(0, 8))
+        ttk.Label(self.hf_frame, text="Config (opz.):").pack(side="left", padx=(0, 4))
+        ttk.Entry(self.hf_frame, textvariable=self.var_hf_config, width=14).pack(side="left")
+        self.hf_info = ttk.Label(src, text="Es. 'mmlu', 'gsm8k'. Richiede: pip install datasets. "
+                                           "Colonne prompt/ground_truth riconosciute automaticamente.",
+                                 foreground="gray")
 
         # --- B) fila manuale: blocchi dinamici Domanda + Risposta Attesa ------
         # UI esplicita a campi separati: niente parsing del separatore " / ",
@@ -290,23 +335,35 @@ class BenchmarkPanel(ttk.Frame):
     def _on_test_mode_change(self):
         """Mostra SOLO i widget della modalita' selezionata (pulito/dinamico)."""
         mode = self.var_test_mode.get()
-        for frame in (self.csv_frame, self.manual_frame):
+        for frame in (self.csv_frame, self.manual_frame, self.hf_frame):
             frame.grid_forget()
+        self.csv_info.grid_remove()
+        self.hf_info.grid_remove()
         if mode == "manual":
-            self.manual_frame.grid(row=1, column=0, columnspan=2, sticky="ew", padx=0, pady=2)
-            self.csv_info.grid_remove()
+            self.manual_frame.grid(row=1, column=0, columnspan=3, sticky="ew", padx=0, pady=2)
+        elif mode == "hf":
+            self.hf_frame.grid(row=1, column=0, columnspan=3, sticky="ew", padx=6, pady=2)
+            self.hf_info.grid(row=2, column=0, columnspan=3, sticky="w", padx=8, pady=(0, 2))
         else:
-            self.csv_frame.grid(row=1, column=0, columnspan=2, sticky="ew", padx=6, pady=2)
-            self.csv_info.grid()
+            self.csv_frame.grid(row=1, column=0, columnspan=3, sticky="ew", padx=6, pady=2)
+            self.csv_info.grid(row=2, column=0, columnspan=3, sticky="w", padx=8, pady=(0, 2))
+
+    def _on_format_change(self):
+        """Cambio formato file: aggiorna l'info e ri-valida il percorso corrente."""
+        path = self.var_csv_path.get().strip()
+        if path:
+            self._preview_csv(path)
 
     def browse_csv(self):
-        """Apre il file dialog e precarica/valida il dataset esterno."""
+        """Apre il file dialog (estensioni del formato scelto) e precarica/valida."""
         try:
             from tkinter import filedialog
 
+            fmt = self.var_file_format.get()
+            types = FILE_FORMAT_EXTS.get(fmt, [("CSV", "*.csv")])
             path = filedialog.askopenfilename(
-                title="Seleziona dataset CSV (output tool esterni, es. MUDILab)",
-                filetypes=[("CSV", "*.csv"), ("Tutti i file", "*.*")],
+                title=f"Seleziona dataset {fmt} (output tool esterni, es. MUDILab)",
+                filetypes=types + [("Tutti i file", "*.*")],
             )
             if not path:
                 return
@@ -316,23 +373,25 @@ class BenchmarkPanel(ttk.Frame):
             self.log(f"Errore apertura file dialog: {exc}")
 
     def _preview_csv(self, path: str):
-        """Validazione immediata del CSV: mostra n. prompt e presenza GT."""
+        """Validazione immediata del file nel formato scelto: n. prompt e GT."""
+        mode = FILE_FORMAT_MODES.get(self.var_file_format.get(), "csv")
         try:
-            from test_source import load_prompts_from_csv
+            from test_source import load_test_source
 
-            items, err = load_prompts_from_csv(path)
+            items, err = load_test_source(mode=mode, file_path=path, fallback_config=False)
         except Exception as exc:
             items, err = [], f"{type(exc).__name__}: {exc}"
+        fmt = self.var_file_format.get()
         if items:
             n_gt = sum(1 for it in items if it.get("ground_truth"))
-            txt = (f"CSV OK: {len(items)} prompt caricati; ground_truth presente "
+            txt = (f"{fmt} OK: {len(items)} prompt caricati; ground_truth presente "
                    f"per {n_gt}" + (" (accuratezza valutata dove disponibile)"
                                     if n_gt else " (accuratezza -> N/A: solo metriche energetiche)"))
             self.csv_info.config(text=txt, foreground="#1a7f37")
             self.log(txt + f" — file: {path}")
         else:
-            self.csv_info.config(text=f"CSV non valido: {err}", foreground="#b35900")
-            self.log(f"CSV non valido: {err}")
+            self.csv_info.config(text=f"{fmt} non valido: {err}", foreground="#b35900")
+            self.log(f"{fmt} non valido: {err}")
 
     def get_test_source_kwargs(self) -> dict:
         """Estrapola la selezione corrente per il runner (usato anche da CLI).
@@ -349,7 +408,15 @@ class BenchmarkPanel(ttk.Frame):
         mode = self.var_test_mode.get()
         if mode == "manual":
             return {"test_mode": "manual", "manual_text": self._collect_manual_text()}
-        return {"test_mode": "csv", "csv_path": self.var_csv_path.get().strip()}
+        if mode == "hf":
+            return {
+                "test_mode": "hf",
+                "hf_dataset": self.var_hf_dataset.get().strip(),
+                "hf_split": self.var_hf_split.get().strip() or "test",
+                "hf_config": self.var_hf_config.get().strip() or None,
+            }
+        fmt_mode = FILE_FORMAT_MODES.get(self.var_file_format.get(), "csv")
+        return {"test_mode": fmt_mode, "csv_path": self.var_csv_path.get().strip()}
 
     # ----------------------------------------------------- righe manuali -----
     def _man_on_wheel(self, event):
@@ -503,6 +570,9 @@ class BenchmarkPanel(ttk.Frame):
                 mode=src_kwargs["test_mode"],
                 csv_path=src_kwargs.get("csv_path"),
                 manual_text=src_kwargs.get("manual_text"),
+                hf_dataset=src_kwargs.get("hf_dataset"),
+                hf_split=src_kwargs.get("hf_split", "test"),
+                hf_config=src_kwargs.get("hf_config"),
                 fallback_config=False,
             )
         except Exception as exc:
@@ -574,6 +644,12 @@ class BenchmarkPanel(ttk.Frame):
             return
         self._stop_event.set()
         self.log("Interrupt richiesto: atteso completamento della richiesta corrente…")
+        # Safety: se il worker non manda "done" entro 2 s, riabilita i pulsanti
+        def _force_reenable():
+            if self._running:
+                self._set_running(False)
+                self.log("[GUI] Pulsanti riabilitati (timeout safety stop)")
+        self.after(2000, _force_reenable)
 
     # ------------------------------------------------------------ calibrazione
     def _force_idle_65w(self):
