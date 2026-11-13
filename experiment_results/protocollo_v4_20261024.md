@@ -13,7 +13,7 @@ Data: 2026-10-24. Branch: `energy-consumption-framework-ollama-d248a`.
 | P3 | geometria, modello e stima | **congelato 2026-10-24** (emendato di forma il 2026-10-24 dopo la revisione esterna: P3.3 costi marginali qualificati a `N_out = 0` / `N_in = 0` e algebra del termine quadratico omesso; P3.10 `E_pred ≤ 0` dichiarato fallimento con `pred_nonpositive` e intervallo rinominato `intervallo_conf`; P3.12/P3.13 `design_deviation_count`; P3.15 pre-pilota esteso ai livelli bassi. **Emenda sostanziale del 2026-10-24**: P3.9, il criterio dell'anello 5 usa `p_lof_perm`, `p` della stessa statistica F pesata ottenuto dalla distribuzione nulla per ricampionamento del puro errore — il `p` asintotico non è valido con pesi conservativi. Statistica e soglia 0,05 invariate, aggiunto `lof_max_rel` descrittivo. **Aggiunta del 2026-10-25, di sola dichiarazione**: all'elenco dei contenuti obbligatori di P3.13 si aggiungono `pre_range_w` e `dP`, grandezze già definite in F.1 e F.3 e già usate da tre flag, perché un flag i cui ingressi non sono registrati non è verificabile da un terzo (P4.12). **Terzo turno, 2026-10-25, ancora di sola dichiarazione**: `design_deviation_count` dichiarato **per blocco** e non per cella, con soglia di discussione `m` per blocco e `3m` per cella (P3.12) e campo aggiunto all'elenco di F.17, che lo ometteva; costi marginali scritti con la propria coordinata anche in P3.11 e nello pseudocodice di F.14 (P3.3 e P3.4 li qualificavano già, P4.8 e F.8 corretti nello stesso turno); punto con `pred_nonpositive` dichiarato **nel conteggio dei casi valutati**, non solo "non escluso dal criterio" (P3.10). Nessuna modifica a disegno, modello, pesi o soglie) |
 | P4 | incertezza e validazione | **congelato 2026-10-24** (emendato: inviluppo convesso per la copertura, bootstrap dei residui standardizzati, criterio monolitico di catena, `u_edge` solo nel budget predittivo; seconda emenda solo di forma: P4.1 in quattro clausole, P4.4 a otto requisiti numerati con la baseline 3 pre + 3 post obbligatoria anche sui controlli; terza emenda solo di forma: seconda ragione in P4.12 per non adottare la deviazione standard a n = 3; quarta emenda solo di forma: P4.6, rettificata la giustificazione di `u_edge` — il termine congelato maggiora il disallineamento, non l'interpolazione — con formula e valore invariati. **Emenda sostanziale del 2026-10-24**: chiuso il difetto di `r_A` sui controlli — il requisito 7 di P4.4 elenca ora solo le quantità che esistono su un blocco di controllo, e il filtro di stabilità di P4.5 è sostituito dalle soglie assolute `pre_range_w,c ≤ 1,0 W` e `|dP_c| ≤ 1,0 W` con il flag `control_unstable`; `u_bias,b = |bias_w| · Δt̄_W,b` scritto in formula in P4.6 e F.11 come contributo di incertezza, non come correzione sistematica; copertura decisa su due inviluppi — `hull_design` sui target e `hull_fit` sui token reali dei 33 blocchi di fit — prendendo la fascia più conservativa, P4.7 e F.13. **Seconda emenda sostanziale del 2026-10-24**: P4.8, la copertura del bootstrap è dichiarata *nominale e non arbitrata* finché P6.4 non la verifica per simulazione, e la correzione di leva `1/√(1 − h_b)` è resa **sensibilità obbligatoria** allo stesso seed del primario — leva massima verificata sul disegno nominale 0,2852 sui blocchi (512, 256), fattore 1,1828, media 0,121212 = 4/33. Il primario non cambia e nessuna formula congelata è modificata. **Terza emenda sostanziale del 2026-10-24**: P4.4/P4.5, il gate load-versus-control passa da tre a **sei coppie** (12 blocchi) e il quorum dei controlli utilizzabili da due a **quattro**, stessa frazione congelata `⌈2/3 · n_coppie⌉`; `bias_w` si riporta anche in unità di metrica (coppia di campi `bias_jtok_pct_lo`/`bias_jtok_pct_hi`) con la scala ancorata 1 W ≈ 6–11% di `J/token`, grandezza riportata e non soglia; intervallo t e test di equivalenza a ±3–5% valutati e **non** adottati, con il limite dichiarato che un gate passato non dimostra quell'equivalenza (0,27–0,83 W sulla stessa scala). Costo in P6.1: pavimento 2 h 15 min → **2 h 33 min**. Soglie in watt invariate. **Quarta emenda sostanziale del 2026-10-24**: P4.6, chiusa l'alternativa aperta sul termine di bordo — adottata la via (b), lettura sincrona del contatore ai bordi di finestra con `Δt_W` preso dalla stessa coppia di letture, come requisito vincolante di P5; la via (a) è scartata perché chiede un `ΔP_tick` che nessuna parte del codice misura. Formula e valore congelato di `u_edge,b` invariati: cambia solo cosa è `Δt_tick,b`, e il fattore di riduzione si misura, non si assume. **Quinta emenda, di sola dichiarazione (2026-10-25)**: specificata la metrica di `hull_margin_tok` e `hull_margin_design_tok` (distanza perpendicolare euclidea dalla retta dello spigolo più vicino, coordinate grezze, negativa se fuori) e verificata per esecuzione sui quattro margini pubblicati (1,33 / 64,0 / 21,24 / 107,7), perché con la distanza dal vertice il punto operativo (12,32) darebbe 28,28 e il flag `thin_support` si rovescerebbe; coordinate normalizzate valutate e **non** adottate, decisione metodologica distinta; `pre_range_w` e `dP` entrano nei contenuti obbligatori di P4.12, senza i quali `control_unstable` registra un esito i cui ingressi non sono leggibili; dichiarata la scala di `budget_fit_b`/`budget_pred_b` (joule sulla scala di `Ē_b`, non del totale di blocco) e scartata la lettura a durata aggregata; il passo 5 di F.0 distingue i controlli di stabilità sui blocchi di carico dal filtro assoluto di P4.5 sui blocchi di controllo. **Sesta emenda, di sola dichiarazione e di provenienza (2026-10-25, terzo turno)**: i numeri dei tre errori di bordo di P4.6 sono rigenerati da un harness tracciato (`u_edge_interpolazione_probe.py`, 5/5 verifiche, exit 0) e il residuo assoluto `3,0e-11 J` è **ritirato**, perché era l'assoluto di una griglia non dichiarata e cresce con la densità di griglia; al suo posto il residuo **relativo** alla grandezza del contatore, 7,0e-12, invariante in `P` e dichiarato con la griglia usata; il ritiro vale in **entrambe** le occorrenze, P4.6 e F.11 — la seconda trovata dal controllo incrociato del terzo turno, che ha mostrato il ritiro incompleto. Costi marginali scritti con la propria coordinata anche in P4.8. Nessuna formula cambiata, nessuna soglia spostata, nessun valore numerico congelato modificato. **Nessun difetto dichiarato aperto, nessuna alternativa aperta**) **Settima emenda, di sola dichiarazione (2026-10-25, quarto turno)**: P4.5, la soglia del gate ha un **tetto** deducibile dai filtri già congelati prima dei dati — `half_range_pre_w,c` e `half_drift_c` sono entrambi ≤ 0,5 W, quindi `budget_base_w,c ≤ sqrt(0,5² + 0,5²) = 0,7071 W` (1,0 W con la somma aritmetica) e la `mediana_c` eredita il tetto: la lettura "non rilevarebbe un bias da 1 W" è superata, perché sopra il tetto il gate non può passare. Il limite è il terzo scritto insieme al risultato. P4.6, lo `u_bias,b = 0` dopo un gate passato è dichiarato **convenzione operativa**, non dimostrazione che il bias sia nullo, e la ragione del doppio conteggio evitato è scritta: `u_base,b` porta già `budget_base_w,b`. Soglie e formule invariate. **Nona emenda, di sola dichiarazione e di provenienza (2026-10-26, quinto turno)**: la revisione esterna di quinto turno dichiara tre difetti (vertici dell'inviluppo, dimensionalità di `budget_pred`, notazione cloud C5 nei vincoli di T2) e una raccomandazione (soglia Spearman `|ρ| ≤ 0,35` accanto al `p` del lack-of-fit); **nessuno dei quattro è riprodotto dal testo congelato**, perché ciascuno cita come "evidenza verificabile" un contenuto che nel protocollo non c'è — una sezione `P4.2` con una cinquina di vertici, un termine `u_model` (zero occorrenze sulle 3455 righe della revisione `ceaebed`, quella contro cui la verifica è stata eseguita), coefficienti `γ_prefill`/`γ_decode` (zero occorrenze), un test di Breusch-Pagan o White (zero occorrenze). L'insieme di punti di griglia usato dalla revisione scambia quattro punti reali di P3.5 con quattro inventati; con l'insieme reale la catena monotona di Andrew restituisce esattamente i quattro vertici di P4.7 `:1862` e i quattro margini pubblicati si rigenerano a 0,01 token (harness `inviluppo_e_budget_pred_probe.py`, 5/5 verifiche, exit 0). Applicare D1 cancellerebbe `thin_support` sul punto di produzione `(12,32)`, il cui margine reale è 1,327 token sotto la soglia di 2; applicare D2 sostituirebbe il bootstrap con il fattore costante `sqrt(1 + 1,96²) = 2,200364`, identico per ogni blocco e non uniforme in presenza di `u_edge`, reintroducendo il quantile normale che P4.8 `:2033-2035` esclude. Del documento si adottano due cose diverse da ciò che propone: la geometria di copertura e la scala di `budget_pred` sono ora congelate anche in 17 test eseguibili senza hardware (`cwEnergyModular/tests/test_protocollo_p4_geometry.py`), e la formulazione GUM dell'ipotesi di ortogonalità è registrata come materiale per la decisione ancora aperta di P1.7. LOPO a 10 pieghe registrato come possibile sensibilità post-hoc di P6, non come gate e non in sostituzione dell'anello 6; la sua lista di holdout è respinta nel contenuto ( `(128,128)` è il centro del disegno, `(256,64)` non è un punto di disegno). Nessuna formula cambiata, nessuna soglia spostata, nessun valore congelato modificato, nessun campo nuovo.) |
 | P5 | campi CSV e runner | **congelato 2026-10-26** (schema a tre tabelle: 168 colonne di richiesta (`CSV_COLUMNS`, 168 nomi unici), 36 di riepilogo di blocco (`BLOCK_SUMMARY_COLUMNS`) e 19 di punto (`POINT_SUMMARY_COLUMNS`), con migrazione dell'header per nome (`ensure_header`); livello di aggregazione dei token dichiarato — la riga è la singola richiesta, con `n_inferenze` accanto ai totali; runner v4 (`benchmark_v4.py`) con la sequenza di blocco di P1.5 (3 pre, m richieste, 3 post), cooldown, bordo sincrono (`read_counter_edge`) con timestamp EMI a 100 ns e `Δt_W` dalla stessa coppia di letture, `engine_tree_changed` con le identità `(pid, create_time)` agli estremi, `pre_range_w`/`dP`/`budget_base_j` e `settle_post_s`; recepisce la via (b) di P4.6. Restano all'analisi, non a P5, l'implementazione di `hull_margin_tok` — la formula è congelata in P4.7/F.13 — e il risolutore QR/SVD che P6.5 prescrive. Evidenza: `py -m pytest cwEnergyModular -v` → 404 raccolti, 401 passati, 3 saltati (RAPL non disponibile su Windows), 19 dei quali nei cinque file di P5; la suite nuda dalla radice resta interrotta dai 6 errori di raccolta di `cpuepower/` e `cpuepower2/` previsti da AGENTS.md e non è un verde del repo. I passi di P4.6/F.11 che descrivono lo stato "fino all'implementazione in P5" restano nel testo congelato come fotografia del 2026-10-24 e non si riscrivono. **Decima emenda, di sola dichiarazione e di provenienza (2026-10-28)**: lo schema in codice è a **172** colonne di richiesta — le 168 congelate più quattro **accodate**, `energy_per_total_token_j`, `tokens_per_joule`, `kwh_per_million_tokens` e `external_counter` —, 36 di riepilogo di blocco e 19 di punto; le quattro nuove stanno in coda e l'header si migra per nome, quindi i CSV già scritti non si disallineano (le celle nuove restano vuote). `external_counter` è booleano e vale `true` solo per `energy-file` (D14): `CW_ENERGY_FILE` è un override di selezione fornito dall'utente, non un canale della catena, e un filtro non deve dedurre il canale dal testo di `energy_calculation_method`. Il produttore di `chain_status` esiste (`cwEnergyModular/validation_chain.py`) e applica le sole soglie congelate di P4.9, restituendo l'etichetta del **primo** anello che cede; l'anello 1 (pilota P2.9) resta una precondizione e non un token, e nessuna riga è `validated` finché una campagna non passa tutti e sei. Evidenza: `pytest cwEnergyModular` → 526 raccolti, 523 passati, 3 saltati (2026-10-28). Nessuna formula, soglia o disegno cambiato.) |
-| P6 | esecuzione e analisi | aperto, ma **non più solo preparatorio**: P6.1 e P6.2 sono aritmetica dei punti congelati (P6.1 ricalcolato il 2026-10-24 per le sei coppie del gate: pavimento delle sole finestre idle 2 h 33 min); P6.3 (audit idle) e P6.4 (simulazione Monte Carlo) sono **adottate come requisiti vincolanti**; P6.5 è l'elenco dei requisiti per P5 **Settima emenda (2026-10-25, quarto turno, di sola dichiarazione e di provenienza)**: P6.5, i numeri di condizionamento sono rigenerati da `condizionamento_disegno_probe.py` con la norma e la convenzione di scaling dichiarate, il risolutore diventa **prescrittivo** (QR o SVD su predittori centrati e scalati, mai equazioni normali sulla grezza) e "perde circa cinque cifre" è declassato a limite: le cifre perse misurate stanno fra 1,05 e 5,35 su 24 casi, con almeno 10,30 corrette. P6.4 punto 1, "8% a ρ ≥ 0,5" è **ritirato** perché sotto `u_base,b = ρ·u_within,b` la quota è indipendente da ρ per cancellazione esatta, mentre le ancore a ρ = 0 (37,3% medio, 82,7% al p95, ESS 7,30 su 33) reggono e sono misurate da `semi_range_concentrazione_pesi_probe.py`. P6.2, il pilota deve produrre anche `u_within,b`: è il denominatore del primo ρ misurato. P1.7, la forma di combinazione sui pesi non ha un verso fisso — incrocio fra ρ = 0,20 e 0,25. Disegno, modello e soglie invariati. **Ottava emenda (2026-10-25)**: P6.6, la prova di attribuzione di P4.10 — `s` contro `s_EPI`, non l'anello 4 di P4.9, che è la sottrazione di P4.5 — si ripete su `C` configurazioni × `R` repliche; `C = 10` con `R = 1` non stima la variabilità; la banda di concordanza si congela prima del primo run; `engine_tree_changed` diventa requisito di P5 (P6.5). La prova resta una prova: non promuove l'attribuzione a validata, non entra in `chain_status` e non arbitra la scala assoluta. Nessuna modifica a P1–P4, nessuna soglia spostata, codice di produzione invariato. |
+| P6 | esecuzione e analisi | aperto, ma **non più solo preparatorio**: P6.1 e P6.2 sono aritmetica dei punti congelati (P6.1 ricalcolato il 2026-10-24 per le sei coppie del gate: pavimento delle sole finestre idle 2 h 33 min); P6.3 (audit idle), P6.4 (simulazione Monte Carlo) e P6.6 (prova di attribuzione ripetibile) sono **adottate come requisiti vincolanti**; P6.7 (gate calibrazione umana), P6.8 (frontiera Pareto), P6.9 (robustezza perturbativa), P6.10 (ECPC tassonomia) sono **adottate come requisiti vincolanti di esecuzione e analisi** (Quindicesima–Diciottesima emenda, 2026-11-13); P6.5 è l'elenco dei requisiti per P5 **Settima emenda (2026-10-25, quarto turno, di sola dichiarazione e di provenienza)**: P6.5, i numeri di condizionamento sono rigenerati da `condizionamento_disegno_probe.py` con la norma e la convenzione di scaling dichiarate, il risolutore diventa **prescrittivo** (QR o SVD su predittori centrati e scalati, mai equazioni normali sulla grezza) e "perde circa cinque cifre" è declassato a limite: le cifre perse misurate stanno fra 1,05 e 5,35 su 24 casi, con almeno 10,30 corrette. P6.4 punto 1, "8% a ρ ≥ 0,5" è **ritirato** perché sotto `u_base,b = ρ·u_within,b` la quota è indipendente da ρ per cancellazione esatta, mentre le ancore a ρ = 0 (37,3% medio, 82,7% al p95, ESS 7,30 su 33) reggono e sono misurate da `semi_range_concentrazione_pesi_probe.py`. P6.2, il pilota deve produrre anche `u_within,b`: è il denominatore del primo ρ misurato. P1.7, la forma di combinazione sui pesi non ha un verso fisso — incrocio fra ρ = 0,20 e 0,25. Disegno, modello e soglie invariati. **Ottava emenda (2026-10-25)**: P6.6, la prova di attribuzione di P4.10 — `s` contro `s_EPI`, non l'anello 4 di P4.9, che è la sottrazione di P4.5 — si ripete su `C` configurazioni × `R` repliche; `C = 10` con `R = 1` non stima la variabilità; la banda di concordanza si congela prima del primo run; `engine_tree_changed` diventa requisito di P5 (P6.5). La prova resta una prova: non promuove l'attribuzione a validata, non entra in `chain_status` e non arbitra la scala assoluta. Nessuna modifica a P1–P4, nessuna soglia spostata, codice di produzione invariato. |
 
 **Undicesima emenda, di sola dichiarazione e di provenienza (2026-11-02)**: il conteggio
 riportato nella decima emenda è storico e viene superato dallo schema attuale. Il codice
@@ -234,6 +234,106 @@ non conteggi, quorum 12 → 8, intestazione del report derivata, end-to-end a
 (17,46 s; i 4 salti sono i 3 RAPL e il modulo ecologits). Nessuna formula,
 nessuna soglia, nessun valore congelato modificato; la terza campagna non è
 ancora eseguita e nessuna riga è `validated`.
+
+---
+
+**Quindicesima emenda — P6.7 Gate di calibrazione umana per giudice LLM (2026-11-13)**
+
+**Ancoraggio:** P4.9 dichiara sei anelli; l'anello 4 è la validazione del giudice contro ground truth umano. Finora mai implementato.
+
+**Requisito:** prima di produrre etichette utilizzabili per ECPC su un ramo (`number`, `short_text`, `free_text`), il giudice LLM deve superare un gate di calibrazione su campione stratificato pre-registrato.
+
+**Artefatti preregistrati (tracciati in `experiment_results/`):**
+- `human_calibration_protocol.json` — protocollo pre-registrato (versione 1.0, data 2026-11-10)
+- `human_calibration_rubric.md` — rubrica di annotazione a 3 livelli (Correct/Incorrect/Indeterminate)
+- `human_calibration_sample.jsonl` — 40 item stratificati: 14 number, 13 short_text, 13 free_text
+- `cwEnergyModular/tools/compute_annotator_agreement.py` — calcolo Krippendorff α (ordinale) + Cohen κ (nominale)
+
+**Soglie congelate (non modificabili dopo i dati):**
+- Krippendorff α ≥ 0.80 per ramo (primario, **α nominale** come da preregistrazione v2.0)
+- Cohen κ ≥ 0.80 per ramo (secondario)
+
+**Decisione del gate (modulo `cwEnergyModular/human_calibration_gate.py`):**
+- Se α ≥ 0.80 **E** κ ≥ 0.80 per un ramo → `judge_produces_labels`: il giudice produce etichette per ECPC su quel ramo; `scoring_method = "llm_judge"`, `judge_validation_status = "validated"`
+- Altrimenti → `judge_gated_no_labels`: `is_correct = None`, nota `judge_uncalibrated: alpha=X kappa=Y`, `scoring_method = "none"`, `judge_validation_status = "gated"`
+
+**Tracciabilità nel CSV (schema P5 invariato):**
+- `scoring_method` ∈ {deterministic, llm_judge, human_calibrated, none}
+- `human_reference_available` (booleano)
+- `judge_validation_status` ∈ {unvalidated, validated, gated, failed}
+- `validation_alpha` (float, Krippendorff α per ramo)
+- Nota: i quattro campi **non sono nello schema P5 congelato** — esistono come campi del dataclass `EvaluationResult` nel working tree; il loro eventuale ingresso nello schema è un punto aperto, non un fatto: lo schema resta a 174 nomi.
+- Note di riga: `judge_calibration_<stratum>=VALIDATED|GATED: alpha=X, kappa=Y`
+
+**Esecuzione:** il gate si valuta **una volta** dopo la raccolta delle annotazioni umane (due annotatori + eventuale adjudication), prima della campagna principale. Il tool `tools/compute_annotator_agreement.py` scrive i due report preregistrati (`human_calibration_agreement_report.json`, `human_calibration_judge_comparison.json`). Il runner non legge alcun artefatto di gate all'avvio: l'aggancio al runner è un punto aperto.
+
+**Endoso α nominale:** la preregistrazione v2.0 specifica Krippendorff α con `level="nominal"`. L'implementazione in `compute_annotator_agreement.py` calcola α con `level="nominal"` fisso, allineata alla preregistrazione. L'endoso formale dell'α nominale (in luogo dell'ordinale citato in bozze precedenti) è registrato qui.
+
+---
+
+**Sedicesima emenda — P6.8 Analisi frontiera Pareto energy-accuracy (2026-11-13)**
+
+**Ancoraggio:** P3.3 costi marginali, P4.6/P4.7 budget predittivo e copertura, P4.13 `hull_margin_tok`. La frontiera Pareto è l'analisi standard per tradeoff energy-accuracy (letteratura: MLPerf Power, Green500, TokenPowerBench, SweetSpot).
+
+**Requisito:** calcolare la frontiera di Pareto dei sistemi per categoria e overall, con:
+- Asse X: `mean_energy_per_correct_j` (ECPC per sistema/categoria)
+- Asse Y: `accuracy` (proporzione risposte corrette su determinate)
+- Dominanza: A domina B se `acc_A ≥ acc_B` **E** `energy_A ≤ energy_B` (almeno una stretta)
+- Output: sistemi Pareto-ottimali, dominati, ginocchio (knee) della frontiera
+
+**Implementazione:** `cwEnergyModular/pareto_frontier.py`
+- `pareto_frontier()` / `pareto_by_category()` — frontiera per categoria e overall
+- `dominates()`, `knee_detection()`, `export_pareto_json()`
+
+**Esportazione:** risultati in `experiment_results/pareto_frontier_<timestamp>.json` — **non** nel CSV P5 (schema congelato).
+
+---
+
+**Diciasettesima emenda — P6.9 Protocollo di robustezza perturbativa (2026-11-13)**
+
+**Ancoraggio:** Letteratura su robustezza valutazione LLM (JudgeBench stress test, IFEval perturbation sets, LiveBench contamination check). Nessun benchmark energetico attuale testa stabilità del verdetto sotto perturbazioni controllate.
+
+**Requisito:** per ogni prompt del benchmark, generare perturbazioni controllate e misurare stabilità verdetto e delta energia.
+
+**Tipi di perturbazione (lista preregistrata, congelata):**
+1. `typo_injection` — character-level noise (rate: light 2%, medium 5%, heavy 10%)
+2. `adversarial_suffix` — suffissi irrilevanti/confusi (3 livelli)
+3. `order_permutation` — shuffle frasi/esempi/parole (3 livelli)
+4. `paraphrase_invariance` — riformulazione semanticamente equivalente (placeholder, richiede LLM)
+5. `temperature_sweep` — variazione temperatura campionamento (light 0.1, medium 0.5, heavy 1.0)
+
+**Protocollo:** `cwEnergyModular/perturbation_protocol.py`
+- `run_perturbation_protocol()` — esegue su modello target, raccoglie verdetti ed energia
+- `apply_syntactic_rephrase()`, `apply_instruction_reorder()`, `apply_synonym_substitution()`, `apply_minor_formatting()` — applicatori per tipo
+- `export_perturbation_results()`, `import_perturbation_results()`
+
+**Metriche di uscita (non in CSV P5):**
+- Tasso stabilità verdetto per tipo/severità
+- Delta energia medio/massimo per tipo/severità
+- Esportazione JSON in `experiment_results/perturbation_<timestamp>.json`
+
+---
+
+**Diciottesima emenda — P6.10 ECPC per tassonomia con cluster-bootstrap CI (2026-11-13)**
+
+**Ancoraggio:** P4.12 unità statistica = task (non riga), P6.4 simulazione Monte Carlo verifica copertura. `evaluation_runner.py` ha già `cluster_bootstrap_interval` per accuratezza; serve generalizzazione a ECPC (ratio ΣE/Σ1[correct]).
+
+**Requisito:** calcolare ECPC stratificato per categoria/query taxonomy con intervallo di confidenza cluster-bootstrap al livello task.
+
+**Implementazione:** `cwEnergyModular/taxonomy_ecpc.py`
+- `compute_taxonomy_ecpc()`, `_ecpc_bootstrap()`, `export_taxonomy_ecpc_json()`, `export_taxonomy_ecpc_csv()`
+- Bootstrap: ricampiona task (non righe) con replacement, calcola ratio ΣE/Σ1[correct] per replicato, percentile 2.5–97.5 (seed 20261104, 2000 replicati)
+
+**Output per categoria (in `evaluation_runner.summarize_records`):**
+- `ecpc_verified` — solo risposte `deterministic` + `correct`
+- `ecpc_conditional` — `llm_judge`/`human_calibrated` + `correct` + judge validated
+- `scoring_coverage` — frazione righe con `scoring_method` valorizzato
+- `judge_validation_status` — aggregato per categoria (failed > gated > validated > unvalidated)
+- `human_reference_available` — conteggio item con ground truth umano
+
+**Esportazione:** `experiment_results/taxonomy_ecpc_<timestamp>.json/.csv` — **non** nel CSV P5.
+
+---
 
 **Nove difetti dichiarati nel testo congelato, tutti chiusi.** Quattro registrati
 il 2026-10-24, un quinto emerso il 2026-10-25 verificando gli ancoraggi del
@@ -2529,10 +2629,11 @@ P6 non è congelato: raccoglie i vincoli che i punti già congelati impongono
 all'esecuzione, e che altrimenti resterebbero impliciti fino al giorno della
 campagna. Ogni numero qui sotto è aritmetica dei punti congelati, non una stima.
 
-**Eccezione dichiarata del 2026-10-24, estesa il 2026-10-25.** Questa sezione
+**Eccezione dichiarata del 2026-10-24, estesa il 2026-10-25, aggiornata il 2026-11-13.** Questa sezione
 diceva di non contenere decisioni; dal 2026-10-24 ne contiene due e dal
 2026-10-25 tre. Le voci da P6.3 in poi non sono vincoli derivati: **P6.3 (audit
-idle), P6.4 (simulazione Monte Carlo) e P6.6 (prova di attribuzione ripetibile)
+idle), P6.4 (simulazione Monte Carlo), P6.6 (prova di attribuzione ripetibile),
+P6.7 (gate calibrazione umana), P6.8 (frontiera Pareto), P6.9 (robustezza perturbativa), P6.10 (ECPC tassonomia)
 sono adottate come requisiti vincolanti**, perché punti congelati ne dipendono —
 P4.8 rimanda a P6.4 per la copertura del bootstrap, P4.5 per la verifica del
 quorum di sei coppie, e P4.10 per la prova di attribuzione che P6.6 ripete. P6.5
@@ -2906,6 +3007,96 @@ configurazione fissa con R repliche e fasi >= 5 bucket, non prima del primo run
 in senso assoluto (emendamento esplicito al protocollo). Pre-pilota completato: 3 fasi valide (prep-r3, prep-r5, prep-r6). Banda congelata: B_abs=0.6, B_rel=1.1 (margine 20%). Piano: prep_plan_frozen.json.
 
 Esecuzione P6 (2026-11-06): P6.1 aritmetica documentata. P6.2 pilota eseguito. P6.3 audit idle eseguito (seconda run con 120s assestamento): 5 finestre, range 0.86 W < 1.0 W soglia -> macchina STAZIONARIA, campagna sbloccata. P6.4 sonde Monte Carlo eseguite (5/5). P6.6 pre-pilota completato, banda congelata. Prova completa: 10 configurazioni x 3 prompt, 0 errori. Confronto CodeCarbon eseguito (0.000304 kg CO2eq). Fixture GPU allineate al contratto di identita' (UUID): 73 test GPU verdi; suite a 885 node id raccolti, 881 passati e 4 saltati (3 RAPL, 1 modulo ecologits), 0 falliti (misurato 07-11, 881+4=885). Tutto il resto e' fissato qui e non si sposta dopo i dati.
+
+### P6.7 Gate di calibrazione umana per giudice LLM (anello 4 di P4.9)
+
+**Ancoraggio:** P4.9 dichiara sei anelli; l'anello 4 è la validazione del giudice contro ground truth umano. Finora mai implementato.
+
+**Requisito:** prima di produrre etichette utilizzabili per ECPC su un ramo (`number`, `short_text`, `free_text`), il giudice LLM deve superare un gate di calibrazione su campione stratificato pre-registrato.
+
+**Artefatti preregistrati (tracciati in `experiment_results/`):**
+- `human_calibration_protocol.json` — protocollo pre-registrato (versione 1.0, data 2026-11-10)
+- `human_calibration_rubric.md` — rubrica di annotazione a 3 livelli (Correct/Incorrect/Indeterminate)
+- `human_calibration_sample.jsonl` — 40 item stratificati: 14 number, 13 short_text, 13 free_text
+- `cwEnergyModular/tools/compute_annotator_agreement.py` — calcolo Krippendorff α (nominale) + Cohen κ (nominale)
+
+**Soglie congelate (non modificabili dopo i dati):**
+- Krippendorff α ≥ 0.80 per ramo (primario, **α nominale** come da preregistrazione v2.0)
+- Cohen κ ≥ 0.80 per ramo (secondario)
+
+**Decisione del gate (modulo `cwEnergyModular/human_calibration_gate.py`):**
+- Se α ≥ 0.80 **E** κ ≥ 0.80 per un ramo → `judge_produces_labels`: il giudice produce etichette per ECPC su quel ramo; `scoring_method = "llm_judge"`, `judge_validation_status = "validated"`
+- Altrimenti → `judge_gated_no_labels`: `is_correct = None`, nota `judge_uncalibrated: alpha=X kappa=Y`, `scoring_method = "none"`, `judge_validation_status = "gated"`
+
+**Tracciabilità nel CSV (schema P5 invariato):**
+- `scoring_method` ∈ {deterministic, llm_judge, human_calibrated, none}
+- `human_reference_available` (booleano)
+- `judge_validation_status` ∈ {unvalidated, validated, gated, failed}
+- `validation_alpha` (float, Krippendorff α per ramo)
+- Nota: i quattro campi **non sono nello schema P5 congelato** — esistono come campi del dataclass `EvaluationResult` nel working tree; il loro eventuale ingresso nello schema è un punto aperto, non un fatto: lo schema resta a 174 nomi.
+- Note di riga: `judge_calibration_<stratum>=VALIDATED|GATED: alpha=X, kappa=Y`
+
+**Esecuzione:** il gate si valuta **una volta** dopo la raccolta delle annotazioni umane (due annotatori + eventuale adjudication), prima della campagna principale. Il tool `tools/compute_annotator_agreement.py` scrive i due report preregistrati (`human_calibration_agreement_report.json`, `human_calibration_judge_comparison.json`). Il runner non legge alcun artefatto di gate all'avvio: l'aggancio al runner è un punto aperto.
+
+**Endoso α nominale:** la preregistrazione v2.0 specifica Krippendorff α con `level="nominal"`. L'implementazione in `compute_annotator_agreement.py` calcola α con `level="nominal"` fisso, allineata alla preregistrazione. L'endoso formale dell'α nominale (in luogo dell'ordinale citato in bozze precedenti) è registrato qui.
+
+### P6.8 Analisi frontiera Pareto energy-accuracy
+
+**Ancoraggio:** P3.3 costi marginali, P4.6/P4.7 budget predittivo e copertura, P4.13 `hull_margin_tok`. La frontiera Pareto è l'analisi standard per tradeoff energy-accuracy (letteratura: MLPerf Power, Green500, TokenPowerBench, SweetSpot).
+
+**Requisito:** calcolare la frontiera di Pareto dei sistemi per categoria e overall, con:
+- Asse X: `mean_energy_per_correct_j` (ECPC per sistema/categoria)
+- Asse Y: `accuracy` (proporzione risposte corrette su determinate)
+- Dominanza: A domina B se `acc_A ≥ acc_B` **E** `energy_A ≤ energy_B` (almeno una stretta)
+- Output: sistemi Pareto-ottimali, dominati, ginocchio (knee) della frontiera
+
+**Implementazione:** `cwEnergyModular/pareto_frontier.py`
+- `pareto_frontier()` / `pareto_by_category()` — frontiera per categoria e overall
+- `dominates()`, `knee_detection()`, `export_pareto_json()`
+
+**Esportazione:** risultati in `experiment_results/pareto_frontier_<timestamp>.json` — **non** nel CSV P5 (schema congelato).
+
+### P6.9 Protocollo di robustezza perturbativa
+
+**Ancoraggio:** Letteratura su robustezza valutazione LLM (JudgeBench stress test, IFEval perturbation sets, LiveBench contamination check). Nessun benchmark energetico attuale testa stabilità del verdetto sotto perturbazioni controllate.
+
+**Requisito:** per ogni prompt del benchmark, generare perturbazioni controllate e misurare stabilità verdetto e delta energia.
+
+**Tipi di perturbazione (lista preregistrata, congelata):**
+1. `typo_injection` — character-level noise (rate: light 2%, medium 5%, heavy 10%)
+2. `adversarial_suffix` — suffissi irrilevanti/confusi (3 livelli)
+3. `order_permutation` — shuffle frasi/esempi/parole (3 livelli)
+4. `paraphrase_invariance` — riformulazione semanticamente equivalente (placeholder, richiede LLM)
+5. `temperature_sweep` — variazione temperatura campionamento (light 0.1, medium 0.5, heavy 1.0)
+
+**Protocollo:** `cwEnergyModular/perturbation_protocol.py`
+- `run_perturbation_protocol()` — esegue su modello target, raccoglie verdetti ed energia
+- `apply_syntactic_rephrase()`, `apply_instruction_reorder()`, `apply_synonym_substitution()`, `apply_minor_formatting()` — applicatori per tipo
+- `export_perturbation_results()`, `import_perturbation_results()`
+
+**Metriche di uscita (non in CSV P5):**
+- Tasso stabilità verdetto per tipo/severità
+- Delta energia medio/massimo per tipo/severità
+- Esportazione JSON in `experiment_results/perturbation_<timestamp>.json`
+
+### P6.10 ECPC per tassonomia con cluster-bootstrap CI
+
+**Ancoraggio:** P4.12 unità statistica = task (non riga), P6.4 simulazione Monte Carlo verifica copertura. `evaluation_runner.py` ha già `cluster_bootstrap_interval` per accuratezza; serve generalizzazione a ECPC (ratio ΣE/Σ1[correct]).
+
+**Requisito:** calcolare ECPC stratificato per categoria/query taxonomy con intervallo di confidenza cluster-bootstrap al livello task.
+
+**Implementazione:** `cwEnergyModular/taxonomy_ecpc.py`
+- `compute_taxonomy_ecpc()`, `_ecpc_bootstrap()`, `export_taxonomy_ecpc_json()`, `export_taxonomy_ecpc_csv()`
+- Bootstrap: ricampiona task (non righe) con replacement, calcola ratio ΣE/Σ1[correct] per replicato, percentile 2.5–97.5 (seed 20261104, 2000 replicati)
+
+**Output per categoria (in `evaluation_runner.summarize_records`):**
+- `ecpc_verified` — solo risposte `deterministic` + `correct`
+- `ecpc_conditional` — `llm_judge`/`human_calibrated` + `correct` + judge validated
+- `scoring_coverage` — frazione righe con `scoring_method` valorizzato
+- `judge_validation_status` — aggregato per categoria (failed > gated > validated > unvalidated)
+- `human_reference_available` — conteggio item con ground truth umano
+
+**Esportazione:** `experiment_results/taxonomy_ecpc_<timestamp>.json/.csv` — **non** nel CSV P5.
 
 ---
 
