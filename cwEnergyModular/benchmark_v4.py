@@ -1639,18 +1639,15 @@ def energy_fields(local, keep_alive_sent) -> Dict[str, object]:
         "domain": local.domain or "",
         "sampling_interval_observed_s": bu._na_or(
             local.sampling_interval_observed_s),
-        # P6.4: separazione TTFT/generazione. Questi campi non entrano nello
-        # schema CSV (P5 congelato, 174 colonne): sono disponibili nel record
-        # per usi futuri e per l'analisi del verbale. Quando ttft_available e'
-        # False, tutti i campi TTFT sono None.
-        "_ttft_s": local.ttft_s,
-        "_ttft_available": local.ttft_available,
-        "_package_energy_ttft_j": local.package_energy_ttft_j,
-        "_package_energy_generation_j": local.package_energy_generation_j,
-        "_baseline_energy_ttft_j": local.baseline_energy_ttft_j,
-        "_baseline_energy_generation_j": local.baseline_energy_generation_j,
-        "_active_energy_ttft_j": local.active_energy_ttft_j,
-        "_active_energy_generation_j": local.active_energy_generation_j,
+        # v4-TTFT: separazione TTFT/generazione (ora nello schema CSV)
+        "ttft_available": local.ttft_available,
+        "ttft_s": bu._na_or(local.ttft_s),
+        "package_energy_ttft_j": bu._na_or(local.package_energy_ttft_j),
+        "package_energy_generation_j": bu._na_or(local.package_energy_generation_j),
+        "baseline_energy_ttft_j": bu._na_or(local.baseline_energy_ttft_j),
+        "baseline_energy_generation_j": bu._na_or(local.baseline_energy_generation_j),
+        "active_energy_ttft_j": bu._na_or(local.active_energy_ttft_j),
+        "active_energy_generation_j": bu._na_or(local.active_energy_generation_j),
         "backend_version": local.backend_version or "",
         "measurement_boundary": local.measurement_boundary,
         "idle_provenance": local.idle_provenance or "",
@@ -2464,6 +2461,8 @@ def run_v4_benchmark(
     max_invalidated_blocks: Optional[int] = None,
     substitution_seed: Optional[str] = None,
     initial_last_pre_w: Optional[float] = None,
+    n_repeats: int = 1,
+    repeat_seed: Optional[str] = None,
 ) -> Dict:
     """Esegue la campagna v4 (blocchi P1.5) e scrive righe + riepiloghi.
 
@@ -2557,6 +2556,19 @@ def run_v4_benchmark(
     congelato e tutte finiscono in ``notes``. GUI aperta o host a batteria
     fermano il run; ``background_load`` e' un flag dichiarato, non un
     silenzio.
+
+    ``n_repeats`` (default 1): numero di ripetizioni dell'intera campagna
+    (stesso piano blocchi, stesse semenze, stesso ordine). Ogni ripetizione
+    ha il proprio ``run_id``, ``session_id``, ``batch_id`` e fresh ``SESSION``
+    per garantire baseline indipendenti. ``n_repeats=1`` mantiene il
+    comportamento storico (backwards compatible). Per ``n_repeats > 1``,
+    l'esterno loop usa un RNG derivato da ``repeat_seed`` (o dal seme Emenda 8
+    se non fornito) per variare l'ordine di esecuzione tra le ripetizioni,
+    mantenendo la riproducibilità dichiarata.
+
+    ``repeat_seed`` (default None): seme per l'outer loop delle ripetizioni.
+    Se non fornito, deriva dal seme di sostituzione Emenda 8. Registrato nel
+    run metadata per riproducibilità.
     """
     log = on_log or (lambda _m: None)
     models = list(local_models or [])
@@ -2567,6 +2579,8 @@ def run_v4_benchmark(
         raise ValueError("nessuna richiesta selezionata")
     if blocks_per_point < 1:
         raise ValueError("blocks_per_point deve essere >= 1")
+    if n_repeats < 1:
+        raise ValueError("n_repeats deve essere >= 1")
     # Emenda 8 (P1.6): K e seme si risolvono PRIMA di qualsiasi altra cosa.
     # Se mancano il runner non parte, e non parte soprattutto prima di toccare
     # la sessione: un run avviato con un tetto inventato sarebbe un disegno
@@ -2576,222 +2590,247 @@ def run_v4_benchmark(
 
     results_path = Path(results_path or DEFAULT_RESULTS_PATH)
     block_summary_path = Path(block_summary_path or DEFAULT_BLOCK_SUMMARY_PATH)
-    batch = batch_id or uuid.uuid4().hex[:12]
-    run_id = uuid.uuid4().hex
-    session_id = uuid.uuid4().hex
-    started_wall = datetime.now(timezone.utc)
+    base_batch = batch_id or uuid.uuid4().hex[:12]
 
-    profiler = CasualWattLocalEnergyProfiler()
-    was_running = SESSION.running
-    rows_written = 0
-    blocks_written = 0
-    errors = 0
-    nonce_seq = 0
-    # Riferimento del cooldown (P1.5): l'ultima baseline_pre_w completata.
-    # initial_last_pre_w=nessun argomento -> identico al comportamento storico.
-    last_pre_w: Optional[float] = initial_last_pre_w
-    cooldown_log: List[str] = []
-    runtime: Dict[str, Tuple[str, str]] = {
-        model: ("", "") for model in models}
-    # P1.4: stato macchina prima/dopo e preparazione per modello. Stanno fuori
-    # dal piano perche' non sono blocchi e non producono righe.
-    machine_before: Dict[str, object] = {}
-    machine_after: Dict[str, object] = {}
-    machine_error = ""
-    model_states: Dict[str, Dict[str, object]] = {}
-    summary = {
-        "run_id": run_id, "session_id": session_id, "batch_id": batch,
-        "records": 0, "blocks": 0, "errors": 0, "cancelled": False,
-        # Emenda 8 (P1.6): contatori di invalidazione, tutti dichiarati.
-        "invalidated_blocks": 0, "missing_blocks": 0, "substitutions": 0,
-        "stopped_by_k": "",
-        "results_csv": str(results_path),
-        "block_summary_csv": str(block_summary_path),
-    }
-    # Piano dei blocchi: lista PIATTA (modello x punto x k), perche' il
-    # sostituto va potersi inserire fra i blocchi che vengono dopo, e un
-    # ciclo annidato non ha un "dopo" fra un punto e l'altro. L'identita'
-    # del punto (point_id) e calcolata qui una volta sola, come faceva il
-    # ciclo annidato.
-    plan: List[Dict[str, object]] = []
+    # Piano dei blocchi BASE (modello x punto x k), calcolato una sola volta
+    # L'identita' del punto (point_id) e calcolata qui una volta sola
+    base_plan: List[Dict[str, object]] = []
     for model in models:
         for prompt in points:
             point_id = f"{_slug(model)}__{_slug(prompt['id'])}"
             for k in range(blocks_per_point):
-                plan.append({"model": model, "prompt": prompt,
-                             "point_id": point_id, "k": k,
-                             "attempt": 1, "replaced": ""})
-    rng = random.Random(seed)
-    runtime_done: set = set()
-    invalidated = 0
-    missing_ids: List[str] = []
-    substitution_log: List[str] = []
-    stopped_by_k = ""
-    failure: Optional[BaseException] = None
-    try:
-        if not was_running:
-            SESSION.start()
-            time.sleep(SESSION.interval_s * 2)
-        cpu_res = CasualWattLocalEnergyProfiler.probe_cpu_time_resolution()
-        SESSION.cpu_time_resolution_s = cpu_res
-        log(f"Sorgente energia package CPU: {SESSION.source_method}")
-        log("Risoluzione osservata dei cpu_times: "
-            + (f"{cpu_res:.4f} s" if cpu_res else "non misurabile"))
-        machine_before = prepare_machine_state(on_log=log)
+                base_plan.append({"model": model, "prompt": prompt,
+                                 "point_id": point_id, "k": k,
+                                 "attempt": 1, "replaced": ""})
 
-        idx = 0
-        while idx < len(plan):
-            entry = plan[idx]
-            if stop_event is not None and stop_event.is_set():
-                raise _Cancelled("stop richiesto fra due blocchi")
-            model = str(entry["model"])
-            if model not in runtime_done:
-                version, digest = _ollama_runtime_info(model)
-                runtime[model] = (version, digest)
-                runtime_done.add(model)
-                model_states[model] = prepare_model_state(
-                    model, num_ctx=num_ctx, on_log=log)
-            point_id = str(entry["point_id"])
-            k = int(entry["k"])
-            attempt = int(entry["attempt"])
-            block_id = (f"{point_id}__b{k + 1:02d}" if attempt == 1 else
-                        f"{point_id}__b{k + 1:02d}__s2")
-            cooldown = None
-            if k == 0:
-                cooldown = cooldown_to_baseline(
-                    last_pre_w, stop_event=stop_event)
-                if cooldown.get("ran"):
-                    cooldown_log.append(
-                        f"{point_id}: target_pre_w="
-                        f"{cooldown['target_pre_w']} W, "
-                        f"waited_s={cooldown['waited_s']}, "
-                        f"cooldown_timeout="
-                        f"{cooldown_timeout_flag(cooldown)}")
-                log(f"[COOLDOWN -> {point_id}] {cooldown['reason']}")
-            try:
-                rows, block_rec = run_block(
-                    model, entry["prompt"],
-                    run_id=run_id, session_id=session_id, batch_id=batch,
-                    point_id=point_id, block_id=block_id,
-                    nonce_seq=nonce_seq, profiler=profiler,
-                    m=m, num_predict=num_predict, num_ctx=num_ctx,
-                    temperature=temperature, timeout_s=timeout_s,
-                    eval_mode_override=eval_mode_override,
-                    block_kind=block_kind, pair_id=pair_id,
-                    order_seed=order_seed, dt_nominal_s=dt_nominal_s,
-                    dt_tick_s=dt_tick_s, p_peak_w=p_peak_w,
-                    stop_event=stop_event, cooldown=cooldown, on_log=log,
-                    block_attempt=attempt,
-                    replaced_block_id=str(entry["replaced"]),
-                    use_nonce=use_nonce,
-                    control=(block_kind == "control"),
-                )
-            except V4CounterFault as fault:
-                # Emenda 8 (P1.6): prima occorrenza -> invalidazione senza
-                # retry; il nonce e' consumato comunque (il sostituto non
-                # riusa nonce ambigui), e il blocco lascia una riga di
-                # riepilogo con il token del guasto.
-                nonce_seq += m
-                invalidated += 1
-                summary["invalidated_blocks"] = invalidated
-                for r in fault.rows:
-                    r["block_attempt"] = attempt
-                    r["invalid_reason"] = fault.invalid_reason
-                    r["replaced_block_id"] = str(entry["replaced"])
-                    r["notes"] = ((r.get("notes", "") + "; ")
-                                  if r.get("notes") else "") + (
-                        f"blocco invalidato P1.6/Emenda 8 "
-                        f"(invalid_reason={fault.invalid_reason}): righe "
-                        "conservate append-only come evidenza, NON entrano "
-                        "in nessuna analisi")
-                if fault.rows:
-                    rows_written += export_results_csv(
-                        fault.rows, results_path, mode="a")
-                    summary["records"] = rows_written
-                invalid_rec = {
-                    "batch_id": batch, "point_id": point_id,
-                    "block_id": block_id, "block_kind": block_kind,
-                    "pair_id": pair_id, "order_seed": order_seed,
-                    "dt_nominal_s": dt_nominal_s, "dt_tick_s": dt_tick_s,
-                    "p_peak_w": p_peak_w,
-                    # Il cooldown, se eseguito, e' un fatto del run: resta.
-                    "cooldown_timeout": cooldown_timeout_flag(cooldown),
-                    "block_attempt": attempt,
-                    "invalid_reason": fault.invalid_reason,
-                    "replaced_block_id": str(entry["replaced"]),
-                }
-                blocks_written += export_summary_csv(
-                    [invalid_rec], block_summary_path,
-                    BLOCK_SUMMARY_COLUMNS, mode="a")
-                summary["blocks"] = blocks_written
-                log(f"[BLOCCO INVALIDATO {block_id}] "
-                    f"invalid_reason={fault.invalid_reason}: {fault}")
-                if invalidated > k_max:
-                    stopped_by_k = (
-                        f"tetto K={k_max} di blocchi invalidati per batch "
-                        f"superato ({invalidated}): il run si ferma qui, i "
-                        "dati scritti restano")
-                    summary["stopped_by_k"] = stopped_by_k
-                    log(f"[ARRESTO] {stopped_by_k}")
-                    break
-                if attempt == 2:
-                    # Secondo guasto tecnico sullo STESSO punto di disegno:
-                    # il blocco e' "mancante", non c'e' una terza chance.
-                    missing_ids.append(block_id)
-                    summary["missing_blocks"] = len(missing_ids)
-                    log(f"[MANCANTE] {block_id}: secondo guasto tecnico sul "
-                        "sostituto, il punto resta scoperto")
+    all_summaries: List[Dict] = []
+
+    # Per n_repeats=1 manteniamo il comportamento storico: un solo RNG basato su seed Emenda 8
+    # Per n_repeats>1 usiamo un RNG derivato da repeat_seed (o seed Emenda 8) per variare l'ordine
+    if repeat_seed is None:
+        repeat_seed = seed
+    repeat_rng = random.Random(repeat_seed)
+
+    for repeat_idx in range(n_repeats):
+        # Ogni ripetizione ha fresh identifiers e fresh SESSION
+        batch = f"{base_batch}_r{repeat_idx}"
+        run_id = uuid.uuid4().hex
+        session_id = uuid.uuid4().hex
+        started_wall = datetime.now(timezone.utc)
+
+        profiler = CasualWattLocalEnergyProfiler()
+        was_running = SESSION.running
+        rows_written = 0
+        blocks_written = 0
+        errors = 0
+        nonce_seq = 0
+        # Riferimento del cooldown (P1.5): l'ultima baseline_pre_w completata.
+        # initial_last_pre_w=nessun argomento -> identico al comportamento storico.
+        last_pre_w: Optional[float] = initial_last_pre_w
+        cooldown_log: List[str] = []
+        runtime: Dict[str, Tuple[str, str]] = {
+            model: ("", "") for model in models}
+        # P1.4: stato macchina prima/dopo e preparazione per modello. Stanno fuori
+        # dal piano perche' non sono blocchi e non producono righe.
+        machine_before: Dict[str, object] = {}
+        machine_after: Dict[str, object] = {}
+        machine_error = ""
+        model_states: Dict[str, Dict[str, object]] = {}
+        summary = {
+            "run_id": run_id, "session_id": session_id, "batch_id": batch,
+            "records": 0, "blocks": 0, "errors": 0, "cancelled": False,
+            # Emenda 8 (P1.6): contatori di invalidazione, tutti dichiarati.
+            "invalidated_blocks": 0, "missing_blocks": 0, "substitutions": 0,
+            "stopped_by_k": "",
+            "results_csv": str(results_path),
+            "block_summary_csv": str(block_summary_path),
+            "repeat_index": repeat_idx,
+            "repeat_count": n_repeats,
+        }
+        # Piano dei blocchi: lista PIATTA (modello x punto x k), perche' il
+        # sostituto va potersi inserire fra i blocchi che vengono dopo, e un
+        # ciclo annidato non ha un "dopo" fra un punto e l'altro.
+        plan = [dict(entry) for entry in base_plan]  # copia profonda
+        rng = random.Random(seed)
+        runtime_done: set = set()
+        invalidated = 0
+        missing_ids: List[str] = []
+        substitution_log: List[str] = []
+        stopped_by_k = ""
+        failure: Optional[BaseException] = None
+
+        # Per n_repeats > 1, mescoliamo l'ordine del piano con repeat_rng
+        if n_repeats > 1:
+            repeat_rng.shuffle(plan)
+
+        try:
+            if not was_running:
+                SESSION.start()
+                time.sleep(SESSION.interval_s * 2)
+            cpu_res = CasualWattLocalEnergyProfiler.probe_cpu_time_resolution()
+            SESSION.cpu_time_resolution_s = cpu_res
+            log(f"Sorgente energia package CPU: {SESSION.source_method}")
+            log("Risoluzione osservata dei cpu_times: "
+                + (f"{cpu_res:.4f} s" if cpu_res else "non misurabile"))
+            machine_before = prepare_machine_state(on_log=log)
+
+            idx = 0
+            while idx < len(plan):
+                entry = plan[idx]
+                if stop_event is not None and stop_event.is_set():
+                    raise _Cancelled("stop richiesto fra due blocchi")
+                model = str(entry["model"])
+                if model not in runtime_done:
+                    version, digest = _ollama_runtime_info(model)
+                    runtime[model] = (version, digest)
+                    runtime_done.add(model)
+                    model_states[model] = prepare_model_state(
+                        model, num_ctx=num_ctx, on_log=log)
+                point_id = str(entry["point_id"])
+                k = int(entry["k"])
+                attempt = int(entry["attempt"])
+                block_id = (f"{point_id}__b{k + 1:02d}" if attempt == 1 else
+                            f"{point_id}__b{k + 1:02d}__s2")
+                cooldown = None
+                if k == 0:
+                    cooldown = cooldown_to_baseline(
+                        last_pre_w, stop_event=stop_event)
+                    if cooldown.get("ran"):
+                        cooldown_log.append(
+                            f"{point_id}: target_pre_w="
+                            f"{cooldown['target_pre_w']} W, "
+                            f"waited_s={cooldown['waited_s']}, "
+                            f"cooldown_timeout="
+                            f"{cooldown_timeout_flag(cooldown)}")
+                    log(f"[COOLDOWN -> {point_id}] {cooldown['reason']}")
+                try:
+                    rows, block_rec = run_block(
+                        model, entry["prompt"],
+                        run_id=run_id, session_id=session_id, batch_id=batch,
+                        point_id=point_id, block_id=block_id,
+                        nonce_seq=nonce_seq, profiler=profiler,
+                        m=m, num_predict=num_predict, num_ctx=num_ctx,
+                        temperature=temperature, timeout_s=timeout_s,
+                        eval_mode_override=eval_mode_override,
+                        block_kind=block_kind, pair_id=pair_id,
+                        order_seed=order_seed, dt_nominal_s=dt_nominal_s,
+                        dt_tick_s=dt_tick_s, p_peak_w=p_peak_w,
+                        stop_event=stop_event, cooldown=cooldown, on_log=log,
+                        block_attempt=attempt,
+                        replaced_block_id=str(entry["replaced"]),
+                        use_nonce=use_nonce,
+                        control=(block_kind == "control"),
+                    )
+                except V4CounterFault as fault:
+                    # Emenda 8 (P1.6): prima occorrenza -> invalidazione senza
+                    # retry; il nonce e' consumato comunque (il sostituto non
+                    # riusa nonce ambigui), e il blocco lascia una riga di
+                    # riepilogo con il token del guasto.
+                    nonce_seq += m
+                    invalidated += 1
+                    summary["invalidated_blocks"] = invalidated
+                    for r in fault.rows:
+                        r["block_attempt"] = attempt
+                        r["invalid_reason"] = fault.invalid_reason
+                        r["replaced_block_id"] = str(entry["replaced"])
+                        r["notes"] = ((r.get("notes", "") + "; ")
+                                      if r.get("notes") else "") + (
+                            f"blocco invalidato P1.6/Emenda 8 "
+                            f"(invalid_reason={fault.invalid_reason}): righe "
+                            "conservate append-only come evidenza, NON entrano "
+                            "in nessuna analisi")
+                    if fault.rows:
+                        rows_written += export_results_csv(
+                            fault.rows, results_path, mode="a")
+                        summary["records"] = rows_written
+                    invalid_rec = {
+                        "batch_id": batch, "point_id": point_id,
+                        "block_id": block_id, "block_kind": block_kind,
+                        "pair_id": pair_id, "order_seed": order_seed,
+                        "dt_nominal_s": dt_nominal_s, "dt_tick_s": dt_tick_s,
+                        "p_peak_w": p_peak_w,
+                        # Il cooldown, se eseguito, e' un fatto del run: resta.
+                        "cooldown_timeout": cooldown_timeout_flag(cooldown),
+                        "block_attempt": attempt,
+                        "invalid_reason": fault.invalid_reason,
+                        "replaced_block_id": str(entry["replaced"]),
+                    }
+                    blocks_written += export_summary_csv(
+                        [invalid_rec], block_summary_path,
+                        BLOCK_SUMMARY_COLUMNS, mode="a")
+                    summary["blocks"] = blocks_written
+                    log(f"[BLOCCO INVALIDATO {block_id}] "
+                        f"invalid_reason={fault.invalid_reason}: {fault}")
+                    if invalidated > k_max:
+                        stopped_by_k = (
+                            f"tetto K={k_max} di blocchi invalidati per batch "
+                            f"superato ({invalidated}): il run si ferma qui, i "
+                            "dati scritti restano")
+                        summary["stopped_by_k"] = stopped_by_k
+                        log(f"[ARRESTO] {stopped_by_k}")
+                        break
+                    if attempt == 2:
+                        # Secondo guasto tecnico sullo STESSO punto di disegno:
+                        # il blocco e' "mancante", non c'e' una terza chance.
+                        missing_ids.append(block_id)
+                        summary["missing_blocks"] = len(missing_ids)
+                        log(f"[MANCANTE] {block_id}: secondo guasto tecnico sul "
+                            "sostituto, il punto resta scoperto")
+                        idx += 1
+                        continue
+                    sub_bid = f"{point_id}__b{k + 1:02d}__s2"
+                    sub_entry = {"model": model, "prompt": entry["prompt"],
+                                 "point_id": point_id, "k": k, "attempt": 2,
+                                 "replaced": block_id}
+                    pos = rng.randrange(idx + 1, len(plan) + 1)
+                    plan.insert(pos, sub_entry)
+                    substitution_log.append(
+                        f"{block_id} -> sostituto {sub_bid} "
+                        f"in posizione {pos} di {len(plan) - 1} "
+                        f"(seme={seed!r}, invalid_reason={fault.invalid_reason})")
+                    summary["substitutions"] = len(substitution_log)
+                    log(f"[SOSTITUZIONE] seme={seed!r} posizione={pos} "
+                        f"({block_id} -> {sub_bid})")
                     idx += 1
                     continue
-                sub_bid = f"{point_id}__b{k + 1:02d}__s2"
-                sub_entry = {"model": model, "prompt": entry["prompt"],
-                             "point_id": point_id, "k": k, "attempt": 2,
-                             "replaced": block_id}
-                pos = rng.randrange(idx + 1, len(plan) + 1)
-                plan.insert(pos, sub_entry)
-                substitution_log.append(
-                    f"{block_id} -> sostituto {sub_bid} "
-                    f"in posizione {pos} di {len(plan) - 1} "
-                    f"(seme={seed!r}, invalid_reason={fault.invalid_reason})")
-                summary["substitutions"] = len(substitution_log)
-                log(f"[SOSTITUZIONE] seme={seed!r} posizione={pos} "
-                    f"({block_id} -> {sub_bid})")
-                idx += 1
-                continue
-            nonce_seq += m
-            b_pre = block_rec.get("baseline_pre_w")
-            if isinstance(b_pre, (int, float)) and math.isfinite(float(b_pre)):
-                last_pre_w = float(b_pre)
-            rows_written += export_results_csv(
-                rows, results_path, mode="a")
-            blocks_written += export_summary_csv(
-                [block_rec], block_summary_path,
-                BLOCK_SUMMARY_COLUMNS, mode="a")
-            summary["records"] = rows_written
-            summary["blocks"] = blocks_written
-            idx += 1
+                else:
+                    nonce_seq += m
+                    b_pre = block_rec.get("baseline_pre_w")
+                    if isinstance(b_pre, (int, float)) and math.isfinite(float(b_pre)):
+                        last_pre_w = float(b_pre)
+                    rows_written += export_results_csv(
+                        rows, results_path, mode="a")
+                    blocks_written += export_summary_csv(
+                        [block_rec], block_summary_path,
+                        BLOCK_SUMMARY_COLUMNS, mode="a")
+                    summary["records"] = rows_written
+                    summary["blocks"] = blocks_written
+                    idx += 1
 
         # P1.4: stato dopo l'ultimo blocco. L'errore qui non invalida la
         # campagna (le righe sono gia' scritte); resta dichiarato.
+        except _Cancelled as exc:
+            summary["cancelled"] = True
+            log(f"[ANNULLATO] {exc}")
+        except BaseException as exc:  # noqa: BLE001 - si registra e si rilancia
+            errors += 1
+            failure = exc
+            summary["errors"] = errors
+            log(f"[ERRORE] {type(exc).__name__}: {exc}")
+        finally:
+            if not was_running:
+                SESSION.stop()
+
+        machine_after = {}
+        machine_error = ""
         try:
             machine_after = probe_machine_state_after(on_log=log)
         except Exception as exc:  # noqa: BLE001 - il run e' gia' avvenuto
             machine_error = f"{type(exc).__name__}: {exc}"
             log(f"[AVVISO] stato macchina finale non rilevato: "
                 f"{machine_error}")
-    except _Cancelled as exc:
-        summary["cancelled"] = True
-        log(f"[ANNULLATO] {exc}")
-    except BaseException as exc:  # noqa: BLE001 - si registra e si rilancia
-        errors += 1
-        failure = exc
-        summary["errors"] = errors
-        log(f"[ERRORE] {type(exc).__name__}: {exc}")
-    finally:
-        if not was_running:
-            SESSION.stop()
 
-    finished_wall = datetime.now(timezone.utc)
+        finished_wall = datetime.now(timezone.utc)
     notes = [
         "runner=benchmark_v4",
         f"m={m}",
@@ -2947,7 +2986,21 @@ def run_v4_benchmark(
     summary["background_load_after"] = machine_after.get("background_load")
     if failure is not None:
         raise failure
-    return summary
+
+    all_summaries.append(summary)
+
+# Dopo tutte le ripetizioni: restituire summary aggregato (per n_repeats=1 compatibile)
+    if n_repeats == 1:
+        return all_summaries[0]
+    else:
+        # Per n_repeats > 1, restituire un dict aggregato con lista di summaries
+        return {
+            "repeats": all_summaries,
+            "repeat_count": n_repeats,
+            "repeat_seed": repeat_seed,
+            "results_csv": str(results_path),
+            "block_summary_csv": str(block_summary_path),
+        }
 
 
 # ---------------------------------------------------------------------------
@@ -2978,6 +3031,10 @@ def _parse_args(argv: Optional[Sequence[str]] = None) -> argparse.Namespace:
     p.add_argument("--substitution-seed", default=None,
                    help=f"seme per la posizione dei sostituti (Emenda 8; "
                         f"obbligatorio, o env {ENV_SUBSTITUTION_SEED})")
+    p.add_argument("--n-repeats", type=int, default=1,
+                   help="numero di ripetizioni della campagna (default 1 = storico)")
+    p.add_argument("--repeat-seed", default=None,
+                   help="seme per lo shuffle dell'ordine tra ripetizioni")
     return p.parse_args(argv)
 
 
@@ -3004,6 +3061,8 @@ def main(argv: Optional[Sequence[str]] = None) -> int:
             temperature=args.temperature, timeout_s=args.timeout,
             max_invalidated_blocks=args.max_invalidated_k,
             substitution_seed=args.substitution_seed,
+            n_repeats=args.n_repeats,
+            repeat_seed=args.repeat_seed,
             on_log=print,
         )
     except Exception as exc:
