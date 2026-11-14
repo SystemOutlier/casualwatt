@@ -220,7 +220,9 @@ class ResultsPanel(ttk.LabelFrame):
         for i, color in enumerate(self._model_colors):
             self.tree.tag_configure(f"model_group_{i}", background=color)
 
-        # tooltip + doppio click: mostra la risposta INTERA del modello
+        # tooltip: sulla testa di colonna mostra l'attributo che identifica la
+        # colonna (cid), sulla colonna 'Risposta Modello' mostra la risposta
+        # intera del modello
         self._tip = None
         self.tree.bind("<Motion>", self._on_tree_motion)
         self.tree.bind("<Double-1>", self._show_full_response)
@@ -241,6 +243,47 @@ class ResultsPanel(ttk.LabelFrame):
         self._rows_cache: List[dict] = []
 
     # ------------------------------------------------- tooltip / risposta ----
+    def _heading_attr(self, event):
+        """Ritorna (cid, label, width) della colonna sotto il mouse quando il
+        cursore e' sulla testa di colonna (non su una riga), altrimenti None.
+
+        La testa di colonna e' l'unico posto in cui una colonna viene
+        "identificata" visivamente: il tooltip mostra qui il nome
+        dell'attributo (cid) che identifica la colonna nel CSV e nel
+        dizionario delle righe, accanto all'etichetta italiana.
+        """
+        try:
+            row_id = self.tree.identify_row(event.y)
+            if row_id:  # su una riga dati, non sulla testa di colonna
+                return None
+            col_id = self.tree.identify_column(event.x)
+            if not col_id:
+                return None
+            idx = int(col_id.replace("#", "")) - 1
+            if not (0 <= idx < len(CSV_VIEW_COLUMNS)):
+                return None
+            return CSV_VIEW_COLUMNS[idx]
+        except Exception:
+            return None
+
+    def _show_tip(self, text: str, event, wraplength: int = 520) -> None:
+        """Mostra il tooltip (creandolo una volta sola) in posizione mouse."""
+        try:
+            import tkinter as _tk
+
+            if self._tip is None or not self._tip.winfo_exists():
+                self._tip = _tk.Toplevel(self)
+                self._tip.overrideredirect(True)
+                lbl = ttk.Label(self._tip, text="", wraplength=wraplength, justify="left",
+                                relief="solid", padding=6, background="#fffbe6")
+                lbl.pack()
+                self._tip._lbl = lbl  # type: ignore[attr-defined]
+            self._tip._lbl.config(text=text)  # type: ignore[attr-defined]
+            self._tip.geometry(f"+{event.x_root + 14}+{event.y_root + 14}")
+            self._tip.deiconify()
+        except Exception:
+            pass
+
     def _cell_response(self, event):
         """Ritorna la risposta COMPLETA della riga sotto il puntatore quando il
         mouse è sulla colonna 'Risposta Modello' (lookup per row_id sul cache
@@ -264,6 +307,17 @@ class ResultsPanel(ttk.LabelFrame):
         return None
 
     def _on_tree_motion(self, event):
+        # Priorita' alla testa di colonna: l'attributo che identifica la
+        # colonna si mostra quando il mouse e' sopra la testa, non quando e'
+        # sopra una riga dati.
+        h = self._heading_attr(event)
+        if h is not None:
+            cid, label, _w = h
+            self._show_tip(
+                f"Attributo colonna: {cid}\n"
+                f"Etichetta: {label}\n"
+                f"Usa questo nome nel CSV / dizionario delle righe.", event)
+            return
         text = self._cell_response(event)
         if text:
             try:
