@@ -2567,6 +2567,19 @@ def _write_report(data: Dict) -> None:
         fh.write(f"- runner sha256: {data['runner_sha256']}\n")
 
 
+def characterize_command(
+    output_dir: str,
+    windows: int = 30,
+    window_s: float = 10.0,
+    margin_pct: float = 1.0,
+    force: bool = False,
+) -> int:
+    """Command to run idle characterization and write idle_characterization.json."""
+    from cwEnergyModular.tools.idle_characterization import characterize_idle
+    from pathlib import Path
+    return characterize_idle(Path(output_dir), windows, window_s, margin_pct, force)
+
+
 def main(argv: Optional[Sequence[str]] = None) -> int:
     parser = argparse.ArgumentParser(
         description="Gate load-versus-control di P4.4 sulla v4")
@@ -2605,7 +2618,27 @@ def main(argv: Optional[Sequence[str]] = None) -> int:
     p_exec.add_argument("--codecarbon-interval", type=float, default=None,
                         help="measure_power_secs del probe (default: 1 s, "
                              "fallback 15 s se il tracker non lo accetta)")
+    p_char = sub.add_parser("characterize",
+                            help="caratterizzazione idle macchina per threshold quiet/warmup")
+    p_char.add_argument("--output-dir", required=True,
+                        help="directory dove scrivere idle_characterization.json")
+    p_char.add_argument("--windows", type=int, default=30,
+                        help="numero di finestre di campionamento (default 30)")
+    p_char.add_argument("--window-s", type=float, default=10.0,
+                        help="durata di ogni finestra in secondi (default 10.0)")
+    p_char.add_argument("--margin-pct", type=float, default=1.0,
+                        help="margine percentuale aggiunto a Q95 (default 1.0)")
+    p_char.add_argument("--force", action="store_true",
+                        help="sovrascrive idle_characterization.json se esiste")
     args = parser.parse_args(argv)
+    if args.cmd == "characterize":
+        return characterize_command(
+            output_dir=args.output_dir,
+            windows=args.windows,
+            window_s=args.window_s,
+            margin_pct=args.margin_pct,
+            force=args.force,
+        )
     _imposta_data(args.date)
     _imposta_seme(args.seed)
     _imposta_coppie(args.pairs)
@@ -2623,7 +2656,7 @@ def main(argv: Optional[Sequence[str]] = None) -> int:
         mapping = {"pass": 0, "fail": 1, "not-executable": 2}
         decide = (r.get("verdetto_primario") or {}).get("status", r["status"])
         return mapping[decide]
-    parser.error("seguono solo plan/execute")
+    parser.error("seguono solo plan/execute/characterize")
     return 1
 
 
