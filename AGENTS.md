@@ -262,6 +262,8 @@ Il conteggio dei file tracciati e' riverificato lo stesso giorno:
 `.py` alla radice restano **36**.
 Se un ancoraggio non torna, il file e' stantio: va corretto, non ignorato.
 
+**Riverifica del 13-11-2026**: l'albero è avanzato a `5a8cc07cd` (commit docs `VALUTAZIONE_CORRETTEZZA.md` dell'altra sessione). Suite: **1457 raccolti = 1453 passati + 5 saltati + 0 falliti** (3 RAPL, 1 `ecologits` assente, 1 guardia git non eseguibile). L'unico fallito precedente (`test_preflight_reale_piano_terza_campagna`) è ora verde: il commit `5a8cc07cd` ha reso il percorso di misura invariato rispetto al `git_head` del piano P4.4 (`e070a16db`), e la guardia `_git_percorso_misura_mutato` passa. `CSV_COLUMNS` su HEAD resta **174** nomi (le 8 colonne TTFT sono nel working tree non committato, portano lo schema a 182). `experiment_results/` tracciato: **275** file (radice 0 + sottocartelle incluse 4 campagne P4.4 + additivity + P2.9 + codecarbon). Script `.py` tracciati alla radice: **36**. `cwEnergyModular/tools/`: **18** file. Appendice D rigenerata: 1457 node id, copertura docstring 1445/1457.
+
 Fonti primarie, in ordine di autorita':
 
 1. `experiment_results/protocollo_v4_20261024.md` — decisioni congelate P1-P4,
@@ -704,26 +706,23 @@ stanno solo le regole che un agente puo' violare senza accorgersene.
 ## Comandi di verifica
 
 ```
-pytest cwEnergyModular          # 1142 raccolti: 1139 passati, 4 saltati, 0 falliti
-                                # (09-11 sera, dopo i 149 node id delle tre
-                                # campagne P4.4, del warm-up misurato e di P2.9;
-                                # eseguito 1143 per lo skip di modulo, che non
-                                # compare in --collect-only). Quinta variante: con
-                                # `git` non eseguibile dal processo di test sale a
-                                # 5 saltati, perche' la guardia di
-                                # tests/test_preflight_gate_p44.py:287 si dichiara
-                                # non eseguibile invece di fallire -- il conteggio
-                                # dei salti e' una proprieta' dell'host, non del
-                                # tree.
-                                # storia datata: 993 raccolti / 990 passati (07-11
-                                # notte, dopo P1.4; eseguito 994 per lo skip di
-                                # modulo); 977 raccolti / 974 passati (07-11
-                                # notte, prima dello stato macchina P1.4); 976 raccolti / 973 passati (07-11
-                                # notte, prima del test di contratto); 943 raccolti / 940 passati
-                                # (07-11 sera); 906 raccolti / 903 passati
-                                # (07-11, dopo P6.5); 845 raccolti (notte 05-11);
-                                # 888 raccolti, 871 passati, 14 falliti (identita'
-                                # GPU), 3 saltati (albero sporco, 06-11 alle 12:04)
+pytest cwEnergyModular          # 1457 raccolti: 1453 passati, 5 saltati, 0 falliti
+                                # (13-11, albero a 5a8cc07cd; 3 RAPL, 1 ecologits,
+                                # 1 guardia git non eseguibile; eseguito 1458 per
+                                # lo skip di modulo). Precedente 13-11 (albero a
+                                # 91e856185): 1437 passati, 4 saltati, 1 fallito
+                                # (test_preflight_reale_piano_terza_campagna) —
+                                # la guardia `_git_percorso_misura_mutato`
+                                # rilevava mutazione del percorso di misura
+                                # (energy/cpu_attribution_fine.py,
+                                # energy/statistical_uncertainty.py) tra
+                                # git_head e070a16db e HEAD. Il commit
+                                # 5a8cc07cd ha risolto la mutazione.
+                                # storia datata: 1142 raccolti / 1139 passati (09-11
+                                # sera, dopo 149 node id P4.4); 993/990 (07-11
+                                # notte); 977/974; 976/973; 943/940 (07-11 sera);
+                                # 906/903 (07-11, P6.5); 845 (05-11 notte);
+                                # 888/871/14/3 (albero sporco, 06-11 12:04)
 ```
 
 **Mai `pytest` nudo dalla radice**: la raccolta viene interrotta da 6 errori in
@@ -1192,17 +1191,7 @@ controllo segue un run.
   esclusi per ragione; dichiara **INDECISO** quando `b+c=0` e la cautela sopra il
   10% di coppie escluse. Non tocca la misura e non tocca lo schema CSV. Il
   conteggio di questa riga e' `git ls-files`, non un elenco a vista.
-- `experiment_results/` — dati sperimentali e analisi, tracciati (271 file: 251 in
-  radice e 20 nelle cinque cartelle di campagna -- `codecarbon_four_way/` 1,
-  `p29_pilot_20261107/` 7, `p44_gate_20261107/` 5, `p44_gate_20261108/` 6,
-  `p44_gate_20261109/` 1; riverificati il 09-11-2026 con `git ls-files`). Il
-  **220** (219 + 1) della riverifica del 04-11 era corretto a quella data e
-  restava in piedi finche' i tre turni di P4.4 e il pilota P2.9 non hanno portato
-  i loro artefatti. I
-  protocolli congelati stanno qui. Un artefatto nuovo entra con il proprio commit
-  e con la propria analisi. Il gruppo `pawnio_probe_20261028*` (due run di
-  confronto, due A-B-A, tre token di privilegio, l'analisi) e' l'evidenza sotto
-  `pawnio-counter`: senza quei file il token non si cita.
+- `experiment_results/` — dati sperimentali e analisi, tracciati (**275** file: radice 0 + sottocartelle incluse 4 campagne P4.4 `p44_gate_20261107/` 5, `p44_gate_20261108/` 6, `p44_gate_20261109/` 1 + `p29_pilot_20261107/` 7 + `codecarbon_four_way/` 1 + additivity 5 + altri artefatti; riverificati il 13-11-2026 con `git ls-files`). Il **271** della riverifica del 09-11 era corretto a quella data; sono entrati 4 file (docs VALUTAZIONE_CORRETTEZZA.md, change_report_p44_metrologico_20261109.md, revisione_metodo_accuratezza_20261108.md, u_bias_budget_pred_20261111.txt). I protocolli congelati stanno qui. Un artefatto nuovo entra con il proprio commit e con la propria analisi. Il gruppo `pawnio_probe_20261028*` (due run di confronto, due A-B-A, tre token di privilegio, l'analisi) e' l'evidenza sotto `pawnio-counter`: senza quei file il token non si cita.
 - `cpuepower/`, `cpuepower2/` — toolkit sottoposto ad audit: i suoi numeri erano
   mock, la CLI crasha, la mappa MSR era sbagliata. **Banca di esperimenti, non un
   backend di misura.** Non importarlo, non citarlo come risultato.

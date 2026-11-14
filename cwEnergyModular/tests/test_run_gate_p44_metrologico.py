@@ -36,6 +36,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parent))
 import pytest  # noqa: E402
 
 import run_gate_p44 as rg  # noqa: E402
+from test_gate_p44_end_to_end import _create_idle_characterization  # noqa: E402
 
 TC = rg.DT_NOM_FROZEN
 
@@ -234,9 +235,10 @@ def test_seed_diverso_cambia_il_piano_dichiarato(tmp_path, monkeypatch):
     fa fallire la verifica del piano, come ogni altra manomissione post-dati."""
     monkeypatch.setattr(rg, "ARCHIVE_DIR", tmp_path)
     monkeypatch.setattr(rg, "_git_head", lambda: "test-head")
+    _create_idle_characterization(tmp_path)
     rg.cmd_plan(rg.DEFAULT_MODEL)
     piano = json.loads(
-        (tmp_path / rg.PLAN_NAME).read_text(encoding="utf-8"))
+        (rg.ARCHIVE_DIR / rg.PLAN_NAME).read_text(encoding="utf-8"))
     piano["order_seed"] = "seed-altro"
     (tmp_path / rg.PLAN_NAME).write_text(
         json.dumps(piano), encoding="utf-8")

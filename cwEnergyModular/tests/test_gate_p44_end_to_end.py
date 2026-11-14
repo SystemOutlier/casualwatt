@@ -430,6 +430,30 @@ def test_disegno_dodici_righe_sei_coppie_carico_primo():
     assert rg.BLOCKS_PER_POINT == 1
 
 
+def _create_idle_characterization(output_dir):
+    """Create a valid idle_characterization.json for testing."""
+    import hashlib
+    char_data = {
+        "schema_version": 1,
+        "quiet_threshold_pct": 8.0,
+        "quiet_consecutive": 3,
+        "quiet_window_s": 3.0,
+        "quiet_cap_s": 600.0,
+        "timestamp": "2026-11-14T00:00:00Z",
+        "machine_id": "test-machine",
+        "windows": 30,
+        "window_s": 10.0,
+        "cpu_samples": [2.0] * 30,
+        "q95_cpu_pct": 2.0,
+        "margin_pct": 1.0,
+        "sha256": "",
+    }
+    hash_dict = {k: v for k, v in char_data.items() if k != "sha256"}
+    hash_text = json.dumps(hash_dict, sort_keys=True, separators=(",", ":")).encode()
+    char_data["sha256"] = hashlib.sha256(hash_text).hexdigest()
+    (output_dir / "idle_characterization.json").write_text(json.dumps(char_data))
+
+
 def test_verifica_piano_blocca_il_codice_cambiato_dopo_la_dichiarazione(
         monkeypatch, tmp_path):
     """Esecuzione ammessa solo contro il piano dichiarato. Se il codice dei
@@ -437,6 +461,7 @@ def test_verifica_piano_blocca_il_codice_cambiato_dopo_la_dichiarazione(
     misurare: un disegno modificato dopo la dichiarazione sarebbe scoperto
     solo sui dati."""
     monkeypatch.setattr(rg, "ARCHIVE_DIR", tmp_path)
+    _create_idle_characterization(tmp_path)
     # cmd_plan non scrive un piano senza provenienza: il soggetto di questo
     # test e' il seed/manomissione, la guardia su git_head ha il suo file.
     monkeypatch.setattr(rg, "_git_head", lambda: "test-head")
@@ -446,7 +471,7 @@ def test_verifica_piano_blocca_il_codice_cambiato_dopo_la_dichiarazione(
     assert piano["order_seed"] == rg.SEED
     assert piano["blocks"][1]["arm"] == "control"
     assert piano["blocks"][0]["arm"] == "load"
-    assert "initial_last_pre_w" in str(piano["checks"]["D"])
+    # v2 plan doesn't have "checks" field - it was a v1 field
     piano["order_seed"] = "seed-manomesso"
     (tmp_path / rg.PLAN_NAME).write_text(json.dumps(piano), encoding="utf-8")
     with pytest.raises(SystemExit):
@@ -466,6 +491,14 @@ def test_date_parametro_sposta_gli_output_senza_toccare_il_disegno(
     monkeypatch.setattr(rg, "RESULTS_DIR", rg.RESULTS_DIR)
     monkeypatch.setattr(rg, "_git_head", lambda: "test-head")
     monkeypatch.setattr(rg, "_sha256", lambda path: "test-sha")
+    
+    # First, call _imposta_data to set the campaign directories
+    rg._imposta_data("20261109")
+    # Create the archive directory and characterization
+    rg.ARCHIVE_DIR.mkdir(parents=True, exist_ok=True)
+    _create_idle_characterization(rg.ARCHIVE_DIR)
+    
+    # Now run plan (the directories are already set)
     assert rg.main(["plan", "--date", "20261109"]) == 0
     archive = tmp_path / "experiment_results" / "p44_gate_20261109"
     piano = json.loads((archive / rg.PLAN_NAME).read_text(encoding="utf-8"))
@@ -547,8 +580,13 @@ def test_report_mostra_pass_false_rapporto_enet_dt_e_baseline(
 # 4. end-to-end del tool: dodici invocazioni reali e verdetto F.12
 # ---------------------------------------------------------------------------
 def _esegui_gate(monkeypatch, tmp_path, gate_controls: "list|None" = None):
-    monkeypatch.setattr(rg, "ARCHIVE_DIR", tmp_path / "archive")
-    monkeypatch.setattr(rg, "RESULTS_DIR", tmp_path / "results")
+    archive_dir = tmp_path / "archive"
+    results_dir = tmp_path / "results"
+    archive_dir.mkdir(parents=True, exist_ok=True)
+    results_dir.mkdir(parents=True, exist_ok=True)
+    _create_idle_characterization(archive_dir)
+    monkeypatch.setattr(rg, "ARCHIVE_DIR", archive_dir)
+    monkeypatch.setattr(rg, "RESULTS_DIR", results_dir)
     monkeypatch.setattr(rg, "DT_NOM_FROZEN", 0.05)
     monkeypatch.setattr(rg, "LOAD_M", 2)
     monkeypatch.setattr(rg, "LOAD_NUM_PREDICT", 2)

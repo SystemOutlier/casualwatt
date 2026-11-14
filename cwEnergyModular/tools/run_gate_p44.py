@@ -603,32 +603,41 @@ def plan_payload() -> Dict:
 
 
 def cmd_plan(model: str) -> int:
+    """Generate plan v2 requiring idle_characterization.json with valid hash."""
+    from cwEnergyModular.tools.plan_schema import create_plan_v2
+    from pathlib import Path
+    import sys
+
+    # Check git provenance first - plan must have a git_head
+    git_head = _git_head()
+    if not git_head:
+        _, ragione = _git_provenienza()
+        print(f"[ARRESTO] piano non ha provenienza: {ragione}", file=sys.stderr)
+        raise SystemExit("piano non ha provenienza")
+
     ARCHIVE_DIR.mkdir(parents=True, exist_ok=True)
     RESULTS_DIR.mkdir(parents=True, exist_ok=True)
-    plan = plan_payload()
-    # Un piano senza provenienza non e' un piano pre-registrato: e' un
-    # documento che nessuno puo' collocare su una storia del codice. Il
-    # fallimento di git va detto qui, all'atto della scrittura, perche' il
-    # sintomo ritardo all'execute (guardia su git_head) accusa la storia di
-    # essere stata riscritta, che e' un'altra cosa.
-    if not plan["git_head"]:
-        _, ragione = _git_provenienza()
-        raise SystemExit(
-            "il piano non puo' essere scritto: git non risponde a "
-            f"rev-parse HEAD ({ragione or 'codice diverso da zero'}). "
-            "Un plan.json senza git_head non ha provenienza e le guardie "
-            "pre-flight non potrebbero deciderlo.")
-    _scrittura_atomica(ARCHIVE_DIR / PLAN_NAME, plan)
-    print("[OK] piano scritto:", ARCHIVE_DIR / PLAN_NAME)
-    for b in plan["blocks"]:
-        if b["arm"] == "load":
-            dettagli = (f"m={b['m']} num_predict={b['num_predict']} "
-                        f"nonce=on")
-        else:
-            dettagli = f"richieste=0 finestra={b['dt_nominal_s']} s"
-        print(f"  [{b['index']:>2}] {b['label']:<12} {b['arm']:<7} "
-              f"{b['pair_id']:<8} {dettagli}", flush=True)
-    return 0
+
+    # Check for idle_characterization.json
+    char_file = ARCHIVE_DIR / "idle_characterization.json"
+    if not char_file.exists():
+        print("[ARRESTO] idle_characterization.json not found. Run 'characterize' first.", file=sys.stderr)
+        return 2
+
+    # Get parameters from globals (set by _imposta_seme, _imposta_coppie, etc.)
+    # The model in the plan should be the one used for the campaign (DEFAULT_MODEL)
+    # not the one passed to this function (which may be a test override)
+    # Pass self (this module) so create_plan_v2 uses the same globals
+    return create_plan_v2(
+        output_dir=ARCHIVE_DIR,
+        idle_char_path=char_file,
+        pairs=N_COPPIE,
+        seed=SEED,
+        model=DEFAULT_MODEL,
+        campaign_date=P44_DATE,
+        background_policy="block",
+        _rg_module=sys.modules[__name__],
+    )
 
 
 # ---------------------------------------------------------------------------

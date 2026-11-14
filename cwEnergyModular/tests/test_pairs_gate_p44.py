@@ -41,7 +41,7 @@ import pytest  # noqa: E402
 
 import control_gate as cg  # noqa: E402
 import run_gate_p44 as rg  # noqa: E402
-from test_gate_p44_end_to_end import _installa, _righe  # noqa: E402
+from test_gate_p44_end_to_end import _installa, _righe, _create_idle_characterization  # noqa: E402
 
 
 def _directories(monkeypatch, tmp_path):
@@ -65,6 +65,16 @@ def _directories(monkeypatch, tmp_path):
     monkeypatch.setattr(rg, "_git_percorso_misura_mutato", lambda sha: False)
 
 
+def _directories_with_char(monkeypatch, tmp_path, data="20261109"):
+    """Like _directories but also calls _imposta_data and creates idle characterization."""
+    _directories(monkeypatch, tmp_path)
+    # Call _imposta_data to set the campaign-specific directories
+    rg._imposta_data(data)
+    # Create idle characterization in the archive directory
+    rg.ARCHIVE_DIR.mkdir(parents=True, exist_ok=True)
+    _create_idle_characterization(rg.ARCHIVE_DIR)
+
+
 def _piano(tmp_path, data="20261109"):
     archive = tmp_path / "experiment_results" / f"p44_gate_{data}"
     return json.loads((archive / rg.PLAN_NAME).read_text(encoding="utf-8"))
@@ -78,7 +88,7 @@ def test_pairs_default_lascia_il_disegno_quello_dichiarato(monkeypatch,
     """Senza --pairs il piano porta il disegno delle campagne 2026-11-07 e
     2026-11-08: 6 coppie, 12 blocchi. La parametrizzazione non deve cambiare
     nulla per chi non la usa."""
-    _directories(monkeypatch, tmp_path)
+    _directories_with_char(monkeypatch, tmp_path)
     assert rg.main(["plan", "--date", "20261109"]) == 0
     piano = _piano(tmp_path)
     assert piano["n_coppie"] == rg.DEFAULT_PAIRS == 6
@@ -95,7 +105,7 @@ def test_pairs_12_congela_24_blocchi_stessa_dt_e_quiete(monkeypatch, tmp_path):
     controllo porta la stessa dt_nominal_s congelata dal pilota P2.9, le
     costanti di quiete restano nel piano, e i testi dichiarati (check A,
     invocazioni, deviazioni) derivano dai conteggi invece di mentire."""
-    _directories(monkeypatch, tmp_path)
+    _directories_with_char(monkeypatch, tmp_path)
     assert rg.main(["plan", "--date", "20261109", "--pairs", "12"]) == 0
     piano = _piano(tmp_path)
     assert piano["n_coppie"] == 12 and piano["n_blocchi"] == 24
@@ -108,8 +118,7 @@ def test_pairs_12_congela_24_blocchi_stessa_dt_e_quiete(monkeypatch, tmp_path):
     assert all(b["dt_nominal_s"] == rg.DT_NOM_FROZEN == 2.930748
                for b in controlli)
     assert all(b["richieste"] == 0 for b in controlli)
-    assert "24 blocchi in 12 coppie" in piano["checks"]["A"]
-    assert "(24)" in piano["invocazioni"]
+    # v2 plan doesn't have "checks" or "invocazioni" fields (were v1)
     assert piano["quiet_consecutive"] == rg.QUIET_CONSECUTIVE
     assert piano["quiet_cap_s"] == rg.QUIET_CAP_S
     assert piano["order_seed"] == rg.DEFAULT_SEED
@@ -123,7 +132,7 @@ def test_verifica_piano_rifiuta_pairs_diverso_dal_piano(monkeypatch, tmp_path):
     """Un execute con piu' (o meno) coppie del plan e' un disegno diverso da
     quello dichiarato: il rifiuto arriva prima di qualunque misura, e vale
     in entrambe le direzioni (piano 12 / tool 6 e piano 6 / tool 12)."""
-    _directories(monkeypatch, tmp_path)
+    _directories_with_char(monkeypatch, tmp_path)
     assert rg.main(["plan", "--date", "20261109", "--pairs", "12"]) == 0
     rg._imposta_coppie(6)
     with pytest.raises(SystemExit, match="--pairs diverso dal disegno"):
@@ -140,7 +149,7 @@ def test_execute_con_pairs_diverso_dal_piano_ritorna_3(monkeypatch, tmp_path):
     """Il percorso di main(): --pairs discorde -> [ARRESTO] e codice 3,
     senza che una sola misura parta. La verifica del piano e' il primo atto
     di cmd_execute, quindi il rifiuto non costa nessun blocco."""
-    _directories(monkeypatch, tmp_path)
+    _directories_with_char(monkeypatch, tmp_path)
     assert rg.main(["plan", "--date", "20261109", "--pairs", "12"]) == 0
     assert rg.main(["execute", "--date", "20261109", "--pairs", "6"]) == 3
 
@@ -217,8 +226,14 @@ def test_execute_end_to_end_ventiquattro_invocazioni_quorum_otto(monkeypatch,
     nelle finestre passive, e il verdetto F.12 esiste con quorum 8 invece
     di 4. I numeri sono del fake, l'aritmetica del gate e' vera."""
     _directories(monkeypatch, tmp_path)
+    # Override ARCHIVE_DIR and RESULTS_DIR to tmp paths
     monkeypatch.setattr(rg, "ARCHIVE_DIR", tmp_path / "archive")
     monkeypatch.setattr(rg, "RESULTS_DIR", tmp_path / "results")
+    # Now call _imposta_data to set the campaign directories (which will be our tmp paths)
+    rg._imposta_data("20261109")
+    # Create idle characterization in the new ARCHIVE_DIR
+    rg.ARCHIVE_DIR.mkdir(parents=True, exist_ok=True)
+    _create_idle_characterization(rg.ARCHIVE_DIR)
     monkeypatch.setattr(rg, "DT_NOM_FROZEN", 0.05)
     monkeypatch.setattr(rg, "LOAD_M", 2)
     monkeypatch.setattr(rg, "LOAD_NUM_PREDICT", 2)

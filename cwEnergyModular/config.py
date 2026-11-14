@@ -192,6 +192,10 @@ API_KEY_ENV_VARS = (
     "ANTHROPIC_API_KEY",
     "HF_TOKEN",
     "ELECTRICITY_MAPS_API_TOKEN",
+    "GITHUB_TOKEN",
+    "ZAI_API_KEY",
+    "NVIDIA_API_KEY",
+    "KILO_API_KEY",
 )
 
 GROQ_API_KEY = os.getenv("GROQ_API_KEY", "")
@@ -201,6 +205,10 @@ ELECTRICITY_MAPS_API_TOKEN = os.getenv("ELECTRICITY_MAPS_API_TOKEN", "")
 OPENAI_API_KEY = os.getenv("OPENAI_API_KEY", "")
 ANTHROPIC_API_KEY = os.getenv("ANTHROPIC_API_KEY", "")
 HF_TOKEN = os.getenv("HF_TOKEN", "")
+GITHUB_TOKEN = os.getenv("GITHUB_TOKEN", "")
+ZAI_API_KEY = os.getenv("ZAI_API_KEY", "")
+NVIDIA_API_KEY = os.getenv("NVIDIA_API_KEY", "")
+KILO_API_KEY = os.getenv("KILO_API_KEY", "")
 
 
 def _provider_base_url(cfg: dict) -> str:
@@ -220,7 +228,7 @@ def refresh_provider_keys() -> None:
     """
     global GROQ_API_KEY, OPENROUTER_API_KEY, GOOGLE_API_KEY
     global ELECTRICITY_MAPS_API_TOKEN, OPENAI_API_KEY, ANTHROPIC_API_KEY
-    global HF_TOKEN
+    global HF_TOKEN, GITHUB_TOKEN, ZAI_API_KEY, NVIDIA_API_KEY, KILO_API_KEY
     GROQ_API_KEY = os.getenv("GROQ_API_KEY", "")
     OPENROUTER_API_KEY = os.getenv("OPENROUTER_API_KEY", "")
     GOOGLE_API_KEY = os.getenv("GOOGLE_API_KEY", "")
@@ -228,6 +236,10 @@ def refresh_provider_keys() -> None:
     OPENAI_API_KEY = os.getenv("OPENAI_API_KEY", "")
     ANTHROPIC_API_KEY = os.getenv("ANTHROPIC_API_KEY", "")
     HF_TOKEN = os.getenv("HF_TOKEN", "")
+    GITHUB_TOKEN = os.getenv("GITHUB_TOKEN", "")
+    ZAI_API_KEY = os.getenv("ZAI_API_KEY", "")
+    NVIDIA_API_KEY = os.getenv("NVIDIA_API_KEY", "")
+    KILO_API_KEY = os.getenv("KILO_API_KEY", "")
     live = {
         "GROQ_API_KEY": GROQ_API_KEY,
         "OPENROUTER_API_KEY": OPENROUTER_API_KEY,
@@ -237,6 +249,10 @@ def refresh_provider_keys() -> None:
         # la chiave viene letta direttamente da os.environ in cloud_estimator.
         "ANTHROPIC_API_KEY": ANTHROPIC_API_KEY,
         "HF_TOKEN": HF_TOKEN,
+        "GITHUB_TOKEN": GITHUB_TOKEN,
+        "ZAI_API_KEY": ZAI_API_KEY,
+        "NVIDIA_API_KEY": NVIDIA_API_KEY,
+        "KILO_API_KEY": KILO_API_KEY,
     }
     for name, cfg in CLOUD_PROVIDERS.items():
         key = live.get(cfg.get("api_key_env", ""), "") or \
@@ -319,6 +335,46 @@ CLOUD_PROVIDERS: dict = {
         "api_key_env": "HF_TOKEN",
         "api_key": HF_TOKEN,
         "enabled": bool(HF_TOKEN),
+    },
+    "github": {
+        "label": "GitHub Models",
+        # GitHub Models: OpenAI-compatible API via Azure inference
+        "base_url": "https://models.inference.ai.azure.com",
+        "models_endpoint": "https://models.inference.ai.azure.com/models",
+        "chat_endpoint": "https://models.inference.ai.azure.com/chat/completions",
+        "api_key_env": "GITHUB_TOKEN",
+        "api_key": GITHUB_TOKEN,
+        "enabled": bool(GITHUB_TOKEN),
+    },
+    "zai": {
+        "label": "Z.ai",
+        # Z.ai (GLM models): OpenAI-compatible API
+        "base_url": "https://api.z.ai/v1",
+        "models_endpoint": "https://api.z.ai/v1/models",
+        "chat_endpoint": "https://api.z.ai/v1/chat/completions",
+        "api_key_env": "ZAI_API_KEY",
+        "api_key": ZAI_API_KEY,
+        "enabled": bool(ZAI_API_KEY),
+    },
+    "nvidia": {
+        "label": "NVIDIA NIM",
+        # NVIDIA NIM: OpenAI-compatible API
+        "base_url": "https://integrate.api.nvidia.com/v1",
+        "models_endpoint": "https://integrate.api.nvidia.com/v1/models",
+        "chat_endpoint": "https://integrate.api.nvidia.com/v1/chat/completions",
+        "api_key_env": "NVIDIA_API_KEY",
+        "api_key": NVIDIA_API_KEY,
+        "enabled": bool(NVIDIA_API_KEY),
+    },
+    "kilo": {
+        "label": "KILO",
+        # KILO: OpenAI-compatible API (endpoint da verificare)
+        "base_url": "https://api.kilo.ai/v1",
+        "models_endpoint": "https://api.kilo.ai/v1/models",
+        "chat_endpoint": "https://api.kilo.ai/v1/chat/completions",
+        "api_key_env": "KILO_API_KEY",
+        "api_key": KILO_API_KEY,
+        "enabled": bool(KILO_API_KEY),
     },
 }
 

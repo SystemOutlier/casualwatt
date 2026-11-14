@@ -42,6 +42,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parent))
 import pytest  # noqa: E402
 
 import run_gate_p44 as rg  # noqa: E402
+from test_gate_p44_end_to_end import _create_idle_characterization  # noqa: E402
 
 
 def _directories(monkeypatch, tmp_path):
@@ -62,6 +63,16 @@ def _directories(monkeypatch, tmp_path):
     monkeypatch.setattr(rg, "_git_percorso_misura_mutato", lambda sha: False)
 
 
+def _directories_with_char(monkeypatch, tmp_path, data="20261109"):
+    """Like _directories but also calls _imposta_data and creates idle characterization."""
+    _directories(monkeypatch, tmp_path)
+    # Call _imposta_data to set the campaign-specific directories
+    rg._imposta_data(data)
+    # Create idle characterization in the archive directory
+    rg.ARCHIVE_DIR.mkdir(parents=True, exist_ok=True)
+    _create_idle_characterization(rg.ARCHIVE_DIR)
+
+
 # ---------------------------------------------------------------------------
 # 1. --seed: il seme del disegno e' un parametro, non una costante
 # ---------------------------------------------------------------------------
@@ -69,7 +80,7 @@ def test_seed_default_lascia_il_disegno_quello_dichiarato(monkeypatch,
                                                           tmp_path):
     """Senza --seed il piano porta il seme della campagna dichiarata:
     la parametrizzazione non deve cambiare nulla per chi non la usa."""
-    _directories(monkeypatch, tmp_path)
+    _directories_with_char(monkeypatch, tmp_path)
     assert rg.main(["plan", "--date", "20261109"]) == 0
     archive = tmp_path / "experiment_results" / "p44_gate_20261109"
     piano = json.loads((archive / rg.PLAN_NAME).read_text(encoding="utf-8"))
@@ -82,7 +93,7 @@ def test_seed_custom_congelato_nel_piano_e_propagato_ai_blocchi(monkeypatch,
     """Il seme passato finisce nel piano, nella verifica e negli argomenti
     del runner: un execute con lo stesso seme e' lo stesso disegno, con un
     seme diverso e' un altro disegno e si ferma PRIMA di misurare."""
-    _directories(monkeypatch, tmp_path)
+    _directories_with_char(monkeypatch, tmp_path)
     assert rg.main(["plan", "--date", "20261109",
                     "--seed", "seme-nuovo"]) == 0
     archive = tmp_path / "experiment_results" / "p44_gate_20261109"
@@ -102,7 +113,7 @@ def test_execute_con_seed_diverso_dal_piano_ritorna_3(monkeypatch, tmp_path):
     """Il percorso di main(): seed discorde -> [ARRESTO] e codice 3, senza
     che una sola misura parta. La verifica del piano e' il primo atto di
     cmd_execute, quindi il rifiuto non costa nessun blocco."""
-    _directories(monkeypatch, tmp_path)
+    _directories_with_char(monkeypatch, tmp_path)
     assert rg.main(["plan", "--date", "20261109",
                     "--seed", "seme-nuovo"]) == 0
     assert rg.main(["execute", "--date", "20261109",
@@ -253,13 +264,13 @@ def test_verifica_piano_rifiuta_quiete_assente_o_diversa(monkeypatch,
     con un disegno di esecuzione diverso da quello del codice. La verifica
     si ferma sulle costanti mancanti, e anche su costanti cambiate dopo la
     dichiarazione."""
-    monkeypatch.setattr(rg, "ARCHIVE_DIR", tmp_path)
+    _directories_with_char(monkeypatch, tmp_path)
     # cmd_plan rifiuta di scrivere un piano senza provenienza (git_head):
     # il soggetto qui e' la precondizione di quiete, quindi la provenienza
     # e' iniettata e la guardia git e' verificata nel suo file.
     monkeypatch.setattr(rg, "_git_head", lambda: "test-head")
     rg.cmd_plan(rg.DEFAULT_MODEL)
-    path = tmp_path / rg.PLAN_NAME
+    path = rg.ARCHIVE_DIR / rg.PLAN_NAME
     piano = json.loads(path.read_text(encoding="utf-8"))
     assert piano["quiet_consecutive"] == rg.QUIET_CONSECUTIVE
     assert piano["quiet_cap_s"] == rg.QUIET_CAP_S
@@ -282,8 +293,14 @@ def test_quiete_chiamata_prima_di_ogni_invocazione(monkeypatch, tmp_path):
     carico (5 controlli su 6 con background_load=True)."""
     import benchmark_v4 as v4
     from test_gate_p44_end_to_end import _installa
-    monkeypatch.setattr(rg, "ARCHIVE_DIR", tmp_path / "archive")
-    monkeypatch.setattr(rg, "RESULTS_DIR", tmp_path / "results")
+    # Create archive/results and idle characterization like _esegui_gate does
+    archive_dir = tmp_path / "archive"
+    results_dir = tmp_path / "results"
+    archive_dir.mkdir(parents=True, exist_ok=True)
+    results_dir.mkdir(parents=True, exist_ok=True)
+    _create_idle_characterization(archive_dir)
+    monkeypatch.setattr(rg, "ARCHIVE_DIR", archive_dir)
+    monkeypatch.setattr(rg, "RESULTS_DIR", results_dir)
     monkeypatch.setattr(rg, "DT_NOM_FROZEN", 0.05)
     monkeypatch.setattr(rg, "LOAD_M", 2)
     monkeypatch.setattr(rg, "LOAD_NUM_PREDICT", 2)
@@ -294,6 +311,7 @@ def test_quiete_chiamata_prima_di_ogni_invocazione(monkeypatch, tmp_path):
     # sarebbe attribuito all'attesa invece che all'ambiente). La guardia su
     # git_head ha il suo file: tests/test_preflight_gate_p44.py.
     monkeypatch.setattr(rg, "_git_head", lambda: "test-head")
+    monkeypatch.setattr(rg, "_sha256", lambda path: "test-sha")
     monkeypatch.setattr(rg, "_git_antenato", lambda sha: True)
     monkeypatch.setattr(rg, "_git_percorso_misura_mutato", lambda sha: False)
     _installa(monkeypatch)

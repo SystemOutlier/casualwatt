@@ -377,6 +377,8 @@ def test_verifica_piano_rifiuta_la_procedura_diversa_da_quella_dichiarata(
     ritirato a posteriori per cambiare procedura sarebbe lo stesso difetto
     di una soglia spostata dopo i dati."""
     monkeypatch.setattr(rg, "ARCHIVE_DIR", tmp_path)
+    # Create idle_characterization.json first (required by plan v2)
+    _create_idle_characterization(tmp_path)
     # cmd_plan non scrive un piano senza provenienza: qui il soggetto e' la
     # procedura di budget, quindi git_head e' iniettato (la guardia sulla
     # provenienza sta in tests/test_preflight_gate_p44.py).
@@ -399,6 +401,30 @@ def test_verifica_piano_rifiuta_la_procedura_diversa_da_quella_dichiarata(
         rg._verifica_piano()
 
 
+def _create_idle_characterization(output_dir):
+    """Create a valid idle_characterization.json for testing."""
+    import hashlib
+    char_data = {
+        "schema_version": 1,
+        "quiet_threshold_pct": 8.0,
+        "quiet_consecutive": 3,
+        "quiet_window_s": 3.0,
+        "quiet_cap_s": 600.0,
+        "timestamp": "2026-11-14T00:00:00Z",
+        "machine_id": "test-machine",
+        "windows": 30,
+        "window_s": 10.0,
+        "cpu_samples": [2.0] * 30,
+        "q95_cpu_pct": 2.0,
+        "margin_pct": 1.0,
+        "sha256": "",
+    }
+    hash_dict = {k: v for k, v in char_data.items() if k != "sha256"}
+    hash_text = json.dumps(hash_dict, sort_keys=True, separators=(",", ":")).encode()
+    char_data["sha256"] = hashlib.sha256(hash_text).hexdigest()
+    (output_dir / "idle_characterization.json").write_text(json.dumps(char_data))
+
+
 def test_verifica_piano_rifiuta_warmup_cpu_max_diverso(monkeypatch,
                                                        tmp_path):
     """La soglia di ``cpu_percent`` e' un numero del disegno quanto la
@@ -409,6 +435,7 @@ def test_verifica_piano_rifiuta_warmup_cpu_max_diverso(monkeypatch,
     chiave manca del tutto (un piano vecchio non conosce il secondo
     segnale)."""
     monkeypatch.setattr(rg, "ARCHIVE_DIR", tmp_path)
+    _create_idle_characterization(tmp_path)
     monkeypatch.setattr(rg, "_git_head", lambda: "test-head")
     rg.cmd_plan(rg.DEFAULT_MODEL)
     path = tmp_path / rg.PLAN_NAME
@@ -1059,8 +1086,9 @@ def test_piano_dichiara_il_criterio_primario_e_la_verifica_lo_confronta(
     i dati fra due soglie sarebbe un grado di liberta' del ricercatore."""
     monkeypatch.setattr(rg, "ARCHIVE_DIR", tmp_path)
     monkeypatch.setattr(rg, "_git_head", lambda: "test-head")
+    _create_idle_characterization(tmp_path)
     rg.cmd_plan(rg.DEFAULT_MODEL)
-    path = tmp_path / rg.PLAN_NAME
+    path = rg.ARCHIVE_DIR / rg.PLAN_NAME
     piano = json.loads(path.read_text(encoding="utf-8"))
     assert piano["criterio_primario"] == rg.CRITERIO_PRIMARIO
     assert piano["criterio_storico_riportato"] == rg.CRITERIO_STORICO_F12

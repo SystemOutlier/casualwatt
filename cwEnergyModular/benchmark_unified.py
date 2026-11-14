@@ -909,10 +909,15 @@ def run_unified_benchmark(
     session_id: Optional[str] = None,
     skip_idle_calibration: bool = False,
     # --- Modalita' di Input Universale (sorgente dei test) -----------------
-    test_mode: str = "default",        # 'csv' | 'manual' | 'default'
+    test_mode: str = "default",        # 'csv'|'json'|'excel'|'parquet'|'yaml'|'hf'|'manual'|'default'
     csv_path: Optional[str] = None,    # dataset esterno (es. output MUDILab)
     manual_text: Optional[str] = None, # prompt digitati a mano, uno per riga
     eval_mode_override: Optional[str] = None,  # 'auto'|'causal'|'skip' (opz.)
+    file_path: Optional[str] = None,   # percorso per json/excel/parquet/yaml
+    hf_dataset: Optional[str] = None,  # nome dataset Hugging Face
+    hf_split: str = "test",
+    hf_config: Optional[str] = None,
+    hf_column_map: Optional[Dict] = None,
 ) -> Dict:
     """Esegue il benchmark completo. Ritorna un summary dict. Mai solleva."""
     local_models = list(local_models or [])
@@ -961,6 +966,11 @@ def run_unified_benchmark(
             csv_path=csv_path,
             manual_text=manual_text,
             fallback_config=True,
+            file_path=file_path,
+            hf_dataset=hf_dataset,
+            hf_split=hf_split,
+            hf_config=hf_config,
+            hf_column_map=hf_column_map,
         )
     except Exception as exc:
         prompts_all, src_err = [], f"modulo test_source non disponibile: {exc}"

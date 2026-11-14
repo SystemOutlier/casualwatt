@@ -147,7 +147,7 @@ def test_task_id_attraversa_csv_senza_colonne_nuove(tmp_path, monkeypatch):
     export_results_csv(records, path, mode="w")
     rows = read_csv(path)
     assert list(rows[0]) == CSV_COLUMNS
-    assert len(CSV_COLUMNS) == 174
+    assert len(CSV_COLUMNS) == 182
     assert [record_task_id(row) for row in rows] == [r["task_id"] for r in records]
     for model in ("A", "B"):
         result = summarize_records([r for r in rows if r["model_name"] == model])

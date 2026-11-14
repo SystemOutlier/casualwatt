@@ -358,6 +358,30 @@ def test_costante_tdp_dichiara_modello_nessun_caveat_same_counter(
     assert probe.concludi()["backend"]["cpu_mode"] == "constant"
 
 
+def _create_idle_characterization(output_dir):
+    """Create a valid idle_characterization.json for testing."""
+    import hashlib
+    char_data = {
+        "schema_version": 1,
+        "quiet_threshold_pct": 8.0,
+        "quiet_consecutive": 3,
+        "quiet_window_s": 3.0,
+        "quiet_cap_s": 600.0,
+        "timestamp": "2026-11-14T00:00:00Z",
+        "machine_id": "test-machine",
+        "windows": 30,
+        "window_s": 10.0,
+        "cpu_samples": [2.0] * 30,
+        "q95_cpu_pct": 2.0,
+        "margin_pct": 1.0,
+        "sha256": "",
+    }
+    hash_dict = {k: v for k, v in char_data.items() if k != "sha256"}
+    hash_text = json.dumps(hash_dict, sort_keys=True, separators=(",", ":")).encode()
+    char_data["sha256"] = hashlib.sha256(hash_text).hexdigest()
+    (output_dir / "idle_characterization.json").write_text(json.dumps(char_data))
+
+
 # ---------------------------------------------------------------------------
 # 3. E2E col gate: neutralita' del flag sui numeri del criterio
 # ---------------------------------------------------------------------------
@@ -366,11 +390,15 @@ def _fake_engine_gate(monkeypatch, tmp_path, sottocartella,
     """Stesso disegno di test_gate_p44_end_to_end con una coppia sola
     (2 blocchi): motore/sessione/stato macchina finti e deterministici,
     plan+execute reali. Ritorna l'analysis."""
-    monkeypatch.setattr(rg, "N_COPPIE", rg.N_COPPIE)
-    monkeypatch.setattr(rg, "N_BLOCCHI", rg.N_BLOCCHI)
-    rg._imposta_coppie(1)
-    monkeypatch.setattr(rg, "ARCHIVE_DIR", tmp_path / sottocartella / "archive")
-    monkeypatch.setattr(rg, "RESULTS_DIR", tmp_path / sottocartella / "results")
+    monkeypatch.setattr(rg, "N_COPPIE", 1)
+    monkeypatch.setattr(rg, "N_BLOCCHI", 2)
+    archive_dir = tmp_path / sottocartella / "archive"
+    results_dir = tmp_path / sottocartella / "results"
+    archive_dir.mkdir(parents=True, exist_ok=True)
+    results_dir.mkdir(parents=True, exist_ok=True)
+    _create_idle_characterization(archive_dir)
+    monkeypatch.setattr(rg, "ARCHIVE_DIR", archive_dir)
+    monkeypatch.setattr(rg, "RESULTS_DIR", results_dir)
     monkeypatch.setattr(rg, "DT_NOM_FROZEN", 0.05)
     monkeypatch.setattr(rg, "LOAD_M", 2)
     monkeypatch.setattr(rg, "LOAD_NUM_PREDICT", 2)

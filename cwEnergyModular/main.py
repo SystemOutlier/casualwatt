@@ -103,9 +103,12 @@ def _selftest() -> int:
 def _cli_benchmark(args) -> int:
     from benchmark_unified import run_unified_benchmark
 
-    # sorgente dei test anche da CLI: --csv <file> oppure --manual "p1\np2"
-    if args.csv:
-        src_kwargs = {"test_mode": "csv", "csv_path": args.csv}
+    # sorgente dei test anche da CLI: --csv <file> [--format ...] | --hf <name> | --manual
+    if args.hf:
+        src_kwargs = {"test_mode": "hf", "hf_dataset": args.hf,
+                      "hf_split": args.hf_split, "hf_config": args.hf_config or None}
+    elif args.csv:
+        src_kwargs = {"test_mode": args.format, "csv_path": args.csv}
     elif args.manual:
         src_kwargs = {"test_mode": "manual", "manual_text": args.manual.replace("\\n", "\n")}
     else:
@@ -132,7 +135,13 @@ def main(argv=None) -> int:
     parser.add_argument("--prompts", type=int, default=3)
     parser.add_argument("--temperature", type=float, default=0.2)
     parser.add_argument("--timeout", type=float, default=60.0)
-    parser.add_argument("--csv", default="", help="dataset CSV esterno (es. output MUDILab)")
+    parser.add_argument("--csv", default="", help="dataset esterno (es. output MUDILab); formato via --format")
+    parser.add_argument("--format", default="csv",
+                        choices=["csv", "json", "jsonl", "excel", "xlsx", "parquet", "yaml", "yml"],
+                        help="formato del file --csv (default csv)")
+    parser.add_argument("--hf", default="", help="nome dataset Hugging Face (es. mmlu, gsm8k)")
+    parser.add_argument("--hf-split", default="test", help="split del dataset HF (default test)")
+    parser.add_argument("--hf-config", default="", help="config/sottosezione del dataset HF (opz.)")
     parser.add_argument("--manual", default="", help="prompt manuale separati da \\n")
     args = parser.parse_args(argv)
 

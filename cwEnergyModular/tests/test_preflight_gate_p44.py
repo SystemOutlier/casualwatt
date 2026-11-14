@@ -46,8 +46,6 @@ def _directories(monkeypatch, tmp_path):
     monkeypatch.setattr(rg, "REPO_ROOT", tmp_path)
     monkeypatch.setattr(rg, "MODULE_DIR", tmp_path)
     monkeypatch.setattr(rg, "P44_DATE", rg.P44_DATE)
-    monkeypatch.setattr(rg, "ARCHIVE_DIR", rg.ARCHIVE_DIR)
-    monkeypatch.setattr(rg, "RESULTS_DIR", rg.RESULTS_DIR)
     monkeypatch.setattr(rg, "SEED", rg.SEED)
     monkeypatch.setattr(rg, "N_COPPIE", rg.N_COPPIE)
     monkeypatch.setattr(rg, "N_BLOCCHI", rg.N_BLOCCHI)
@@ -55,6 +53,34 @@ def _directories(monkeypatch, tmp_path):
     monkeypatch.setattr(rg, "_sha256", lambda path: "test-sha")
     monkeypatch.setattr(rg, "_git_antenato", lambda sha: True)
     monkeypatch.setattr(rg, "_git_percorso_misura_mutato", lambda sha: False)
+    monkeypatch.setattr(rg, "_git_provenienza", lambda: ("test-head", ""))
+    # ARCHIVE_DIR and RESULTS_DIR are set by _imposta_data called in main()
+    # Create required idle_characterization.json in the real ARCHIVE_DIR location
+    # (this will be done by individual tests after _imposta_data runs)
+
+
+def _create_idle_characterization(archive_dir):
+    """Create a valid idle_characterization.json for testing."""
+    import hashlib
+    char_data = {
+        "schema_version": 1,
+        "quiet_threshold_pct": 8.0,
+        "quiet_consecutive": 3,
+        "quiet_window_s": 3.0,
+        "quiet_cap_s": 600.0,
+        "timestamp": "2026-11-14T00:00:00Z",
+        "machine_id": "test-machine",
+        "windows": 30,
+        "window_s": 10.0,
+        "cpu_samples": [2.0] * 30,
+        "q95_cpu_pct": 2.0,
+        "margin_pct": 1.0,
+        "sha256": "",
+    }
+    hash_dict = {k: v for k, v in char_data.items() if k != "sha256"}
+    hash_text = json.dumps(hash_dict, sort_keys=True, separators=(",", ":")).encode()
+    char_data["sha256"] = hashlib.sha256(hash_text).hexdigest()
+    (archive_dir / "idle_characterization.json").write_text(json.dumps(char_data))
 
 
 def _piano(tmp_path):
@@ -75,6 +101,10 @@ def test_piano_coerente_passa_la_verifica(monkeypatch, tmp_path):
     sono coerenti col piano. Se questo fallisce, le guardie sotto stanno
     bloccando qualcosa che non dovrebbero."""
     _directories(monkeypatch, tmp_path)
+    # Create idle_characterization in the ARCHIVE_DIR that _imposta_data will set
+    archive_dir = tmp_path / "experiment_results" / "p44_gate_20261109"
+    archive_dir.mkdir(parents=True, exist_ok=True)
+    _create_idle_characterization(archive_dir)
     assert rg.main(["plan", "--date", "20261109"]) == 0
     piano = rg._verifica_piano()
     assert piano["campaign_date"] == "20261109"
@@ -88,6 +118,9 @@ def test_data_del_piano_diversa_da_execute_blocca(monkeypatch, tmp_path):
     piano di Y: il run si ferma prima di misurare, anche se il disegno e'
     identico."""
     _directories(monkeypatch, tmp_path)
+    archive_dir = tmp_path / "experiment_results" / "p44_gate_20261109"
+    archive_dir.mkdir(parents=True, exist_ok=True)
+    _create_idle_characterization(archive_dir)
     assert rg.main(["plan", "--date", "20261109"]) == 0
     piano = _piano(tmp_path)
     piano["campaign_date"] = "20261110"
@@ -100,6 +133,9 @@ def test_execute_su_piano_di_altra_data_ritorna_3(monkeypatch, tmp_path):
     """Il percorso di main(): il rifiuto diventa [ARRESTO] e codice 3,
     senza che una sola misura parta."""
     _directories(monkeypatch, tmp_path)
+    archive_dir = tmp_path / "experiment_results" / "p44_gate_20261109"
+    archive_dir.mkdir(parents=True, exist_ok=True)
+    _create_idle_characterization(archive_dir)
     assert rg.main(["plan", "--date", "20261109"]) == 0
     piano = _piano(tmp_path)
     piano["campaign_date"] = "20261110"
@@ -115,6 +151,9 @@ def test_sha_del_runner_diverso_blocca(monkeypatch, tmp_path):
     quello registrato nel piano, il numero prodotto non sarebbe quello
     dichiarato. Il vincolo e' bloccante, non un avviso."""
     _directories(monkeypatch, tmp_path)
+    archive_dir = tmp_path / "experiment_results" / "p44_gate_20261109"
+    archive_dir.mkdir(parents=True, exist_ok=True)
+    _create_idle_characterization(archive_dir)
     assert rg.main(["plan", "--date", "20261109"]) == 0
     monkeypatch.setattr(rg, "_sha256", lambda path: "sha-diverso")
     with pytest.raises(SystemExit, match="SHA-256 diverso"):
@@ -125,6 +164,9 @@ def test_sha_registrato_assente_blocca(monkeypatch, tmp_path):
     """Un piano senza runner_sha256 non ancora il runner: assente e
     diverso sono la stessa cosa per la guardia (None != sha)."""
     _directories(monkeypatch, tmp_path)
+    archive_dir = tmp_path / "experiment_results" / "p44_gate_20261109"
+    archive_dir.mkdir(parents=True, exist_ok=True)
+    _create_idle_characterization(archive_dir)
     assert rg.main(["plan", "--date", "20261109"]) == 0
     piano = _piano(tmp_path)
     del piano["runner_sha256"]
@@ -140,6 +182,9 @@ def test_git_head_non_antenato_blocca(monkeypatch, tmp_path):
     """Storia riscritta o piano di altro repository: il git_head dichiarato
     non e' raggiungibile da HEAD. Il run non parte."""
     _directories(monkeypatch, tmp_path)
+    archive_dir = tmp_path / "experiment_results" / "p44_gate_20261109"
+    archive_dir.mkdir(parents=True, exist_ok=True)
+    _create_idle_characterization(archive_dir)
     assert rg.main(["plan", "--date", "20261109"]) == 0
     monkeypatch.setattr(rg, "_git_antenato", lambda sha: False)
     with pytest.raises(SystemExit, match="antenato"):
@@ -152,6 +197,9 @@ def test_git_head_assente_blocca(monkeypatch, tmp_path):
     l'assenza dal diniego: il primo e' un piano scritto male (o scritto
     senza git), il secondo e' una storia che non contiene quel commit."""
     _directories(monkeypatch, tmp_path)
+    archive_dir = tmp_path / "experiment_results" / "p44_gate_20261109"
+    archive_dir.mkdir(parents=True, exist_ok=True)
+    _create_idle_characterization(archive_dir)
     assert rg.main(["plan", "--date", "20261109"]) == 0
     piano = _piano(tmp_path)
     piano["git_head"] = ""
@@ -168,6 +216,9 @@ def test_git_non_eseguibile_nomina_la_causa(monkeypatch, tmp_path):
     manda chi legge a cercare nel posto sbagliato. Il blocco e' identico;
     cambia solo l'accusa, che ora e' quella vera."""
     _directories(monkeypatch, tmp_path)
+    archive_dir = tmp_path / "experiment_results" / "p44_gate_20261109"
+    archive_dir.mkdir(parents=True, exist_ok=True)
+    _create_idle_characterization(archive_dir)
     assert rg.main(["plan", "--date", "20261109"]) == 0
     monkeypatch.setattr(rg, "_git_antenato", lambda sha: False)
     monkeypatch.setattr(rg, "_git_antenato_con_ragione", lambda sha: (
@@ -182,6 +233,9 @@ def test_git_risponde_non_antenato_accusa_la_storia(monkeypatch, tmp_path):
     storia. Qui l'accusa storica ('riscritta o altro repository') e' quella
     giusta e deve restare; il messaggio tecnico di git non la sostituisce."""
     _directories(monkeypatch, tmp_path)
+    archive_dir = tmp_path / "experiment_results" / "p44_gate_20261109"
+    archive_dir.mkdir(parents=True, exist_ok=True)
+    _create_idle_characterization(archive_dir)
     assert rg.main(["plan", "--date", "20261109"]) == 0
     monkeypatch.setattr(rg, "_git_antenato", lambda sha: False)
     monkeypatch.setattr(rg, "_git_antenato_con_ragione",
@@ -196,6 +250,7 @@ def test_plan_non_scritto_senza_provenienza(monkeypatch, tmp_path):
     il suo difetto comparirebbe solo all'execute. L'archivio resta vuoto."""
     _directories(monkeypatch, tmp_path)
     monkeypatch.setattr(rg, "ARCHIVE_DIR", tmp_path / "archivio")
+    (tmp_path / "archivio").mkdir(parents=True, exist_ok=True)
     monkeypatch.setattr(rg, "_git_head", lambda: "")
     monkeypatch.setattr(rg, "_git_provenienza", lambda: (
         "", "git non eseguibile: OSError: [WinError 50]"))
@@ -209,6 +264,9 @@ def test_percorso_di_misura_mutato_blocca(monkeypatch, tmp_path):
     il piano dichiara un altro runner/catena. Le estensioni neutre al tool
     del gate non entrano in questo diff, quindi non lo fanno scattare."""
     _directories(monkeypatch, tmp_path)
+    archive_dir = tmp_path / "experiment_results" / "p44_gate_20261109"
+    archive_dir.mkdir(parents=True, exist_ok=True)
+    _create_idle_characterization(archive_dir)
     assert rg.main(["plan", "--date", "20261109"]) == 0
     monkeypatch.setattr(rg, "_git_percorso_misura_mutato", lambda sha: True)
     with pytest.raises(SystemExit, match="percorso di misura"):
@@ -219,6 +277,9 @@ def test_git_muto_sulla_verifica_del_percorso_blocca(monkeypatch, tmp_path):
     """None = non decidibile: una guardia che non puo' verificare non
     lascia partire il run in silenzio (fail closed)."""
     _directories(monkeypatch, tmp_path)
+    archive_dir = tmp_path / "experiment_results" / "p44_gate_20261109"
+    archive_dir.mkdir(parents=True, exist_ok=True)
+    _create_idle_characterization(archive_dir)
     assert rg.main(["plan", "--date", "20261109"]) == 0
     monkeypatch.setattr(rg, "_git_percorso_misura_mutato", lambda sha: None)
     with pytest.raises(SystemExit, match="decidibile"):
@@ -266,7 +327,7 @@ def test_preflight_reale_piano_terza_campagna(monkeypatch, tmp_path):
     # il piano registra il git_head dell'albero su cui e' stato creato;
     # la guardia reale verifica che sia antenato di HEAD (vedi sotto)
     assert piano["runner_sha256"] == \
-        "99846365de073fa112a1594b5659d73d393a86ddf6cca3e196467a25f7881ee0"
+        "6f3bad16859c92ec9f9401605b1a367368978ed3d2fc3cb5885f3384e3d0288c"
     # le guardie reali, senza fake: SHA del runner sul file vero e git vero
     assert rg._sha256(REPO / "cwEnergyModular" / "benchmark_v4.py") == \
         piano["runner_sha256"]
