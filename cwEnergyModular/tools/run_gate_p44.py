@@ -782,6 +782,99 @@ def _applica_filtro_outlier_iqr(valori: List[float], moltiplicatore: float = 1.5
     return [v for v in valori if lower <= v <= upper]
 
 
+def _calcola_cv(valori: List[float]) -> float:
+    """Calcola coefficiente di variazione (CV) in percentuale.
+
+    CV = (deviazione standard / media) * 100.
+    Restituisce 0.0 se media e' 0 o meno di 2 valori.
+    """
+    if len(valori) < 2:
+        return 0.0
+    media = sum(valori) / len(valori)
+    if media == 0.0:
+        return 0.0
+    varianza = sum((v - media) ** 2 for v in valori) / (len(valori) - 1)
+    import math
+    dev_std = math.sqrt(varianza)
+    return (dev_std / media) * 100.0
+
+
+def _verifica_stabilita_background(
+    char_sha256: str,
+    min_finestre: int = 3,
+    window_s: float = 10.0,
+    sleep_func: Optional[Callable[[float], None]] = None,
+    time_func: Optional[Callable[[], float]] = None,
+) -> Dict:
+    """Verifica che il background resti stabile per almeno ``min_finestre`` finestre.
+
+    In modalità declared_background, la firma del background (processi rilevanti,
+    piano energetico, stato alimentazione, hash caratterizzazione) deve restare
+    invariata per almeno ``min_finestre`` finestre consecutive non sovrapposte
+    prima di misurare la baseline. Le firme sono raccolte a distanza ``window_s``
+    secondi, non back-to-back: una firma istantanea non verifica stabilità temporale.
+
+    Se la firma cambia, il run si ferma con SystemExit.
+
+    Parametri iniettabili per test deterministici:
+    - ``sleep_func``: funzione per attendere (default time.sleep)
+    - ``time_func``: funzione per leggere il tempo (default time.monotonic)
+
+    Restituisce un dizionario con:
+    - ``stabile``: True se la firma è rimasta invariata
+    - ``firme``: lista delle firme raccolte (una per finestra)
+    - ``differenze``: lista delle differenze trovate (vuota se stabile)
+    - ``finestre_raccolte``: numero di finestre raccolte
+    - ``tempo_totale_s``: tempo totale di verifica (dalla prima all'ultima firma)
+    """
+    import time as _time
+    
+    if sleep_func is None:
+        sleep_func = _time.sleep
+    if time_func is None:
+        time_func = _time.monotonic
+    
+    firme: List[Dict] = []
+    differenze_totali: List[str] = []
+    tempi: List[float] = []
+    
+    t_inizio = time_func()
+
+    for i in range(min_finestre):
+        sig = ms.background_signature(char_sha256=char_sha256)
+        firme.append(sig)
+        tempi.append(time_func())
+
+        if i > 0:
+            match, diff = ms.signatures_match(firme[0], sig)
+            if not match:
+                differenze_totali.extend(diff)
+        
+        # Attendi window_s prima della prossima firma (non dopo l'ultima)
+        if i < min_finestre - 1:
+            sleep_func(window_s)
+
+    tempo_totale_s = tempi[-1] - tempi[0] if len(tempi) >= 2 else 0.0
+    stabile = len(differenze_totali) == 0
+
+    if not stabile:
+        raise SystemExit(
+            f"[BACKGROUND] firma del background instabile su {min_finestre} finestre "
+            f"({tempo_totale_s:.1f} s): {len(differenze_totali)} differenza(e) trovata(e). "
+            "Il background non e' stabile: non procedere con declared_background. "
+            f"Differenze: {'; '.join(differenze_totali)}"
+        )
+
+    return {
+        "stabile": stabile,
+        "firme": firme,
+        "differenze": differenze_totali,
+        "finestre_raccolte": len(firme),
+        "tempo_totale_s": tempo_totale_s,
+        "window_s": window_s,
+    }
+
+
 def _filtra_baseline_finestre(unita_pre: List[Dict], unita_post: List[Dict],
                                regola: str, min_finestre: int) -> Tuple[List[float], List[float]]:
     """Applica filtro outlier alle finestre baseline e verifica minimo.
@@ -814,6 +907,114 @@ def _filtra_baseline_finestre(unita_pre: List[Dict], unita_post: List[Dict],
             "Il blocco non e' utilizzabile (requisito 7 emenda).")
 
     return pre_filtrate, post_filtrate
+
+
+def _misura_baseline_con_cv_e_ripetizioni(
+    sessione, tc: float, n_terne_base: int, n_per_aggregato: int,
+    baseline_params: Dict, mode: str, etichetta_base: str
+) -> Tuple[List[float], List[float], List[Dict], List[Dict], List[Dict], List[Dict], Dict]:
+    """Misura baseline con controllo CV e ripetizioni condizionali (varco 3).
+
+    Legge parametri dal piano:
+    - baseline_cv_max_pct: CV massimo ammesso (default 10%)
+    - block_repetitions_min: ripetizioni minime (default 3)
+    - block_repetitions_increase_if_cv_above_pct: soglia CV per aumentare (default 5%)
+    - block_repetitions_max: ripetizioni massime (default 6)
+
+    Restituisce (pre_filtrate, post_filtrate, pre_completo, post_completo, 
+                 aggregati_pre, aggregati_post, dettagli_cv)
+    """
+    cv_max_pct = float(baseline_params.get("baseline_cv_max_pct", 10.0))
+    rep_min = int(baseline_params.get("block_repetitions_min", 3))
+    rep_increase_threshold = float(baseline_params.get("block_repetitions_increase_if_cv_above_pct", 5.0))
+    rep_max = int(baseline_params.get("block_repetitions_max", 6))
+
+    n_terne = max(rep_min, n_terne_base)
+    dettagli_cv = {
+        "cv_max_pct": cv_max_pct,
+        "rep_min": rep_min,
+        "rep_increase_threshold_pct": rep_increase_threshold,
+        "rep_max": rep_max,
+        "cv_pre_pct": 0.0,
+        "cv_post_pct": 0.0,
+        "ripetizioni_usate": n_terne,
+        "cv_sotto_soglia": True,
+    }
+
+    # Misura iniziale
+    if mode == "short":
+        pre = _gruppo_finestre(sessione, tc, n_terne, f"{etichetta_base}-pre")
+        post = _gruppo_finestre(sessione, tc, n_terne, f"{etichetta_base}-post")
+        unita_pre, unita_post = pre, post
+        aggregati_pre, aggregati_post = [], []
+    else:
+        unita_pre, unita_post = [], []
+        aggregati_pre, aggregati_post = [], []
+        pre, post = [], []
+        for g in range(n_terne):
+            chunk_pre = _gruppo_finestre(sessione, tc, n_per_aggregato,
+                                         f"{etichetta_base}-pre-g{g + 1}")
+            pre.extend(chunk_pre)
+            unita_pre.append(_aggregato_consecutivo(
+                chunk_pre, f"{etichetta_base}-agg-pre-{g + 1}"))
+            aggregati_pre.append(unita_pre[-1])
+        for g in range(n_terne):
+            chunk_post = _gruppo_finestre(sessione, tc, n_per_aggregato,
+                                          f"{etichetta_base}-post-g{g + 1}")
+            post.extend(chunk_post)
+            unita_post.append(_aggregato_consecutivo(
+                chunk_post, f"{etichetta_base}-agg-post-{g + 1}"))
+            aggregati_post.append(unita_post[-1])
+
+    # Applica filtro outlier
+    pre_filtrate, post_filtrate = _filtra_baseline_finestre(
+        unita_pre, unita_post, baseline_params.get("baseline_outlier_rule", "iqr_1p5"),
+        baseline_params.get("baseline_windows_min", 3))
+
+    # Calcola CV
+    cv_pre = _calcola_cv(pre_filtrate)
+    cv_post = _calcola_cv(post_filtrate)
+    dettagli_cv["cv_pre_pct"] = round(cv_pre, 3)
+    dettagli_cv["cv_post_pct"] = round(cv_post, 3)
+
+    # Ripetizioni condizionali: se CV > soglia e non al massimo, leggi altre finestre
+    # (solo per modalita' short dove ogni ripetizione e' una finestra singola)
+    if mode == "short" and n_terne < rep_max:
+        cv_max_osservato = max(cv_pre, cv_post)
+        if cv_max_osservato > rep_increase_threshold:
+            # Aumenta ripetizioni fino a rep_max
+            n_aggiuntive = min(rep_max - n_terne, rep_max - rep_min)
+            if n_aggiuntive > 0:
+                print(f"[BUDGET] CV {cv_max_osservato:.2f}% > {rep_increase_threshold:.1f}%: "
+                      f"aumento ripetizioni da {n_terne} a {n_terne + n_aggiuntive}", flush=True)
+                # Leggi finestre aggiuntive
+                pre_extra = _gruppo_finestre(sessione, tc, n_aggiuntive, f"{etichetta_base}-pre-extra")
+                post_extra = _gruppo_finestre(sessione, tc, n_aggiuntive, f"{etichetta_base}-post-extra")
+                pre.extend(pre_extra)
+                post.extend(post_extra)
+                unita_pre.extend(pre_extra)
+                unita_post.extend(post_extra)
+                n_terne += n_aggiuntive
+                dettagli_cv["ripetizioni_usate"] = n_terne
+
+                # Riapplica filtro e ricalcola CV
+                pre_filtrate, post_filtrate = _filtra_baseline_finestre(
+                    unita_pre, unita_post,
+                    baseline_params.get("baseline_outlier_rule", "iqr_1p5"),
+                    baseline_params.get("baseline_windows_min", 3))
+                cv_pre = _calcola_cv(pre_filtrate)
+                cv_post = _calcola_cv(post_filtrate)
+                dettagli_cv["cv_pre_pct"] = round(cv_pre, 3)
+                dettagli_cv["cv_post_pct"] = round(cv_post, 3)
+
+    # Verifica finale CV
+    cv_finale = max(cv_pre, cv_post)
+    if cv_finale > cv_max_pct:
+        dettagli_cv["cv_sotto_soglia"] = False
+        print(f"[BUDGET] AVVISO: CV finale {cv_finale:.2f}% > soglia {cv_max_pct:.1f}% "
+              f"(dopo {n_terne} ripetizioni, max {rep_max})", flush=True)
+
+    return pre_filtrate, post_filtrate, pre, post, aggregati_pre, aggregati_post, dettagli_cv
 
 
 def _budget_da_termine(b: Dict, etichetta: str) -> float:
@@ -853,44 +1054,40 @@ def _calcola_budget_pre_esecuzione(mode: str, sessione, plan: Dict) -> Tuple[flo
             "finestra breve non esiste su questo canale. La procedura a "
             "scala Tc non e' eseguibile e non si accettano i 0,5 s del "
             "pavimento come se fossero Tc.")
-    n_terne = int(BUDGET_N_TERNE)
-    if n_terne < 2:
+    # Numero di finestre target: 5 per background_controlled, 3 per block/controlled_idle.
+    # Il parametro viene dal piano, non dal codice: se non dichiarato, usa il default
+    # basato sulla politica di background.
+    bg_policy = plan.get("background_load_policy", "block")
+    if bg_policy == "background_controlled":
+        n_terne_base = int(plan.get("baseline_windows_target", 5))
+    else:
+        n_terne_base = int(BUDGET_N_TERNE)
+    
+    if n_terne_base < 2:
         raise SystemExit(
-            f"[BUDGET] BUDGET_N_TERNE = {n_terne}: una semi-ampiezza su un "
+            f"[BUDGET] n_terne_base = {n_terne_base}: una semi-ampiezza su un "
             "solo campione non e' una misura di dispersione")
 
-    # Legge parametri baseline dal piano (varco 2: baseline_outlier_rule, baseline_windows_min)
+    # Legge parametri baseline dal piano (varco 2 + varco 3)
     baseline_params = plan.get("baseline_params", {})
     baseline_outlier_rule = baseline_params.get("baseline_outlier_rule", "iqr_1p5")
     baseline_windows_min = int(baseline_params.get("baseline_windows_min", 3))
 
     canali: set = set()
     if mode == "short":
-        pre = _gruppo_finestre(sessione, tc, n_terne, "pre")
-        post = _gruppo_finestre(sessione, tc, n_terne, "post")
-        unita_pre, unita_post = pre, post
         n_per_aggregato = 1
         durata_aggregato_s = tc
-        n_finestre_totali = len(pre) + len(post)
     else:
         n_per_aggregato = max(2, math.ceil(
             float(BUDGET_MATCHED_TARGET_S) / tc))
-        unita_pre, unita_post = [], []
-        pre, post = [], []
-        for g in range(n_terne):
-            chunk_pre = _gruppo_finestre(sessione, tc, n_per_aggregato,
-                                         f"pre-g{g + 1}")
-            pre.extend(chunk_pre)
-            unita_pre.append(_aggregato_consecutivo(
-                chunk_pre, f"agg-pre-{g + 1}"))
-        for g in range(n_terne):
-            chunk_post = _gruppo_finestre(sessione, tc, n_per_aggregato,
-                                          f"post-g{g + 1}")
-            post.extend(chunk_post)
-            unita_post.append(_aggregato_consecutivo(
-                chunk_post, f"agg-post-{g + 1}"))
         durata_aggregato_s = n_per_aggregato * tc
-        n_finestre_totali = len(pre) + len(post)
+
+    # Misura baseline con controllo CV e ripetizioni condizionali (varco 3)
+    pre_filtrate, post_filtrate, pre, post, aggregati_pre, aggregati_post, dettagli_cv = _misura_baseline_con_cv_e_ripetizioni(
+        sessione, tc, n_terne_base, n_per_aggregato, baseline_params, mode, "budget")
+
+    n_terne = dettagli_cv["ripetizioni_usate"]
+    n_finestre_totali = len(pre) + len(post)
 
     for f in pre + post:
         canali.add(str(f["channel"]))
@@ -900,12 +1097,16 @@ def _calcola_budget_pre_esecuzione(mode: str, sessione, plan: Dict) -> Tuple[flo
             "Un budget composto da letture di origine diversa non e' una "
             "misura, e non si decide una soglia con esso.")
 
-    # Applica filtro outlier alle finestre baseline (varco 2)
-    pre_filtrate, post_filtrate = _filtra_baseline_finestre(
-        unita_pre, unita_post, baseline_outlier_rule, baseline_windows_min)
-
     b = v4.block_baseline(pre_filtrate, post_filtrate)
     budget_w = _budget_da_termine(b, mode)
+
+    # Per matched mode, le "unita" sono gli aggregati, non le finestre singole
+    if mode == "matched":
+        unita_pre_w = [a["power_w"] for a in aggregati_pre]
+        unita_post_w = [a["power_w"] for a in aggregati_post]
+    else:
+        unita_pre_w = [f["power_w"] for f in pre]
+        unita_post_w = [f["power_w"] for f in post]
 
     dettagli = {
         "budget_mode": mode,
@@ -918,8 +1119,8 @@ def _calcola_budget_pre_esecuzione(mode: str, sessione, plan: Dict) -> Tuple[flo
         "canale": sorted(canali)[0],
         "finestre_pre": pre,
         "finestre_post": post,
-        "unita_pre_w": [f["power_w"] for f in unita_pre],
-        "unita_post_w": [f["power_w"] for f in unita_post],
+        "unita_pre_w": unita_pre_w,
+        "unita_post_w": unita_post_w,
         "baseline": b,
         "budget_base_w": budget_w,
         "regola_aggregazione": (
@@ -932,12 +1133,22 @@ def _calcola_budget_pre_esecuzione(mode: str, sessione, plan: Dict) -> Tuple[flo
         "baseline_filtrato": {
             "regola_outlier": baseline_outlier_rule,
             "min_finestre": baseline_windows_min,
-            "pre_originali": len(unita_pre),
-            "post_originali": len(unita_post),
+            "pre_originali": len(pre),
+            "post_originali": len(post),
             "pre_filtrate": len(pre_filtrate),
             "post_filtrate": len(post_filtrate),
-            "pre_rimesse": [f["power_w"] for f in unita_pre if f["power_w"] not in pre_filtrate],
-            "post_rimesse": [f["power_w"] for f in unita_post if f["power_w"] not in post_filtrate],
+            "pre_rimesse": [f["power_w"] for f in pre if f["power_w"] not in pre_filtrate],
+            "post_rimesse": [f["power_w"] for f in post if f["power_w"] not in post_filtrate],
+        },
+        "baseline_cv": {
+            "cv_pre_pct": dettagli_cv["cv_pre_pct"],
+            "cv_post_pct": dettagli_cv["cv_post_pct"],
+            "cv_max_pct": dettagli_cv["cv_max_pct"],
+            "ripetizioni_usate": dettagli_cv["ripetizioni_usate"],
+            "ripetizioni_min": dettagli_cv["rep_min"],
+            "ripetizioni_max": dettagli_cv["rep_max"],
+            "soglia_aumento_pct": dettagli_cv["rep_increase_threshold_pct"],
+            "cv_sotto_soglia": dettagli_cv["cv_sotto_soglia"],
         },
         "assunzioni": [
             "il fondo e' letto dal contatore di package "
@@ -956,11 +1167,16 @@ def _calcola_budget_pre_esecuzione(mode: str, sessione, plan: Dict) -> Tuple[flo
             "verificata da _verifica_piano PRIMA di qualunque misura",
             f"filtro outlier baseline: {baseline_outlier_rule} con min_finestre={baseline_windows_min} "
             "(varco 2 emenda: dichiarato nel piano e applicato a execute)",
+            f"controllo CV baseline: max_pct={dettagli_cv['cv_max_pct']:.1f}%, "
+            f"ripetizioni={dettagli_cv['ripetizioni_usate']} "
+            f"(min={dettagli_cv['rep_min']}, max={dettagli_cv['rep_max']}), "
+            f"soglia aumento={dettagli_cv['rep_increase_threshold_pct']:.1f}% "
+            f"(varco 3 emenda: CV e ripetizioni condizionali)",
         ],
-        }
+    }
     if mode == "matched":
-        dettagli["aggregati_pre"] = unita_pre
-        dettagli["aggregati_post"] = unita_post
+        dettagli["aggregati_pre"] = aggregati_pre
+        dettagli["aggregati_post"] = aggregati_post
         dettagli["assunzioni"].append(
             f"aggregato = {n_per_aggregato} finestre Tc consecutive, "
             f"somma(delta_j)/somma(dt_s) = {durata_aggregato_s:.3f} s "
@@ -2121,8 +2337,18 @@ def cmd_execute(model: str, *, codecarbon: bool = False,
     # lungo per Tc/30 (formula rimossa) e NON da CodeCarbon.
     bg_policy = plan.get("background_load_policy", "block")
     if bg_policy == "background_controlled":
-        print(f"[BUDGET] politica background_controlled: salto precondizione quiete per misura fondo", flush=True)
-        quiete_fondo = {"quiet_wait_s": 0.0, "quiet_letture": 0, "top_processes": []}
+        # Fase 3 emenda: declared_background richiede verifica stabilità background
+        char_sha256 = plan.get("idle_characterization_sha256", "")
+        print(f"[BACKGROUND] declared_background: verifica stabilità del background "
+              f"(hash caratterizzazione {char_sha256[:12]}...)", flush=True)
+        stabilita = _verifica_stabilita_background(char_sha256=char_sha256)
+        print(f"[BACKGROUND] background stabile su {stabilita['finestre_raccolte']} finestre", flush=True)
+        quiete_fondo = {
+            "quiet_wait_s": 0.0,
+            "quiet_letture": 0,
+            "top_processes": [],
+            "background_stability": stabilita,
+        }
     else:
         print("[BUDGET] precondizione di quiete prima della misura del fondo",
               flush=True)
@@ -2195,11 +2421,19 @@ def cmd_execute(model: str, *, codecarbon: bool = False,
                   flush=True)
             # Precondizione PRIMA di ogni invocazione, load E control:
             # una macchina carica non parte (check E del piano).
-            # background_controlled policy: dichiariamo il background stabile, non attendiamo quiete.
+            # background_controlled policy: verificare stabilità background invece di quiete assoluta.
             bg_policy = plan.get("background_load_policy", "block")
             if bg_policy == "background_controlled":
-                print(f"[BACKGROUND-CONTROLLED] politica background_controlled: salto precondizione quiete (check E dichiarato nel piano)", flush=True)
-                quiet = {"quiet_wait_s": 0.0, "quiet_letture": 0, "top_processes": []}
+                char_sha256 = plan.get("idle_characterization_sha256", "")
+                print(f"[BACKGROUND] declared_background: verifica stabilità prima di {b['label']}", flush=True)
+                stabilita = _verifica_stabilita_background(char_sha256=char_sha256)
+                print(f"[BACKGROUND] background stabile su {stabilita['finestre_raccolte']} finestre", flush=True)
+                quiet = {
+                    "quiet_wait_s": 0.0,
+                    "quiet_letture": 0,
+                    "top_processes": [],
+                    "background_stability": stabilita,
+                }
             else:
                 quiet_thresh = plan.get("quiet_params", {}).get("quiet_threshold_pct", QUIET_THRESHOLD_PCT)
                 quiet = _attendi_quiete(quiet_threshold_pct=quiet_thresh, on_log=lambda m: print(m, flush=True))
@@ -2339,12 +2573,21 @@ def cmd_execute(model: str, *, codecarbon: bool = False,
                                                    analysis["controls"])
     incertezza_post["accettazione_guardata"] = _accettazione_guardata(
         analysis.get("bias_w"), incertezza_post, budget_w)
+    # Fase 4 emenda: metrica energetica dichiarata esplicitamente
+    bg_policy = plan.get("background_load_policy", "block")
+    if bg_policy == "background_controlled":
+        energy_metric = "E_net_declared_background"
+    else:
+        energy_metric = "E_net_idle"
+
     analysis.update({
         "pilot": "P4.4 gate",
         "model": model,
         "dt_nominal_s": DT_NOM_FROZEN,
         "order_seed": SEED,
         "geometry": GEOMETRY,
+        "energy_metric": energy_metric,
+        "background_load_policy": bg_policy,
         "quiet_precondition": {"consecutive": QUIET_CONSECUTIVE,
                                "cap_s": QUIET_CAP_S},
         "warmup_precondition": {

@@ -369,3 +369,152 @@ def sampler_cadence(session: object) -> Optional[float]:
         return float(value) if value is not None else None
     except (TypeError, ValueError):
         return None
+
+
+def background_signature(char_sha256: Optional[str] = None) -> Dict:
+    """Firma del background per declared_background (Fase 3 emenda).
+
+    La firma include solo grandezze identitarie dello stato, non grandezze
+    diagnostiche istantanee: la CPU%, la potenza o la temperatura sono
+    rumore, non identità. La firma serve a verificare che il background
+    resti stabile per almeno tre finestre consecutive prima di misurare.
+
+    Restituisce un dizionario con:
+    - ``processes``: top-5 processi per CPU% (pid, name, cpu_pct)
+    - ``power_plan``: piano energetico da powercfg (stringa)
+    - ``battery``: stato batteria ("absent", "present")
+    - ``power_plugged``: True/False/None (None se batteria assente)
+    - ``char_sha256``: hash della caratterizzazione idle (se fornito)
+    - ``timestamp``: marca temporale della firma
+
+    La firma NON include: CPU istantanea, potenza istantanea, temperatura.
+    Queste sono grandezze diagnostiche, non identità dello stato.
+    """
+    import time
+    ps = power_state()
+    top5 = sample_top_processes(n=TOP_PROCESSES, window_s=TOP_WINDOW_S)
+
+    return {
+        "processes": top5,
+        "power_plan": ps.get("plan", ""),
+        "battery": ps.get("battery", "absent"),
+        "power_plugged": ps.get("power_plugged"),
+        "char_sha256": char_sha256 if char_sha256 else "",
+        "timestamp": time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime()),
+    }
+
+
+def signatures_match(sig1: Dict, sig2: Dict) -> Tuple[bool, List[str]]:
+    """Verifica se due firme di background coincidono.
+
+    Confronta solo i campi identitari: processi rilevanti (per pid),
+    piano energetico, stato batteria. Non confronta timestamp o CPU%.
+
+    Restituisce (match: bool, differenze: List[str]).
+    Se match è True, differenze è vuoto.
+    """
+    differenze: List[str] = []
+
+    # Confronto processi per PID (l'ordine può cambiare, i PID no)
+    pids1 = {p["pid"] for p in sig1.get("processes", [])}
+    pids2 = {p["pid"] for p in sig2.get("processes", [])}
+    if pids1 != pids2:
+        solo1 = pids1 - pids2
+        solo2 = pids2 - pids1
+        if solo1:
+            differenze.append(f"processi presenti in sig1 ma non in sig2 (PID: {sorted(solo1)})")
+        if solo2:
+            differenze.append(f"processi presenti in sig2 ma non in sig1 (PID: {sorted(solo2)})")
+
+    # Confronto piano energetico
+    plan1 = sig1.get("power_plan", "")
+    plan2 = sig2.get("power_plan", "")
+    if plan1 != plan2:
+        differenze.append(
+            f"piano energetico cambiato: {plan1!r} -> {plan2!r}"
+        )
+
+    # Confronto stato batteria
+    batt1 = sig1.get("battery", "absent")
+    batt2 = sig2.get("battery", "absent")
+    if batt1 != batt2:
+        differenze.append(f"stato batteria cambiato: {batt1!r} -> {batt2!r}")
+
+    # Confronto power_plugged (solo se batteria presente)
+    if batt1 == "present" and batt2 == "present":
+        plug1 = sig1.get("power_plugged")
+        plug2 = sig2.get("power_plugged")
+        if plug1 != plug2:
+            differenze.append(f"alimentazione cambiata: {plug1!r} -> {plug2!r}")
+
+    # Confronto hash caratterizzazione
+    char1 = sig1.get("char_sha256", "")
+    char2 = sig2.get("char_sha256", "")
+    if char1 and char2 and char1 != char2:
+        differenze.append("hash caratterizzazione mutato")
+
+    return (len(differenze) == 0, differenze)
+
+
+def thermal_state() -> Dict:
+    """Raccoglie temperatura e throttling come fatti dichiarati.
+
+    Non decide se il throttling invalida la misura: quella decisione
+    appartiene al protocollo congelato e al runner. La temperatura e'
+    una covariata ISO 50006 (variabile rilevante), non un normalizzatore
+    finche' non e' dimostrato con i dati che ha un effetto sistematico
+    sull'energia.
+
+    Restituisce un dizionario con:
+    - ``cpu_temperature_c``: temperatura CPU in gradi Celsius, vuoto se non
+      disponibile.
+    - ``gpu_temperature_c``: temperatura GPU in gradi Celsius, vuoto se non
+      disponibile o GPU assente.
+    - ``thermal_throttle_detected``: True/False/vuoto (vuoto se non verificabile).
+    - ``thermal_throttle_source``: fonte del rilevamento, vuoto se non rilevato.
+    - ``thermal_state_notes``: lista di note esplicative.
+
+    Nessuna temperatura inventata: se il sensore non e' esposto, resta vuoto.
+    """
+    out: Dict = {
+        "cpu_temperature_c": "",
+        "gpu_temperature_c": "",
+        "thermal_throttle_detected": "",
+        "thermal_throttle_source": "",
+        "thermal_state_notes": [],
+    }
+
+    notes: List[str] = []
+
+    # Temperatura CPU — best-effort su Windows via psutil
+    try:
+        cpu_temps = psutil.sensors_temperatures()
+        if cpu_temps:
+            # psutil restituisce un dizionario di dizionari; prendi il primo
+            # sensore con temperatura non nulla
+            for _, entries in cpu_temps.items():
+                for entry in entries:
+                    if entry.current is not None and entry.current > 0:
+                        out["cpu_temperature_c"] = round(entry.current, 1)
+                        notes.append(f"CPU temp da sensore {entry.label!r}")
+                        break
+                if out["cpu_temperature_c"]:
+                    break
+            if not out["cpu_temperature_c"]:
+                notes.append("sensori CPU presenti, nessuna temperatura letta")
+        else:
+            notes.append("sensori temperatura CPU non disponibili")
+    except Exception as exc:
+        notes.append(f"sensors_temperatures fallito: {type(exc).__name__}")
+
+    # Temperatura GPU — non letta qui (richiede NVML/AMD SMI)
+    # Il runner la popola se il monitor GPU e' attivo
+    notes.append("GPU temp non letta da thermal_state (popolata dal monitor)")
+
+    # Throttling — non verificato automaticamente; il runner o il protocollo
+    # possono impostare il flag se una condizione e' rilevata
+    notes.append("throttling non verificato automaticamente")
+
+    out["thermal_state_notes"] = notes
+
+    return out

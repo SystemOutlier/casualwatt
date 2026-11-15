@@ -316,6 +316,12 @@ def test_preflight_reale_piano_terza_campagna(monkeypatch, tmp_path):
     piano precede i parametri di warm-up e della procedura di budget, che
     il tool vuole dichiarati prima di misurare. Nessuna misura: sola
     lettura. Il rifiuto e' l'esito atteso, non un difetto della guardia."""
+    # I globali vanno impostati PRIMA delle guardie git reali, perche'
+    # _git_percorso_misura_mutato esegue git con cwd=REPO_ROOT e
+    # _sha256 legge benchmark_v4.py da MODULE_DIR. Un test precedente
+    # puo' averli spostati su tmp_path.
+    monkeypatch.setattr(rg, "REPO_ROOT", REPO)
+    monkeypatch.setattr(rg, "MODULE_DIR", REPO / "cwEnergyModular")
     path = REPO / "experiment_results" / "p44_gate_20261109" / rg.PLAN_NAME
     piano = json.loads(path.read_text(encoding="utf-8"))
     assert piano["campaign_date"] == "20261109"
@@ -348,12 +354,8 @@ def test_preflight_reale_piano_terza_campagna(monkeypatch, tmp_path):
         pytest.skip(f"git non eseguibile dal processo di test: {ragione}")
     assert antenato is True
     assert rg._git_percorso_misura_mutato(piano["git_head"]) is False
-    # la verifica completa, sull'albero VERO: i globali che un test
-    # precedente ha spostato su tmp_path vanno rimessi qui, perche' la
-    # guardia sul git_head esegue git con cwd=REPO_ROOT e quella sullo SHA
-    # legge benchmark_v4.py da MODULE_DIR.
-    monkeypatch.setattr(rg, "REPO_ROOT", REPO)
-    monkeypatch.setattr(rg, "MODULE_DIR", REPO / "cwEnergyModular")
+    # la verifica completa, sull'albero VERO: i globali sono gia' impostati
+    # sopra, prima delle guardie git.
     monkeypatch.setattr(rg, "P44_DATE", "20261109")
     monkeypatch.setattr(rg, "N_COPPIE", 12)
     monkeypatch.setattr(rg, "N_BLOCCHI", 24)
@@ -376,14 +378,24 @@ def test_preflight_reale_piano_terza_campagna(monkeypatch, tmp_path):
     # Copia idle_characterization.json dalla campagna 20261109 (il piano
     # non ha idle_characterization_sha256 perche' e' un piano v1, ma la
     # guardia ora lo richiede. Per il test creiamo uno minimale con la soglia
-    # cpu che il piano incompleto dichiara (2.0).)
+    # cpu che il piano dichiara (2.0) e calcoliamo l'hash da inserire nel
+    # piano incompleto, cosi' la guardia passa oltre e blocca su warm-up.)
+    import hashlib as _hl
     char_minimale = {
         "schema_version": 1,
         "warmup_cpu_max_pct": piano["warmup_cpu_max_pct"],
-        "sha256": "0" * 64,  # placeholder, il test non verifica l'hash
+        "sha256": "",
     }
+    hash_dict = {k: v for k, v in char_minimale.items() if k != "sha256"}
+    hash_text = json.dumps(hash_dict, sort_keys=True, separators=(",", ":")).encode()
+    char_minimale["sha256"] = _hl.sha256(hash_text).hexdigest()
     (tmp_path / "idle_characterization.json").write_text(
         json.dumps(char_minimale), encoding="utf-8")
+    # Il piano incompleto deve dichiarare idle_characterization_sha256
+    # per superare la guardia della catena di provenienza.
+    incompleto["idle_characterization_sha256"] = char_minimale["sha256"]
+    piano_tmp = tmp_path / rg.PLAN_NAME
+    piano_tmp.write_text(json.dumps(incompleto), encoding="utf-8")
     monkeypatch.setattr(rg, "ARCHIVE_DIR", tmp_path)
     with pytest.raises(SystemExit, match="warm-up"):
         rg._verifica_piano()

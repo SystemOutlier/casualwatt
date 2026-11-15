@@ -96,6 +96,46 @@ EVALUATION_RESULT_COLUMNS: List[str] = [
     "eval_method",            # "auto_test" | "human_factcheck" | "llm_judge" | "robust_criterion" | "mudilab" | "paired_mcnemar"
     "eval_version",           # versione del criterio (es. "robust_v1", "mudilab_v20261102")
     "ground_truth_source",    # "dataset" | "human" | "oracle" | "synthetic"
+
+    # ISO/IEC 5259: qualità del dataset e ground truth
+    "dataset_id",
+    "dataset_version",
+    "dataset_sha256",
+    "ground_truth_provenance",
+    "label_quality_status",
+    "label_reviewer",
+    "label_review_date",
+
+    # ISO/IEC 25059 / TS 25058: judge e valutazione IA
+    "judge_model_version",
+    "judge_prompt_version",
+    "judge_temperature",
+    "judge_calibration_status",
+    "judge_agreement_metric",
+    "judge_agreement_value",
+    "judge_limitations",
+
+    # Prova della correttezza (ISO/IEC 25059 + TS 25058)
+    # Non duplica eval_method (come e' stata valutata) ne' is_correct (il verdetto).
+    # Dichiara: quale prova concreta ha prodotto il verdetto, con quale regola,
+    # e se il verdetto e' determinabile o indeterminato.
+    "correctness_evidence_type",  # "ground-truth-match" | "semantic-threshold" | "lexical-threshold" | "deterministic-contract" | "none"
+    "correctness_evidence_id",    # task_id o ID del contratto/ground truth
+    "correctness_rule_version",   # "evaluator_v1" | "robust_v1"
+    "correctness_threshold",      # soglia applicata (es. 0.85, absolute=1e-6)
+    "correctness_determinate",    # true/false: is_correct e' 0/1 o N/A?
+
+    # Versione e qualita' del ground truth (ISO/IEC 5259-4)
+    "ground_truth_version",       # versione del ground truth usato
+    "ground_truth_sha256",        # hash del ground truth per riproducibilita'
+    "ground_truth_quality_status",# "unreviewed" | "reviewed" | "disputed" | "excluded"
+
+    # Ruolo del judge (non sostituisce il verdetto primario)
+    "judge_role",                 # "secondary-quality" | "not-used"
+    "judge_override_allowed",     # false: il judge non sostituisce is_correct
+    "judge_agrees_with_primary",  # true/false/na: il judge concorda?
+    "judge_disagreement_reason",  # perche' il judge discorda (se applicabile)
+    "judge_calibration_status",   # "not-calibrated" | "calibrated" | "failed"
 ]
 
 

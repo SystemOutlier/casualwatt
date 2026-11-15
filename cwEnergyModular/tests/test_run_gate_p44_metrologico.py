@@ -65,6 +65,13 @@ def _fondo_quioto():
     return _sessione_fondo(*[_letta(p) for p in (9.9, 10.0, 10.1)],
                            *[_letta(p) for p in (10.3, 10.4, 10.5)])
 
+
+def _piano_minimo():
+    """Piano minimo per _calcola_budget_pre_esecuzione.
+    La funzione legge plan.get('baseline_params', {}) con valori di default,
+    quindi un dizionario vuoto e' sufficiente."""
+    return {}
+
 PILOTA = (Path(__file__).resolve().parents[2]
           / "experiment_results" / "p29_pilot_20261107")
 FROZEN = PILOTA / "dt_nominal_frozen.json"
@@ -172,7 +179,7 @@ def test_u_a_con_potenza_netta_none_resta_none_non_zero():
     """Un controllo con e_net_j = None non entra nelle potenze nette; se
     resta un solo controllo usabile, u_A = None (non zero) e u_c = None."""
     det = rg._calcola_budget_pre_esecuzione(
-        "short", _fondo_quioto())[1]
+        "short", _fondo_quioto(), _piano_minimo())[1]
     pre = rg._incertezza_pre_esecuzione(det, 0.0156)
     post = rg._incertezza_con_au_controlli(
         pre, [{"usable": True, "e_net_j": None, "dt_w_s": 3.0}])
@@ -186,7 +193,7 @@ def test_u_a_con_dt_w_s_inf_resta_none():
     """dt_w_s = +inf non e' una durata: il controllo e' escluso dalla
     dispersione e u_A resta None con la sua ragione."""
     det = rg._calcola_budget_pre_esecuzione(
-        "short", _fondo_quioto())[1]
+        "short", _fondo_quioto(), _piano_minimo())[1]
     pre = rg._incertezza_pre_esecuzione(det, 0.0156)
     post = rg._incertezza_con_au_controlli(
         pre, [{"usable": True, "e_net_j": 0.3, "dt_w_s": float("inf")}])
@@ -199,7 +206,7 @@ def test_u_a_con_e_net_j_non_finito_escluso():
     """e_net_j = NaN o +inf non produce una potenza netta: il controllo
     sparisce dalla dispersione senza inquinare s / sqrt(n)."""
     det = rg._calcola_budget_pre_esecuzione(
-        "short", _fondo_quioto())[1]
+        "short", _fondo_quioto(), _piano_minimo())[1]
     pre = rg._incertezza_pre_esecuzione(det, 0.0156)
     post = rg._incertezza_con_au_controlli(
         pre, [{"usable": True, "e_net_j": float("nan"), "dt_w_s": 3.0},

@@ -217,6 +217,23 @@ class EvaluationResult:
     # evaluation_failed | human_review_required); vuoto se la riga e' valutata.
     # Il gate di calibrazione umana lo scrive "judge_uncalibrated" (§6).
     none_reason: str = ""
+    # --- provenienza della valutazione semantica (miglioramento 15-11-2026) ---
+    # Dichiara se is_correct su free_text e' provvisorio (lessicale durante
+    # il benchmark) o definitivo (semantico post-hoc). Vocabolario chiuso:
+    # "lexical_only" (provisorio, use_semantic=False), "semantic_similarity"
+    # (definitivo, use_semantic=True), "" (non applicabile, non free_text).
+    # Riferimento: Reimers & Gurevych (2019) Sentence-BERT; Wang et al. (2025)
+    # "A Practical Guide for Evaluating LLMs" (arXiv:2506.13023).
+    semantic_provenance: str = ""
+    # --- incertezza del giudice LLM (miglioramento 15-11-2026) ---
+    # Margine dello score del giudice dalla soglia 4.0: valore positivo =
+    # confidenza nella correttezza, negativo = confidenza nell'errore.
+    # Usato per pesare le righe nel bootstrap a cluster quando
+    # scoring_method=llm_judge. Vocabolario: float in [-5.0, +1.0] o None
+    # se il giudice non e' stato chiamato. Riferimento: Sheng et al. (EMNLP 2025)
+    # "Analyzing Uncertainty of LLM-as-a-Judge" (arXiv:2509.18658);
+    # Wagner et al. (2024) "Black-box Uncertainty Quantification" (arXiv:2410.11594).
+    judge_uncertainty: Optional[float] = NA
 
 
 _CAUSE_RE = re.compile(r"\bcaus(?:e|es|ed|ing|al|ality)\b", re.IGNORECASE)
@@ -585,10 +602,12 @@ def evaluate_response(text: str, is_tool: bool = False,
                 sem = _sem.semantic_similarity(text or "", str(ground_truth))
                 res.semantic_similarity = sem
                 res.cosine_sim = sem
+                res.semantic_provenance = "semantic_similarity"
             else:
                 sem = NA
                 res.semantic_similarity = NA
                 res.cosine_sim = NA
+                res.semantic_provenance = "lexical_only"
                 res.notes.append(
                     "answer_type=free_text: use_semantic=False (default), "
                     "valutazione semantica saltata per risparmiare energia durante "
@@ -613,6 +632,16 @@ def evaluate_response(text: str, is_tool: bool = False,
                         f"answer_type=free_text: use_semantic=False, "
                         f"fallback lessicale per is_correct (lexical_similarity="
                         f"{res.lexical_similarity:.3f}, threshold=0.85)"
+                    )
+                    res.notes.append(
+                        "semantic_provenance=lexical_only: is_correct e' una "
+                        "STIMA PROVVISORIA basata sulla similarita' lessicale "
+                        "(SequenceMatcher/Jaccard), non sulla similarita' "
+                        "semantica. Va rifatta POST-HOC con semantic_judge.py "
+                        "(use_semantic=True) per il verdetto definitivo. "
+                        "Riferimento: Reimers & Gurevych (2019) Sentence-BERT; "
+                        "Wang et al. (2025) Practical Guide for Evaluating LLMs "
+                        "(arXiv:2506.13023)."
                     )
             else:
                 res.eval_method = _sem.method_label()
@@ -702,6 +731,32 @@ def evaluate_response(text: str, is_tool: bool = False,
     # conteggio di struttura estratta).
     # accuracy binaria primaria (1/0) determinata PRIMA di acc_comp composita
     res.is_correct = (1 if j_score >= 4.0 else 0) if j_score is not None else NA
+    # Incertezza del giudice LLM: margine dalla soglia 4.0
+    # (Sheng et al. EMNLP 2025; Wagner et al. 2024)
+    if j_score is not None:
+        res.judge_uncertainty = round(j_score - 4.0, 4)
+        # Il margine e' in [-4.0, +1.0]: +1.0 = giudice molto sicuro nella
+        # correttezza (5.0), -4.0 = giudice molto sicuro nell'errore (0.0).
+        # Un margine vicino a 0 (es. 3.9-4.1) indica bassa confidenza.
+        if abs(res.judge_uncertainty) < 0.5:
+            res.notes.append(
+                f"judge_uncertainty={res.judge_uncertainty:.2f}: margine dalla "
+                f"soglia 4.0 basso (< 0.5) — il giudice e' incerto, is_correct "
+                f"ha incertezza elevata. Riferimento: Sheng et al. (EMNLP 2025) "
+                f"Analyzing Uncertainty of LLM-as-a-Judge (arXiv:2509.18658)."
+            )
+        else:
+            res.notes.append(
+                f"judge_uncertainty={res.judge_uncertainty:.2f}: margine dalla "
+                f"soglia 4.0 — confidenza {'nella correttezza' if res.judge_uncertainty > 0 else 'nell\'errore'}. "
+                f"Riferimento: Sheng et al. (EMNLP 2025) (arXiv:2509.18658)."
+            )
+    else:
+        res.judge_uncertainty = NA
+        res.notes.append(
+            "judge_uncertainty=N/A: giudice non disponibile, nessuna incertezza "
+            "quantificabile"
+        )
     res.causal_accuracy = NA          # in regime B non esiste causal accuracy GT-based
     res.acc_comp = compute_acc_comp(False, res.acc_links, j_score, None,
                                     weights=(w_nogt[0], w_nogt[1]))

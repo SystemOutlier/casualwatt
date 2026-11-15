@@ -64,6 +64,10 @@ class PlanV2:
                 "baseline_windows_target": 5,
                 "baseline_windows_min": 3,
                 "baseline_outlier_rule": "iqr_1p5",
+                "baseline_cv_max_pct": 10.0,
+                "block_repetitions_min": 3,
+                "block_repetitions_increase_if_cv_above_pct": 5.0,
+                "block_repetitions_max": 6,
             }
         if self.budget is None:
             self.budget = {
@@ -135,6 +139,10 @@ def create_plan_v2(
             "baseline_windows_target": 5,
             "baseline_windows_min": 3,
             "baseline_outlier_rule": "iqr_1p5",
+            "baseline_cv_max_pct": 10.0,
+            "block_repetitions_min": 3,
+            "block_repetitions_increase_if_cv_above_pct": 5.0,
+            "block_repetitions_max": 6,
         },
         seed=seed,
         model=model,
