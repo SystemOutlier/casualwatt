@@ -929,34 +929,34 @@ def _calcola_budget_pre_esecuzione(mode: str, sessione, plan: Dict) -> Tuple[flo
             + "; pre_range/2 e |dP|/2 in quadratura"),
         "scala_30_s_applicata": False,
         "codecarbon_usato": False,
-            "baseline_filtrato": {
-                "regola_outlier": baseline_outlier_rule,
-                "min_finestre": baseline_windows_min,
-                "pre_originali": len(unita_pre),
-                "post_originali": len(unita_post),
-                "pre_filtrate": len(pre_filtrate),
-                "post_filtrate": len(post_filtrate),
-                "pre_rimesse": [f["power_w"] for f in unita_pre if f["power_w"] not in pre_filtrate],
-                "post_rimesse": [f["power_w"] for f in unita_post if f["power_w"] not in post_filtrate],
-            },
-            "assunzioni": [
-                "il fondo e' letto dal contatore di package "
-                "(read_idle_window_j), lo stesso canale di calibrate_idle e "
-                "dell'audit P6.3: non e' un integrale di campioni",
-                f"le {n_terne} unita' pre e le {n_terne} post sono misurate in "
-                "due gruppi consecutivi non sovrapposti: dP e' la deriva fra i "
-                "due gruppi, come in P1.5, e non si assume nulla",
-                "un delta negativo o una lettura assente fermano la misura: "
-                "nessun clamp a zero e nessuna degradazione silenziosa",
-                "budget_base_w e' un proxy conservativo di incertezza standard, "
-                "non una deviazione standard (P4.12: con n = 3 non si stima "
-                "una varianza) e la quadratura non e' un limite massimo "
-                "garantito (P1.7)",
-                "la procedura e' pre-registrata nel piano (budget_mode) e "
-                "verificata da _verifica_piano PRIMA di qualunque misura",
-                f"filtro outlier baseline: {baseline_outlier_rule} con min_finestre={baseline_windows_min} "
-                "(varco 2 emenda: dichiarato nel piano e applicato a execute)",
-            ],
+        "baseline_filtrato": {
+            "regola_outlier": baseline_outlier_rule,
+            "min_finestre": baseline_windows_min,
+            "pre_originali": len(unita_pre),
+            "post_originali": len(unita_post),
+            "pre_filtrate": len(pre_filtrate),
+            "post_filtrate": len(post_filtrate),
+            "pre_rimesse": [f["power_w"] for f in unita_pre if f["power_w"] not in pre_filtrate],
+            "post_rimesse": [f["power_w"] for f in unita_post if f["power_w"] not in post_filtrate],
+        },
+        "assunzioni": [
+            "il fondo e' letto dal contatore di package "
+            "(read_idle_window_j), lo stesso canale di calibrate_idle e "
+            "dell'audit P6.3: non e' un integrale di campioni",
+            f"le {n_terne} unita' pre e le {n_terne} post sono misurate in "
+            "due gruppi consecutivi non sovrapposti: dP e' la deriva fra i "
+            "due gruppi, come in P1.5, e non si assume nulla",
+            "un delta negativo o una lettura assente fermano la misura: "
+            "nessun clamp a zero e nessuna degradazione silenziosa",
+            "budget_base_w e' un proxy conservativo di incertezza standard, "
+            "non una deviazione standard (P4.12: con n = 3 non si stima "
+            "una varianza) e la quadratura non e' un limite massimo "
+            "garantito (P1.7)",
+            "la procedura e' pre-registrata nel piano (budget_mode) e "
+            "verificata da _verifica_piano PRIMA di qualunque misura",
+            f"filtro outlier baseline: {baseline_outlier_rule} con min_finestre={baseline_windows_min} "
+            "(varco 2 emenda: dichiarato nel piano e applicato a execute)",
+        ],
         }
     if mode == "matched":
         dettagli["aggregati_pre"] = unita_pre
