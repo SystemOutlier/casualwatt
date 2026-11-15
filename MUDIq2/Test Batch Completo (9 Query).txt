@@ -1,0 +1,132 @@
+import asyncio
+import pandas as pd
+from tools import cau_inference
+from agents import classificator, translator
+
+# =====================================================================
+# DEFINIZIONE DELLE 9 QUERY DAL GROUND TRUTH
+# =====================================================================
+test_cases = [
+    {
+        "id": "CP1", "type": "Posterior",
+        "query": "Given that the driving quality is normal, how likely is it that the age of the driver is senior?",
+        "expected_prob": 0.2117
+    },
+    {
+        "id": "CP2", "type": "Posterior",
+        "query": "Given that the damage to a car is classified as Mild, how likely is that the driving quality is excellent?",
+        "expected_prob": 0.0141
+    },
+    {
+        "id": "CP3", "type": "Posterior",
+        "query": "Given that the neighbourhood is Suburb, how likely is the miles count TwentyThou?",
+        "expected_prob": 0.4000
+    },
+    {
+        "id": "IN1", "type": "Intervention",
+        "query": "Probability of severe car damage if mileage is changed to twenty thousand?",
+        "expected_prob": 0.1072
+    },
+    {
+        "id": "IN2", "type": "Intervention",
+        "query": "Probability of excellent driving skill if age is changed to senior?",
+        "expected_prob": 0.2912
+    },
+    {
+        "id": "IN3", "type": "Intervention",
+        "query": "Probability of older vehicleyear if socio-economic status is Prole?",
+        "expected_prob": 0.8500
+    },
+    {
+        "id": "CO1", "type": "Coherence",
+        "query": "Is a mild severity accident involving a car valued at twenty thousand dollars compatible with cautious risk aversion?",
+        "expected_prob": 0.0670
+    },
+    {
+        "id": "CO2", "type": "Coherence",
+        "query": "Is drive quality Normal compatible with proposed cost HundredThousand?",
+        "expected_prob": 0.0397
+    },
+    {
+        "id": "CO3", "type": "Coherence",
+        "query": "Is socio-economic status Wealthy compatible with a Fair cushioning system?",
+        "expected_prob": 0.1614
+    }
+]
+
+# =====================================================================
+# FUNZIONE DI TEST SINGOLA
+# =====================================================================
+async def run_single_test(tc):
+    print(f"\n{'='*70}")
+    print(f"🧪 TEST {tc['id']} ({tc['type']})")
+    print(f"📝 Query: {tc['query']}")
+    print(f"{'='*70}")
+    
+    try:
+        # 1. Traduzione
+        trans_resp = await translator.run(task=f"Create a dictionary following your instruction of the query: {tc['query']}")
+        trans_text = trans_resp.messages[-1].content if hasattr(trans_resp, 'messages') else str(trans_resp)
+        trans_clean = trans_text.strip().strip('`').replace('json', '').strip()
+        
+        # 2. Classificazione
+        class_resp = await classificator.run(task=f"Classify the following query using your instructions: {tc['query']}")
+        class_text = class_resp.messages[-1].content if hasattr(class_resp, 'messages') else str(class_resp)
+        label_clean = class_text.strip().lower()
+        
+        # 3. Calcolo
+        result = cau_inference(label=label_clean, features=trans_clean)
+        
+        # Estrazione del numero dal risultato per il confronto (se presente)
+        import re
+        numbers = re.findall(r'\d+\.\d+', str(result))
+        calc_prob = float(numbers[0]) if numbers else None
+        
+        print(f"✅ Label: {label_clean}")
+        print(f"✅ Dict:  {trans_clean[:100]}...")
+        print(f"✅ Result: {result}")
+        
+        return {
+            "ID": tc['id'],
+            "Type": tc['type'],
+            "Expected": tc['expected_prob'],
+            "Calculated": calc_prob,
+            "Status": "OK" if calc_prob and abs(calc_prob - tc['expected_prob']) < 0.01 else "WARN",
+            "Raw_Result": str(result)[:80]
+        }
+        
+    except Exception as e:
+        print(f"❌ ERRORE: {e}")
+        return {
+            "ID": tc['id'],
+            "Type": tc['type'],
+            "Expected": tc['expected_prob'],
+            "Calculated": None,
+            "Status": "FAIL",
+            "Raw_Result": str(e)[:80]
+        }
+
+# =====================================================================
+# ESECUZIONE BATCH E RIEPILOGO
+# =====================================================================
+print("🚀 Avvio test batch su 9 query del Ground Truth...\n")
+
+results = []
+for tc in test_cases:
+    res = await run_single_test(tc)
+    results.append(res)
+
+# Stampa tabella riassuntiva
+print("\n" + "="*80)
+print("📊 RIEPILOGO FINALE CONFRONTO GROUND TRUTH")
+print("="*80)
+
+df_results = pd.DataFrame(results)
+# Formattazione per visualizzazione
+pd.set_option('display.max_colwidth', None)
+print(df_results[['ID', 'Type', 'Expected', 'Calculated', 'Status']].to_markdown(index=False))
+
+# Conteggio successi
+successes = len(df_results[df_results['Status'] == 'OK'])
+print(f"\n🏆 RISULTATO: {successes}/9 test superati con successo (tolleranza errore < 1%)")
+print("="*80)

@@ -1,0 +1,7 @@
+
+6. Priorità
+P0 — prima di pubblicare un numero di confronto. Correggere l'intervallo McNemar (formula appaiata con il phi, non la quadratura dei marginali), aggiungere un test che asserisca delta_ci_newcombe, rimuovere le quattro stringhe "non implementata" (evaluation_runner.py:453, ROBUST_EVALUATOR.md:29, cap. 4, cap. 5, cap. 6). Allineare il fallback lessicale alla propria nota: NA, non verdetto. Decidere se il regime B si chiama accuratezza o tasso di coerenza, e nel secondo caso rinominarlo ovunque.
+
+P1 — prima della prossima campagna. Pubblicare l'intervallo MUDILAB a livello di task come primario e aggiungerlo a valuta.py; chiudere mismatch → indeterminate; armonizzare le tre tolleranze o dichiarare perché differiscono; applicare la negazione locale anche a short_text; non usare la soglia 0,75 come accuratezza free_text nei risultati principali.
+
+P2 — nella revisione della tesi. Aggiungere le nove voci statistiche verificate; scrivere la direzione del bias di J/corretta sotto copertura parziale; dichiarare il limite del bootstrap percentile con pochi cluster; etichettare BFCL come risorsa non peer-reviewed

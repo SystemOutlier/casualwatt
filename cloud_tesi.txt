@@ -1,0 +1,48 @@
+\section{Modellazione dell’Impronta Remota Cloud e di Rete}
+\label{sec:metodologia_cloud_rete}
+
+La quantificazione di $E_{\text{cloud}}$ e $E_{\text{rete}}$ implementa 
+un’architettura gerarchica multi-tier: EcoLogits (LCA) come stima primaria, 
+un modello analitico ispirato a SweetSpot come fallback, e una stima di rete 
+separata.
+
+\subsection{Tier 1: EcoLogits (LCA)}
+Per i provider censiti, il framework interroga EcoLogits, che restituisce un 
+intervallo $[E_{\min}, E_{\max}]$ rappresentante l’ignoranza su parametri e PUE, 
+non incertezza modellistica. EcoLogits conta solo token di output: la flag 
+\texttt{cloud\_input\_tokens\_included = false} è obbligatoria.
+
+\subsection{Tier 2: Analitico ispirato a SweetSpot}
+Per provider non censiti, il framework attiva un modello analitico 
+\textbf{ispirato} a SweetSpot (Cavagna et al., 2026), con coefficienti 
+\textbf{propri} da calibrare:
+
+\begin{equation}
+E_{\text{prefill}} = n_{\text{in}} \cdot \alpha(N_{\text{active}}) + \gamma \cdot \frac{n_{\text{in}}^2}{n_{\text{out}}}
+\end{equation}
+
+\begin{equation}
+E_{\text{decoding}} = n_{\text{out}} \cdot \beta(N_{\text{active}})
+\end{equation}
+
+\noindent\textbf{Nota critica:} questa non è la formula pubblicata di SweetSpot 
+(Eq. 4–5), che usa $\theta_0\ldots\theta_5$ fitted per modello. I coefficienti 
+$\alpha, \beta, \gamma$ sono ipotesi di CasualWatt. TokenPowerBench è un 
+riferimento metodologico, non una fonte di calibrazione.
+
+\subsection{Normalizzazione MoE}
+\begin{equation}
+N_{\text{active}} = N_{\text{total}} \cdot \left( \frac{E_{\text{act}}}{E_{\text{tot}}} \right)
+\end{equation}
+Previene sovrastime fino a $11.17\times$ (Mixtral 8x7B: 12,9B attivi su 46,7B totali).
+
+\subsection{Tier 3: Rete (Separato)}
+\begin{equation}
+E_{\text{rete}} = \Delta B \cdot 8 \cdot \varepsilon_{\text{bit}}
+\end{equation}
+con $\varepsilon_{\text{bit}} = 2{,}7 \times 10^{-6}$ J/bit (Baliga et al., public cloud). 
+Il confine è limitato alla NIC client.
+
+\subsection{Salvaguardia Metrologica}
+In caso di errore, $E_{\text{cloud}} = \texttt{None}$, propagato come \texttt{N/A} 
+nel CSV, inibendo $E_{\text{end\_to\_end}}$ e $ECE$.

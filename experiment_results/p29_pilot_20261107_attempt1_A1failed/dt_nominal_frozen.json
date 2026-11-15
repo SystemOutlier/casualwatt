@@ -1,0 +1,50 @@
+{
+  "dt_nominal_s": 2.751297,
+  "formula": "3 x mediana(duration_s delle righe valide del pilota)",
+  "rule": "P4.4 requisito 5, protocollo_v4_20261024.md:1481-1486: fissato PRIMA della campagna come 3 x la mediana della durata di richiesta misurata nel pilota di P2",
+  "median_duration_s": 0.917099,
+  "durations_s": [
+    0.047065,
+    0.060772,
+    0.195735,
+    0.453485,
+    0.63556,
+    1.198638,
+    1.207016,
+    1.215095,
+    1.236959,
+    4.048023
+  ],
+  "rows_used": 10,
+  "rows_excluded": [],
+  "per_arm_median_s": {
+    "A1": 0.453485,
+    "A2": 0.63556,
+    "A3": 0.195735,
+    "Bi": 0.060772,
+    "Bn": 1.207016,
+    "C": 4.048023
+  },
+  "per_arm_note": "diagnostica dichiarata, NON usata per il numero: la regola e' la mediana su tutte le righe valide, e il pilota non e' omogeneo per geometria",
+  "source": {
+    "results_csv": "C:\\Users\\Massimo\\Documents\\CasualWatt\\CWProject\\experiment_results\\p29_pilot_20261107\\casualwatt_v4_results_p29.csv",
+    "results_csv_sha256": "3c721887074d80d7287cc29ecebd21505fe507e6cbd5ad1f115a82cd371298ce",
+    "block_summary_csv": "C:\\Users\\Massimo\\Documents\\CasualWatt\\CWProject\\experiment_results\\p29_pilot_20261107\\casualwatt_v4_block_summary_p29.csv",
+    "block_summary_csv_sha256": "c517c9458df1993d641c2ba29cdd6fbf8bfa3c94949f13e2e0ebb4f3eb85dbbe",
+    "live_results_csv": "C:\\Users\\Massimo\\Documents\\CasualWatt\\CWProject\\cwEnergyModular\\results\\p29_pilot_20261107\\casualwatt_v4_results_p29.csv",
+    "live_block_summary_csv": "C:\\Users\\Massimo\\Documents\\CasualWatt\\CWProject\\cwEnergyModular\\results\\p29_pilot_20261107\\casualwatt_v4_block_summary_p29.csv",
+    "run_ids": [
+      "d62008a8a197477fb068055fefd1bce8",
+      "3a9c32650c214adc85a71d05846ddcfd",
+      "1b7d109362394c71881ca7d0ac04d966",
+      "726fb8fd1eca4970b42b87b3f6738443",
+      "255c7af70381463c9e6078dd35ef094b",
+      "9304cbc0458a4bd1ad1342eab88fbfb6"
+    ],
+    "model": "qwen2.5:0.5b",
+    "num_ctx": 8192,
+    "pilot_date": "20261107",
+    "git_head": "48820a220b707b4ad6668316c0f5d296de856c5b",
+    "runner": "benchmark_v4.run_v4_benchmark"
+  }
+}

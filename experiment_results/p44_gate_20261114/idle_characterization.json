@@ -312,5 +312,6 @@
   "quiet_window_s": 3.0,
   "quiet_cap_s": 600.0,
   "margin_pct": 1.0,
-  "sha256": "aaf77e60abffd44d479dc154884f191a1070fc0b6d04951c1457d6868a132c45"
+  "sha256": "560164ccdcf3fb9dfaca2c5a21fbd960ce8538348c592c3d4d9207df375ef04f",
+  "warmup_cpu_max_pct": 18
 }

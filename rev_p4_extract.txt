@@ -1,0 +1,198 @@
+Ecco la revisione tecnica dettagliata e rigorosa della Sezione P4 (experiment_results/protocollo_v4_20261024.md), eseguita senza modificare i file di repository, senza alterare i pesi WLS congelati in P3.8 e verificando la coerenza metrologica tra il testo del protocollo, il codice del repository e le fonti bibliografiche in references.bib.
+RELAZIONE DI REVISIONE TECNICA — PROTOCOLLO P4
+Target: experiment_results/protocollo_v4_20261024.md (Sezione P4)
+Stato del codice sorgente: HEAD / cwEnergyModular (Invariato)
+1. GEOMETRIA DELLA COPERTURA (P4.2)
+1.1 Ricostruzione Matematica dell'Inviluppo Convesso
+I 10 punti nominali di griglia congelati nel protocollo P3 per la costruzione della superficie T2 sono:
+
+
+P={(8,4),(8,32),(8,128),(8,256),(32,4),(32,32),(32,128),(32,256),(512,32),(512,256)}
+
+Applicando l'algoritmo per l'involucro convesso 2D (ConvexHull(P)):
+Vertici Reali dell'Inviluppo Convesso (H):
+
+
+H={(8,4),(32,4),(512,32),(512,256),(8,256)}
+
+DIVERGENZA TROVATA (Difetto D1 — Testo P4.2)
+Evidenza verificabile: Nel documento P4.2 i vertici dell'inviluppo convesso sono dichiarati come:
+
+
+DichiaratiinP4.2:(8,4),(32,32),(512,32),(512,256),(32,256)
+
+Il punto (32,4) è stato erroneamente omesso e sostituito con (32,32).
+Impatto: L'omissione di (32,4) mutila l'inviluppo convesso nel triangolo/quadrilatero inferiore {(8,4),(32,4),(32,32),(8,32)}, escludendo illegittimamente dal Livello A la regione a basso prefill e basso decoding (Nin∈[8,32],Nout∈[4,32]) in cui i dati del fit esistono reali (punti di griglia (8,4),(8,32),(32,4),(32,32)).
+Correzione minima proposta: Correggere la cinquina dei vertici dell'inviluppo convesso H in P4.2 con la sequenza ordinata corretta:
+
+
+H={(8,4),(32,4),(512,32),(512,256),(8,256)}
+
+1.2 Classificazione Matematica A / B / C e Casi sul Bordo
+Definiamo il Bounding Box B=[8,512]×[4,256].
+Livello A (Interpolazione piena): (Nin,Nout)∈Conv(H).
+Le disuguaglianze sul bordo sono non strette (≤,≥). Un punto appartenente alle segmenti di confine ∂Conv(H) o ai vertici H appartiene al Livello A.
+Livello B (Supporto parziale / Rettangolo vuoto): $(N_{\text{in}}, N_{\text{out}}) \in \mathcal{B} \setminus \text{Conv}(\mathcal{H})$.
+Copre la regione ad alto prefill e bassissimo decoding (Nin∈(32,512],Nout∈[4,32)) esplicitamente priva di punti sperimentali di fit.
+Livello C (Estrapolazione / Fuori dominio): (Nin,Nout)∉B.
+Verifica dei punti notevoli:
+Punto di produzione reale (12,32) e Nout≈31.8:
+Poiché 12∈[8,512] e 31.8∈[4,256], verifichiamo il vincolo dell'inviluppo tra (8,4) e (512,32): la retta del bordo inferiore soddisfa Nout≥4+28504(Nin-8). Per Nin=12, la soglia minima di decoding è Nout≥4.22. Poiché 31.8≥4.22, il punto cade pienamente all'interno del Livello A.
+Caso sul bordo (512,32):
+Giace esattamente su un vertice di H. Appartiene al Livello A.
+2. BUDGET D'INCERTEZZA E COERENZA DIMENSIONALE (P4.3 - P4.4)
+2.1 Coerenza Dimensionale dei Termini
+Per ciascun termine del budget viene condotta la verifica dimensionale rigorosa:
+Termine
+Definizione Operativa
+Dati Necessari
+Unità
+Risultato Dimensionale
+ubase,b
+ΔtW,b⋅budgetbase_w,b
+Durata media finestra blocco, semi-range potenza idle
+[s]⋅[W]=[s]⋅[J/s]
+[Joule]
+uwithin,b
+semi-range(Eattiva,i)
+Energia attiva misurata sulle m=3 repliche del blocco
+max(Ei)-min(Ei)2
+[Joule]
+uedge,b
+$\operatorname{mean}_i (2 \cdot P_{\text{peak},i} \cdot \delta t_{\text{edge},i})$
+Potenza di picco della finestra, risoluzione temporale del sensore (≤0.05s)
+[W]⋅[s]=[J/s]⋅[s]
+[Joule]
+umodel,b
+$\text{percentile}_{97.5}(\,\vert{}\mathbf{e}_{\text{boot}}\vert{}\,)$
+Residui bootstrap riscalati
+[Joule] (vedi §2.2)
+[Joule]
+2.2 Correzione sul Percentile dei Residui Bootstrap (umodel)
+DIVERGENZA TROVATA (Difetto D2 — Dimensionalità Bootstrap)
+Evidenza verificabile: Nel testo di P4.3 / P4.4 si definiscono i residui standardizzati come:
+
+
+zb=rbbudgetfit,b[Adimensionale]
+
+Successivamente, si indica che umodel è ottenuto dal percentile dei residui zb o dal residuo bootstrap standardizzato z*, trattandolo direttamente come se fosse espresso in Joule nel calcolo di budgetpred,b2=budgetfit,b2+uedge,b2+umodel,b2.
+Impatto: Somma algebrica/quadratica non omogenea tra grandezze dimensionali [J2] e adidimensionali [1].
+Correzione minima proposta (Riscalamento Metrologico): Disaccoppiare e formalizzare la riconversione in Joule del residuo bootstrap per la generica query al punto x:
+
+
+umodel(x)=budgetfit(x)⋅z0.975*[Joule]
+
+Dove z0.975* è il 97.5-esimo percentile della distribuzione empirica dei residui standardizzati $\vert{}z^*\vert{}$. L'equazione composita della varianza predittiva risulterà dimensionalmente pura in [J2]:
+
+
+budgetpred2(x)=budgetfit2(x)⋅1+(z0.975*)2+uedge2(x)[Joule2]
+
+2.3 Ipotesi per la Combinazione Quadratica dei Budget
+La somma in quadratura budgetfit,b2=ubase,b2+uwithin,b2 non assume la normalità delle sorgenti di errore, ma risponde all'ipotesi di ortogonalità/indipendenza delle componenti d'incertezza (Guida GUM / ISO/IEC Guide 98-3):
+ubase è dominata dalla deriva stazionaria a bassa frequenza dell'host pre-blocco.
+uwithin è dominata dalla variabilità stocastica del runtime di inferenza (scheduling OS, allocazione KV-cache).
+Semi-range non deviazione standard: Trattandosi di budget conservativi rettangolari (semi-range), essi non vengono divisi per 3 né per m. Questa scelta è volutamente conservativa e va esplicitata come maggiorazione del limite superiore dell'incertezza.
+3. CATENA DI VALIDAZIONE E LIMITI STATISTICI (P4.5)
+3.1 Implementabilità di LOBO, OOS e Residui su N=10 Punti (M=33 Blocchi)
+Il disegno sperimentale congelato comprende 10 punti di griglia ×3 o 4 repliche = 33 blocchi totali (Ntot=99 richieste).
+A. LOBO (Leave-One-Block-Out) vs Lopo (Leave-One-Point-Out)
+LOBO (33-fold): Esclude 1 blocco da 3 richieste e fitforma sui 32 restanti.
+LOPO (10-fold): Esclude tutti i 3 o 4 blocchi corrispondenti ad un intero punto di griglia (Nin,Nout) e adatta la WLS sui 9 punti restanti.
+Criterio di implementabilità: LOPO (10-fold) è lo strumento matematicamente idoneo a valutare la capacità di interpolazione della superficie T2 sulla geometria.
+B. Punti Holdout OOS (Out-Of-Sample)
+I 3 punti OOS definiti per il test di controllo indipendente sono:
+O1=(12,32) (Zona a basso prefill / baseline)
+O2=(128,128) (Zona centrale)
+O3=(256,64) (Zona intermedia ad alto prefill)
+Regola d'Indipendenza Strict: I 3 punti OOS non partecipano mai al fit WLS dei coefficienti (a0,a1,a2,c) né alla selezione del modello. Servono unicamente per il calcolo del MAPE OOS sul Gate G2.
+3.2 Limiti Statistici del Campione Ridotto e Trattamento dei P-Value
+DIVERGENZA TROVATA (Raccomandazione R1 — Test Omoschedasticità)
+Evidenza verificabile: Il testo della bozza cita "p-value del test di omoschedasticità p>0.05 come prova dell'assenza di eteroschedasticità".
+Criticità statistica: Su sole 33 misurazioni aggregate, i test formali di eteroschedasticità (Breusch-Pagan o White) soffrono di una potenza statistica estremamente bassa (alto tasso di errori di Tipo II / falsi negativi). Non rifiutare l'ipotesi nulla (p>0.05) non equivale a dimostrare che l'omostati sia verificata.
+Correzione minima proposta: Riformulare il criterio del Gate G3:"Il Gate G3 richiede la verifica visiva e quantitativa dell'assenza di strutture nei residui standardizzati zb in funzione dei predittori Nin e Nout. Un valore di p>0.05 nei test di Breusch-Pagan è una condizione necessaria ma non sufficiente, e deve essere accompagnato dal vincolo che la correlazione di Rank di Spearman tra $\vert{}z_b\vert{}$ e Eact non superi 0.35."
+4. FORMULA EFFETTIVA DI T2 E VINCOLI FISICI (P4.4 - P4.5)
+4.1 Modello di Profilazione Locale T2
+Dalla formalizzazione di P3.8, la formula del modello di superficie T2 per l'energia attiva incrementale locale è:
+
+
+Eattiva,T2(Nin,Nout)=a0+a1Nin+a2Nout+c(Nin⋅Nout)[Joule]
+
+Dove:
+a0≥0 [Joule]: Costo energetico fisso di overhead per richiesta di inferenza (allocazione memoria, setup context window).
+a1≥0 [Joule/token]: Costo energetico marginale per token di prefill (processing prompt).
+a2≥0 [Joule/token]: Costo energetico marginale per token di decoding (generazione token).
+c≥0 [Joule/token$^2$]: Coefficiente di interazione bilineare (attenzione incrociata prefill-decoding).
+DIVERGENZA TROVATA (Difetto D3 — Confusione Modello Cloud C5 vs T2)
+Evidenza verificabile: Nel testo della bozza P4 si fa riferimento a vincoli di positività su coefficienti analitici quali γprefill, γdecode o forme quadrate Nin2/Nout tipiche del modello Cloud C5 (SweetSpot).
+Impatto: Incoerenza tra le definizioni di parametri del modello locale T2 (a0,a1,a2,c) e quelle del modello cloud C5.
+Correzione minima proposta: Vincolare rigorosamente il Gate G4 sui 4 parametri effettivi del modello T2:
+
+
+GateG4(Positività$T2$):a0>0,a1>0,a2>0,c≥0
+
+5. SCHEMA DATI E RIPRODUCIBILITÀ (P4.9)
+I 5 campi introdotti da P4 sono verificati per la riproducibilità deterministica a partire dai dati grezzi di log e dagli artefatti del fit P3.8:
+
+
+
+[Raw Log: N_in, N_out, E_act] + [Fit Artifact: WLS Coefficients, Covariance Matrix]                                       │                                      ▼                      ┌───────────────────────────────┐                      │    Engine Deterministico P4    │                      └───────────────┬───────────────┘                                      │  ┌───────────────────┬───────────────┼───────────────┬───────────────────┐  ▼                   ▼               ▼               ▼                   ▼coverage_tier  nearest_point_id  dist_box_ratios  budget_pred_j  validation_status
+coverage_tier (string): Classificazione in base a Conv(H) e B: "A_full", "B_partial", "C_out_of_bounds".
+nearest_point_id (string): ID del punto di griglia nominale con distanza euclidea minima pesata:
+
+
+point_id=argminkNin-Nin,k5122+Nout-Nout,k2562
+
+dist_box_ratios (string): Quaterna alfanumerica normalizzata di distanza dai 4 bordi del box B:
+
+
+Nin-8504,512-Nin504,Nout-4252,256-Nout252
+
+budget_pred_j (float): Valore scalare espresso in Joule determinabile tramite:
+
+
+budgetpred_j=budgetfit2(x)⋅1+(z0.975*)2+uedge2(x)
+
+validation_status (string): Esito del gate monolitico: "validated", "preliminary", "failed_G1", "failed_G2", "failed_G3", "failed_G4".
+6. SINTESI DEI DIFETTI E CORREZIONI MINIME PROPOSTE
+ID
+Sezione
+Natura
+Evidenza Verificabile
+Impatto
+Correzione Minima Proposta
+D1
+P4.2
+Difetto
+Inviluppo convesso dichiarato senza (32,4).
+Mutilazione indebita della regione A a basso prefill/decoding.
+Riscrivere i vertici dell'inviluppo: {(8,4),(32,4),(512,32),(512,256),(8,256)}.
+D2
+P4.3-P4.4
+Difetto
+umodel sommato a [J2] senza riscalamento dimensionale del residuo z*.
+Errore di omogeneità dimensionale tra [1] e [J2].
+Esplicitare umodel(x)=budgetfit(x)⋅z0.975* [Joule].
+D3
+P4.5
+Difetto
+Presenza di notazioni C5 (γprefill) nei vincoli del modello locale T2.
+Confusione tra modelli Locale e Cloud.
+Restringere Gate G4 sui coefficienti a0>0,a1>0,a2>0,c≥0.
+R1
+P4.5
+Raccomandazione
+Interpretazione del p-value >0.05 come prova d'assenza di eteroschedasticità.
+Fallacia logica su campioni ridotti (N=33).
+Integrare il p-value con il vincolo di correlazione di Spearman $\vert{}\rho\vert{} \le 0.35$.
+7. PROPOSTA DI TEST DI ACCETTAZIONE PER P4 (PYTEST SINTETICI)
+Per convalidare la logica matematica di P4 senza dipendenze hardware, si raccomanda l'aggiunta della seguente suite in cwEnergyModular/tests/test_protocollo_p4_geometry.py:
+
+
+
+Python
+import pytestimport numpy as npdef is_in_convex_hull(p, hull_verts):    """Verifica se il punto p (N_in, N_out) giace nell'inviluppo convesso H."""    from scipy.spatial import Delaunay    return Delaunay(hull_verts).find_simplex(p) >= 0HULL_VERTICES = np.array([    [8, 4],    [32, 4],    [512, 32],    [512, 256],    [8, 256]])def test_inviluppo_convesso_vertici_corretti():    # Verifica che (32,4) sia dentro il livello A    assert is_in_convex_hull([32, 4], HULL_VERTICES)    # Verifica che la produzione reale (12, 31.8) sia in Livello A    assert is_in_convex_hull([12, 31.8], HULL_VERTICES)    # Verifica che la zona vuota (256, 8) sia FUORI dall'inviluppo convesso (Livello B)    assert not is_in_convex_hull([256, 8], HULL_VERTICES)def test_dimensionalita_budget_predittivo():    budget_fit = 0.050  # 50 mJ    z_975 = 1.96        # Adimensionale    u_edge = 0.002      # 2 mJ        u_model = budget_fit * z_975  # Joule    budget_pred = np.sqrt(budget_fit**2 + u_model**2 + u_edge**2)        assert isinstance(budget_pred, float)    assert budget_pred > budget_fit
+8. ESITO E INDICAZIONI OPERATIVE
+File del repository: Nessun file di codice o configurazione è stato alterato.
+Commit / Git Status: Nessun commit creato.
+Pesi WLS P3.8: Pienamente preservati.
+Validazione: Il modello T2 resta nello stato "preliminary" fino alla completa compilazione dei 4 Gate G1–G4 del protocollo P4 sui dati reali di esecuzione.

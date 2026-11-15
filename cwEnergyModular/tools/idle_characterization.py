@@ -22,6 +22,7 @@ class IdleCharacterization:
     cpu_samples: List[float] = None
     q95_cpu_pct: float = 0.0
     quiet_threshold_pct: float = 0.0
+    warmup_cpu_max_pct: float = 0.0
     quiet_consecutive: int = 3
     quiet_window_s: float = 3.0
     quiet_cap_s: float = 600.0
@@ -49,6 +50,21 @@ def compute_quiet_threshold(cpu_samples: List[float], margin_pct: float = 1.0) -
     return math.ceil(q95 + margin_pct)
 
 
+def compute_warmup_cpu_threshold(cpu_samples: List[float], margin_pct: float = 1.0) -> float:
+    """Compute warmup_cpu_max_pct = ceil(Q95(cpu_samples) + margin_pct).
+    
+    This is the same formula as quiet_threshold_pct: the warmup CPU threshold
+    should be based on the machine's actual idle behavior, not a hardcoded value.
+    """
+    import math
+    if not cpu_samples:
+        return 2.0  # fallback
+    sorted_samples = sorted(cpu_samples)
+    idx = max(0, int(len(sorted_samples) * 0.95) - 1)
+    q95 = sorted_samples[idx]
+    return math.ceil(q95 + margin_pct)
+
+
 def characterize_idle(
     output_dir: Path,
     windows: int = 30,
@@ -70,6 +86,7 @@ def characterize_idle(
     
     q95 = sorted(all_samples)[max(0, int(len(all_samples) * 0.95) - 1)]
     quiet_threshold = compute_quiet_threshold(all_samples, margin_pct)
+    warmup_cpu_threshold = compute_warmup_cpu_threshold(all_samples, margin_pct)
     
     char = IdleCharacterization(
         windows=windows,
@@ -77,6 +94,7 @@ def characterize_idle(
         cpu_samples=all_samples,
         q95_cpu_pct=round(q95, 1),
         quiet_threshold_pct=quiet_threshold,
+        warmup_cpu_max_pct=warmup_cpu_threshold,
         margin_pct=margin_pct,
     )
     
@@ -93,5 +111,6 @@ def characterize_idle(
     
     print(f"Idle characterization written to {output_file}")
     print(f"  quiet_threshold_pct = {char.quiet_threshold_pct}")
+    print(f"  warmup_cpu_max_pct = {char.warmup_cpu_max_pct}")
     print(f"  sha256 = {char.sha256}")
     return 0

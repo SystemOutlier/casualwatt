@@ -1,0 +1,7 @@
+Grafico salvato come 'risultati_confronto.png' nella cartella del progetto!
+
+RIEPILOGO ACCURATEZZA:
+   CP1 (Posterior):      Errore = 0.0003 (0.14%)
+   IN1 (Intervention):   Errore = 0.0002 (0.19%)
+   CO1 (Coherence):      Errore = 0.0030 (4.48%)
+   CF1 (Counterfactual): Bound convergenti [0.126, 0.126]

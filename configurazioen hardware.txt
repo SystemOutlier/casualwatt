@@ -1,0 +1,7 @@
+Configurazione hardware confermata
+Componente	Risultato
+CPU	Intel Core i9-13900HK, 14 core e 20 processori logici
+GPU	Intel Iris Xe Graphics
+Driver GPU	32.0.101.7088
+Sistema operativo	Windows 11 Pro, build 26200
+Ollama	0.33.1

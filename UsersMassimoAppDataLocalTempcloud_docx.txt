@@ -1,0 +1,175 @@
+
+Avevamo deciso di stimare il consumo energetico delle inferenze cloud in CasualWatt con un metodo a più livelli, distinguendo rigorosamente l'energia stimata sul server remoto da quella eventualmente misurata sul computer locale e da quella stimata per la rete.
+
+L'obiettivo era rendere possibile una valutazione energetica anche quando non si ha accesso fisico al server del provider, senza presentare le stime come misure dirette.
+
+1. Il metodo cloud concordato
+
+Livello 1 — EcoLogits
+
+Metodo principale
+
+Usare EcoLogits per stimare il consumo energetico dell'inferenza cloud, usando il modello di riferimento, i token in ingresso e in uscita e le ipotesi sull'infrastruttura.
+
+Il risultato è una stima modellistica, non una lettura diretta del contatore energetico del server.
+
+Livello 2 — Modello analitico di fallback
+
+Se EcoLogits non è utilizzabile o non copre adeguatamente il caso, ricorrere a un modello che separa il lavoro di prefill da quello di decoding, usando parametri del modello e ipotesi esplicite su hardware ed efficienza.
+
+Livello 3 — Energia della rete, separata
+
+Stimare l'energia della comunicazione sulla base dei byte trasferiti e di un coefficiente energetico dichiarato in J/bit. Non confonderla con l'energia di inferenza del datacenter.
+
+2. Livello 1: EcoLogits
+
+Il flusso previsto era:
+
+Identificare provider e modello dichiarato o modello proxy utilizzato.
+
+Raccogliere il numero di token di input e output.
+
+Specificare, quando disponibili, le ipotesi infrastrutturali richieste dal modello di stima.
+
+Ottenere la stima energetica e, separatamente, quella delle emissioni.
+
+Registrare metodo, ipotesi, confini di misura e disponibilità del risultato.
+
+Un limite fondamentale: il modello effettivamente servito dal provider, l'hardware e l'efficienza del datacenter potrebbero essere diversi da quelli ipotizzati da EcoLogits. La latenza osservata dal client, inoltre, può includere attese di rete e altre componenti che non permettono di isolare direttamente il lavoro di calcolo.
+
+3. Livello 2: fallback analitico
+
+Avevamo annotato queste formule come struttura del modello:
+
+\[ E_{\mathrm{prefill}} =n_{\mathrm{in}}\alpha(N_{\mathrm{active}}) +\gamma\frac{n_{\mathrm{in}}^2}{n_{\mathrm{out}}} \]
+
+\[ E_{\mathrm{decoding}} =n_{\mathrm{out}}\beta(N_{\mathrm{active}}) \]
+
+con:
+
+\(n_{\mathrm{in}}\): token in ingresso;
+
+\(n_{\mathrm{out}}\): token generati;
+
+\(N_{\mathrm{active}}\): parametri attivi;
+
+\(\alpha,\beta,\gamma\): coefficienti da calibrare empiricamente.
+
+Per modelli Mixture-of-Experts, avevamo considerato la stima dei parametri attivi tramite:
+
+\[ N_{\mathrm{active}} =\frac{N_{\mathrm{total}}}{E_{\mathrm{tot}}}E_{\mathrm{act}} \]
+
+dove \(E_{\mathrm{tot}}\) ed \(E_{\mathrm{act}}\) rappresentano rispettivamente il numero totale di esperti e quello attivo, secondo le informazioni disponibili sul modello.
+
+Precisazione importante: queste formule erano una struttura proposta per il fallback, non una formula universale già validata. I coefficienti devono essere calibrati con dati sperimentali pertinenti. La formula del prefill richiede inoltre una gestione esplicita di \(n_{\mathrm{out}}=0\), e le ipotesi sui modelli MoE devono essere dichiarate.
+
+4. Livello 3: energia della rete
+
+Avevamo deciso di mantenere questo contributo separato:
+
+\[ E_{\mathrm{rete}} =B_{\mathrm{totali}}\cdot 8\cdot\varepsilon_{\mathrm{bit}} \]
+
+dove:
+
+\(B_{\mathrm{totali}}\) è il numero di byte trasferiti;
+
+il fattore 8 converte i byte in bit;
+
+\(\varepsilon_{\mathrm{bit}}\) è il coefficiente energetico in J/bit.
+
+Il volume di traffico può essere misurato tramite i contatori disponibili; l'energia rimane una stima, perché dipende dal coefficiente adottato e dal confine energetico considerato.
+
+Non avevamo deciso di utilizzare automaticamente il First-Order Radio Model dei wireless sensor network: il modello non sarebbe appropriato senza una giustificazione specifica per lo scenario considerato.
+
+5. Come avremmo registrato i risultati
+
+Avevamo stabilito di distinguere esplicitamente quattro situazioni:
+
+Tipo di dato
+
+Significato
+
+Misurato
+
+Letto direttamente da una sorgente di misura disponibile
+
+Derivato
+
+Calcolato da dati misurati mediante una formula dichiarata
+
+Stimato
+
+Prodotto da un modello energetico o da coefficienti ipotizzati
+
+Non disponibile
+
+Informazione non ottenibile per quel run
+
+In particolare, se la stima cloud non è disponibile, il risultato deve rimanere mancante (None), non diventare 0.0: zero joule e dato sconosciuto sono due situazioni completamente diverse.
+
+Per ogni run avevamo previsto di registrare almeno duration_s, energy_method, measurement_boundary ed energy_available, oltre agli eventuali contributi CPU e GPU locali.
+
+6. La prima verifica sperimentale prevista
+
+Avevamo discusso un piccolo esperimento di sensibilità per EcoLogits:
+
+mantenere fisso il numero di token generati \(T_{\mathrm{out}}\);
+
+aumentare progressivamente il numero di token in ingresso \(N_{\mathrm{in}}\);
+
+osservare come cambia l'energia stimata;
+
+ripetere il confronto con le ipotesi infrastrutturali documentate.
+
+Questo avrebbe verificato il comportamento del modello rispetto alle variabili di input, non la sua accuratezza assoluta. Per quest'ultima servirebbe un riferimento indipendente adeguato, che per un servizio cloud generalmente non è direttamente accessibile.
+
+In sintesi, la decisione era: EcoLogits come prima scelta, modello analitico come fallback e rete come contributo separato, mantenendo sempre visibili ipotesi, confini energetici e natura stimata dei risultati.
+
+una soluzione più articolata di EcoLogits da solo
+
+I tre elementi che avevamo individuato
+
+1. EcoLogits — stima di riferimento
+
+Fornisce una stima modellistica dell'impatto dell'inferenza cloud, sulla base delle informazioni e delle ipotesi supportate dal framework.
+
+2. SweetSpot — base del modello analitico
+
+Il lavoro studia il consumo durante prefill e decoding considerando il costo computazionale e il traffico di memoria. Può aiutare a costruire un secondo modello, ma non bisogna attribuire agli autori formule semplificate che non corrispondono al loro modello pubblicato.
+
+3. TokenPowerBench — riferimento per calibrazione e verifica
+
+Offre una base metodologica per strutturare esperimenti, misurare consumi in condizioni controllate e studiare l'effetto di lunghezza del contesto, modello e configurazione hardware.
+
+Come avremmo potuto combinarli per migliorare CasualWatt
+
+Il miglioramento più interessante sarebbe stato costruire una stima ibrida con calibrazione empirica, senza sommare ciecamente gli output dei due strumenti.
+
+Input della richiesta
+
+Modello, token di input/output, configurazione e provider
+
+EcoLogits
+
+Stima modellistica di riferimento
+
+Modello analitico
+
+Prefill, decoding, memoria e hardware ipotizzato
+
+Calibrazione e confronto
+
+Dati energetici indipendenti, quando disponibili; errore, sensibilità e incertezza
+
+Stima finale con provenienza esplicita
+
+Metodo usato, ipotesi, incertezza e confine energetico
+
+Il punto fondamentale è che TokenPowerBench è un riferimento per progettare e calibrare gli esperimenti, non un secondo stimatore da aggiungere direttamente a EcoLogits. Analogamente, SweetSpot è un fondamento scientifico per il modello analitico, non una garanzia che quel modello funzioni altrettanto bene su qualsiasi provider cloud.
+
+Avevamo anche previsto una prova di sensibilità per EcoLogits, mantenendo fisso il numero di token generati e aumentando quello dei token in ingresso. Questa prova verifica il comportamento del metodo rispetto agli input, non la sua accuratezza assoluta.
+
+Quindi, se vuoi recuperare l'idea di fondo, la formulerei così: EcoLogits + modello analitico ispirato a SweetSpot + calibrazione sperimentale guidata da TokenPowerBench, con energia di rete separata. 
+
+La strategia cloud documentata non è una somma di due stime, ma un approccio ibrido a tre livelli: EcoLogits come riferimento modellistico, un modello analitico ispirato a SweetSpot come fallback, e una calibrazione sperimentale guidata da TokenPowerBench. L’energia di rete resta una stima separata. 
+

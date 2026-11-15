@@ -1,0 +1,7 @@
+Test: Quando il notebook ti chiederà la domanda, incolla questa per testare l'inferenza posterior:
+"Given that the driving quality is normal, how likely is it that the age of the driver is senior?"
+
+Cosa dovresti vedere se tutto funziona:
+🏷️ Label: posterior
+📝 Dictionary: {"input": {"DrivQuality": "Normal"}, "output": {"Age": "Senior"}}
+✅ Risposta Finale: Un numero molto vicino a 0.2117 (il valore expected_probability del ground truth per CP1), accompagnato da una breve spiegazione causale.

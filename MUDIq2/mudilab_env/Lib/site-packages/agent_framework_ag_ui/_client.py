@@ -1,0 +1,487 @@
+# Copyright (c) Microsoft. All rights reserved.
+
+"""AG-UI Chat Client implementation."""
+
+from __future__ import annotations
+
+import base64
+import json
+import logging
+import sys
+import uuid
+import warnings
+from binascii import Error as BinasciiError
+from collections.abc import AsyncIterable, Awaitable, Mapping, Sequence
+from typing import TYPE_CHECKING, Any, Generic, TypedDict, cast
+
+import httpx
+from agent_framework import (
+    BaseChatClient,
+    ChatResponse,
+    ChatResponseUpdate,
+    Content,
+    Message,
+    ResponseInvalidatedException,
+    ResponseStream,
+)
+from agent_framework._middleware import ChatMiddlewareLayer
+from agent_framework._telemetry import mark_feature_used
+from agent_framework._tools import FunctionInvocationConfiguration, FunctionInvocationLayer
+from agent_framework.observability import ChatTelemetryLayer
+
+from ._event_converters import AGUIEventConverter, _finalize_agui_response
+from ._feature_usage import FeatureIndex
+from ._http_service import AGUIHttpService, _serialize_available_interrupts, _serialize_resume
+from ._message_adapters import agent_framework_messages_to_agui
+from ._state import STATE_CARRIER_KEY
+from ._utils import convert_tools_to_agui_format
+
+if sys.version_info >= (3, 13):
+    from typing import TypeVar  # pragma: no cover
+else:
+    from typing_extensions import TypeVar  # pragma: no cover
+if sys.version_info >= (3, 12):
+    from typing import override  # pragma: no cover
+else:
+    from typing_extensions import override  # pragma: no cover
+if sys.version_info >= (3, 11):
+    from typing import Self, TypedDict  # pragma: no cover
+else:
+    from typing_extensions import Self, TypedDict  # pragma: no cover
+
+if TYPE_CHECKING:
+    from agent_framework._middleware import ChatAndFunctionMiddlewareTypes
+
+    from ._types import AGUIChatOptions
+
+logger: logging.Logger = logging.getLogger("agent_framework.ag_ui")
+
+
+AGUIChatOptionsT = TypeVar(
+    "AGUIChatOptionsT",
+    bound=TypedDict,  # type: ignore[valid-type]
+    default="AGUIChatOptions",
+    covariant=True,
+)
+
+
+def _is_state_carrier_message(message: Message) -> bool:
+    """Return whether a message is a dedicated, explicitly marked state carrier."""
+    if len(message.contents) != 1:
+        return False
+    content = message.contents[0]
+    return isinstance(content, Content) and (content.additional_properties or {}).get(STATE_CARRIER_KEY) is True
+
+
+def _decode_json_state(content: Content) -> dict[str, Any] | None:
+    """Decode a base64 JSON state content, returning None for invalid input."""
+    if content.type != "data" or content.media_type != "application/json":
+        return None
+
+    try:
+        uri = content.uri
+        prefix, _, encoded_data = uri.partition(",")  # type: ignore[union-attr]
+        if not prefix.startswith("data:"):
+            return None
+
+        media_type, *parameters = prefix[5:].split(";")
+        if media_type != "application/json" or "base64" not in parameters:
+            return None
+
+        decoded_bytes = base64.b64decode(encoded_data, validate=True)
+        state = json.loads(decoded_bytes.decode("utf-8"))
+        if not isinstance(state, dict):
+            logger.warning("AG-UI state carrier JSON must decode to an object")
+            return None
+        return state
+    except (BinasciiError, UnicodeDecodeError, json.JSONDecodeError, ValueError, TypeError, AttributeError) as e:
+        logger.warning(f"Failed to extract state from message: {e}")
+        return None
+
+
+def _extract_legacy_json_state(message: Message) -> dict[str, Any] | None:
+    """Extract the historical implicit state convention from a final state-only message."""
+    if len(message.contents) != 1:
+        return None
+
+    content = message.contents[0]
+    if not isinstance(content, Content):
+        return None
+    if (content.additional_properties or {}).get(STATE_CARRIER_KEY) is True:
+        return None
+
+    return _decode_json_state(content)
+
+
+class AGUIChatClient(
+    FunctionInvocationLayer[AGUIChatOptionsT],
+    ChatMiddlewareLayer[AGUIChatOptionsT],
+    ChatTelemetryLayer[AGUIChatOptionsT],
+    BaseChatClient[AGUIChatOptionsT],
+    Generic[AGUIChatOptionsT],
+):
+    """Chat client for communicating with AG-UI compliant servers.
+
+    This client implements the BaseChatClient interface and automatically handles:
+    - Thread ID management for conversation continuity
+    - State synchronization between client and server
+    - Server-Sent Events (SSE) streaming
+    - Event conversion to Agent Framework types
+    - MiddlewareTypes, telemetry, and function invocation support
+
+    Important: Message History Management
+        This client sends exactly the messages it receives to the server. It does NOT
+        automatically maintain conversation history. The server must handle history via thread_id.
+
+        For stateless servers: Use Agent wrapper which will send full message history on each
+        request. However, even with Agent, the server must echo back all context for the
+        agent to maintain history across turns.
+
+    Important: Tool Handling (Hybrid Execution - matches .NET)
+        1. Client tool metadata sent to server - LLM knows about both client and server tools
+        2. Server has its own tools that execute server-side
+        3. When LLM calls a client tool, function invocation executes it locally
+        4. Both client and server tools work together (hybrid pattern)
+
+        The wrapping Agent's function invocation handles client tool execution
+        automatically when the server's LLM decides to call them.
+
+    Examples:
+        Direct usage (server manages thread history):
+
+        .. code-block:: python
+
+            from agent_framework.ag_ui import AGUIChatClient
+
+            client = AGUIChatClient(endpoint="http://localhost:8888/")
+
+            # First message - thread ID auto-generated
+            response = await client.get_response("Hello!")
+            thread_id = response.additional_properties.get("thread_id")
+
+            # Second message - server retrieves history using thread_id
+            response2 = await client.get_response(
+                "How are you?",
+                metadata={"thread_id": thread_id}
+            )
+
+        Recommended usage with Agent (client manages history):
+
+        .. code-block:: python
+
+            from agent_framework import Agent
+            from agent_framework.ag_ui import AGUIChatClient
+
+            client = AGUIChatClient(endpoint="http://localhost:8888/")
+            agent = Agent(name="assistant", client=client)
+            session = agent.create_session()
+
+            # Agent automatically maintains history and sends full context
+            response = await agent.run("Hello!", session=session)
+            response2 = await agent.run("How are you?", session=session)
+
+        Streaming usage:
+
+        .. code-block:: python
+
+            async for update in client.get_response("Tell me a story", stream=True):
+                if update.contents:
+                    for content in update.contents:
+                        if hasattr(content, "text"):
+                            print(content.text, end="", flush=True)
+
+        Context manager:
+
+        .. code-block:: python
+
+            async with AGUIChatClient(endpoint="http://localhost:8888/") as client:
+                response = await client.get_response("Hello!")
+                print(response.messages[0].text)
+
+        Using custom ChatOptions with type safety:
+
+        .. code-block:: python
+
+            from typing import TypedDict
+            from agent_framework_ag_ui import AGUIChatClient, AGUIChatOptions
+
+            class MyOptions(AGUIChatOptions, total=False):
+                my_custom_option: str
+
+            client: AGUIChatClient[MyOptions] = AGUIChatClient(endpoint="http://localhost:8888/")
+            response = await client.get_response("Hello", options={"my_custom_option": "value"})
+    """
+
+    OTEL_PROVIDER_NAME = "agui"
+
+    def __init__(
+        self,
+        *,
+        endpoint: str,
+        http_client: httpx.AsyncClient | None = None,
+        timeout: float = 60.0,
+        additional_properties: dict[str, Any] | None = None,
+        middleware: Sequence[ChatAndFunctionMiddlewareTypes] | None = None,
+        function_invocation_configuration: FunctionInvocationConfiguration | None = None,
+    ) -> None:
+        """Initialize the AG-UI chat client.
+
+        Args:
+            endpoint: The AG-UI server endpoint URL (e.g., "http://localhost:8888/")
+            http_client: Optional httpx.AsyncClient instance. If None, creates a client that does not
+                persist response cookies. Supplied clients retain their cookie behavior and remain
+                caller-owned; scope cookie-based authentication to a single authenticated principal
+                rather than sharing it across users.
+            timeout: Request timeout in seconds (default: 60.0)
+            additional_properties: Additional properties to store
+            middleware: Optional middleware to apply to the client.
+            function_invocation_configuration: Optional function invocation configuration override.
+        """
+        super().__init__(
+            additional_properties=additional_properties,
+            middleware=middleware,
+            function_invocation_configuration=function_invocation_configuration,
+        )
+        self._http_service = AGUIHttpService(
+            endpoint=endpoint,
+            http_client=http_client,
+            timeout=timeout,
+        )
+
+    async def close(self) -> None:
+        """Close the internally created HTTP client, leaving supplied clients open."""
+        await self._http_service.close()
+
+    async def __aenter__(self) -> Self:
+        """Enter async context manager."""
+        return self
+
+    async def __aexit__(self, *args: Any) -> None:
+        """Exit async context manager."""
+        await self.close()
+
+    def _extract_state_from_messages(
+        self,
+        messages: Sequence[Message],
+        *,
+        allow_legacy_state_carrier: bool = False,
+    ) -> tuple[list[Message], dict[str, Any] | None]:
+        """Extract explicitly marked state from client-controlled message history.
+
+        Args:
+            messages: List of chat messages
+            allow_legacy_state_carrier: Whether to recognize the deprecated implicit
+                final base64 JSON state convention.
+
+        Returns:
+            Tuple of (messages_without_state, state_dict)
+        """
+        messages_to_send: list[Message] = []
+        state: dict[str, Any] | None = None
+
+        for message in messages:
+            if _is_state_carrier_message(message):
+                content = cast(Content, message.contents[0])
+                if (extracted_state := _decode_json_state(content)) is not None:
+                    state = extracted_state
+                continue
+            messages_to_send.append(message)
+
+        if allow_legacy_state_carrier and messages and not _is_state_carrier_message(messages[-1]):
+            legacy_state = _extract_legacy_json_state(messages[-1])
+            if legacy_state is not None:
+                messages_to_send.pop()
+                state = legacy_state
+                warnings.warn(
+                    "Implicit AG-UI JSON state extraction is deprecated; use state_carrier() instead.",
+                    DeprecationWarning,
+                    stacklevel=3,
+                )
+
+        return messages_to_send, state
+
+    def _convert_messages_to_agui_format(self, messages: list[Message]) -> list[dict[str, Any]]:
+        """Convert Agent Framework messages to AG-UI format.
+
+        Args:
+            messages: List of Message objects
+
+        Returns:
+            List of AG-UI formatted message dictionaries
+        """
+        return agent_framework_messages_to_agui(messages)
+
+    def _get_thread_id(self, options: Mapping[str, Any]) -> str:
+        """Get or generate thread ID from chat options.
+
+        Args:
+            options: Chat options containing metadata
+
+        Returns:
+            Thread ID string
+        """
+        thread_id = None
+        metadata = options.get("metadata")
+        if metadata:
+            thread_id = metadata.get("thread_id")
+
+        if not thread_id:
+            thread_id = f"thread_{uuid.uuid4().hex}"
+
+        return thread_id
+
+    @override
+    def _inner_get_response(
+        self,
+        *,
+        messages: Sequence[Message],
+        stream: bool = False,
+        options: Mapping[str, Any],
+        **kwargs: Any,
+    ) -> Awaitable[ChatResponse] | ResponseStream[ChatResponseUpdate, ChatResponse]:
+        """Internal method to get non-streaming response.
+
+        Keyword Args:
+            messages: List of chat messages
+            stream: Whether to stream the response.
+            options: Chat options for the request
+            **kwargs: Additional keyword arguments
+
+        Returns:
+            ChatResponse object
+        """
+        if stream:
+            return ResponseStream(
+                self._streaming_impl(
+                    messages=messages,
+                    options=options,
+                    **kwargs,
+                ),
+                finalizer=_finalize_agui_response,
+            )
+
+        async def _get_response() -> ChatResponse:
+            updates = [
+                update
+                async for update in self._streaming_impl(
+                    messages=messages,
+                    options=options,
+                    **kwargs,
+                )
+            ]
+            return _finalize_agui_response(updates)
+
+        return _get_response()
+
+    async def _streaming_impl(
+        self,
+        *,
+        messages: Sequence[Message],
+        options: Mapping[str, Any],
+        **kwargs: Any,
+    ) -> AsyncIterable[ChatResponseUpdate]:
+        """Internal method to get streaming response.
+
+        Keyword Args:
+            messages: Sequence of chat messages
+            options: Chat options for the request
+            **kwargs: Additional keyword arguments
+
+        Yields:
+            ChatResponseUpdate objects
+        """
+        mark_feature_used(FeatureIndex.AG_UI)
+        messages_to_send, state = self._extract_state_from_messages(
+            messages,
+            allow_legacy_state_carrier=options.get("allow_legacy_state_carrier") is True,
+        )
+
+        thread_id = self._get_thread_id(options)
+        run_id = f"run_{uuid.uuid4().hex}"
+
+        agui_messages = self._convert_messages_to_agui_format(messages_to_send)
+
+        # Send client tools to server so LLM knows about them
+        # Client tools execute via Agent's function invocation wrapper
+        agui_tools = convert_tools_to_agui_format(options.get("tools"))
+
+        # Build set of client tool names (matches .NET clientToolSet)
+        # Used to distinguish client vs server tools in response stream
+        client_tool_set: set[str] = set()
+        tools = options.get("tools")
+        if tools:
+            for tool in tools:
+                if hasattr(tool, "name"):
+                    client_tool_set.add(tool.name)
+        self._last_client_tool_set = client_tool_set
+
+        logger.debug(
+            "[AGUIChatClient] Preparing request",
+            extra={
+                "thread_id": thread_id,
+                "run_id": run_id,
+                "client_tools": list(client_tool_set),
+                "messages": [msg.text for msg in messages_to_send if msg.text],
+            },
+        )
+        logger.debug(f"[AGUIChatClient] Client tool set: {client_tool_set}")
+
+        converter = AGUIEventConverter()
+
+        available_interrupts = options.get("available_interrupts", options.get("availableInterrupts"))
+
+        events = self._http_service.post_run(
+            thread_id=thread_id,
+            run_id=run_id,
+            messages=agui_messages,
+            state=state,
+            tools=agui_tools,
+            available_interrupts=_serialize_available_interrupts(cast(Sequence[Any] | None, available_interrupts)),
+            resume=_serialize_resume(options.get("resume")),
+        )
+        body_failed = False
+        local_client_tool_call_started = False
+        try:
+            async for event in events:
+                logger.debug(f"[AGUIChatClient] Raw AG-UI event: {event}")
+                event_type = str(event.get("type", "")).upper()
+                if event_type == "RUN_ERROR" and local_client_tool_call_started:
+                    raise ResponseInvalidatedException(
+                        "The AG-UI server invalidated partial output containing a local client tool call."
+                    )
+                update = converter.convert_event(event)
+                if update is not None:
+                    logger.debug(
+                        "[AGUIChatClient] Converted update",
+                        extra={"role": update.role, "contents": [type(c).__name__ for c in update.contents]},
+                    )
+                    # Distinguish client vs server tools
+                    for content in update.contents:
+                        if content.type == "function_call":
+                            logger.debug(
+                                f"[AGUIChatClient] Function call: {content.name}, in client_tool_set: {content.name in client_tool_set}"
+                            )
+                            if content.name in client_tool_set:
+                                local_client_tool_call_started = True
+                                if not content.additional_properties:
+                                    content.additional_properties = {}
+                                content.additional_properties["agui_thread_id"] = thread_id
+                            else:
+                                content.hosted = True
+
+                    yield update
+        except GeneratorExit:
+            # An explicit close() has no body failure to take precedence over cleanup.
+            raise
+        except BaseException:
+            body_failed = True
+            raise
+        finally:
+            close = getattr(events, "aclose", None)
+            if close is not None:
+                try:
+                    await close()
+                except Exception:
+                    if not body_failed:
+                        raise
+                    logger.warning("AG-UI event cleanup failed while handling an existing exception.", exc_info=True)

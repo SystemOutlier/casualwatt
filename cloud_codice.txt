@@ -1,0 +1,80 @@
+# DIRETTIVA IMPLEMENTATIVA: METODO CLOUD E RETE (CasualWatt)
+
+## OBIETTIVO
+Implementare la stima cloud (E_cloud) e rete (E_rete) con architettura 
+gerarchica, provenienza esplicita e nessuna falsificazione (None vs 0.0).
+
+## ARCHITETTURA A TRE LIVELLI
+
+| Livello | Strumento | Ruolo | Token metodo |
+|---|---|---|---|
+| 1 | EcoLogits | Stima primaria (LCA) | ecologits |
+| 2 | Analitico ispirato a SweetSpot | Fallback | sweetspot-inspired-fallback |
+| 3 | Rete (NIC) | Separato, non sommato | network-nic |
+
+## TIER 1: ECOLOGITS (LCA)
+- Provider censiti: OpenAI, Anthropic, Mistral, Cohere, Google, HuggingFace
+- Input: n_out, latency (NO n_in: EcoLogits non lo usa)
+- Output: range [E_min, E_max] = ignoranza parametri/PUE, NON incertezza modellistica
+- PUE già integrato: VIETATO riapplicarlo
+- Flag obbligatoria: cloud_input_tokens_included = false
+- Conversione: E_J = E_kWh × 3,6e6
+
+## TIER 2: ANALITICO ISPIRATO A SWEETSPOT (non replica)
+Per provider non censiti (Groq, OpenRouter):
+
+E_prefill = n_in · α(N_active) + γ · n_in²/n_out
+E_decoding = n_out · β(N_active)
+E_cloud = PUE × (E_prefill + E_decoding)
+
+NOTA CRITICA:
+- Questa NON è la formula pubblicata di SweetSpot (Eq. 4-5)
+- SweetSpot usa θ0…θ5 fitted per modello
+- α, β, γ sono coefficienti PROPRI di CasualWatt, da calibrare
+- TokenPowerBench è RIFERIMENTO METODOLOGICO, non fonte di calibrazione
+
+### Regola MoE (verificata)
+N_active = N_total × (E_att / E_tot)
+Esempio Mixtral 8x7B: 12,9B attivi su 46,7B totali
+Uso di N_total è VIETATO (sovrastima fino a 11,17x)
+
+## TIER 3: RETE (SEPARATO)
+E_rete = ΔB · 8 · ε_bit
+ε_bit = 2,7e-6 J/bit (Baliga et al., public cloud)
+[Non 0,05e-6 J/bit: troppo basso di 2-3 ordini]
+
+Confine: solo NIC client, router/datacenter esclusi
+Fallback: byte payload HTTP (T2) se NIC illeggibile
+
+## REGOLA RIGIDA None vs 0.0 J
+- Zero legittimo: SOLO local mode, confine "not-applicable (local mode)"
+- Cloud mancante: None/"N/A", MAI 0.0
+- end_to_end_energy_j = None se cloud è None
+- cloud_notes: "Stima cloud non disponibile: metrics invalidated"
+
+## STRUTTURA FILE
+- energy/cloud_energy.py: motore principale (Tier 1 + Tier 2)
+- energy/cloud_sensitivity.py: Edge-Driven (separato, non in catena)
+- energy/network_energy.py: Tier 3 (rete)
+- config.py: coefficienti α, β, γ, ε_bit
+- benchmark_unified.py: integrazione nella riga CSV
+
+## CAMPI CSV DA AGGIUNGERE
+- cloud_energy_method: ecologits | sweetspot-inspired-fallback | unavailable
+- cloud_input_tokens_included: false (sempre, per Tier 1)
+- cloud_range_type: parameter_pue_ignorance_range | none
+- cloud_energy_j, cloud_energy_min_j, cloud_energy_max_j
+- network_energy_j, network_measurement_boundary
+
+## CRITERI DI ACCETTAZIONE
+1. EcoLogits restituisce range min/max corretto
+2. Fallback si attiva solo se EcoLogits fallisce
+3. Edge-Driven è in file separato, non in catena
+4. Tutti i campi CSV popolati con provenienza esplicita
+5. Coerenza L1-L2 dichiarata come vincolo (H100, vLLM, batch saturo)
+
+## RIFERIMENTI
+- Chung et al., arXiv:2505.06371 (ML.ENERGY Benchmark)
+- Cavagna et al., DOI 10.1145/3777884.3797011 (SweetSpot)
+- EcoLogits, JOSS 2024
+- Baliga et al. (KTH), 2,7 µJ/bit public cloud

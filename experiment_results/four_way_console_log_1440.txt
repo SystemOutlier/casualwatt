@@ -1,0 +1,35 @@
+[codecarbon WARNING @ 14:31:43] Multiple instances of codecarbon are allowed to run at the same time.
+[codecarbon INFO @ 14:31:44] Emissions data (if any) will be saved to file C:\Users\Massimo\Documents\CasualWatt\CWProject\experiment_results\codecarbon_four_way\emissions.csv
+[codecarbon INFO @ 14:31:46] [setup] RAM Tracking...
+[codecarbon INFO @ 14:31:46] [setup] CPU Tracking...
+[codecarbon INFO @ 14:31:46] [setup] GPU Tracking...
+[codecarbon INFO @ 14:31:46] No GPU found.
+[codecarbon WARNING @ 14:31:47] We saw that you have a 13th Gen Intel(R) Core(TM) i9-13900HK but we don't know it. Please contact us.
+[codecarbon WARNING @ 14:31:47] We will use the default power consumption of 4 W per thread for your 20 CPU, so 80W.
+[codecarbon WARNING @ 14:31:47] No CPU tracking mode found. Falling back on estimation based on TDP for CPU. 
+ Windows OS detected: Please install Intel Power Gadget to measure CPU
+
+[codecarbon INFO @ 14:31:47] CPU Model on constant consumption mode: 13th Gen Intel(R) Core(TM) i9-13900HK
+[codecarbon WARNING @ 14:31:47] No CPU tracking mode found. Falling back on CPU load mode.
+[codecarbon INFO @ 14:31:47] The below tracking methods have been set up:
+                RAM Tracking Method: RAM power estimation model
+                CPU Tracking Method: cpu_load
+                GPU Tracking Method: Unspecified
+            
+[codecarbon INFO @ 14:31:47] >>> Tracker's metadata:
+[codecarbon INFO @ 14:31:47]   Platform system: Windows-11-10.0.26200-SP0
+[codecarbon INFO @ 14:31:47]   Python version: 3.14.5
+[codecarbon INFO @ 14:31:47]   CodeCarbon version: 3.2.9
+[codecarbon INFO @ 14:31:47]   Available RAM : 31.702 GB
+[codecarbon INFO @ 14:31:47]   CPU count: 20 thread(s) in 1 physical CPU(s)
+[codecarbon INFO @ 14:31:47]   CPU model: 13th Gen Intel(R) Core(TM) i9-13900HK
+[codecarbon INFO @ 14:31:47]   GPU count: 0
+[codecarbon INFO @ 14:31:47]   GPU model: 
+[codecarbon INFO @ 14:31:47] Energy consumed for RAM : 0.000000 kWh. RAM Power : 20.0 W
+[codecarbon INFO @ 14:31:47] Delta energy consumed for CPU with cpu_load : 0.000000 kWh, power : 8.210542904 W
+[codecarbon INFO @ 14:31:47] Energy consumed for All CPU : 0.000000 kWh
+[codecarbon INFO @ 14:31:47] 0.000000 kWh of electricity and 0.000000 L of water were used since the beginning.
+[codecarbon INFO @ 14:32:02] Energy consumed for RAM : 0.000084 kWh. RAM Power : 20.0 W
+[codecarbon INFO @ 14:32:02] Delta energy consumed for CPU with cpu_load : 0.000073 kWh, power : 17.6 W
+[codecarbon INFO @ 14:32:02] Energy consumed for All CPU : 0.000074 kWh
+[codecarbon INFO @ 14:32:02] 0.000157 kWh of electricity and 0.000000 L of water were used since the beginning.

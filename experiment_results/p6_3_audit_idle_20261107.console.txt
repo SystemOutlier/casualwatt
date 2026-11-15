@@ -1,0 +1,10 @@
+canale: emi-counter | piano: GUID combinazione risparmio energia: 381b4222-f694-41f0-9685-ff5bb260df2e  (Bilanciato)
+quiete: 1800 s, CPU mediana 2.6% max 100.0% | background_load=True
+  pre : settle 120s (convergenza=False) | P_rep = [4.856, 4.704, 4.741] W
+  post: settle 120s (convergenza=False) | P_rep = [4.839, 3.869, 3.882] W
+baseline_pre_w  = 4.7406 W
+baseline_post_w = 3.8817 W
+pre_range_w     = 0.1517 W  (max 1.0)
+dP_w            = -0.8589 W  (|dP| max 1.0)
+gate campagna   = {'pre_range_ok': True, 'dp_ok': True, 'campaign_may_start': True}
+artefatto: C:\Users\Massimo\Documents\CasualWatt\CWProject\experiment_results\p6_3_audit_idle_20261107.json

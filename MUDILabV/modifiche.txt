@@ -1,0 +1,27 @@
+agents.py
+Nella sezione #CLIENTS, che ora è vuota, inserisci:
+import os
+from agent_framework.openai import OpenAIChatCompletionClient
+
+# modello piccolo (locale, via Ollama): gestisce gli agenti con tool
+small = OpenAIChatCompletionClient(
+    "llama3.2:3b-instruct-q4_K_M",           # nome esatto come in `ollama list`
+    base_url="http://localhost:11434/v1",
+    api_key="ollama",                         # Ollama ignora la chiave, ma serve un valore
+)
+
+# modello per classificatore e traduttore: per ora lo stesso locale
+gpt5 = small
+
+
+
+Per un modello cloud su OpenRouter, al posto di small:
+cloud = OpenAIChatCompletionClient(
+    "il/nome-del-modello",                    # come nell'elenco di OpenRouter
+    base_url="https://openrouter.ai/api/v1",
+    api_key=os.getenv("OPENROUTER_API_KEY"),
+)
+
+
+
+non fatto:  in cima ad agents.py cancella la riga from client import HuggingFaceChatClient

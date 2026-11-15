@@ -1,0 +1,97 @@
+{
+  "budget_preregistrato": {
+    "budget_base_w": 0.924075,
+    "calcolato_utc": "2026-11-14T22:58:08+00:00",
+    "budget_mode": "short",
+    "tc_duration_s": 2.930748,
+    "n_terne": 3,
+    "n_per_aggregato": 1,
+    "durata_aggregato_s": 2.930748,
+    "n_finestre_usate": 6,
+    "durata_totale_misura_s": 17.584488,
+    "canale": "emi-counter",
+    "finestre_pre": [
+      {
+        "label": "pre-1",
+        "delta_j": 103.14581500075292,
+        "dt_s": 2.939085999998497,
+        "power_w": 35.09452088193597,
+        "channel": "emi-counter",
+        "durata_nominale_s": 2.930748
+      },
+      {
+        "label": "pre-2",
+        "delta_j": 108.02233800000977,
+        "dt_s": 3.095922500011511,
+        "power_w": 34.8918094686182,
+        "channel": "emi-counter",
+        "durata_nominale_s": 2.930748
+      },
+      {
+        "label": "pre-3",
+        "delta_j": 97.5538839995861,
+        "dt_s": 2.93101149998256,
+        "power_w": 33.283350815978224,
+        "channel": "emi-counter",
+        "durata_nominale_s": 2.930748
+      }
+    ],
+    "finestre_post": [
+      {
+        "label": "post-1",
+        "delta_j": 104.56290600122884,
+        "dt_s": 2.9363569999986794,
+        "power_w": 35.60973887074217,
+        "channel": "emi-counter",
+        "durata_nominale_s": 2.930748
+      },
+      {
+        "label": "post-2",
+        "delta_j": 99.52021900075488,
+        "dt_s": 2.9309943999978714,
+        "power_w": 33.95442140756978,
+        "channel": "emi-counter",
+        "durata_nominale_s": 2.930748
+      },
+      {
+        "label": "post-3",
+        "delta_j": 103.35656999889761,
+        "dt_s": 2.9312968000012916,
+        "power_w": 35.2596741479239,
+        "channel": "emi-counter",
+        "durata_nominale_s": 2.930748
+      }
+    ],
+    "unita_pre_w": [
+      35.09452088193597,
+      34.8918094686182,
+      33.283350815978224
+    ],
+    "unita_post_w": [
+      35.60973887074217,
+      33.95442140756978,
+      35.2596741479239
+    ],
+    "baseline": {
+      "baseline_pre_w": 34.891809,
+      "baseline_post_w": 35.259674,
+      "pre_windows_w": "35.094521;34.891809;33.283351",
+      "post_windows_w": "35.609739;33.954421;35.259674",
+      "pre_range_w": 1.81117,
+      "dP": 0.367865,
+      "half_range_pre_w": 0.905585,
+      "half_drift_w": 0.183932,
+      "budget_base_w": 0.924075
+    },
+    "regola_aggregazione": "benchmark_v4.block_baseline (P1.5-P1.7, F.1/F.4) chiamata verbatim sulle unita' di durata Tc; pre_range/2 e |dP|/2 in quadratura",
+    "scala_30_s_applicata": false,
+    "codecarbon_usato": false,
+    "assunzioni": [
+      "il fondo e' letto dal contatore di package (read_idle_window_j), lo stesso canale di calibrate_idle e dell'audit P6.3: non e' un integrale di campioni",
+      "le 3 unita' pre e le 3 post sono misurate in due gruppi consecutivi non sovrapposti: dP e' la deriva fra i due gruppi, come in P1.5, e non si assume nulla",
+      "un delta negativo o una lettura assente fermano la misura: nessun clamp a zero e nessuna degradazione silenziosa",
+      "budget_base_w e' un proxy conservativo di incertezza standard, non una deviazione standard (P4.12: con n = 3 non si stima una varianza) e la quadratura non e' un limite massimo garantito (P1.7)",
+      "la procedura e' pre-registrata nel piano (budget_mode) e verificata da _verifica_piano PRIMA di qualunque misura"
+    ]
+  }
+}

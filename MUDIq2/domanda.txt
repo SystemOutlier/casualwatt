@@ -1,0 +1,17 @@
+Test: Quando il notebook ti chiederà la domanda, incolla questa per testare l'inferenza posterior:
+"Given that the driving quality is normal, how likely is it that the age of the driver is senior?"
+
+Cosa dovresti vedere se tutto funziona:
+🏷️ Label: posterior
+📝 Dictionary: {"input": {"DrivQuality": "Normal"}, "output": {"Age": "Senior"}}
+✅ Risposta Finale: Un numero molto vicino a 0.2117 (il valore expected_probability del ground truth per CP1), accompagnato da una breve spiegazione causale.
+
+
+Il mio consiglio: usa qwen2.5:7b per il translator (dove la precisione JSON è critica) e llama3.1:8b per il classificator e causal_A (dove il ragionamento è più importante).
+
+
+
+Esegui le celle in ordine. Quando il notebook ti chiederà "Inserisci la tua domanda causale: ", incolla una di queste frasi di test:
+Posterior: "Given that the driving quality is normal, how likely is it that the age of the driver is senior?"
+Intervention: "How do you expect the probability of having a severe car damage if the mileage count is changed to twenty thousand?"
+Counterfactual: "If a person’s risk aversion were ‘Cautious’ rather than ‘Psychopath’, how much would this change the likelihood of their driving being excellent?"

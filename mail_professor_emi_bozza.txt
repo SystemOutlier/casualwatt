@@ -1,0 +1,32 @@
+Oggetto: CasualWatt — progetto di benchmark energetico per LLM (allegato: metodologie e metriche)
+
+Egregio Professor Emi,
+
+La ringrazio per il riscontro e per l'indicazione di procedere un passo alla volta.
+
+Le allego un breve documento PDF che presenta il progetto CasualWatt: un framework di misura e benchmark per l'energia consumata dall'inferenza di Large Language Model, sia in esecuzione locale su hardware consumer Windows sia via API cloud.
+
+Il documento è strutturato in due parti:
+
+1. **Introduzione del progetto** — espone in sintesi cos'è CasualWatt, cosa misura (energia package CPU, GPU, rete, cloud), il modello di attribuzione incrementale con scorporo del giudice, lo schema dati tracciabile (174 colonne di riga) e lo stato di maturità (protocollo v4 congelato P1–P5, P6 aperto; gate P4.4 eseguito con verdetto fail, nessuna riga marcata "validated").
+
+2. **Punto 2 — Metodologie scientifiche per la valutazione energetica degli LLM** — definizioni, caratteristiche, pregi e difetti, cosa misurano e quando è preferibile l'una piuttosto che l'altra, per ciascuna delle seguenti metriche e metodologie:
+   - contatore MSR del package CPU (EMI / PawnIO);
+   - NVML (NVIDIA) e AMD SMI per la GPU;
+   - baseline di idle e energia incrementale (Ê_att = E_pkg^raw − E_base, firmata, mai clampata);
+   - quota di tempo CPU per l'attribuzione al processo (cpu_time_share);
+   - EcoLogits per la stima cloud;
+   - stima di rete (J/bit);
+   - metriche derivate per query (J/token di output, J/risposta corretta, ecc.).
+
+Ogni affermazione è ancorata al codice in `cwEnergyModular/` e ai file di protocollo in `experiment_results/`; i riferimenti bibliografici (Schwartz et al. 2020, Strubell et al. 2019, Rincé & Banse 2025 per EcoLogits, Niu et al. 2025 per TokenPowerBench, Tschand et al. 2025 per MLPerf Power, JCGM/GUM per l'incertezza, Hahnel et al. per RAPL, Baliga et al. 2011 per la rete) sono verificati alla fonte primaria e presenti in `references.bib`.
+
+Resto a sua disposizione per approfondire ogni singolo punto, uno alla volta, come lei suggeriva.
+
+Cordiali saluti,
+
+[Nome]
+
+---
+
+Allegato: CasualWatt_punto2_metodologie.pdf

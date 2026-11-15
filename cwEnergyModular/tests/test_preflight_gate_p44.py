@@ -363,6 +363,8 @@ def test_preflight_reale_piano_terza_campagna(monkeypatch, tmp_path):
     # budget: sulla copia sul disco la guardia passa. Qui si verifica invece
     # che la guardia BLOCCA quando quei parametri mancano, costruendo un
     # piano incompleto in tmp_path (il congelato non si tocca).
+    # Serve anche copiare idle_characterization.json perche' _verifica_piano
+    # ora verifica la catena di provenienza piano -> caratterizzazione idle.
     incompleto = {k: v for k, v in piano.items()
                   if k not in ("warmup_tolerance_w", "warmup_cpu_max_pct",
                                "warmup_sustain_s", "warmup_cap_s",
@@ -371,6 +373,17 @@ def test_preflight_reale_piano_terza_campagna(monkeypatch, tmp_path):
                                "budget_matched_target_s", "criterio_primario")}
     piano_tmp = tmp_path / rg.PLAN_NAME
     piano_tmp.write_text(json.dumps(incompleto), encoding="utf-8")
+    # Copia idle_characterization.json dalla campagna 20261109 (il piano
+    # non ha idle_characterization_sha256 perche' e' un piano v1, ma la
+    # guardia ora lo richiede. Per il test creiamo uno minimale con la soglia
+    # cpu che il piano incompleto dichiara (2.0).)
+    char_minimale = {
+        "schema_version": 1,
+        "warmup_cpu_max_pct": piano["warmup_cpu_max_pct"],
+        "sha256": "0" * 64,  # placeholder, il test non verifica l'hash
+    }
+    (tmp_path / "idle_characterization.json").write_text(
+        json.dumps(char_minimale), encoding="utf-8")
     monkeypatch.setattr(rg, "ARCHIVE_DIR", tmp_path)
     with pytest.raises(SystemExit, match="warm-up"):
         rg._verifica_piano()

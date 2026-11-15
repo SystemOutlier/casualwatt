@@ -1,0 +1,14 @@
+{
+  "phases": [
+    {
+      "phase_id": "prep-r5",
+      "config_id": "prep",
+      "replica": 5,
+      "t_start_utc": "2026-11-06T14:38:04",
+      "t_end_utc": "2026-11-06T14:45:30",
+      "d_ollama_s": 1156.2,
+      "d_busy_s": 1477.7
+    }
+  ],
+  "band": null
+}

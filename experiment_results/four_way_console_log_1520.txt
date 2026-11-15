@@ -1,0 +1,259 @@
+[codecarbon WARNING @ 14:47:25] Multiple instances of codecarbon are allowed to run at the same time.
+[codecarbon INFO @ 14:47:26] Emissions data (if any) will be saved to file C:\Users\Massimo\Documents\CasualWatt\CWProject\experiment_results\codecarbon_four_way\emissions.csv
+[codecarbon INFO @ 14:47:27] [setup] RAM Tracking...
+[codecarbon INFO @ 14:47:27] [setup] CPU Tracking...
+[codecarbon INFO @ 14:47:27] [setup] GPU Tracking...
+[codecarbon INFO @ 14:47:27] No GPU found.
+[codecarbon WARNING @ 14:47:29] We saw that you have a 13th Gen Intel(R) Core(TM) i9-13900HK but we don't know it. Please contact us.
+[codecarbon WARNING @ 14:47:29] We will use the default power consumption of 4 W per thread for your 20 CPU, so 80W.
+[codecarbon WARNING @ 14:47:29] No CPU tracking mode found. Falling back on estimation based on TDP for CPU. 
+ Windows OS detected: Please install Intel Power Gadget to measure CPU
+
+[codecarbon INFO @ 14:47:29] CPU Model on constant consumption mode: 13th Gen Intel(R) Core(TM) i9-13900HK
+[codecarbon WARNING @ 14:47:29] No CPU tracking mode found. Falling back on CPU load mode.
+[codecarbon INFO @ 14:47:29] The below tracking methods have been set up:
+                RAM Tracking Method: RAM power estimation model
+                CPU Tracking Method: cpu_load
+                GPU Tracking Method: Unspecified
+            
+[codecarbon INFO @ 14:47:29] >>> Tracker's metadata:
+[codecarbon INFO @ 14:47:29]   Platform system: Windows-11-10.0.26200-SP0
+[codecarbon INFO @ 14:47:29]   Python version: 3.14.5
+[codecarbon INFO @ 14:47:29]   CodeCarbon version: 3.2.9
+[codecarbon INFO @ 14:47:29]   Available RAM : 31.702 GB
+[codecarbon INFO @ 14:47:29]   CPU count: 20 thread(s) in 1 physical CPU(s)
+[codecarbon INFO @ 14:47:29]   CPU model: 13th Gen Intel(R) Core(TM) i9-13900HK
+[codecarbon INFO @ 14:47:29]   GPU count: 0
+[codecarbon INFO @ 14:47:29]   GPU model: 
+[codecarbon INFO @ 14:47:29] Energy consumed for RAM : 0.000000 kWh. RAM Power : 20.0 W
+[codecarbon INFO @ 14:47:29] Delta energy consumed for CPU with cpu_load : 0.000000 kWh, power : 8.0 W
+[codecarbon INFO @ 14:47:29] Energy consumed for All CPU : 0.000000 kWh
+[codecarbon INFO @ 14:47:29] 0.000000 kWh of electricity and 0.000000 L of water were used since the beginning.
+[codecarbon INFO @ 14:47:44] Energy consumed for RAM : 0.000084 kWh. RAM Power : 20.0 W
+[codecarbon INFO @ 14:47:44] Delta energy consumed for CPU with cpu_load : 0.000053 kWh, power : 12.8 W
+[codecarbon INFO @ 14:47:44] Energy consumed for All CPU : 0.000053 kWh
+[codecarbon INFO @ 14:47:44] 0.000137 kWh of electricity and 0.000000 L of water were used since the beginning.
+[codecarbon INFO @ 14:47:59] Energy consumed for RAM : 0.000167 kWh. RAM Power : 20.0 W
+[codecarbon INFO @ 14:47:59] Delta energy consumed for CPU with cpu_load : 0.000058 kWh, power : 14.0345 W
+[codecarbon INFO @ 14:47:59] Energy consumed for All CPU : 0.000112 kWh
+[codecarbon INFO @ 14:47:59] 0.000279 kWh of electricity and 0.000000 L of water were used since the beginning.
+[codecarbon INFO @ 14:48:14] Energy consumed for RAM : 0.000250 kWh. RAM Power : 20.0 W
+[codecarbon INFO @ 14:48:14] Delta energy consumed for CPU with cpu_load : 0.000064 kWh, power : 15.326516829500001 W
+[codecarbon INFO @ 14:48:14] Energy consumed for All CPU : 0.000176 kWh
+[codecarbon INFO @ 14:48:14] 0.000426 kWh of electricity and 0.000000 L of water were used since the beginning.
+[codecarbon INFO @ 14:48:22] Energy consumed for RAM : 0.000293 kWh. RAM Power : 20.0 W
+[codecarbon INFO @ 14:48:22] Delta energy consumed for CPU with cpu_load : 0.000018 kWh, power : 8.399256776 W
+[codecarbon INFO @ 14:48:22] Energy consumed for All CPU : 0.000194 kWh
+[codecarbon INFO @ 14:48:22] 0.000487 kWh of electricity and 0.000000 L of water were used since the beginning.
+[codecarbon WARNING @ 14:48:22] Unable to access geographical location through primary API. Will resort to using the backup API - Exception : Region is empty - url=https://get.geojs.io/v1/ip/geo.json
+[codecarbon WARNING @ 14:49:55] Tracker already stopped !
+[codecarbon INFO @ 14:49:55] Energy consumed for RAM : 0.000813 kWh. RAM Power : 20.0 W
+[codecarbon INFO @ 14:49:55] Delta energy consumed for CPU with cpu_load : 0.000681 kWh, power : 26.175389696 W
+[codecarbon INFO @ 14:49:55] Energy consumed for All CPU : 0.000875 kWh
+[codecarbon INFO @ 14:49:55] 0.001688 kWh of electricity and 0.000000 L of water were used since the beginning.
+[codecarbon WARNING @ 14:50:40] Tracker already stopped !
+[codecarbon INFO @ 14:50:40] Energy consumed for RAM : 0.001064 kWh. RAM Power : 20.0 W
+[codecarbon INFO @ 14:50:40] Delta energy consumed for CPU with cpu_load : 0.000109 kWh, power : 8.695778984 W
+[codecarbon INFO @ 14:50:40] Energy consumed for All CPU : 0.000984 kWh
+[codecarbon INFO @ 14:50:40] 0.002048 kWh of electricity and 0.000000 L of water were used since the beginning.
+LHM_OK
+[OK] EMI + CasualWatt(LHM) attivi.
+Calibrazione sensore HWiNFO 'CPU Package' vs EMI (~12 s)...
+[WARN] HWiNFO non disponibile -> 3 sorgenti. OSError: OpenFileMapping fallita (err=2): la Shared Memory di HWiNFO non e' esposta. Abilita 'Shared Memory Support' in Impostazioni -> Generale/Interfaccia utente (manuale p.14) e tieni attiva la finestra sensori.
+[OK] CodeCarbon attivo; backend = RAM(), CPU(Cpu Load)
+Warm-up modello (fuori misura)...
+--- fase idle (45 s) ---
+--- fase load (90 s) ---
+--- fase idle2 (45 s) ---
+
+--- LHM vs EMI, stesso run, due modi di confrontare ---
+idle   istantaneo: LHM 12.08 W / EMI 11.84 W = 1.0204 (dt mediano tick 1.0 s, n 44 coppie)   | finestra uguale: LHM 11.93 W / EMI 11.95 W = 0.9986 (n 158 campioni buffer, dt 0.28 s) 
+load   istantaneo: LHM 25.53 W / EMI 22.63 W = 1.1284 (dt mediano tick 4.03 s, n 21 coppie)   | finestra uguale: LHM 22.67 W / EMI 22.48 W = 1.0082 (n 301 campioni buffer, dt 0.298 s) 
+idle2  istantaneo: LHM 12.22 W / EMI 12.54 W = 0.9739 (dt mediano tick 1.0 s, n 44 coppie)   | finestra uguale: LHM 12.48 W / EMI 12.54 W = 0.9947 (n 156 campioni buffer, dt 0.28 s) 
+{
+  "timestamp": "20261023_145041",
+  "wall_zero": "2026-10-23T14:47:36.934",
+  "fasi": [
+    [
+      "idle",
+      45.0
+    ],
+    [
+      "load",
+      90.0
+    ],
+    [
+      "idle2",
+      45.0
+    ]
+  ],
+  "fasi_durata_reale_s": {
+    "idle": 45.217,
+    "load": 92.03,
+    "idle2": 45.104
+  },
+  "tokens_load": 736,
+  "per_fase": {
+    "idle": {
+      "n": 45,
+      "emi_J": 523.44,
+      "emi_meter_s": 44.22,
+      "emi_W": 11.84,
+      "lhm_mean_W": 12.25,
+      "lhm_sd_W": 2.52,
+      "modo_debole_lhm_W": 12.08,
+      "modo_debole_emi_W": 11.84,
+      "modo_debole_rapporto": 1.0204,
+      "modo_debole_dt_mediano_tick_s": 1.0,
+      "modo_debole_n_coppie": 44,
+      "cw_J_fase": 534.47,
+      "cw_s_fase": 44.806,
+      "cw_t0_mono": 662670.427,
+      "cw_t1_mono": 662715.233,
+      "cw_W_finestra_uguale": 11.93,
+      "cw_n_campioni": 158,
+      "cw_dt_mediano_s": 0.28,
+      "cw_ritagliato_s": 0.411,
+      "cw_win_note": null,
+      "emi_J_finestra_uguale": 535.213,
+      "emi_W_finestra_uguale": 11.95,
+      "rapporto_cw_div_EMI_finestra_uguale": 0.9986,
+      "hw_n": 0,
+      "hw_mean_W": null,
+      "hw_sd_W": null
+    },
+    "load": {
+      "n": 22,
+      "emi_J": 1911.59,
+      "emi_meter_s": 84.51,
+      "emi_W": 22.62,
+      "lhm_mean_W": 25.41,
+      "lhm_sd_W": 2.72,
+      "modo_debole_lhm_W": 25.53,
+      "modo_debole_emi_W": 22.63,
+      "modo_debole_rapporto": 1.1284,
+      "modo_debole_dt_mediano_tick_s": 4.03,
+      "modo_debole_n_coppie": 21,
+      "cw_J_fase": 2079.705,
+      "cw_s_fase": 91.748,
+      "cw_t0_mono": 662717.24,
+      "cw_t1_mono": 662808.988,
+      "cw_W_finestra_uguale": 22.67,
+      "cw_n_campioni": 301,
+      "cw_dt_mediano_s": 0.298,
+      "cw_ritagliato_s": 0.282,
+      "cw_win_note": null,
+      "emi_J_finestra_uguale": 2062.841,
+      "emi_W_finestra_uguale": 22.48,
+      "rapporto_cw_div_EMI_finestra_uguale": 1.0082,
+      "hw_n": 0,
+      "hw_mean_W": null,
+      "hw_sd_W": null
+    },
+    "idle2": {
+      "n": 45,
+      "emi_J": 553.24,
+      "emi_meter_s": 44.1,
+      "emi_W": 12.54,
+      "lhm_mean_W": 12.54,
+      "lhm_sd_W": 2.76,
+      "modo_debole_lhm_W": 12.22,
+      "modo_debole_emi_W": 12.54,
+      "modo_debole_rapporto": 0.9739,
+      "modo_debole_dt_mediano_tick_s": 1.0,
+      "modo_debole_n_coppie": 44,
+      "cw_J_fase": 550.336,
+      "cw_s_fase": 44.104,
+      "cw_t0_mono": 662809.281,
+      "cw_t1_mono": 662853.385,
+      "cw_W_finestra_uguale": 12.48,
+      "cw_n_campioni": 156,
+      "cw_dt_mediano_s": 0.28,
+      "cw_ritagliato_s": 0.0,
+      "cw_win_note": null,
+      "emi_J_finestra_uguale": 553.242,
+      "emi_W_finestra_uguale": 12.54,
+      "rapporto_cw_div_EMI_finestra_uguale": 0.9947,
+      "hw_n": 0,
+      "hw_mean_W": null,
+      "hw_sd_W": null
+    }
+  },
+  "codecarbon_per_fase": [
+    {
+      "fase": "idle",
+      "cum_duration_s": 54.349,
+      "delta_duration_s": 54.349,
+      "delta_cpu_energy_J": 698.12,
+      "cpu_power_W_fase": 12.85
+    },
+    {
+      "fase": "load",
+      "cum_duration_s": 146.446,
+      "delta_duration_s": 92.097,
+      "delta_cpu_energy_J": 2450.63,
+      "cpu_power_W_fase": 26.61
+    },
+    {
+      "fase": "idle2",
+      "cum_duration_s": 191.561,
+      "delta_duration_s": 45.115,
+      "delta_cpu_energy_J": 392.3,
+      "cpu_power_W_fase": 8.7
+    }
+  ],
+  "codecarbon_backend": [
+    "RAM()",
+    "CPU(Cpu Load)"
+  ],
+  "codecarbon_notes": [],
+  "confronto": {
+    "EMI_W_base": 12.19,
+    "EMI_W_load": 22.62,
+    "EMI_incrementale_J": 881.4,
+    "EMI_J_per_token": 1.1976,
+    "LHM_W_base": 12.39,
+    "LHM_W_load": 25.41,
+    "LHM_incrementale_W": 13.02,
+    "LHM_incrementale_J": 1171.8,
+    "LHM_finestra_uguale_W_base": 12.21,
+    "LHM_finestra_uguale_W_load": 22.67,
+    "LHM_finestra_uguale_incrementale_J": 960.6,
+    "EMI_finestra_uguale_W_base": 12.24,
+    "EMI_finestra_uguale_W_load": 22.48,
+    "EMI_finestra_uguale_incrementale_J": 939.0,
+    "rapporto_LHM_div_EMI_incrementale_finestra_uguale": 1.023,
+    "J_per_token_LHM_finestra_uguale": 1.3052,
+    "rapporto_LHM_div_EMI_J_per_token_finestra_uguale": 1.0898,
+    "CodeCarbon_W_base": 10.77,
+    "CodeCarbon_W_load": 26.61,
+    "CodeCarbon_incrementale_W": 15.84,
+    "HWiNFO_W_base": null,
+    "HWiNFO_W_load": null,
+    "HWiNFO_incrementale_W": null,
+    "HWiNFO_incrementale_J": null,
+    "J_per_token_LHM": 1.5921,
+    "J_per_token_HWiNFO": null,
+    "offset_LHM_meno_EMI_W": 0.21,
+    "offset_HWiNFO_meno_EMI_W": null
+  },
+  "confronto_note": "EMI = contatore hardware cumulativo PKG, riferimento di scala; SRUM (secondo consumatore degli stessi contatori) lo replica a +/-4% su finestre identiche, quindi la decodifica ctypes e' corretta ma SRUM NON e' un arbitro indipendente. LHM = power-integration di produzione: dopo il guard su SensorType (energy_session.py _read_power_w_direct, 23/10) il match per nome non cade piu' sull'omonimo sensore Temperature (IntelCpu.cs:401) e l'offset LHM-EMI e' passato da +54,5 W a +0,22 W (lhm_readpath_probe_20261023_132621). CodeCarbon su questa macchina = modello cpu_load (80 W * (0.1 + 0.9*load^3)), NON una misura: termine di confronto metodologico, non arbitro. HWiNFO = package letto dalla Shared Memory (calibrato a caldo vs EMI), testimone NON passivo perche' il suo polling e' carico CPU. *_finestra_uguale = LHM integrato con trapezio sul buffer del thread di produzione e EMI interpolato sull'asse mono dei tick, sulla STESSA finestra [inizio fase, fine fase]: il rapporto e' same-window e same-clock, e non dipende piu' dal punto in cui il tick 1 Hz capita (sul load il tick e' bloccato dalla richiesta Ollama). I J/token di LHM e HWiNFO senza suffisso usano invece (W_load - W_base) * durata_fase con i soli campioni istantanei: sono quelli metodologicamente piu' deboli e restano nel JSON solo come termine di confronto.",
+  "pi_csv": "four_way_20261023_145041_pi.csv",
+  "hwinfo": "ASSENTE",
+  "hwinfo_note": "OSError: OpenFileMapping fallita (err=2): la Shared Memory di HWiNFO non e' esposta. Abilita 'Shared Memory Support' in Impostazioni -> Generale/Interfaccia utente (manuale p.14) e tieni attiva la finestra sensori."
+}
+[OK] C:\Users\Massimo\Documents\CasualWatt\CWProject\experiment_results\four_way_20261023_145041.csv
+[OK] C:\Users\Massimo\Documents\CasualWatt\CWProject\experiment_results\four_way_20261023_145041_pi.csv
+[OK] C:\Users\Massimo\Documents\CasualWatt\CWProject\experiment_results\four_way_20261023_145041.json
+
+Eccezione non gestita: Python.Runtime.InternalPythonnetException: Failed to create Python type for System.NullReferenceException ---> System.NullReferenceException: Riferimento a un oggetto non impostato su un'istanza di oggetto.
+   in Python.Runtime.TypeManager.AllocateTypeObject(String name, PyType metatype)
+   in Python.Runtime.ReflectedClrType.AllocateClass(Type clrType)
+   in Python.Runtime.ReflectedClrType.GetOrCreate(Type type)
+   --- Fine della traccia dello stack dell'eccezione interna ---
+   in Python.Runtime.ReflectedClrType.GetOrCreate(Type type)
+   in Python.Runtime.Converter.ToPython(Object value, Type type)
+   in Python.Runtime.Exceptions.SetError(Exception e)
+   in Python.Runtime.MethodBinder.Invoke(BorrowedReference inst, BorrowedReference args, BorrowedReference kw, MethodBase info, MethodBase[] methodinfo)
+   in Python.Runtime.MethodObject.Invoke(BorrowedReference target, BorrowedReference args, BorrowedReference kw, MethodBase info)
+   in Python.Runtime.MethodBinding.tp_call(BorrowedReference ob, BorrowedReference args, BorrowedReference kw)

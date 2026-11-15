@@ -1,0 +1,13 @@
+task_id;prompt;ground_truth;answer_type
+t01;Un carico CPU dissipa 45 watt per 8 secondi. Quanti joule di energia eroga? Rispondi con il solo numero.;360|360 J;number
+t02;Un'inferenza consuma 12 joule in 4 secondi. Qual è la potenza media in watt? Rispondi con il solo numero.;3|3 W;number
+t03;Un modello genera 40 token di output in 4 secondi. Qual è la velocità media in token al secondo? Rispondi con il solo numero.;10;number
+t04;La potenza di baseline a CPU inattiva è 12 W e sotto carico è 30 W. Quanto vale il delta di potenza in watt? Rispondi con il solo numero.;18|18 W;number
+t05;La finestra di assestamento (settling) del benchmark dura 30 secondi. Quanti millisecondi sono? Rispondi con il solo numero.;30000|30000 ms;number
+t06;Una richiesta consuma 0.5 W di potenza netta per 10 secondi. Quanti joule di energia netta sono? Rispondi con il solo numero.;5|5 J;number
+t07;Su 10 richieste di valutazione un modello risponde correttamente a 3. Qual è l'accuratezza in percentuale? Rispondi con il solo numero.;30;number
+t08;Qual è la capitale d'Italia? Rispondi con il solo nome della città.;Roma;short_text
+t09;Qual è l'unità di misura dell'energia nel Sistema Internazionale? Rispondi con il solo nome.;joule;short_text
+t10;Quale grandezza fisica si misura in watt? Rispondi con il solo nome.;potenza;short_text
+t11;Il registro MSR 0x611 delle CPU Intel espone lo stato energetico di quale componente? Rispondi con una sola parola.;package;short_text
+t12;Nel metodo di misura di CasualWatt, come si chiama la potenza di riferimento misurata a CPU quasi inattiva e usata come correzione? Rispondi con una sola parola.;baseline;short_text

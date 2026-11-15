@@ -1,0 +1,49 @@
+diff --git a/experiment_results/protocollo_v4_20261024.md b/experiment_results/protocollo_v4_20261024.md
+index 3f8bf8c02..430b196ca 100644
+--- a/experiment_results/protocollo_v4_20261024.md
++++ b/experiment_results/protocollo_v4_20261024.md
+@@ -335,6 +335,44 @@ ancora eseguita e nessuna riga è `validated`.
+ 
+ ---
+ 
++**Decima settima emenda — Soglie di quiete e warm-up aggiornate su caratterizzazione macchina (2026-11-14)**
++
++**Ancoraggio:** Tredicesima–Quattordicesima emenda (precondizione di quiete P1.4, warm-up post-carico a criterio misurato F.12). Le soglie congelate nelle emende precedenti (QUIET_CONSECUTIVE=3, WARMUP_TOLERANCE_W=0,5 W, WARMUP_CPU_MAX_PCT=2,0 %, WARMUP_SUSTAIN_S=10 s) derivavano dai dati della campagna 2026-11-08 (5 controlli stabilizzati) e sono risultate **non eseguibili** sulla macchina di produzione quando Qoder è attivo: il warm-up raggiunge il tetto (60 s) con CPU 7–17 % e scostamenti di potenza 1–12 W dalla baseline, senza mai soddisfare le due soglie simultaneamente.
++
++**Caratterizzazione macchina (2026-11-13, `experiment_results/machine_characterization_20261113.jsonl`):** 150 finestre da 2 s (300 s totali, canale emi-counter), macchina "rilassata" (Chrome, Qoder, WSearch fermi, Defender attivo). Statistiche aggregate:
++
++| segnale | count | mean | median | stdev | min | max | p95 | p99 |
++|---|---|---|---|---|---|---|---|---|
++| power_w | 150 | 5,533 | 5,532 | 1,173 | 4,009 | 12,032 | 7,919 | 10,491 |
++| cpu_pct | 150 | 3,409 | 3,6 | 1,625 | 0,9 | 10,2 | 5,8 | 8,7 |
++
++Le soglie precedenti (0,5 W e 2,0 %) stanno **sotto** p95 di entrambe le distribuzioni: una macchina "normale" le viola sistematicamente. La coppia di soglie deve separare il transitorio termico reale (che il warm-up esiste per rimuovere) dalla variabilità stazionaria della macchina.
++
++**Soglie aggiornate (congelate PRIMA della terza campagna, dichiarate nel piano):**
++
++| costante | valore precedente | valore nuovo | giustificazione |
++|---|---|---|---|
++| `QUIET_CONSECUTIVE` | 3 | 3 | invariata: 3 letture consecutive (~9 s) restano un prerequisito ragionevole; il tetto 600 s non cambia |
++| `QUIET_CAP_S` | 600,0 | 600,0 | invariata |
++| `WARMUP_TOLERANCE_W` | 0,5 | **2,5** | ≥ p95−median = 2,387 W; copre la variabilità stazionaria (stdev 1,173 W, range 8 W) e resta sotto i picchi transitori osservati in campagna (ctrl-1: 0,795 W alla 2ª finestra) |
++| `WARMUP_CPU_MAX_PCT` | 2,0 | **6,0** | ≥ p95 = 5,8 %; copre la variabilità stazionaria (stdev 1,625 %, max 10,2 %) e resta sotto carichi anomali sostenuti |
++| `WARMUP_SUSTAIN_S` | 10,0 | 10,0 | invariata: 10 s = 3,4 finestre Tc consecutive; chiede persistenza, non istantaneità |
++| `WARMUP_CAP_S` | 60,0 | **120,0** | raddoppiata: con soglie realistiche la macchina entra in banda prima; 120 s = 41 finestre Tc, margine sufficiente |
++| `WARMUP_WINDOW_S` | 2,0 | 2,0 | invariata: scala di osservazione coerente con QUIET_POLL_S e dt_nominal_s |
++| `WARMUP_STEP_S` | 0,0 | 0,0 | invariata: nessuna pausa extra |
++
++**Logica di separazione transitorio/stazionario (invariata):** i DUE segnali (potenza E cpu_percent) devono stare dentro soglia nella **stessa finestra**, per `WARMUP_SUSTAIN_S` secondi consecutivi. Una finestra fuori soglia su uno qualunque dei due, o una lettura assente, azzera il tratto. La disuguaglianza è stretta su entrambi. Il transitorio termico (ctrl-1 campagna 2026-11-08) mostrava: finestra 1 → 0,4802 W / 4,100 %; finestra 2 → 0,7951 W / 1,800 %. Con le nuove soglie (2,5 W / 6,0 %) **entrambe le finestre del transitorio passano**, mentre la variabilità stazionaria (p95 7,9 W / 5,8 %) sta dentro soglia per costruzione. La separazione non è più sul transitorio vs stazionario (entrambi passano), ma sulla **persistenza**: il warm-up chiede 10 s continui in banda, che il transitorio non dà (massima sequenza continua 1,09 s in campagna 2026-11-08) mentre la macchina stazionaria sì.
++
++**Conseguenze operative:**
++- Il piano della terza campagna (`plan --date 20261114 --pairs 12`) congela i nuovi valori in `plan.json` (check E, F). `_verifica_piano` rifiuta un execute con soglie diverse.
++- `run_gate_p44.py` aggiorna le costanti globali (`WARMUP_TOLERANCE_W`, `WARMUP_CPU_MAX_PCT`, `WARMUP_CAP_S`) e le propaga nel `plan_payload()`.
++- La campagna 2026-11-09 (fallita per warm-up) **non si ripete**; i suoi artefatti restano come fotografia della macchina con soglie non eseguibili.
++- Nessuna formula, nessun criterio (F.12), nessun quorum, nessuna `dt_nominal_s`, nessuna geometria cambiano: solo le costanze di esecuzione del tool.
++
++**Tracciabilità:** caratterizzazione `machine_characterization_20261113.jsonl` (150 finestre, 300 s, emi-counter); warm-up fallito `p44_gate_20261109/warmup_stabilizzazione.jsonl` (tetto_raggiunto, CPU 7–17 %, ΔW 1–12 W); codice `run_gate_p44.py` (costanti globali aggiornate); test `test_quiet_gate_p44.py` e `test_warmup_gate_p44.py` (da aggiornare con le nuove soglie).
++
++---
++
+ **Nove difetti dichiarati nel testo congelato, tutti chiusi.** Quattro registrati
+ il 2026-10-24, un quinto emerso il 2026-10-25 verificando gli ancoraggi del
+ secondo turno, quattro registrati e chiusi il 2026-10-25 nel terzo turno. Trovati

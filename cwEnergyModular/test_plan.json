@@ -1,0 +1,17 @@
+{
+ "method": "emi-vs-wattmeter",
+ "mode": "dry-run",
+ "planned_port": "COM3",
+ "planned_baud": 9600,
+ "planned_seconds": 300.0,
+ "criteria": {
+  "level_pass_w": 1.0,
+  "cadence_tol": 0.1,
+  "cadence_target_s": 1.0,
+  "min_window_s": 300.0,
+  "rules": "1. |P_EMI - P_WATTMETER| <= 1.0 W (soglia congelata); 2. Cadenza EMI entro 10% di 1.0 s (soglia congelata); 3. Finestra minima 300 s per mediare quantizzazione MSR; 4. Nota: concordanza != validazione scala assoluta (grandezze fisiche diverse)"
+ },
+ "emi_backend": "MSR_PKG_ENERGY_STATUS (0x611) via SetupAPI/ctypes",
+ "wattmeter_protocol": "SCPI (MEAS:POW? o MEAS:POW:AC?)",
+ "note": "Esegui senza --dry-run per validazione reale. Richiede pyserial e wattmetro connesso."
+}

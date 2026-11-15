@@ -1,0 +1,4 @@
+﻿run_id;phase;method;energy_j;dt_s;power_w;tokens_in;tokens_out;pids;window_source;pi_measured_interval_s;e_inc_j;j_per_token;prefill_s;decoding_s;keep_alive;target_tokens_in;top_processes;emi_available
+1;base_a;power-integration;144.830087;10.001;14.4822;0;0;;counter-delta-fallback;0.2817;;;;;5m;;;si
+1;load;power-integration;781.489511;30.381;25.7231;378;319;16000;counter-delta-fallback;0.3082;364.207225;1.141715;0.2914;29.9692;5m;64;"nessuno | llama-server.exe=949%;System Idle Process=501%;brave.exe=78%";si
+1;base_b;power-integration;129.884059;10.0;12.9879;0;0;;counter-delta-fallback;0.2857;;;;;5m;;;si

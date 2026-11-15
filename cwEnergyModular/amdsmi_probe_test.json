@@ -1,0 +1,31 @@
+{
+  "probe": "amdsmi_probe",
+  "python_platform": "win32",
+  "timestamp": "2026-11-12T16:42:35",
+  "index_requested": null,
+  "amd_smi": {
+    "backend": "amdsmi",
+    "index_requested": null,
+    "timestamp": "2026-11-12T16:42:35",
+    "steps": {
+      "init_latency_s": 0.0003783702850341797,
+      "available": false,
+      "error": "ModuleNotFoundError",
+      "device_count": 0,
+      "device_selection": "non dichiarato",
+      "device_note": "",
+      "index_selected": null,
+      "name": null,
+      "platform_context": "unknown",
+      "amd_uuid": null,
+      "bdf": null
+    },
+    "summary": {
+      "backend_usable": false,
+      "counter_resolution_valid": false,
+      "timestamp_advances": false,
+      "power_field_declared": false,
+      "selection_note": ""
+    }
+  }
+}

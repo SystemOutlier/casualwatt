@@ -1,0 +1,17 @@
+version: 1
+repowiki:
+  notes:
+    - text: "CasualWatt e' un framework di benchmark energetico per LLM (tesi di ricerca). Target: Windows 11, Python 3.14 x64, esecuzione come amministratore (LibreHardwareMonitor legge i sensori MSR). Su Linux/macOS la misura CPU locale e' disabilitata con messaggio esplicito."
+    - text: "Vincolo metodologico fondamentale da rispettare in ogni pagina: l'energia e' MISURATA SOLO durante la fase di inferenza. La valutazione (accuracy, ECE, giudizio semantico/lessicale) avviene POST-HOC sul CSV; nessun codice di valutazione entra nel loop di misura."
+    - text: "Formule energetiche canoniche (README): E_attiva = max(0, E_package - P_idle*dt) con integrazione trapezoidale @0.05s; E_Ollama = E_attiva * share cpu-time Ollama; end_to_end = local + network + cloud, con baseline_idle ESCLUSA e salvata separatamente in baseline_energy_j. L'energia della chiamata LLM Judge e' separata (judge_energy_j)."
+    - text: "L'energia cloud viene SOLO da EcoLogits (energy/cloud_energy.py, llm_impacts). Se modello/provider non e' registrato e non esiste proxy dichiarato, energy_j = None con metodo 'unavailable': vietato inventare formule fuori EcoLogits. La quota EMBODIED non entra in energy_j."
+    - text: "evaluator.py usa use_semantic=False di default: sentence-transformers NON deve essere caricato durante il benchmark. Valutazione semantica post-hoc solo via semantic_judge.py (modulo indipendente, mai importato da benchmark_unified.py, main.py o evaluator.py)."
+    - text: "Le chiavi API vivono in .casualwatt_keys.json (file nascosto, mai committato ne' letto nei documenti) e in variabili d'ambiente; la GUI le applica a caldo con config.apply_api_keys() e refresh_provider_keys(). Non documentare mai valori di chiavi."
+    - text: "Provider cloud supportati (config.CLOUD_PROVIDERS): Groq, OpenRouter, Google Gemini, OpenAI, Anthropic (API nativa x-api-key), Hugging Face Router (HF_TOKEN, OpenAI-compatible). I modelli sono sempre fetchati live dagli endpoint, mai da liste statiche."
+knowledgecard:
+  notes:
+    - text: "Modulo root cwEnergyModular: main.py (entry GUI/CLI + selftest), benchmark_unified.py (orchestrazione run locale/cloud ed energia per riga), evaluator.py (valutazione answer_type number/short_text/free_text), casualwatt_csv_export.py (CSV ~100 colonne), config.py (provider, chiavi, parametri)."
+    - text: "Package energy/: local_energy.py (LHM/NVML/iGPU, cpu-time-share), cloud_energy.py (stima EcoLogits + proxy dichiarati), network, carbon_intensity (Electricity Maps), energy_session.py (SESSION attiva usata dal benchmark)."
+    - text: "gui/ = pannelli Tkinter (model_selection.py: chiavi API, liste modelli locali/cloud con badge [Gratuito]/[EcoLogits]/[Stima Analitica] e filtro stima nativa). La GUI carica i moduli all'avvio: servirla dopo ogni modifica."
+    - text: "semantic_judge.py e genera_grafici_tesi.py sono strumenti POST-HOC standalone (CLI su results/casualwatt_results.csv): trattarli come modulo separato, mai dipendenza del benchmark. Output generati in results/ non vanno committati."
+    - text: "Test: py -m pytest (suite in tests/ e test_*.py root), py main.py --selftest per i test logici senza hardware. Un commit per punto di lavoro; push solo su richiesta esplicita."

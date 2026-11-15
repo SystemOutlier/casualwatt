@@ -1,0 +1,14 @@
+eval(features)
+
+È opportuno sostituirlo con json.loads() se il dato rappresenta una struttura JSON.
+
+Non si tratta soltanto di una questione di pulizia del codice: eval() può eseguire codice arbitrario.
+
+
+Percorsi assoluti Windows
+
+I percorsi devono essere relativi alla struttura del progetto oppure configurabili.
+
+Suggerisco pathlib.Path, configurazione tramite variabili d'ambiente e percorsi predefiniti derivati dalla directory del progetto.
+
+Questo consentirà di utilizzare MUDILAB su macchine diverse senza modificare il sorgente.

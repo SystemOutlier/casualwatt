@@ -1,0 +1,606 @@
+<!DOCTYPE html>
+<html lang="it">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>CasualWatt — Presentazione Metrologica e Architetturale</title>
+  <!-- KaTeX per rendering matematico eccellente -->
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/katex@0.16.8/dist/katex.min.css">
+  <script defer src="https://cdn.jsdelivr.net/npm/katex@0.16.8/dist/katex.min.js"></script>
+  <script defer src="https://cdn.jsdelivr.net/npm/katex@0.16.8/dist/contrib/auto-render.min.js"
+          onload="renderMathInElement(document.body, {delimiters: [
+            {left: '$$', right: '$$', display: true},
+            {left: '\\[', right: '\\]', display: true},
+            {left: '$', right: '$', display: false},
+            {left: '\\(', right: '\\)', display: false}
+          ]});"></script>
+  <style>
+    :root {
+      --primary: #1e3a8a;
+      --primary-light: #3b82f6;
+      --primary-bg: #eff6ff;
+      --text: #1f2937;
+      --text-muted: #4b5563;
+      --bg: #ffffff;
+      --card-bg: #f8fafc;
+      --border: #e2e8f0;
+      --accent-green: #059669;
+      --accent-amber: #d97706;
+      --accent-red: #dc2626;
+      --shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.07), 0 2px 4px -2px rgba(0, 0, 0, 0.05);
+    }
+
+    * { box-sizing: border-box; }
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+      line-height: 1.6;
+      color: var(--text);
+      background-color: #f1f5f9;
+      margin: 0;
+      padding: 24px;
+    }
+
+    .document-container {
+      max-width: 980px;
+      margin: 0 auto;
+      background: var(--bg);
+      padding: 48px 56px;
+      border-radius: 12px;
+      box-shadow: 0 10px 25px -5px rgba(0, 0, 0, 0.1);
+      border: 1px solid var(--border);
+    }
+
+    /* Header e Copertina */
+    header {
+      border-bottom: 2px solid var(--border);
+      padding-bottom: 24px;
+      margin-bottom: 32px;
+    }
+    .badge {
+      display: inline-block;
+      padding: 4px 10px;
+      font-size: 0.75rem;
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
+      border-radius: 9999px;
+      background: var(--primary-bg);
+      color: var(--primary);
+      margin-bottom: 12px;
+      border: 1px solid #bfdbfe;
+    }
+    h1 {
+      font-size: 2.1rem;
+      line-height: 1.25;
+      color: #0f172a;
+      margin: 0 0 10px 0;
+      font-weight: 800;
+      letter-spacing: -0.02em;
+    }
+    .subtitle {
+      font-size: 1.15rem;
+      color: var(--text-muted);
+      margin: 0 0 18px 0;
+      font-weight: 400;
+    }
+    .meta-bar {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 20px;
+      font-size: 0.88rem;
+      color: var(--text-muted);
+      background: #f8fafc;
+      padding: 10px 16px;
+      border-radius: 6px;
+      border-left: 4px solid var(--primary);
+    }
+
+    /* Sezioni e Tipografia */
+    h2 {
+      font-size: 1.35rem;
+      color: var(--primary);
+      margin-top: 36px;
+      margin-bottom: 14px;
+      padding-bottom: 6px;
+      border-bottom: 1px solid var(--border);
+      display: flex;
+      align-items: center;
+      gap: 10px;
+    }
+    h3 {
+      font-size: 1.1rem;
+      color: #1e293b;
+      margin-top: 22px;
+      margin-bottom: 8px;
+    }
+    p { margin: 0 0 14px 0; text-align: justify; }
+
+    /* Card di evidenza */
+    .card {
+      background: var(--card-bg);
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      padding: 18px 22px;
+      margin: 18px 0;
+      box-shadow: var(--shadow);
+    }
+    .card-highlight {
+      border-left: 4px solid var(--primary-light);
+      background: #f0f7ff;
+    }
+    .card-alert {
+      border-left: 4px solid var(--accent-amber);
+      background: #fffbeb;
+    }
+
+    /* Tabelle */
+    .table-responsive {
+      overflow-x: auto;
+      margin: 20px 0;
+    }
+    table {
+      width: 100%;
+      border-collapse: collapse;
+      font-size: 0.88rem;
+    }
+    th, td {
+      padding: 10px 12px;
+      text-align: left;
+      border: 1px solid var(--border);
+      vertical-align: top;
+    }
+    th {
+      background-color: #f1f5f9;
+      color: #0f172a;
+      font-weight: 600;
+    }
+    tr:nth-child(even) td {
+      background-color: #fafbfc;
+    }
+
+    /* Diagrammi SVG */
+    .diagram-container {
+      background: #ffffff;
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      padding: 20px;
+      margin: 24px 0;
+      text-align: center;
+      box-shadow: var(--shadow);
+    }
+    .diagram-caption {
+      font-size: 0.85rem;
+      color: var(--text-muted);
+      margin-top: 10px;
+      font-style: italic;
+    }
+
+    /* Formule e KaTeX */
+    .math-block {
+      background: #f8fafc;
+      border: 1px solid var(--border);
+      border-radius: 6px;
+      padding: 12px 16px;
+      margin: 16px 0;
+      overflow-x: auto;
+    }
+
+    /* Liste */
+    ul, ol {
+      margin: 0 0 16px 0;
+      padding-left: 24px;
+    }
+    li { margin-bottom: 6px; }
+
+    /* Citazioni scientifiche */
+    .bib-ref {
+      font-size: 0.85rem;
+      color: var(--text-muted);
+      margin-top: 4px;
+      display: block;
+      font-style: italic;
+    }
+
+    /* Pulsante Stampa / Export */
+    .toolbar {
+      display: flex;
+      justify-content: flex-end;
+      gap: 12px;
+      margin-bottom: 16px;
+    }
+    .btn {
+      padding: 8px 16px;
+      font-size: 0.88rem;
+      font-weight: 600;
+      border-radius: 6px;
+      border: 1px solid var(--border);
+      background: #fff;
+      color: var(--text);
+      cursor: pointer;
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      transition: all 0.2s;
+    }
+    .btn:hover {
+      background: #f8fafc;
+      border-color: #cbd5e1;
+    }
+    .btn-primary {
+      background: var(--primary);
+      color: #fff;
+      border-color: var(--primary);
+    }
+    .btn-primary:hover {
+      background: #1d4ed8;
+    }
+
+    /* Print styling */
+    @media print {
+      body {
+        background: #fff;
+        padding: 0;
+        color: #000;
+      }
+      .document-container {
+        box-shadow: none;
+        border: none;
+        padding: 0;
+        max-width: 100%;
+      }
+      .toolbar { display: none; }
+      .card, .diagram-container, table { page-break-inside: avoid; }
+      h2 { page-break-before: auto; }
+    }
+  </style>
+</head>
+<body>
+
+  <div class="document-container">
+
+    <div class="toolbar">
+      <button class="btn btn-primary" onclick="window.print()">
+        <svg width="16" height="16" fill="currentColor" viewBox="0 0 16 16"><path d="M2.5 8a.5.5 0 1 0 0-1 .5.5 0 0 0 0 1z"/><path d="M5 1a2 2 0 0 0-2 2v2H2a2 2 0 0 0-2 2v3a2 2 0 0 0 2 2h1v1a2 2 0 0 0 2 2h6a2 2 0 0 0 2-2v-1h1a2 2 0 0 0 2-2V7a2 2 0 0 0-2-2h-1V3a2 2 0 0 0-2-2H5zM4 3a1 1 0 0 1 1-1h6a1 1 0 0 1 1 1v2H4V3zm1 5a2 2 0 0 0-2 2v1H2a1 1 0 0 1-1-1V7a1 1 0 0 1 1-1h12a1 1 0 0 1 1 1v3a1 1 0 0 1-1 1h-1v-1a2 2 0 0 0-2-2H5zm7 2v3a1 1 0 0 1-1 1H5a1 1 0 0 1-1-1v-3a1 1 0 0 1 1-1h6a1 1 0 0 1 1 1z"/></svg>
+        Salva / Stampa PDF
+      </button>
+    </div>
+
+    <header>
+      <span class="badge">Dossier di Presentazione Accademica</span>
+      <h1>CasualWatt: Metrologia e Attribuzione Energetica per l'Inferenza LLM Locale ed Eterogenea</h1>
+      <p class="subtitle">Documento di inquadramento metodologico, benchmark comparativo, ciclo di vita (LCA) e validazione su task causali (MUDILAB) per il Relatore</p>
+      
+      <div class="meta-bar">
+        <span><strong>Progetto:</strong> CasualWatt (CWProject)</span>
+        <span><strong>Caso di Studio Primario:</strong> MUDILAB (Causal Inference Agent)</span>
+        <span><strong>Ambito:</strong> Green Computing, Ingegneria del Software, Metrologia Sperimentale</span>
+        <span><strong>Stato:</strong> Protocollo validato (P1–P5 congelati, P6 attivo, &gt;1.450 test)</span>
+      </div>
+    </header>
+
+    <!-- 1. INTRODUZIONE -->
+    <section>
+      <h2>1. Inquadramento e Domanda di Ricerca</h2>
+      <p>
+        La rapida espansione dei modelli linguistici di grandi dimensioni (LLM) su hardware locale consumer (workstation, laptop, edge) ha reso urgente la quantificazione puntuale del loro impatto energetico. L'attuale letteratura si affida prevalentemente a strumenti general-purpose che introducono significative distorsioni di misura e mancano di un impianto metrologico formale.
+      </p>
+      <div class="card card-highlight">
+        <strong>Domanda di Ricerca Centrale:</strong> 
+        <em>«La domanda scientifica corretta non è soltanto "quale modello consuma meno?", ma "quale configurazione (modello, quantizzazione, agent scaffolding con tool use) massimizza la qualità logica, l'affidabilità e minimizza l'energia per risposta corretta (ECPC ed EPCL), per ciascuna categoria di query causale?"»</em>
+      </div>
+    </section>
+
+    <!-- 2. STATO DELL'ARTE E MATRICE COMPARATIVA -->
+    <section>
+      <h2>2. Confronto Critico con lo Stato dell'Arte</h2>
+      <p>
+        CasualWatt è stato confrontato direttamente alle fonti primarie con i principali strumenti del settore: <strong>CodeCarbon (v3.3)</strong>, <strong>pyJoules (PowerAPI)</strong>, <strong>Scaphandre</strong>, <strong>MELODI</strong>, <strong>TokenPowerBench</strong>, <strong>PowerJoular</strong> ed <strong>EnviroLLM</strong>.
+      </p>
+
+      <div class="table-responsive">
+        <table>
+          <thead>
+            <tr>
+              <th>Strumento</th>
+              <th>Backend Primario</th>
+              <th>Metodo Acquisizione</th>
+              <th>Trattamento Baseline</th>
+              <th>Quota Processo</th>
+              <th>Valutazione / Agenti</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr>
+              <td><strong>CodeCarbon 3.3</strong></td>
+              <td>RAPL, EMI, Powermetrics (o TDP)</td>
+              <td>Polling a 15 s; delta contatore o integrale</td>
+              <td><span style="color:var(--accent-red); font-weight:bold;">Assente</span> (zero righe nei sorgenti)</td>
+              <td>Solo nel percorso TDP; assente con contatori</td>
+              <td>Assente; emissioni aggregate</td>
+            </tr>
+            <tr>
+              <td><strong>pyJoules</strong></td>
+              <td>MSR RAPL (GNU/Linux)</td>
+              <td>Lettura differenziale contatori</td>
+              <td>Assente</td>
+              <td>No (intero package hardware)</td>
+              <td>Assente</td>
+            </tr>
+            <tr>
+              <td><strong>Scaphandre</strong></td>
+              <td>MSR RAPL (Linux)</td>
+              <td>Demone continuativo (Prometheus)</td>
+              <td>Assente (monitoraggio continuativo)</td>
+              <td>Sì (su carico CPU <code>/proc</code>)</td>
+              <td>Assente (infrastrutturale)</td>
+            </tr>
+            <tr>
+              <td><strong>MELODI</strong> (2024)</td>
+              <td>Scaphandre + nvidia-smi</td>
+              <td>Integrazione trapezoidale ($\int P\,dt$)</td>
+              <td>Assente o statica a posteriori</td>
+              <td>No (hardware globale GPU-server)</td>
+              <td>Assente (solo parametri prompt)</td>
+            </tr>
+            <tr>
+              <td><strong>TokenPowerBench</strong> (2026)</td>
+              <td>NVML + RAPL</td>
+              <td>Scomposizione hardware su cluster</td>
+              <td>Sottrazione idle su cluster GPU</td>
+              <td>No (allocazione nodo dedicato)</td>
+              <td>Parziale (decomposizione prefill/decode)</td>
+            </tr>
+            <tr>
+              <td><strong>PowerJoular</strong></td>
+              <td>EMI (Win), RAPL (Linux)</td>
+              <td>Campionamento a 1 s da contatore</td>
+              <td>Assente (energia totale intervallo)</td>
+              <td>Sì (su carico CPU)</td>
+              <td>Assente</td>
+            </tr>
+            <tr>
+              <td><strong>EnviroLLM</strong> (2025)</td>
+              <td>psutil + pynvml</td>
+              <td>Polling a 2 s con integrazione numerica</td>
+              <td>Assente; stima fissa (50 W + %CPU)</td>
+              <td>Stima empirica proporzionale</td>
+              <td>Assente</td>
+            </tr>
+            <tr style="background:#f0fdf4;">
+              <td><strong>CasualWatt</strong></td>
+              <td><strong>EMI nativo / MSR PawnIO, RAPL, NVML/AMD SMI</strong></td>
+              <td><strong>Differenziale registri ai bordi ($0{,}28$–$0{,}34$ s; sampler $0{,}05$ s; ris. $10$ ms)</strong></td>
+              <td><strong>Dinamica Trifasica ($3 \times 30$ s mediana); residuo firmato; controllo derive</strong></td>
+              <td><strong>Sì, per quota temporale CPU monotona</strong></td>
+              <td><strong>Scorporo oracolo LLM ed indici ECPC / EPCL</strong></td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+
+      <!-- DIAGRAMMA: Bordo Finestra e Baseline -->
+      <div class="diagram-container">
+        <svg viewBox="0 0 800 230" width="100%" height="210" xmlns="http://www.w3.org/2000/svg">
+          <defs>
+            <linearGradient id="gradPrefill" x1="0%" y1="0%" x2="100%" y2="0%">
+              <stop offset="0%" stop-color="#3b82f6" stop-opacity="0.3"/>
+              <stop offset="100%" stop-color="#3b82f6" stop-opacity="0.7"/>
+            </linearGradient>
+            <linearGradient id="gradDecode" x1="0%" y1="0%" x2="100%" y2="0%">
+              <stop offset="0%" stop-color="#10b981" stop-opacity="0.5"/>
+              <stop offset="100%" stop-color="#10b981" stop-opacity="0.2"/>
+            </linearGradient>
+          </defs>
+
+          <!-- Asse temporale -->
+          <line x1="60" y1="180" x2="740" y2="180" stroke="#64748b" stroke-width="2"/>
+          <text x="745" y="185" fill="#64748b" font-size="12" font-family="sans-serif">Tempo (s)</text>
+
+          <!-- Baseline tratteggiata -->
+          <line x1="60" y1="140" x2="720" y2="140" stroke="#94a3b8" stroke-dasharray="4,4" stroke-width="1.5"/>
+          <text x="70" y="133" fill="#64748b" font-size="11" font-family="sans-serif">Potenza di Baseline Idle: P̃_idle (mediana trifasica pre-misura)</text>
+
+          <!-- Curva Potenza di Picco -->
+          <path d="M 120,140 Q 150,40 180,45 Q 260,75 520,85 Q 560,110 580,140" fill="none" stroke="#1e3a8a" stroke-width="2.5"/>
+
+          <!-- Aree di fase -->
+          <polygon points="120,140 140,50 180,45 180,140" fill="url(#gradPrefill)" />
+          <polygon points="180,140 180,45 520,85 580,140" fill="url(#gradDecode)" />
+
+          <!-- Punti contatore -->
+          <circle cx="120" cy="140" r="5" fill="#dc2626"/>
+          <text x="95" y="205" fill="#0f172a" font-size="11" font-weight="bold" font-family="sans-serif">t_start (E_start)</text>
+
+          <circle cx="180" cy="45" r="5" fill="#2563eb"/>
+          <text x="160" y="30" fill="#2563eb" font-size="11" font-weight="bold" font-family="sans-serif">TTFT (bordo sub-finestra)</text>
+
+          <circle cx="580" cy="140" r="5" fill="#dc2626"/>
+          <text x="560" y="205" fill="#0f172a" font-size="11" font-weight="bold" font-family="sans-serif">t_end (E_end)</text>
+
+          <text x="135" y="105" fill="#1e3a8a" font-size="11" font-weight="bold" font-family="sans-serif">Prefill</text>
+          <text x="320" y="115" fill="#065f46" font-size="11" font-weight="bold" font-family="sans-serif">Decodifica Autoregressiva</text>
+        </svg>
+        <div class="diagram-caption">Figura 1: Acquisizione differenziale ai bordi esatti della finestra con scomposizione TTFT e compensazione della baseline dinamica.</div>
+      </div>
+    </section>
+
+    <!-- 3. CICLO DI VITA COMPLETO (LCA & TCO) -->
+    <section>
+      <h2>3. Il Ciclo di Vita Completo dell'LLM: Dalla Nascita all'Inferenza (LCA & TCO)</h2>
+      <p>
+        Un'analisi di sostenibilità rigorosa deve inquadrare l'inferenza all'interno dell'intero ciclo di vita (*From Cradle to Grave*):
+      </p>
+
+      <div class="card">
+        <h3>A. Fasi del Ciclo di Vita e Calcolo dell'Impatto</h3>
+        <ul>
+          <li><strong>Embodied Impact (Fabbricazione Hardware):</strong> Estrazione minerali critici, fabbricazione di chip (GPU/TPU) e server, ammortizzata sull'orizzonte utile temporale (3–5 anni).</li>
+          <li><strong>Pre-Training (Nascita del Modello):</strong> Volume computazionale $\text{FLOPs} \approx 6 \cdot P \cdot D$ (leggi di Chinchilla/Kaplan), scalato sull'efficienza del cluster ($\text{MFU} \approx 35\%\text{–}50\%$), con fattore di raffreddamento datacenter ($\text{PUE}$) e mix elettrico locale.</li>
+          <li><strong>Post-Training ed Allineamento:</strong> Fine-tuning supervisionato (SFT), allineamento (DPO/RLHF) e distillazione specialistica per task causali.</li>
+          <li><strong>Inferenza Operativa e Break-Even Point:</strong> Nel deployment reale, il consumo aggregato dell'inferenza su miliardi di query supera rapidamente l'energia di addestramento ($E_{\text{inference}} \gg E_{\text{training}}$).</li>
+        </ul>
+      </div>
+
+      <div class="card card-highlight">
+        <h3>B. Total Cost of Ownership (TCO)</h3>
+        <p>
+          Il framework include l'analisi comparativa tra investimenti infrastrutturali fissi (**CAPEX**, acquisto workstation/GPU) e costi operativi ricorrenti (**OPEX**, costo energetico al kWh, manutenzione, raffreddamento e chiamate ad API cloud esterne a consumo).
+        </p>
+      </div>
+    </section>
+
+    <!-- 4. CASO DI STUDIO: MUDILAB E PIPELINE A PIÙ LIVELLI -->
+    <section>
+      <h2>4. Applicazione a MUDILAB e Valutazione Sperimentale</h2>
+      <p>
+        MUDILAB è il benchmark per agenti di inferenza causale sviluppato nel laboratorio universitario. A differenza dei compiti generativi semplici, richiede comprensione di grafi ed esecuzione formale del tool in Python (<code>cau_inference</code>). CasualWatt struttura la valutazione in una pipeline a quattro livelli:
+      </p>
+
+      <div class="card">
+        <h3>Livello 1: Verifiche Deterministiche e Contrattuali (Adapter MUDILAB)</h3>
+        <p>
+          Verifica automatica degli stadi: validità sintattica, argomenti inviati al tool, prova di adozione tramite digest SHA-256 e tolleranza numerica derivata dai decimali effettivi del tool.
+        </p>
+      </div>
+
+      <div class="card">
+        <h3>Livello 2: Verdetto Rigido (<code>is_correct</code>) e Indice Composito (<code>Acc_comp</code>)</h3>
+        <p>
+          <strong><code>is_correct</code>:</strong> metrica trinaria rigida (<code>correct</code>, <code>incorrect</code>, <code>indeterminate</code>). Un numero corretto generato per allucinazione o con tool errato viene rigettato.
+          <br>
+          <strong><code>Acc_comp</code>:</strong> indice descrittivo multidimensionale a pesi $[0, 1]$ che riflette la convergenza strutturale del grafo.
+        </p>
+      </div>
+
+      <div class="card">
+        <h3>Livello 3: Giudizio LLM Validato con Campione Umano</h3>
+        <p>
+          L'energia dell'oracolo (LLM-as-a-judge) è <strong>scorporata</strong> in una finestra autonoma (<code>judge_energy_j</code>). La qualità esplicativa è validata misurando la concordanza con esperti umani (Cohen's Kappa).
+        </p>
+      </div>
+
+      <div class="card">
+        <h3>Livello 4: Metriche Energetiche Condizionate all'Utilità (ECPC ed EPCL)</h3>
+        <div class="math-block">
+          $$\text{ECPC} = \frac{\sum_{i=1}^{N_{\text{totale}}} E_{\text{inferenza}}(i)}{K_{\text{corrette}}} = \frac{\sum_{i \in \text{successi}} E_i + \sum_{j \in \text{fallimenti}} E_j}{K_{\text{corrette}}}, \qquad \text{EPCL} = \frac{E_{\text{attiva}}}{\text{Nessi Causali Validi}}$$
+        </div>
+        <p>
+          L'indice <strong>ECPC</strong> addebita a numeratore i tentativi falliti, penalizzando modelli veloci ma propensi ad allucinazioni.
+        </p>
+      </div>
+
+      <!-- TABELLA CATEGORIE MUDILAB -->
+      <h3>Disaggregazione per Categoria Causale di MUDILAB (Pearl Hierarchy)</h3>
+      <div class="table-responsive">
+        <table>
+          <thead>
+            <tr>
+              <th>Categoria Query</th>
+              <th>Livello Pearl</th>
+              <th>Significato Matematico</th>
+              <th>Comportamento Tool <code>cau_inference</code></th>
+              <th>Tolleranza $\tau$</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr>
+              <td><strong><code>cond_prob</code></strong></td>
+              <td>Livello 1 (Associazione)</td>
+              <td>$P(Y \mid X)$: Probabilità condizionata osservazionale</td>
+              <td>Stampa 3 decimali</td>
+              <td>$\tau = 5 \cdot 10^{-4}$</td>
+            </tr>
+            <tr>
+              <td><strong><code>inter</code></strong></td>
+              <td>Livello 2 (Intervento)</td>
+              <td>$P(Y \mid \mathrm{do}(X))$: Do-calculus su grafo modificato</td>
+              <td>Stampa 3 decimali</td>
+              <td>$\tau = 5 \cdot 10^{-4}$</td>
+            </tr>
+            <tr>
+              <td><strong><code>coherence</code></strong></td>
+              <td>Validazione Evidenze</td>
+              <td>Decisione categorica: <code>compatible</code> vs <code>not strongly compatible</code></td>
+              <td>Stampa verdetto + 4 decimali</td>
+              <td>$\tau = 5 \cdot 10^{-5}$</td>
+            </tr>
+            <tr>
+              <td><strong><code>counterfactual</code></strong></td>
+              <td>Livello 3 (Controfattuale)</td>
+              <td>$P(Y_{X=x} \mid X=x', Y=y')$: Abduzione e mondo alternativo</td>
+              <td>Calcolo complesso, stampa 4 decimali</td>
+              <td>$\tau = 5 \cdot 10^{-5}$</td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+    </section>
+
+    <!-- 5. SCHEMA ARCHITETTURALE DEI TRE TIER -->
+    <section>
+      <h2>5. Schema Architetturale dei Tre Tier</h2>
+      <div class="diagram-container">
+        <svg viewBox="0 0 820 200" width="100%" height="190" xmlns="http://www.w3.org/2000/svg">
+          <!-- Tier 1 -->
+          <rect x="20" y="20" width="240" height="150" rx="8" fill="#eff6ff" stroke="#3b82f6" stroke-width="2"/>
+          <text x="140" y="45" text-anchor="middle" font-weight="bold" fill="#1e3a8a" font-size="14" font-family="sans-serif">TIER 1: Misurato</text>
+          <text x="140" y="65" text-anchor="middle" fill="#2563eb" font-size="11" font-family="sans-serif">(Hardware Locale Fisico)</text>
+          <line x1="35" y1="75" x2="245" y2="75" stroke="#bfdbfe"/>
+          <text x="35" y="95" fill="#334155" font-size="11" font-family="sans-serif">• Contatori MSR RAPL (Linux)</text>
+          <text x="35" y="115" fill="#334155" font-size="11" font-family="sans-serif">• Driver EMI / PawnIO (Windows)</text>
+          <text x="35" y="135" fill="#334155" font-size="11" font-family="sans-serif">• NVML / AMD SMI (GPU)</text>
+          <text x="140" y="158" text-anchor="middle" font-weight="bold" fill="#059669" font-size="11" font-family="sans-serif">Incertezza Strumentale Bassa</text>
+
+          <!-- Tier 2 -->
+          <rect x="290" y="20" width="240" height="150" rx="8" fill="#f8fafc" stroke="#64748b" stroke-width="2"/>
+          <text x="410" y="45" text-anchor="middle" font-weight="bold" fill="#0f172a" font-size="14" font-family="sans-serif">TIER 2: Attribuito</text>
+          <text x="410" y="65" text-anchor="middle" fill="#475569" font-size="11" font-family="sans-serif">(Quota di Processo OS)</text>
+          <line x1="305" y1="75" x2="515" y2="75" stroke="#cbd5e1"/>
+          <text x="305" y="95" fill="#334155" font-size="11" font-family="sans-serif">• CPU Time Share (Process/Total)</text>
+          <text x="305" y="115" fill="#334155" font-size="11" font-family="sans-serif">• Memoria allocata dal PID</text>
+          <text x="305" y="135" fill="#334155" font-size="11" font-family="sans-serif">• Scorporo oracolo / motore LLM</text>
+          <text x="410" y="158" text-anchor="middle" font-weight="bold" fill="#d97706" font-size="11" font-family="sans-serif">Incertezza d'Attribuzione</text>
+
+          <!-- Tier 3 -->
+          <rect x="560" y="20" width="240" height="150" rx="8" fill="#fef2f2" stroke="#ef4444" stroke-width="2"/>
+          <text x="680" y="45" text-anchor="middle" font-weight="bold" fill="#991b1b" font-size="14" font-family="sans-serif">TIER 3: Modellato</text>
+          <text x="680" y="65" text-anchor="middle" fill="#b91c1c" font-size="11" font-family="sans-serif">(Cloud, API & Rete)</text>
+          <line x1="575" y1="75" x2="785" y2="75" stroke="#fecaca"/>
+          <text x="575" y="95" fill="#334155" font-size="11" font-family="sans-serif">• Token Prefill / Decode (EcoLogits)</text>
+          <text x="575" y="115" fill="#334155" font-size="11" font-family="sans-serif">• PUE Datacenter (1.1 - 1.2)</text>
+          <text x="575" y="135" fill="#334155" font-size="11" font-family="sans-serif">• Traffico Rete (kWh/GB)</text>
+          <text x="680" y="158" text-anchor="middle" font-weight="bold" fill="#dc2626" font-size="11" font-family="sans-serif">Stima Parametrica Modulare</text>
+        </svg>
+        <div class="diagram-caption">Figura 2: Tassonomia epistemica a tre livelli, disaggregata ed etichettata per ogni record di misura.</div>
+      </div>
+    </section>
+
+    <!-- 6. PIANO DELL'OPERA (I CAPITOLI DELLA TESI) -->
+    <section>
+      <h2>6. Struttura dei Capitoli della Tesi di Laurea</h2>
+      <div class="card">
+        <ol>
+          <li><strong>Introduzione e Motivazioni:</strong> Il trade-off tra qualità generativa ed efficienza energetica nei sistemi locali ed edge.</li>
+          <li><strong>Contesto e Stato dell'Arte Metrologico:</strong> Analisi critica di CodeCarbon 3.3, Scaphandre, pyJoules, MELODI, TokenPowerBench ed EnviroLLM; lacune dell'integrazione numerica e della gestione dell'idle.</li>
+          <li><strong>Metodologia e Architettura di CasualWatt:</strong> Misura differenziale ai bordi di finestra, compensazione della baseline trifasica con residui firmati e separazione epistemica a tre Tier.</li>
+          <li><strong>Consumo Energetico, Economico e di Carbonio nel Ciclo di Vita Completo degli LLM (LCA & TCO):</strong> Dalla nascita all'inferenza (*From Cradle to Grave*): embodied impact, training FLOPs (Chinchilla), post-training, break-even point e total cost of ownership.</li>
+          <li><strong>Valutazione Sperimentale Comparativa su Task Causali (MUDILAB): Risposta alla Domanda Scientifica:</strong> Sperimentazione su modelli locali (TinyLlama, Gemma-2, Phi-3, Llama-3.2, Llama-3-8B, DeepSeek-R1, Qwen2.5) e cloud (GPT-4o), calcolo di <code>is_correct</code>, <code>Acc_comp</code>, ECPC ed EPCL per le quattro categorie di Pearl.</li>
+          <li><strong>Conclusioni e Linee Guida per il Green Computing nell'AI:</strong> Sintesi dei contributi, raccomandazioni per gli agent framework e direzioni future.</li>
+        </ol>
+      </div>
+
+      <div class="card card-highlight">
+        <p><strong>Documenti di Dettaglio nel Repository:</strong></p>
+        <ul>
+          <li><strong>Proposta Capitoli LCA e Sperimentazione:</strong> <a href="file:///c:/Users/Massimo/Documents/CasualWatt/CWProject/Capitoli_LCA_e_Sperimentazione_MUDILAB.md"><code>Capitoli_LCA_e_Sperimentazione_MUDILAB.md</code></a>.</li>
+          <li><strong>Dossier Metodologico sulle Metriche Energetiche:</strong> <a href="file:///c:/Users/Massimo/Documents/CasualWatt/CWProject/Metodologie_e_Metriche_Energetiche_LLM.md"><code>Metodologie_e_Metriche_Energetiche_LLM.md</code></a>.</li>
+          <li><strong>Pipeline e Caso MUDILAB:</strong> <a href="file:///c:/Users/Massimo/Documents/CasualWatt/CWProject/Valutazione_MUDILAB_CasualWatt_Pipeline.md"><code>Valutazione_MUDILAB_CasualWatt_Pipeline.md</code></a>.</li>
+          <li><strong>Matrice Dettagliata dello Stato dell'Arte:</strong> <a href="file:///c:/Users/Massimo/Documents/CasualWatt/CWProject/Matrice_Comparativa_Stato_Arte_CasualWatt.md"><code>Matrice_Comparativa_Stato_Arte_CasualWatt.md</code></a>.</li>
+        </ul>
+      </div>
+    </section>
+
+  </div>
+
+</body>
+</html>

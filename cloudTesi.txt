@@ -1,0 +1,27 @@
+\section{Modellazione dell'Impronta Remota Cloud ($E_{\text{cloud}}$)}
+\label{sec:metodologia_cloud}
+
+La quantificazione del dispendio termodinamico nei Data Center remoti ($E_{\text{cloud}}$) implementa un'architettura gerarchica multi-tier concepita per bilanciare l'accuratezza empirica dei modelli di \emph{Life Cycle Assessment} (LCA) con la robustezza analitica in presenza di API proprietarie non censite.
+
+\subsection{Disaccoppiamento delle Fasi del Transformer}
+A differenza delle formulazioni monolitiche presenti in letteratura, il framework disaggrega l'inferenza analitica del modello in due fasi operative caratterizzate da distinti vincoli architetturali sul silicio:
+\begin{enumerate}
+    \item \textbf{Fase di Prefill ($n_{\text{in}}$):} Elaborazione parallela della sequenza di prompt. Trattandosi di un'operazione fortemente parallelizzabile sui Tensor Core, il consumo è dominato dalla densità di calcolo teorica (\emph{Compute-Bound}):
+    \begin{equation}
+        E_{\text{prefill}} = n_{\text{in}} \cdot \gamma_{\text{prefill}} \cdot N_{\text{active}} \quad [\text{Joule}]
+    \end{equation}
+    \item \textbf{Fase di Decoding ($n_{\text{out}}$):} Generazione autoregressiva token-by-token. Ogni passaggio richiede il caricamento completo dei pesi dalla VRAM alla memoria SRAM, rendendo l'operazione vincolata dalla larghezza di banda della memoria (\emph{Memory-Bandwidth Bound}):
+    \begin{equation}
+        E_{\text{decode}} = n_{\text{out}} \cdot \gamma_{\text{decode}} \cdot N_{\text{active}} \quad [\text{Joule}]
+    \end{equation}
+\end{enumerate}
+
+\subsection{Normalizzazione per Architetture Sparse (MoE)}
+Per le architetture \emph{Mixture-of-Experts} (MoE), il parametro $N_{\text{active}}$ rappresenta rigorosamente la sola quota di parametri ingaggiati dal meccansimo di routing per singolo token:
+\begin{equation}
+    N_{\text{active}} = N_{\text{total}} \cdot \left( \frac{E_{\text{act}}}{E_{\text{tot}}} \right)
+\end{equation}
+L'applicazione di $N_{\text{active}}$ previene la sovrastima sistematica dell'energia (fino a $11.17\times$) che si verificherebbe assimilando modelli MoE a modelli densi di pari taglia nominale.
+
+\subsection{Salvaguardia Metrologica ed Invalidation}
+In caso di errore nella chiamata REST o mancata disponibilità dei metadati del provider, il modulo assegna al valore $E_{\text{cloud}}$ lo stato esplicito di dato non disponibile ($\texttt{None}$). Tale valore viene propagato come $\texttt{N/A}$ nel report CSV, inibendo il calcolo dell'energia totale $E_{\text{end\_to\_end}}$ e dell'indice $ECE$. Questa regola impedisce l'accreditamento fittizio di query remote a costo zero, preservando la correttezza della Frontiera di Pareto.

@@ -1,0 +1,76 @@
+import matplotlib.pyplot as plt
+import numpy as np
+
+# =====================================================================
+# DATI DEI TEST (ottenuti dall'esecuzione precedente)
+# =====================================================================
+test_names = ['CP1\n(Posterior)', 'IN1\n(Intervention)', 'CO1\n(Coherence)', 'CF1\n(Counterfactual)']
+ground_truth = [0.2117, 0.1072, 0.0670, None]
+sistema_values = [0.212, 0.107, 0.07, 0.126]
+sistema_lower = [None, None, None, 0.126]
+sistema_upper = [None, None, None, 0.126]
+
+# =====================================================================
+# CONFIGURAZIONE GRAFICO
+# =====================================================================
+fig, ax = plt.subplots(figsize=(12, 6))
+
+x = np.arange(len(test_names))
+width = 0.35
+
+# Barre Ground Truth (solo per CP1, IN1, CO1)
+gt_bars = ax.bar(x[:3] - width/2, ground_truth[:3], width, 
+                 label='Ground Truth (pyAgrum)', 
+                 color='#2E86AB', alpha=0.8, edgecolor='black')
+
+# Barre Sistema
+sys_bars = ax.bar(x[:3] + width/2, sistema_values[:3], width, 
+                  label='Sistema Multi-Agente', 
+                  color='#A23B72', alpha=0.8, edgecolor='black')
+
+# Per CF1: mostra l'intervallo come una linea con errori
+cf_idx = 3
+ax.errorbar(x[cf_idx], sistema_values[cf_idx], 
+            yerr=[[sistema_values[cf_idx] - sistema_lower[cf_idx]], 
+                  [sistema_upper[cf_idx] - sistema_values[cf_idx]]],
+            fmt='o', color='#F18F01', markersize=12, capsize=10, capthick=3,
+            label='Sistema (bound Frechet)', linewidth=3)
+
+# =====================================================================
+# ETICHETTE E STILE
+# =====================================================================
+ax.set_ylabel('Probabilita', fontsize=12, fontweight='bold')
+ax.set_title('Confronto Sistema Multi-Agente vs Ground Truth\nScala Causale di Pearl', 
+             fontsize=14, fontweight='bold', pad=20)
+ax.set_xticks(x)
+ax.set_xticklabels(test_names, fontsize=11)
+ax.legend(loc='upper right', fontsize=10)
+ax.grid(axis='y', alpha=0.3, linestyle='--')
+ax.set_ylim(0, 0.35)
+
+# Aggiungi valori numerici sulle barre
+for bar in gt_bars:
+    height = bar.get_height()
+    ax.text(bar.get_x() + bar.get_width()/2., height + 0.005,
+            f'{height:.4f}', ha='center', va='bottom', fontsize=9, fontweight='bold')
+
+for bar in sys_bars:
+    height = bar.get_height()
+    ax.text(bar.get_x() + bar.get_width()/2., height + 0.005,
+            f'{height:.4f}', ha='center', va='bottom', fontsize=9, fontweight='bold', color='#A23B72')
+
+# Nota per CF1
+ax.text(x[cf_idx], 0.30, 'CF1: bound convergenti\n[0.126, 0.126]', 
+        ha='center', va='top', fontsize=9, style='italic',
+        bbox=dict(boxstyle='round,pad=0.5', facecolor='yellow', alpha=0.7))
+
+plt.tight_layout()
+plt.savefig('risultati_confronto.png', dpi=300, bbox_inches='tight')
+plt.show()
+
+print("Grafico salvato come 'risultati_confronto.png' nella cartella del progetto!")
+print("\nRIEPILOGO ACCURATEZZA:")
+print(f"   CP1 (Posterior):      Errore = {abs(0.212 - 0.2117):.4f} ({abs(0.212 - 0.2117)/0.2117*100:.2f}%)")
+print(f"   IN1 (Intervention):   Errore = {abs(0.107 - 0.1072):.4f} ({abs(0.107 - 0.1072)/0.1072*100:.2f}%)")
+print(f"   CO1 (Coherence):      Errore = {abs(0.07 - 0.0670):.4f} ({abs(0.07 - 0.0670)/0.0670*100:.2f}%)")
+print(f"   CF1 (Counterfactual): Bound convergenti [0.126, 0.126]")

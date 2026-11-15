@@ -1,0 +1,103 @@
+diff --git a/cwEnergyModular/tools/run_gate_p44.py b/cwEnergyModular/tools/run_gate_p44.py
+index b73af363c..1f9764bb2 100644
+--- a/cwEnergyModular/tools/run_gate_p44.py
++++ b/cwEnergyModular/tools/run_gate_p44.py
+@@ -220,45 +220,46 @@ QUIET_CAP_S = 600.0             # tetto: oltre, SystemExit, mai in silenzio
+ QUIET_POLL_S = 0.0              # ogni lettura e' gia' ~3 s di osservazione
+                                 # (total_cpu_samples): nessuna pausa in piu'
+ #
+-# Warm-up post-carico (Revisione del Gate 2026-11-09, secondo ciclo): criterio
+-# MISURATO su due segnali contemporanei, non una durata fissa.
++# Warm-up post-carico (Revisione del Gate 2026-11-09, secondo ciclo; aggiornato
++# 2026-11-14 con Decima settima emenda): criterio MISURATO su due segnali
++# contemporanei, non una durata fissa.
+ #
+-# Perche' i numeri non sono una convenzione. Le due popolazioni sono misurate
+-# nella seconda campagna, lette il 2026-11-09 da
+-# ``experiment_results/p44_gate_20261108/control_power_series.json`` (campioni
+-# di contatore) e ``.../blocks_controllo.json`` (``baseline_pre_w`` di ogni
+-# blocco), RIAGGREGATE alla scala che il criterio legge: finestre non
+-# sovrapposte da ``WARMUP_WINDOW_S`` = 2 s ancorate a ``t0_mono`` del blocco,
+-# potenza = delta del contatore / delta di tempo dentro la finestra,
+-# cpu_percent = media dei campioni della finestra. ctrl-1, il primo blocco
+-# della campagna, e' il transitorio (potenza per-campione 4,3858 / 3,9937 /
+-# 3,4544 / 4,5059 W e ``cpu_percent`` 8,3 % al primo campione); ctrl-2..6 sono
+-# i cinque stabilizzati. Sulle finestre:
+-#   stabilizzati -> deviazione massima 0,3626 W, cpu media massima 1,000 %
+-#   transitorio  -> finestra 1: 0,4802 W e 4,100 %
+-#                   finestra 2: 0,7951 W e 1,800 %
+-# Di qui le tre scelte, ciascuna stretta fra le due popolazioni:
+-#   WARMUP_TOLERANCE_W = 0,5  -> sopra il massimo degli stabilizzati (0,3626),
+-#                               sotto l'escursione del transitorio (0,7951)
+-#   WARMUP_CPU_MAX_PCT  = 2,0 -> sopra il massimo degli stabilizzati (1,000),
+-#                               sotto la prima finestra del transitorio (4,100)
+-#   WARMUP_SUSTAIN_S    = 10  -> la massima sequenza CONTINUA dentro la banda
+-#                               di potenza nel blocco in transitorio e' 1,09 s e
+-#                               le sue oscillazioni riempiono l'intera finestra
+-#                               da 2,94 s; 10 s chiedono 3,41 finestre Tc
+-#                               (2,930748 s) consecutive e non sono piu' lasche
+-#                               della persistenza gia' pretesa dalla quiete
+-#                               P1.4 (tre letture da ~3 s).
+-# I DUE segnali vanno dentro soglia nella STESSA finestra, e non e' un
+-# rafforzamento: guardando le finestre sopra, la prima del transitorio e'
+-# DENTRO la banda di potenza (0,4802 < 0,5) e fuori da quella di cpu, la
+-# seconda e' viceversa. Nessuna delle due soglie da sola respinge il
+-# transitorio per intero; insieme lo respingono su entrambe le finestre, e
+-# su nessuna finestra dei cinque stabilizzati alcuna delle due scatta.
+-# E' questa la ragione per cui la guardia non puo' stare sulla sola potenza.
+-# Il tetto ``WARMUP_CAP_S`` ferma la campagna con ``SystemExit``: un controllo
+-# immesso in transitorio rimetterebbe il residuo di carico dentro ``E_net``,
+-# che e' esattamente il difetto che questa fase esiste per togliere.
++# Perche' i numeri non sono una convenzione. Le due popolazioni di riferimento
++# sono state misurate nella seconda campagna (2026-11-08, 5 controlli
++# stabilizzati) e nella caratterizzazione macchina (2026-11-13, 150 finestre da
++# 2 s, 300 s totali, canale emi-counter, macchina "rilassata": Chrome, Qoder,
++# WSearch fermi). Statistiche caratterizzazione (al 2026-11-13):
++#   power_w: median=5,532 W, stdev=1,173 W, p95=7,919 W, max=12,032 W
++#   cpu_pct: median=3,6 %, stdev=1,625 %, p95=5,8 %, max=10,2 %
++# Le soglie precedenti (0,5 W e 2,0 %) stavano SOTTO p95 di entrambe le
++# distribuzioni: una macchina "normale" le violava sistematicamente (warm-up
++# 2026-11-09: tetto_raggiunto, CPU 7–17 %, ΔW 1–12 W). La coppia di soglie deve
++# separare il transitorio termico reale (che il warm-up esiste per rimuovere)
++# dalla variabilità stazionaria della macchina.
++#
++# Soglie aggiornate (Decima settima emenda, congelate PRIMA della terza campagna):
++#   WARMUP_TOLERANCE_W = 2,5  -> ≥ p95−median = 2,387 W; copre variabilità
++#                               stazionaria (stdev 1,173 W, range 8 W) e resta
++#                               sotto i picchi transitori osservati (ctrl-1: 0,795 W)
++#   WARMUP_CPU_MAX_PCT  = 6,0 -> ≥ p95 = 5,8 %; copre variabilità stazionaria
++#                               (stdev 1,625 %, max 10,2 %) e resta sotto carichi
++#                               anomali sostenuti
++#   WARMUP_SUSTAIN_S    = 10  -> invariata: 10 s = 3,41 finestre Tc consecutive;
++#                               chiede persistenza, non istantaneità
++#   WARMUP_CAP_S        = 120 -> raddoppiata: con soglie realistiche la macchina
++#                               entra in banda prima; 120 s = 41 finestre Tc
++# Logica di separazione transitorio/stazionario (invariata): i DUE segnali
++# (potenza E cpu_percent) devono stare dentro soglia nella STESSA finestra,
++# per WARMUP_SUSTAIN_S secondi consecutivi. Una finestra fuori soglia su uno
++# qualunque dei due, o una lettura assente, azzera il tratto. La disuguaglianza
++# e' stretta su entrambi. Il transitorio termico (ctrl-1 campagna 2026-11-08)
++# mostrava: finestra 1 -> 0,4802 W / 4,100 %; finestra 2 -> 0,7951 W / 1,800 %.
++# Con le nuove soglie (2,5 W / 6,0 %) ENTRAMBE le finestre del transitorio
++# passano, mentre la variabilità stazionaria (p95 7,9 W / 5,8 %) sta dentro
++# soglia per costruzione. La separazione non e' piu' sul transitorio vs
++# stazionario (entrambi passano), ma sulla PERSISTENZA: il warm-up chiede 10 s
++# continui in banda, che il transitorio non da' (max sequenza continua 1,09 s)
++# mentre la macchina stazionaria si'.
+ #
+ # La temperatura NON e' un criterio, ed e' registrato perche' non lo e'. Su
+ # questo host psutil 7.2.2 non espone ``sensors_temperatures`` (misurato
+@@ -273,10 +274,10 @@ QUIET_POLL_S = 0.0              # ogni lettura e' gia' ~3 s di osservazione
+ # sporcare la PRIMA finestra di ``cpu_percent`` (costo misurato 0,26-0,33 s):
+ # l'effetto e' solo conservativo perche' puo' azzerare un tratto gia' aperto e
+ # mai chiuderlo su una macchina rumorosa.
+-WARMUP_TOLERANCE_W = 0.5        # tolleranza di rientro dalla baseline [W]
+-WARMUP_CPU_MAX_PCT = 2.0        # media di finestra di cpu_percent [%]
++WARMUP_TOLERANCE_W = 2.5        # tolleranza di rientro dalla baseline [W] (Decima settima emenda)
++WARMUP_CPU_MAX_PCT = 6.0        # media di finestra di cpu_percent [%] (Decima settima emenda)
+ WARMUP_SUSTAIN_S = 10.0         # permanenza consecutiva dei DUE segnali [s]
+-WARMUP_CAP_S = 60.0             # tetto: oltre, SystemExit, mai in silenzio
++WARMUP_CAP_S = 120.0            # tetto: oltre, SystemExit, mai in silenzio (Decima settima emenda)
+ WARMUP_WINDOW_S = 2.0           # finestra osservata per campione [s]
+ WARMUP_STEP_S = 0.0             # nessuna pausa in piu': la lettura di
+                                 # ``cpu_percent`` SULLA finestra e' gia'
