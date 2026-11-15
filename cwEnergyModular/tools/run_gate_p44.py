@@ -1960,10 +1960,15 @@ def _stabilizza_post_carico(target_pre_w: Optional[float], *,
                         f"{tolerance_w} W da P_pre={target:.3f} W e cpu sotto "
                         f"{cpu_max_pct:g} % ({esito['warmup_campioni']} campioni)")
                 else:
+                    # La cpu NON decide in stabilization: dichiararla qui
+                    # sarebbe un log che afferma una condizione non testata.
+                    # La si dichiara registrata-e-non-decisiva, che e' il
+                    # suo stato vero in questa modalita'.
                     log(f"[WARM-UP] stabilizzazione raggiunta dopo {attesa:.1f} s: "
                         f"{sustain_s:g} s continui con potenza non sopra la "
                         f"media mobile (ultima {v:.3f} W, soglia "
-                        f"{tolerance_w} W) e cpu sotto {cpu_max_pct:g} % "
+                        f"{tolerance_w} W); cpu registrata, non decisiva "
+                        f"(fondo dichiarato attivo) "
                         f"({esito['warmup_campioni']} campioni)")
                 if registra is not None:
                     registra(dict(esito))
