@@ -407,6 +407,7 @@ def _create_idle_characterization(output_dir):
     char_data = {
         "schema_version": 1,
         "quiet_threshold_pct": 8.0,
+        "warmup_cpu_max_pct": 8.0,
         "quiet_consecutive": 3,
         "quiet_window_s": 3.0,
         "quiet_cap_s": 600.0,
@@ -437,6 +438,8 @@ def test_verifica_piano_rifiuta_warmup_cpu_max_diverso(monkeypatch,
     monkeypatch.setattr(rg, "ARCHIVE_DIR", tmp_path)
     _create_idle_characterization(tmp_path)
     monkeypatch.setattr(rg, "_git_head", lambda: "test-head")
+    monkeypatch.setattr(rg, "_git_antenato", lambda sha: True)
+    monkeypatch.setattr(rg, "_git_percorso_misura_mutato", lambda sha: False)
     rg.cmd_plan(rg.DEFAULT_MODEL)
     path = tmp_path / rg.PLAN_NAME
     piano = json.loads(path.read_text(encoding="utf-8"))
@@ -453,6 +456,86 @@ def test_verifica_piano_rifiuta_warmup_cpu_max_diverso(monkeypatch,
     with pytest.raises(SystemExit) as exc2:
         rg._verifica_piano()
     assert "warmup_cpu_max_pct" in str(exc2.value)
+
+
+def test_piano_con_soglia_cpu_derivata_passa(monkeypatch, tmp_path):
+    """Il nuovo contratto: la soglia cpu del warm-up non e' la costante
+    legacy 2,0 ma il valore che la caratterizzazione idle dichiara
+    (ceil(q95 + margine)). Un piano che riporta esattamente quel valore e'
+    coerente con la propria fonte e deve passare: la guardia cerca la
+    divergenza, non il valore. Questo e' il lato di accettazione della
+    coppia con il test sopra: se qualcuno reintroduce il confronto con la
+    costante, qui il run si ferma su un piano legittimo."""
+    monkeypatch.setattr(rg, "ARCHIVE_DIR", tmp_path)
+    _create_idle_characterization(tmp_path)
+    monkeypatch.setattr(rg, "_git_head", lambda: "test-head")
+    monkeypatch.setattr(rg, "_git_antenato", lambda sha: True)
+    monkeypatch.setattr(rg, "_git_percorso_misura_mutato", lambda sha: False)
+    rg.cmd_plan(rg.DEFAULT_MODEL)
+    piano = json.loads((tmp_path / rg.PLAN_NAME).read_text(encoding="utf-8"))
+    char = json.loads(
+        (tmp_path / "idle_characterization.json").read_text(encoding="utf-8"))
+    assert piano["warmup_cpu_max_pct"] == char["warmup_cpu_max_pct"]
+    piano_verificato = rg._verifica_piano()
+    assert piano_verificato["warmup_cpu_max_pct"] == char["warmup_cpu_max_pct"]
+
+
+def test_caratterizzazione_rigenerata_dopo_il_piano_blocca(monkeypatch,
+                                                           tmp_path):
+    """Il piano pinna l'hash della caratterizzazione da cui discende. Se il
+    file viene rigenerato DOPO il piano (altra q95, altra soglia cpu, altre
+    finestre), il piano dichiarato e la caratterizzazione su disco non sono
+    piu' la stessa cosa, e la campagna girerebbe con un warm-up diverso da
+    quello pre-registrato. La guardia deve fermarla PRIMA, nominando
+    l'hash: e' la catena di provenienza piano -> caratterizzazione, che il
+    piano scrive ma nulla enforcementava."""
+    monkeypatch.setattr(rg, "ARCHIVE_DIR", tmp_path)
+    _create_idle_characterization(tmp_path)
+    monkeypatch.setattr(rg, "_git_head", lambda: "test-head")
+    monkeypatch.setattr(rg, "_git_antenato", lambda sha: True)
+    monkeypatch.setattr(rg, "_git_percorso_misura_mutato", lambda sha: False)
+    rg.cmd_plan(rg.DEFAULT_MODEL)
+    piano = json.loads((tmp_path / rg.PLAN_NAME).read_text(encoding="utf-8"))
+    sha_piano = piano["idle_characterization_sha256"]
+    # Rigenerazione post-piano: contenuto diverso, proprio sha256 aggiornato
+    import hashlib
+    char = json.loads(
+        (tmp_path / "idle_characterization.json").read_text(encoding="utf-8"))
+    char["quiet_threshold_pct"] = 42.0
+    char["warmup_cpu_max_pct"] = 42.0
+    hash_dict = {k: v for k, v in char.items() if k != "sha256"}
+    char["sha256"] = hashlib.sha256(json.dumps(
+        hash_dict, sort_keys=True, separators=(",", ":")).encode()).hexdigest()
+    (tmp_path / "idle_characterization.json").write_text(json.dumps(char))
+    assert char["sha256"] != sha_piano
+    with pytest.raises(SystemExit) as exc:
+        rg._verifica_piano()
+    assert "idle_characterization_sha256" in str(exc.value)
+
+
+def test_caratterizzazione_manomessa_nel_contenuto_blocca(monkeypatch,
+                                                          tmp_path):
+    """Il campo sha256 del file viene riscritto per farlo combaciare con il
+    piano, ma il CONTENUTO no: l'hash si ricalcola dal contenuto, non ci si
+    fida del campo. Una caratterizzazione manipolata deve essere respinta
+    anche quando il suo campo sha256 e' allineato al piano."""
+    monkeypatch.setattr(rg, "ARCHIVE_DIR", tmp_path)
+    _create_idle_characterization(tmp_path)
+    monkeypatch.setattr(rg, "_git_head", lambda: "test-head")
+    monkeypatch.setattr(rg, "_git_antenato", lambda sha: True)
+    monkeypatch.setattr(rg, "_git_percorso_misura_mutato", lambda sha: False)
+    rg.cmd_plan(rg.DEFAULT_MODEL)
+    piano = json.loads((tmp_path / rg.PLAN_NAME).read_text(encoding="utf-8"))
+    sha_piano = piano["idle_characterization_sha256"]
+    char = json.loads(
+        (tmp_path / "idle_characterization.json").read_text(encoding="utf-8"))
+    char["q95_cpu_pct"] = 99.0          # contenuto manomesso
+    char["warmup_cpu_max_pct"] = 99.0
+    char["sha256"] = sha_piano          # campo allineato a forza
+    (tmp_path / "idle_characterization.json").write_text(json.dumps(char))
+    with pytest.raises(SystemExit) as exc:
+        rg._verifica_piano()
+    assert "idle_characterization_sha256" in str(exc.value)
 
 
 def test_artefatto_del_budget_e_completo_di_assunzioni(tmp_path, monkeypatch):

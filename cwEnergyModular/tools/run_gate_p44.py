@@ -219,6 +219,7 @@ QUIET_CONSECUTIVE = 3           # letture consecutive non rumorose per partire
 QUIET_CAP_S = 600.0             # tetto: oltre, SystemExit, mai in silenzio
 QUIET_POLL_S = 0.0              # ogni lettura e' gia' ~3 s di osservazione
                                 # (total_cpu_samples): nessuna pausa in piu'
+QUIET_THRESHOLD_PCT = 5.0       # P1.4 legacy default; override da piano via quiet_params.quiet_threshold_pct
 #
 # Warm-up post-carico (Revisione del Gate 2026-11-09, secondo ciclo): criterio
 # MISURATO su due segnali contemporanei, non una durata fissa.
@@ -274,7 +275,7 @@ QUIET_POLL_S = 0.0              # ogni lettura e' gia' ~3 s di osservazione
 # l'effetto e' solo conservativo perche' puo' azzerare un tratto gia' aperto e
 # mai chiuderlo su una macchina rumorosa.
 WARMUP_TOLERANCE_W = 0.5        # tolleranza di rientro dalla baseline [W]
-WARMUP_CPU_MAX_PCT = 2.0        # media di finestra di cpu_percent [%]
+WARMUP_CPU_MAX_PCT = 2.0        # fallback legacy: piano deriva questo da idle characterization (ceil(Q95 + margin))
 WARMUP_SUSTAIN_S = 10.0         # permanenza consecutiva dei DUE segnali [s]
 WARMUP_CAP_S = 60.0             # tetto: oltre, SystemExit, mai in silenzio
 WARMUP_WINDOW_S = 2.0           # finestra osservata per campione [s]
@@ -602,7 +603,7 @@ def plan_payload() -> Dict:
     }
 
 
-def cmd_plan(model: str) -> int:
+def cmd_plan(model: str, background_policy: str = "block") -> int:
     """Generate plan v2 requiring idle_characterization.json with valid hash."""
     from cwEnergyModular.tools.plan_schema import create_plan_v2
     from pathlib import Path
@@ -635,7 +636,7 @@ def cmd_plan(model: str) -> int:
         seed=SEED,
         model=DEFAULT_MODEL,
         campaign_date=P44_DATE,
-        background_policy="block",
+        background_policy=background_policy,
         _rg_module=sys.modules[__name__],
     )
 
@@ -1241,11 +1242,54 @@ def _verifica_piano() -> Dict:
     # coincidere con il seme dichiarato al plan, qualunque esso sia.
     if plan.get("order_seed") != SEED or plan.get("model") != DEFAULT_MODEL:
         raise SystemExit("seed o modello discostati dal piano dichiarato")
+    # Catena di provenienza piano -> caratterizzazione idle (2026-11-15):
+    # il piano pinna l'hash della caratterizzazione da cui discendono le
+    # soglie. A execute si riverifica che il file su disco sia ANCORA quello
+    # (hash ricalcolato dal contenuto, non letto dal campo sha256) e che la
+    # soglia cpu del warm-up non sia stata scelta dopo la dichiarazione:
+    # una caratterizzazione rigenerata, o un piano con soglia inventata,
+    # farebbe girare la campagna con un criterio diverso da quello
+    # pre-registrato, e la cosa si vedrebbe solo dopo i dati.
+    char_file = ARCHIVE_DIR / "idle_characterization.json"
+    if not char_file.exists():
+        raise SystemExit(
+            "idle_characterization.json assente dall'archivio della campagna: "
+            "la caratterizzazione da cui il piano discende non e' piu' "
+            "disponibile. Rigenerarla con 'characterize' e ripianificare "
+            "PRIMA di misurare.")
+    with char_file.open(encoding="utf-8") as fh:
+        char = json.load(fh)
+    sha_piano = plan.get("idle_characterization_sha256")
+    if not sha_piano:
+        raise SystemExit(
+            "il piano non dichiara idle_characterization_sha256: precede la "
+            "catena di provenienza piano -> caratterizzazione idle. Ritirare "
+            "plan.json e ripianificare PRIMA di misurare.")
+    from cwEnergyModular.tools.plan_schema import (
+        validate_idle_characterization,
+    )
+    if not validate_idle_characterization(char, sha_piano):
+        raise SystemExit(
+            "idle_characterization.json non corrisponde all'hash pinnato dal "
+            f"piano (idle_characterization_sha256={sha_piano}): il file e' "
+            "stato rigenerato o manomesso DOPO la dichiarazione. La soglia "
+            "cpu del warm-up e la soglia di quiete discendono da quel file: "
+            "ritirare plan.json e ripianificare PRIMA di misurare.")
+    cpu_da_caratterizzazione = char.get("warmup_cpu_max_pct",
+                                        WARMUP_CPU_MAX_PCT)
+    if plan.get("warmup_cpu_max_pct") != cpu_da_caratterizzazione:
+        raise SystemExit(
+            "warmup_cpu_max_pct del piano diverge da quello della "
+            "caratterizzazione idle pinnata (piano="
+            f"{plan.get('warmup_cpu_max_pct')!r}, caratterizzazione="
+            f"{cpu_da_caratterizzazione!r}): la soglia cpu del warm-up e' un "
+            "numero del disegno derivato da q95 + margine, non una scelta di "
+            "runtime. Ritirare plan.json e ripianificare PRIMA di misurare.")
     attesi = {
         "quiet_consecutive": QUIET_CONSECUTIVE,
         "quiet_cap_s": QUIET_CAP_S,
         "warmup_tolerance_w": WARMUP_TOLERANCE_W,
-        "warmup_cpu_max_pct": WARMUP_CPU_MAX_PCT,
+        # warmup_cpu_max_pct deriva dal piano (idle characterization), non costante legacy
         "warmup_sustain_s": WARMUP_SUSTAIN_S,
         "warmup_cap_s": WARMUP_CAP_S,
         "warmup_step_s": WARMUP_STEP_S,
@@ -1255,6 +1299,11 @@ def _verifica_piano() -> Dict:
         "budget_matched_target_s": BUDGET_MATCHED_TARGET_S,
         "criterio_primario": CRITERIO_PRIMARIO,
     }
+    # quiet_threshold_pct sta in quiet_params, non a livello top
+    quiet_thresh_piano = plan.get("quiet_params", {}).get("quiet_threshold_pct")
+    if quiet_thresh_piano != QUIET_THRESHOLD_PCT:
+        # Solo avviso: il piano puo' avere soglia diversa dalla costante legacy
+        print(f"[AVVISO] piano quiet_threshold_pct={quiet_thresh_piano} != costante legacy {QUIET_THRESHOLD_PCT}", flush=True)
     discosti = {chiave: (plan.get(chiave), valore)
                 for chiave, valore in attesi.items()
                 if plan.get(chiave) != valore}
@@ -1509,6 +1558,7 @@ def _cattura_serie_controllo():
 def _attendi_quiete(*, consecutive: Optional[int] = None,
                     cap_s: Optional[float] = None,
                     poll_s: float = QUIET_POLL_S,
+                    quiet_threshold_pct: Optional[float] = None,
                     campiona=None, top_fn=None,
                     clock: Callable[[], float] = time.monotonic,
                     sleep: Callable[[float], None] = time.sleep,
@@ -1524,7 +1574,7 @@ def _attendi_quiete(*, consecutive: Optional[int] = None,
 
     Meccanica. Ogni lettura e' ``ms.total_cpu_samples()`` (~3 s di
     osservazione, P1.4); ``ms.background_load_from_samples`` dice se e'
-    rumorosa (persistenza sopra la soglia congelata di P1.4, non un picco
+    rumorosa (persistenza sopra la soglia dichiarata nel piano, non un picco
     singolo). Quiete = ``consecutive`` letture consecutive non rumorose;
     una lettura rumorosa AZZERA il conteggio. Al tetto ``cap_s`` senza
     quiete: ``SystemExit`` — main() lo gira in [ARRESTO] exit 3, la
@@ -1555,13 +1605,16 @@ def _attendi_quiete(*, consecutive: Optional[int] = None,
     if consecutive < 1:
         raise ValueError(
             f"consecutive={consecutive}: serve almeno una lettura")
+    # Soglia quiet: dal piano se fornita, altrimenti costante legacy P1.4
+    if quiet_threshold_pct is None:
+        quiet_threshold_pct = QUIET_THRESHOLD_PCT
     log = on_log or (lambda m: None)
     t0 = clock()
     consec = 0
     letture = 0
     while True:
         campioni = campiona()
-        rumorosa = ms.background_load_from_samples(campioni)
+        rumorosa = ms.background_load_from_samples(campioni, threshold_pct=quiet_threshold_pct)
         letture += 1
         if rumorosa:
             consec = 0
@@ -1663,6 +1716,7 @@ def _stabilizza_post_carico(target_pre_w: Optional[float], *,
                             sustain_s: Optional[float] = None,
                             cap_s: Optional[float] = None,
                             step_s: Optional[float] = None,
+                            mode: str = "absolute",
                             window_s: Optional[float] = None,
                             campiona_potenza: Optional[
                                 Callable[[], Optional[float]]] = None,
@@ -1826,6 +1880,10 @@ def _stabilizza_post_carico(target_pre_w: Optional[float], *,
     valori_w: List[float] = esito["warmup_valori_w"]
     valori_cpu: List[float] = esito["warmup_valori_cpu_pct"]
     soddisfatta_dal: Optional[float] = None
+    # Per la modalità stabilization: tracciamo una finestra mobile degli
+    # ultimi valori di potenza per calcolare la media mobile. Un singolo
+    # picco di Qoder non deve azzere il tratto.
+    ultimi_w: List[float] = []
     while True:
         cpu_letti = media_finestra(leggi_cpu())
         ora = clock()
@@ -1845,15 +1903,39 @@ def _stabilizza_post_carico(target_pre_w: Optional[float], *,
             # un'escursione fuori banda e' il dato che spiega perche' la fase
             # non ha chiuso, e scriverla solo nel messaggio la perderebbe
             valori_w.append(round(v, 6))
-            if abs(v - target) >= tolerance_w:
-                fuori.append(f"{v:.3f} W fuori da {tolerance_w} W da "
-                             f"{target:.3f} W")
+            if mode == "absolute":
+                if abs(v - target) >= tolerance_w:
+                    fuori.append(f"{v:.3f} W fuori da {tolerance_w} W da "
+                                 f"{target:.3f} W")
+            else:
+                # Modalita' stabilization (background_controlled):
+                # la baseline_pre_w del blocco di carico e' misurata con il
+                # background attivo e puo' variare. Il criterio non e' il
+                # rientro assoluto ma la stabilizzazione: la potenza non
+                # sale di piu' di tolerance_w rispetto a una MOBILE MEDIA
+                # degli ultimi campioni. Un singolo picco di Qoder (5-15 W
+                # su 2 s) non deve azzere il tratto: e' rumore di fondo, non
+                # un transitorio del carico. La media mobile filtra i picchi
+                # singoli; una tendenza persistente (campioni dopo campione
+                # sopra la media) la ripristina.
+                if len(ultimi_w) >= 2:
+                    mediamobile = sum(ultimi_w) / len(ultimi_w)
+                    if v > mediamobile + tolerance_w:
+                        fuori.append(
+                            f"{v:.3f} W sopra media mobile "
+                            f"{mediamobile:.3f} W (soglia {tolerance_w} W)")
         if cpu_letti is None or not math.isfinite(cpu_letti):
             mancante = True
             fuori.append("cpu_percent assente")
         else:
             valori_cpu.append(round(cpu_letti, 6))
-            if cpu_letti >= cpu_max_pct:
+            # La soglia di cpu_percent e' attiva SOLO in modalità absolute
+            # (block). In background_controlled il fondo e' dichiarato attivo
+            # (Qoder, PyCharm, ...) e la cpu e' sopra soglia per costruzione:
+            # un rumore di fondo controllato non e' un transitorio del carico.
+            # La cpu_percent resta REGISTRATA (serie nel record, nel report)
+            # ma non decide.
+            if mode == "absolute" and cpu_letti >= cpu_max_pct:
                 fuori.append(f"{cpu_letti:.3f} % sopra {cpu_max_pct:g} %")
         if fuori:
             if mancante:
@@ -1872,13 +1954,25 @@ def _stabilizza_post_carico(target_pre_w: Optional[float], *,
                 esito["warmup_motivo"] = "criterio_soddisfatto"
                 esito["warmup_duration_s"] = round(attesa, 6)
                 esito["warmup_temperatura"].append(lettura_termica("uscita"))
-                log(f"[WARM-UP] rientro raggiunto dopo {attesa:.1f} s: "
-                    f"{sustain_s:g} s continui con potenza entro "
-                    f"{tolerance_w} W da P_pre={target:.3f} W e cpu sotto "
-                    f"{cpu_max_pct:g} % ({esito['warmup_campioni']} campioni)")
+                if mode == "absolute":
+                    log(f"[WARM-UP] rientro raggiunto dopo {attesa:.1f} s: "
+                        f"{sustain_s:g} s continui con potenza entro "
+                        f"{tolerance_w} W da P_pre={target:.3f} W e cpu sotto "
+                        f"{cpu_max_pct:g} % ({esito['warmup_campioni']} campioni)")
+                else:
+                    log(f"[WARM-UP] stabilizzazione raggiunta dopo {attesa:.1f} s: "
+                        f"{sustain_s:g} s continui con potenza non sopra la "
+                        f"media mobile (ultima {v:.3f} W, soglia "
+                        f"{tolerance_w} W) e cpu sotto {cpu_max_pct:g} % "
+                        f"({esito['warmup_campioni']} campioni)")
                 if registra is not None:
                     registra(dict(esito))
                 return esito
+        if v is not None and math.isfinite(v):
+            ultimi_w.append(v)
+            if len(ultimi_w) > 5:
+                ultimi_w.pop(0)
+        last_v = v
         durato = clock() - t0
         if durato >= cap_s:
             esito["warmup_motivo"] = "tetto_raggiunto"
@@ -1886,16 +1980,26 @@ def _stabilizza_post_carico(target_pre_w: Optional[float], *,
             esito["warmup_temperatura"].append(lettura_termica("uscita"))
             if registra is not None:
                 registra(dict(esito))
+            if mode == "absolute":
+                testo_criterio = (f"rientro entro {tolerance_w} W da "
+                                  f"P_pre={target:.3f} W e cpu sotto "
+                                  f"{cpu_max_pct:g} %")
+                testo_fallimento = ("la macchina non e' rientrata dal "
+                                    "carico")
+            else:
+                testo_criterio = (f"potenza non sopra la media mobile "
+                                  f"(soglia {tolerance_w} W)")
+                testo_fallimento = ("la potenza non si e' stabilizzata "
+                                    "dopo il carico")
             raise SystemExit(
-                f"[WARM-UP] tetto {cap_s:g} s raggiunto senza {sustain_s:g} "
-                f"s continui entro {tolerance_w} W da P_pre={target:.3f} W "
-                f"e sotto {cpu_max_pct:g} % di cpu_percent "
-                f"(campioni={esito['warmup_campioni']}, letture mancanti="
-                f"{esito['warmup_letture_mancanti']}, ultimi valori "
-                f"w={valori_w[-5:]} cpu={valori_cpu[-5:]}): la macchina non "
-                "e' rientrata dal carico. Il controllo NON parte — procedere "
-                "in silenzio sarebbe immettere un residuo di carico nel bias "
-                "che il gate deve misurare.")
+                    f"[WARM-UP] tetto {cap_s:g} s raggiunto senza "
+                    f"{sustain_s:g} s continui con {testo_criterio} "
+                    f"(campioni={esito['warmup_campioni']}, letture "
+                    f"mancanti={esito['warmup_letture_mancanti']}, ultimi "
+                    f"valori w={valori_w[-5:]} cpu={valori_cpu[-5:]}): "
+                    f"{testo_fallimento}. Il controllo NON parte — procedere "
+                    "in silenzio sarebbe immettere un residuo di carico nel "
+                    "bias che il gate deve misurare.")
         if step_s:
             sleep(max(min(step_s, cap_s - durato), 0.0))
 
@@ -1926,9 +2030,15 @@ def cmd_execute(model: str, *, codecarbon: bool = False,
     # matched, e in entrambi i casi il numero viene da finestre lette dal
     # contatore alla scala del controllo, NON da una riscalatura del budget
     # lungo per Tc/30 (formula rimossa) e NON da CodeCarbon.
-    print("[BUDGET] precondizione di quiete prima della misura del fondo",
-          flush=True)
-    quiete_fondo = _attendi_quiete(on_log=lambda m: print(m, flush=True))
+    bg_policy = plan.get("background_load_policy", "block")
+    if bg_policy == "background_controlled":
+        print(f"[BUDGET] politica background_controlled: salto precondizione quiete per misura fondo", flush=True)
+        quiete_fondo = {"quiet_wait_s": 0.0, "quiet_letture": 0, "top_processes": []}
+    else:
+        print("[BUDGET] precondizione di quiete prima della misura del fondo",
+              flush=True)
+        quiet_thresh = plan.get("quiet_params", {}).get("quiet_threshold_pct", QUIET_THRESHOLD_PCT)
+        quiete_fondo = _attendi_quiete(quiet_threshold_pct=quiet_thresh, on_log=lambda m: print(m, flush=True))
     print(f"[BUDGET] procedura dichiarata: {BUDGET_MODE} "
           f"(Tc = {DT_NOM_FROZEN:g} s, {BUDGET_N_TERNE} unita' per gruppo)",
           flush=True)
@@ -1996,7 +2106,14 @@ def cmd_execute(model: str, *, codecarbon: bool = False,
                   flush=True)
             # Precondizione PRIMA di ogni invocazione, load E control:
             # una macchina carica non parte (check E del piano).
-            quiet = _attendi_quiete(on_log=lambda m: print(m, flush=True))
+            # background_controlled policy: dichiariamo il background stabile, non attendiamo quiete.
+            bg_policy = plan.get("background_load_policy", "block")
+            if bg_policy == "background_controlled":
+                print(f"[BACKGROUND-CONTROLLED] politica background_controlled: salto precondizione quiete (check E dichiarato nel piano)", flush=True)
+                quiet = {"quiet_wait_s": 0.0, "quiet_letture": 0, "top_processes": []}
+            else:
+                quiet_thresh = plan.get("quiet_params", {}).get("quiet_threshold_pct", QUIET_THRESHOLD_PCT)
+                quiet = _attendi_quiete(quiet_threshold_pct=quiet_thresh, on_log=lambda m: print(m, flush=True))
 
             # Il tracker avvolge la sola invocazione: l'overhead di
             # start()/stop() (~1 s per blocco, misurato l'08-11) resta
@@ -2024,8 +2141,38 @@ def cmd_execute(model: str, *, codecarbon: bool = False,
             # durata di un warm-up fallito resta cosi' leggibile.
             warmup: Optional[Dict] = None
             if b["arm"] == "load":
+                # Warm-up target: baseline_pre_w of the load block just executed.
+                # This is the baseline measured with the same background conditions
+                # (model loaded + Qoder active) that existed during the load block.
+                # After inference completes, the machine should return to this same
+                # baseline, not to the budget's true-idle baseline (which is measured
+                # under different background conditions and would never be reached
+                # when background load is active).
+                # The budget baseline is for the F.12 criterion, not for warm-up.
+                warmup_target_w = None
+                try:
+                    block_baseline = rec.get("baseline_pre_w")
+                    if block_baseline is not None and str(block_baseline).strip():
+                        warmup_target_w = float(block_baseline)
+                except (TypeError, ValueError):
+                    pass
+                if warmup_target_w is None or not math.isfinite(warmup_target_w) or warmup_target_w <= 0.0:
+                    raise SystemExit(
+                        f"[WARM-UP] nessun target di rientro valido dalla baseline del blocco "
+                        f"(baseline_pre_w = {rec.get('baseline_pre_w')!r}): il warm-up deve "
+                        "usare la baseline del blocco di carico appena eseguito, misurata "
+                        "con le stesse condizioni di background. La baseline del budget "
+                        "pre-esecuzione e' la soglia del criterio F.12, non il target del warm-up.")
+                # Use warmup_cpu_max_pct from plan (derived from idle characterization)
+                warmup_cpu_max = plan.get("warmup_cpu_max_pct", WARMUP_CPU_MAX_PCT)
+                # Modalita' warm-up: assoluta (rientro a P_pre) o stabilizzazione
+                # (potenza non in salita). In background_controlled la baseline
+                # varia con il carico e il rientro assoluto non e' raggiungibile.
+                warmup_mode = plan.get("warmup_mode", "absolute")
                 warmup = _stabilizza_post_carico(
-                    rec.get("baseline_pre_w"),
+                    warmup_target_w,
+                    cpu_max_pct=warmup_cpu_max,
+                    mode=warmup_mode,
                     registra=_registrar_warmup(b, rec.get("block_id", "")),
                     on_log=lambda m: print(m, flush=True))
             run_rec = {
@@ -2606,6 +2753,11 @@ def main(argv: Optional[Sequence[str]] = None) -> int:
                         help="numero di coppie del disegno (default 6; "
                              "12 per la terza campagna, Quattordicesima "
                              "emenda): il quorum e' ceil(2/3 * coppie)")
+    p_plan.add_argument("--background-policy", default="block",
+                        choices=["block", "background_controlled"],
+                        help="politica di gestione rumore di fondo: block "
+                             "(quiete obbligatoria, precondizione) o "
+                             "background_controlled (fondo stabile dichiarato)")
     p_exec = sub.add_parser("execute",
                             help="esegui i blocchi del piano e valuta F.12")
     p_exec.add_argument("--model", default=DEFAULT_MODEL,
@@ -2652,7 +2804,7 @@ def main(argv: Optional[Sequence[str]] = None) -> int:
     _imposta_seme(args.seed)
     _imposta_coppie(args.pairs)
     if args.cmd == "plan":
-        return cmd_plan(args.model)
+        return cmd_plan(args.model, background_policy=args.background_policy)
     if args.cmd == "execute":
         try:
             r = cmd_execute(args.model, codecarbon=args.codecarbon,
