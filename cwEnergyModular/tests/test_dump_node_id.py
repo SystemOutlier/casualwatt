@@ -211,7 +211,7 @@ def test_tutti_i_node_id_raccolti_hanno_un_nome_trovabile_nell_ast():
     for nid in raccolti:
         percorso, classe, fname, _param = gen.nome_e_parametri(nid)
         if percorso not in cache:
-            abs_path = os.path.join(gen.MODULE_DIR, percorso)
+            abs_path = gen.percorso_assoluto(percorso)
             cache[percorso] = (gen.docstring_da_ast(abs_path)[1]
                                if os.path.exists(abs_path) else {})
         if fname not in {k[1] for k in cache[percorso]}:

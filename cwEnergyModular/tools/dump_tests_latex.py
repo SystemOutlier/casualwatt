@@ -33,6 +33,25 @@ MODULE_DIR = os.path.dirname(HERE)
 if MODULE_DIR not in sys.path:
     sys.path.insert(0, MODULE_DIR)
 
+
+def percorso_assoluto(percorso: str) -> str:
+    """Percorso assoluto del file di test che un node id di pytest nomina.
+
+    I node id sono relativi alla rootdir di pytest, e la rootdir non e' un
+    dato del generatore: con un `pyproject.toml` alla radice del repository
+    (entrato il 2026-11-15) la raccolta viene eseguita con rootdir = radice
+    e i node id arrivano col prefisso ``cwEnergyModular/``; senza quel file
+    la rootdir era MODULE_DIR e i node id arrivano senza prefisso. Il join
+    con una base fissa sbagliata non trova il file e la riga perderebbe la
+    docstring in silenzio (copertura sotto-stimata, non un test senza
+    docstring): si provano i due candidati e vince il file che esiste.
+    """
+    for base in (MODULE_DIR, os.path.dirname(MODULE_DIR)):
+        candidato = os.path.join(base, percorso)
+        if os.path.exists(candidato):
+            return candidato
+    return os.path.join(MODULE_DIR, percorso)
+
 try:
     import elevation  # noqa: E402  (is_admin: condizione di esecuzione reale)
 except Exception:  # pragma: no cover - piattaforma non Windows
@@ -352,7 +371,7 @@ def main() -> int:
     for nid in raccolti:
         percorso, classe, fname, param = nome_e_parametri(nid)
         if percorso not in doc_cache:
-            abs_path = os.path.join(MODULE_DIR, percorso)
+            abs_path = percorso_assoluto(percorso)
             mod_doc[percorso], doc_cache[percorso] = (
                 docstring_da_ast(abs_path) if os.path.exists(abs_path) else ("", {}))
         doc = doc_cache[percorso].get((classe, fname), "")
