@@ -47,6 +47,7 @@ class PlanV2:
     warmup_cap_s: float = 60.0
     warmup_step_s: float = 0.0
     warmup_window_s: float = 2.0
+    warmup_mode: str = "absolute"  # "absolute" | "stabilization"
     checks: Dict = None
 
     def __post_init__(self):
@@ -117,6 +118,9 @@ def create_plan_v2(
     else:
         rg = _rg_module
 
+    # Use warmup_cpu_max_pct from idle characterization, fallback to constant
+    warmup_cpu_max_pct = char.get("warmup_cpu_max_pct", rg.WARMUP_CPU_MAX_PCT)
+
     plan = PlanV2(
         idle_characterization_sha256=char["sha256"],
         background_load_policy=background_policy,
@@ -148,11 +152,12 @@ def create_plan_v2(
         quiet_consecutive=rg.QUIET_CONSECUTIVE,
         quiet_cap_s=rg.QUIET_CAP_S,
         warmup_tolerance_w=rg.WARMUP_TOLERANCE_W,
-        warmup_cpu_max_pct=rg.WARMUP_CPU_MAX_PCT,
+        warmup_cpu_max_pct=warmup_cpu_max_pct,
         warmup_sustain_s=rg.WARMUP_SUSTAIN_S,
         warmup_cap_s=rg.WARMUP_CAP_S,
         warmup_step_s=rg.WARMUP_STEP_S,
         warmup_window_s=rg.WARMUP_WINDOW_S,
+        warmup_mode="stabilization" if background_policy == "background_controlled" else "absolute",
         campaign_date=campaign_date,
         checks={
             "A": (f"{2 * pairs} blocchi in {pairs} coppie; ogni coppia: "
@@ -168,18 +173,33 @@ def create_plan_v2(
             "D": ("baseline 3 pre + 3 post su ENTRAMBI i bracci (requisito 7); "
                   "cooldown intra-coppia carico->controllo via "
                   "initial_last_pre_w: scelta operativa, non requisito P4.4"),
+            # Il testo del check E dipende dalla politica scritta nel piano:
+            # in background_controlled la quiete assoluta non e' uno stato
+            # della macchina e la precondizione viene SALTATA — un piano che
+            # la promettesse sempre descriverebbe una verifica che
+            # l'esecuzione non fa.
             "E": ("precondizione di quiete PRIMA di ogni blocco (load e "
                   f"control): {rg.QUIET_CONSECUTIVE} letture consecutive con "
                   "background_load=False, una rumorosa azzera il conteggio; "
-                  f"tetto {rg.QUIET_CAP_S:g} s poi SystemExit. Parametro di "
-                  "esecuzione lato tool: il criterio F.12 non cambia"),
+                  f"tetto {rg.QUIET_CAP_S:g} s poi SystemExit. "
+                  + ("Politica background_controlled: SALTO della precondizione di "
+                     "quiete, perche' la caratterizzazione idle misura il "
+                     "fondo con il background attivo e la quiete assoluta "
+                     "non e' uno stato raggiungibile su questo host; il "
+                     "rumore di fondo resta dichiarato, misurato e "
+                     "documentato invece che negato. "
+                     if background_policy == "background_controlled"
+                     else "Politica block: la quiete assoluta si applica, "
+                     "senza eccezioni. ")
+                  + "Parametro di esecuzione lato tool: il criterio F.12 non "
+                    "cambia"),
             "F": ("warm-up post-carico a CRITERIO MISURATO su DUE segnali "
                   "contemporanei, dopo ogni blocco di carico e prima del "
                   f"controllo della coppia: sulla finestra osservata di "
                   f"{rg.WARMUP_WINDOW_S:g} s la potenza del contatore sta entro "
                   f"{rg.WARMUP_TOLERANCE_W} W dalla baseline_pre_w del blocco "
                   "di carico E la media di finestra di cpu_percent sta sotto "
-                  f"{rg.WARMUP_CPU_MAX_PCT:g} %, per {rg.WARMUP_SUSTAIN_S:g} s "
+                  f"{warmup_cpu_max_pct:g} %, per {rg.WARMUP_SUSTAIN_S:g} s "
                   "CONTINUI; un campione fuori soglia su uno qualunque dei "
                   "due, o una lettura assente, azzera il tratto; la "
                   "disuguaglianza e' stretta su entrambi. Passo "
@@ -206,7 +226,21 @@ def create_plan_v2(
                   "vanno in analysis.json, nel report e in "
                   "warmup_stabilizzazione.jsonl. Nessuna durata fissa: la "
                   "forma precedente sleep(10 s) non era ancorata a nessuna "
-                  "misura ed era collocata PRIMA del carico, non dopo"),
+                  "misura ed era collocata PRIMA del carico, non dopo. "
+                  "Modalita' background_controlled (warmup_mode=stabilization): "
+                  "la baseline_pre_w del blocco di carico e' misurata con il "
+                  "background attivo e puo' variare fra un blocco e l'altro; "
+                  "il criterio assoluto di rientro non e' raggiungibile. In "
+                  "questa modalita' il warm-up si ferma quando la potenza "
+                  "smette di salire rispetto a una media mobile degli ultimi "
+                  "campioni (stabilizzazione relativa), per "
+                  f"{rg.WARMUP_SUSTAIN_S:g} s "
+                  "CONTINUI. La cpu_percent e' REGISTRATA ma NON decide: con "
+                  "rumore di fondo dichiarato (Qoder, PyCharm, ...) la cpu "
+                  "e' sopra soglia per costruzione e un rumore controllato "
+                  "non e' un transitorio del carico. La soglia di cpu_percent "
+                  "e' attiva SOLO in modalità absolute (block). Il criterio "
+                  "F.12 (bias_w <= budget_base_w) non cambia."),
             "G": (f"budget di soglia PRE-ESECUZIONE con procedura "
                   f"{rg.BUDGET_MODE.upper()}: {rg.BUDGET_N_TERNE} unita' per "
                   "gruppo (pre e post, non sovrapposti) lette da "

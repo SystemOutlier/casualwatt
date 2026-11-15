@@ -216,5 +216,105 @@ def test_plan_v2_rejects_v1_plan(tmp_path, monkeypatch):
     assert "campaign_date" in plan  # v2 field (was in v1, kept in v2)
 
 
+def _piano_con(tmp_path, monkeypatch, policy):
+    """Costruisce un piano v2 con la politica richiesta e lo restituisce.
+
+    La caratterizzazione e' sintetica con hash calcolato dal contenuto, come
+    negli altri test di questo file; la politica e' l'unica variabile, perche'
+    e' l'unica cosa che questi test devono cambiare.
+    """
+    import hashlib
+
+    from cwEnergyModular.tools.run_gate_p44 import cmd_plan
+    import cwEnergyModular.tools.run_gate_p44 as rg
+
+    output_dir = tmp_path / f"out-{policy}"
+    output_dir.mkdir()
+
+    monkeypatch.setattr(rg, "_git_head", lambda: "test-head")
+    monkeypatch.setattr(rg, "_git_provenienza", lambda: ("test-head", ""))
+
+    char_data = {
+        "schema_version": 1,
+        "quiet_threshold_pct": 8.0,
+        "quiet_consecutive": 3,
+        "quiet_window_s": 3.0,
+        "quiet_cap_s": 600.0,
+        "timestamp": "2026-11-14T00:00:00Z",
+        "machine_id": "test-machine",
+        "windows": 30,
+        "window_s": 10.0,
+        "cpu_samples": [2.0] * 30,
+        "q95_cpu_pct": 2.0,
+        "margin_pct": 1.0,
+        "sha256": "",
+    }
+    hash_dict = {k: v for k, v in char_data.items() if k != "sha256"}
+    hash_text = json.dumps(hash_dict, sort_keys=True, separators=(",", ":")).encode()
+    char_data["sha256"] = hashlib.sha256(hash_text).hexdigest()
+    (output_dir / "idle_characterization.json").write_text(json.dumps(char_data))
+
+    original_archive = rg.ARCHIVE_DIR
+    original_results = rg.RESULTS_DIR
+    rg.ARCHIVE_DIR = output_dir
+    rg.RESULTS_DIR = output_dir
+
+    try:
+        exit_code = cmd_plan(model="test-model", background_policy=policy)
+    finally:
+        rg.ARCHIVE_DIR = original_archive
+        rg.RESULTS_DIR = original_results
+
+    assert exit_code == 0
+    return json.loads((output_dir / "plan.json").read_text())
+
+
+def test_check_e_dichiara_il_salto_quiete_in_background_controlled(tmp_path, monkeypatch):
+    """Il piano e' la pre-registrazione: se il tool SALTA la precondizione di
+    quiete in politica background_controlled, il testo del check E deve dirlo
+    — altrimenti il piano promette una verifica che l'esecuzione non fa, e la
+    difformita' fra promessa e misura sarebbe scoperta solo dai dati."""
+    plan = _piano_con(tmp_path, monkeypatch, "background_controlled")
+    testo_e = plan["checks"]["E"]
+    assert "background_controlled" in testo_e
+    assert "salto" in testo_e.lower()
+
+
+def test_check_e_in_block_mantiene_la_quiete_come_precondizione(tmp_path, monkeypatch):
+    """Lato di accettazione: in politica block il salto non esiste e il check E
+    continua a dichiarare la quiete come precondizione attiva prima di ogni
+    blocco. La stessa frase non puo' valere per tutte e due le politiche, ed e'
+    per questo che il testo dipende dalla politica scritta nel piano."""
+    plan = _piano_con(tmp_path, monkeypatch, "block")
+    testo_e = plan["checks"]["E"]
+    assert "precondizione di quiete PRIMA di ogni blocco" in testo_e
+    assert "salto" not in testo_e.lower()
+
+
+def test_check_f_descrive_stabilization_senza_parentesi_non_interpolate(tmp_path, monkeypatch):
+    """In background_controlled il criterio che gira e' la stabilizzazione
+    (media mobile), non il rientro assoluto, e la cpu non decide: il testo del
+    check F deve dirlo — e deve dirlo con i NUMERI, non con le graffe di una
+    f-string dimenticata, perche' una grafa non interpolata nel piano e' un
+    parametro che nessuno ha scelto e che nessun codice leggera'."""
+    plan = _piano_con(tmp_path, monkeypatch, "background_controlled")
+    testo_f = plan["checks"]["F"]
+    assert "media mobile" in testo_f
+    assert "NON decide" in testo_f
+    assert "{rg." not in testo_f
+    assert plan["warmup_mode"] == "stabilization"
+    assert f"{plan['warmup_sustain_s']:g} s" in testo_f
+
+
+def test_check_f_in_block_descrive_il_rientro_assoluto(tmp_path, monkeypatch):
+    """Lato di accettazione: in politica block il criterio resta il rientro
+    assoluto su due segnali, con la cpu soglia davvero decisiva, e il testo lo
+    dice con la soglia derivata dalla caratterizzazione."""
+    plan = _piano_con(tmp_path, monkeypatch, "block")
+    testo_f = plan["checks"]["F"]
+    assert "cpu_percent sta sotto" in testo_f
+    assert plan["warmup_mode"] == "absolute"
+
+
 if __name__ == "__main__":
     pytest.main([__file__, "-v"])
