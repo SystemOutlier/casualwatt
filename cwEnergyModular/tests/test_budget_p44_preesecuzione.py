@@ -123,6 +123,16 @@ def _corpo(pre, post, **kw):
                      *[_letta(p) for p in post], **kw)
 
 
+def _piano_minimo():
+    """Piano minimo per i test che chiamano _calcola_budget_pre_esecuzione."""
+    return {
+        "baseline_params": {
+            "baseline_outlier_rule": "iqr_1p5",
+            "baseline_windows_min": 3,
+        }
+    }
+
+
 # ---------------------------------------------------------------------------
 # 1. budget_short: misura a scala Tc, stesse regole del budget lungo
 # ---------------------------------------------------------------------------
@@ -131,7 +141,7 @@ def test_short_legge_finestre_alla_scala_del_controllo():
     controllo: se il tool leggesse a 30 s e riscalasse, la durata richiesta
     al primitivo sarebbe 30,0 — e questa asserzione lo vedrebbe."""
     s = _corpo(PRE, POST)
-    budget, det = rg._calcola_budget_pre_esecuzione("short", s)
+    budget, det = rg._calcola_budget_pre_esecuzione("short", s, _piano_minimo())
     assert s._source.chiamate == [TC] * 6
     assert det["budget_mode"] == "short"
     assert det["tc_duration_s"] == pytest.approx(TC)
@@ -148,7 +158,7 @@ def test_short_budget_e_aritmetica_dichiarata_senza_fattore_di_scala():
     La prova contro la riscalatura e' la terza asserzione: il valore che
     ``B_long * (Tc/30)`` avrebbe dato non e' il valore prodotto."""
     s = _corpo(PRE, POST)
-    budget, det = rg._calcola_budget_pre_esecuzione("short", s)
+    budget, det = rg._calcola_budget_pre_esecuzione("short", s, _piano_minimo())
     assert budget == pytest.approx(BW, abs=1e-6)
     assert det["scala_30_s_applicata"] is False
     assert det["codecarbon_usato"] is False
@@ -164,7 +174,7 @@ def test_short_usa_le_stesse_regole_di_aggregazione_del_budget_lungo():
     potenze che il tool ha letto, e il budget del tool coincide con il suo
     output. Se il tool implementsse una regola propria divergerebbe."""
     s = _corpo(PRE, POST)
-    budget, det = rg._calcola_budget_pre_esecuzione("short", s)
+    budget, det = rg._calcola_budget_pre_esecuzione("short", s, _piano_minimo())
     atteso = v4.block_baseline(PRE, POST)
     assert float(det["budget_base_w"]) == pytest.approx(
         float(atteso["budget_base_w"]))
@@ -185,7 +195,7 @@ def test_short_delta_negativo_ferma_senza_clampare():
                _letta(10.3), _letta(10.4), _letta(10.5)]
     s = _sessione(*letture)
     with pytest.raises(SystemExit) as exc:
-        rg._calcola_budget_pre_esecuzione("short", s)
+        rg._calcola_budget_pre_esecuzione("short", s, _piano_minimo())
     assert "decrescente" in str(exc.value)
     # la terza finestra pre non viene letta: la guardia ferma li'
     assert len(s._source.chiamate) == 2
@@ -200,7 +210,7 @@ def test_short_lettura_assente_ferma_con_la_ragione():
                    errore="access_denied")
     with pytest.raises(SystemExit) as exc:
         rg._calcola_budget_pre_esecuzione("short",
-                                          SimpleNamespace(_source=porta))
+                                          SimpleNamespace(_source=porta), _piano_minimo())
     msg = str(exc.value)
     assert "nessun contatore" in msg
     assert "access_denied" in msg
@@ -213,7 +223,7 @@ def test_short_dt_non_positivo_ferma():
     porta = _Porta([(10.0 * TC, 0.0, "emi-counter")])
     with pytest.raises(SystemExit) as exc:
         rg._calcola_budget_pre_esecuzione("short",
-                                          SimpleNamespace(_source=porta))
+                                          SimpleNamespace(_source=porta), _piano_minimo())
     assert "non positivo" in str(exc.value)
 
 
@@ -225,7 +235,7 @@ def test_short_canali_misti_fermano_la_misura():
     letture += [_letta(p, canale="pawnio-counter") for p in POST]
     s = _sessione(*letture)
     with pytest.raises(SystemExit) as exc:
-        rg._calcola_budget_pre_esecuzione("short", s)
+        rg._calcola_budget_pre_esecuzione("short", s, _piano_minimo())
     assert "canali misti" in str(exc.value)
 
 
@@ -238,21 +248,21 @@ def test_guardie_sulla_procedura_prima_di_leggere(monkeypatch):
     s = _corpo(PRE, POST)
     monkeypatch.setattr(rg, "DT_NOM_FROZEN", 0.05)
     with pytest.raises(SystemExit) as exc:
-        rg._calcola_budget_pre_esecuzione("short", s)
+        rg._calcola_budget_pre_esecuzione("short", s, _piano_minimo())
     assert "pavimento" in str(exc.value)
     assert s._source.chiamate == []          # nessun numero prodotto
     monkeypatch.undo()
 
     s2 = _corpo(PRE, POST)
     with pytest.raises(SystemExit) as exc2:
-        rg._calcola_budget_pre_esecuzione("rescaled-30s", s2)
+            rg._calcola_budget_pre_esecuzione("rescaled-30s", s2, _piano_minimo())
     assert "non ammesso" in str(exc2.value)
     assert s2._source.chiamate == []
 
     monkeypatch.setattr(rg, "BUDGET_N_TERNE", 1)
     s3 = _corpo(PRE, POST)
     with pytest.raises(SystemExit) as exc3:
-        rg._calcola_budget_pre_esecuzione("short", s3)
+            rg._calcola_budget_pre_esecuzione("short", s3, _piano_minimo())
     assert "non e' una misura di dispersione" in str(exc3.value)
     assert s3._source.chiamate == []
 
@@ -268,7 +278,7 @@ def test_matched_documenta_le_finestre_usate():
     unita = [_letta(p) for p in PRE for _ in range(11)]
     unita += [_letta(p) for p in POST for _ in range(11)]
     s = _sessione(*unita)
-    budget, det = rg._calcola_budget_pre_esecuzione("matched", s)
+    budget, det = rg._calcola_budget_pre_esecuzione("matched", s, _piano_minimo())
     n_atteso = math.ceil(rg.BUDGET_MATCHED_TARGET_S / TC)
     assert n_atteso == 11
     assert det["n_per_aggregato"] == 11
@@ -306,7 +316,7 @@ def test_matched_budget_dalla_dispersione_degli_aggregati():
     unita = [_letta(p) for p in PRE for _ in range(11)]
     unita += [_letta(p) for p in POST for _ in range(11)]
     s = _sessione(*unita)
-    budget, det = rg._calcola_budget_pre_esecuzione("matched", s)
+    budget, det = rg._calcola_budget_pre_esecuzione("matched", s, _piano_minimo())
     assert det["unita_pre_w"] == [pytest.approx(p) for p in PRE]
     assert budget == pytest.approx(BW, abs=1e-6)
     assert float(det["baseline"]["baseline_pre_w"]) == pytest.approx(10.0)
@@ -322,7 +332,7 @@ def test_matched_non_usa_mai_un_campione_singolo(monkeypatch):
     unita = [_letta(p) for p in PRE for _ in range(n_min)]
     unita += [_letta(p) for p in POST for _ in range(n_min)]
     s = _sessione(*unita)
-    _budget, det = rg._calcola_budget_pre_esecuzione("matched", s)
+    _budget, det = rg._calcola_budget_pre_esecuzione("matched", s, _piano_minimo())
     assert det["n_per_aggregato"] == 2
     assert det["durata_aggregato_s"] == pytest.approx(2 * TC)
     assert det["n_finestre_usate"] == 12
@@ -544,7 +554,7 @@ def test_artefatto_del_budget_e_completo_di_assunzioni(tmp_path, monkeypatch):
     deve potere riprodurre il numero dai soli campi scritti."""
     monkeypatch.setattr(rg, "ARCHIVE_DIR", tmp_path)
     s = _corpo(PRE, POST)
-    budget, det = rg._calcola_budget_pre_esecuzione("short", s)
+    budget, det = rg._calcola_budget_pre_esecuzione("short", s, _piano_minimo())
     path = rg._scrivi_budget_preregistrato(budget, det)
     assert path == tmp_path / rg.BUDGET_PREREG_NAME
     assert path.exists()
@@ -578,7 +588,7 @@ def test_componenti_u_c_ripetibili_a_mano():
     del timer) e coincide con la formula che dichiara. Se una componente
     fosse un valore d'esempio, divergerebbe."""
     s = _budget_per_u_c(dt_offset=0.02)
-    budget, det = rg._calcola_budget_pre_esecuzione("short", s)
+    budget, det = rg._calcola_budget_pre_esecuzione("short", s, _piano_minimo())
     b = det["baseline"]
     fondo = float(b["baseline_pre_w"])
     dts = [f["dt_s"] for f in det["finestre_pre"] + det["finestre_post"]]
@@ -618,7 +628,7 @@ def test_u_timer_non_misurabile_resta_assente_non_zero():
     uno zero vorrebbe dire restringere la soglia senza fondamento; qui la
     differenza e' misurata."""
     det = rg._calcola_budget_pre_esecuzione(
-        "short", _budget_per_u_c(dt_offset=0.02))[1]
+        "short", _budget_per_u_c(dt_offset=0.02), _piano_minimo())[1]
     inc = rg._incertezza_pre_esecuzione(det, None)
     assert inc["componenti"]["u_timer"]["value"] is None
     assert "non misurabile" in inc["componenti"]["u_timer"]["fonte"]
@@ -635,7 +645,7 @@ def test_u_A_arriva_dopo_sui_soli_controlli_utilizzabili():
     numero non confrontabile. E' semi-ampiezza fra blocchi, non la sigma
     delle terne (P4.12), e non sostituisce il budget."""
     det = rg._calcola_budget_pre_esecuzione(
-        "short", _budget_per_u_c(dt_offset=0.02))[1]
+        "short", _budget_per_u_c(dt_offset=0.02), _piano_minimo())[1]
     inc_pre = rg._incertezza_pre_esecuzione(det, 0.0156)
     controls = [
         {"usable": True, "e_net_j": 0.30, "dt_w_s": 3.0},    # 0,10 W
@@ -667,7 +677,7 @@ def test_u_A_assente_con_un_solo_controllo_utilizzabile():
     None con la sua ragione, e non viene sostituita da una semi-ampiezza
     fittizia o da zero."""
     det = rg._calcola_budget_pre_esecuzione(
-        "short", _budget_per_u_c(dt_offset=0.02))[1]
+        "short", _budget_per_u_c(dt_offset=0.02), _piano_minimo())[1]
     inc_pre = rg._incertezza_pre_esecuzione(det, 0.0156)
     inc_post = rg._incertezza_con_au_controlli(
         inc_pre, [{"usable": True, "e_net_j": 0.3, "dt_w_s": 3.0}])
@@ -1106,7 +1116,7 @@ def test_la_soglia_non_e_piu_budget_piu_k_u_c_doppio_conteggio():
     assert budget + 2.0 * u_c_vecchio >= 3.0 * budget - 1e-12
     assert budget + 2.0 * u_c_vecchio > 0.125171          # avrebbe fatto passare
     det = rg._calcola_budget_pre_esecuzione(
-        "short", _corpo(PRE, POST))[1]
+        "short", _corpo(PRE, POST), _piano_minimo())[1]
     inc = rg._incertezza_pre_esecuzione(det, 0.0156)
     assert inc["soglia_w"] == pytest.approx(det["budget_base_w"])
     assert inc["soglia_w"] < 3.0 * det["budget_base_w"]
@@ -1118,7 +1128,7 @@ def test_ogni_componente_dichiara_tipo_inclusione_e_motivo():
     un'assenza dal report."""
     import gate_uncertainty as gu
     det = rg._calcola_budget_pre_esecuzione(
-        "short", _budget_per_u_c(dt_offset=0.02))[1]
+        "short", _budget_per_u_c(dt_offset=0.02), _piano_minimo())[1]
     pre = rg._incertezza_pre_esecuzione(det, 0.0156)
     post = rg._incertezza_con_au_controlli(pre, [
         {"usable": True, "e_net_j": 0.3, "dt_w_s": 3.0},
@@ -1146,7 +1156,7 @@ def test_u_A_e_s_su_radice_di_n_e_decresce_con_n():
     decresceva, e il range cresce con n: con 12 coppie il gate sarebbe
     stato piu' facile da passare che con 6."""
     det = rg._calcola_budget_pre_esecuzione(
-        "short", _budget_per_u_c(dt_offset=0.02))[1]
+        "short", _budget_per_u_c(dt_offset=0.02), _piano_minimo())[1]
     pre = rg._incertezza_pre_esecuzione(det, 0.0156)
 
     def ctrl(n):

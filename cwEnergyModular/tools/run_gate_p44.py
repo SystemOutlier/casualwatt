@@ -752,6 +752,70 @@ def _aggregato_consecutivo(finestre: List[Dict], etichetta: str) -> Dict:
             "canali": sorted({str(f["channel"]) for f in finestre})}
 
 
+def _applica_filtro_outlier_iqr(valori: List[float], moltiplicatore: float = 1.5) -> List[float]:
+    """Applica filtro IQR per rimuovere outlier da una lista di valori.
+
+    Restituisce la lista filtrata (valori dentro [Q1 - k*IQR, Q3 + k*IQR]).
+    Con meno di 4 valori il filtro non si applica (IQR non definito).
+    """
+    if len(valori) < 4:
+        return valori
+    ordinati = sorted(valori)
+    n = len(ordinati)
+    # Q1: mediana della prima meta'
+    q1_idx = n // 4
+    if n % 4 == 0:
+        q1 = (ordinati[q1_idx - 1] + ordinati[q1_idx]) / 2.0
+    else:
+        q1 = ordinati[q1_idx]
+    # Q3: mediana della seconda meta'
+    q3_idx = 3 * n // 4
+    if n % 4 == 0:
+        q3 = (ordinati[q3_idx - 1] + ordinati[q3_idx]) / 2.0
+    else:
+        q3 = ordinati[q3_idx]
+    iqr = q3 - q1
+    if iqr <= 0.0:
+        return valori
+    lower = q1 - moltiplicatore * iqr
+    upper = q3 + moltiplicatore * iqr
+    return [v for v in valori if lower <= v <= upper]
+
+
+def _filtra_baseline_finestre(unita_pre: List[Dict], unita_post: List[Dict],
+                               regola: str, min_finestre: int) -> Tuple[List[float], List[float]]:
+    """Applica filtro outlier alle finestre baseline e verifica minimo.
+
+    Restituisce (pre_filtrate, post_filtrate) come liste di power_w.
+    Solleva SystemExit se restano meno di min_finestre finestre valide.
+    """
+    pre_w = [f["power_w"] for f in unita_pre]
+    post_w = [f["power_w"] for f in unita_post]
+
+    if regola == "iqr_1p5":
+        pre_filtrate = _applica_filtro_outlier_iqr(pre_w, 1.5)
+        post_filtrate = _applica_filtro_outlier_iqr(post_w, 1.5)
+    elif regola == "none":
+        pre_filtrate, post_filtrate = pre_w, post_w
+    else:
+        raise SystemExit(
+            f"[BUDGET] baseline_outlier_rule = {regola!r} non riconosciuta: "
+            "valori ammessi 'iqr_1p5' o 'none'.")
+
+    if len(pre_filtrate) < min_finestre:
+        raise SystemExit(
+            f"[BUDGET] baseline pre: dopo filtro {regola} restano "
+            f"{len(pre_filtrate)} finestre, minimo richiesto {min_finestre}. "
+            "Il blocco non e' utilizzabile (requisito 7 emenda).")
+    if len(post_filtrate) < min_finestre:
+        raise SystemExit(
+            f"[BUDGET] baseline post: dopo filtro {regola} restano "
+            f"{len(post_filtrate)} finestre, minimo richiesto {min_finestre}. "
+            "Il blocco non e' utilizzabile (requisito 7 emenda).")
+
+    return pre_filtrate, post_filtrate
+
+
 def _budget_da_termine(b: Dict, etichetta: str) -> float:
     """``budget_base_w`` di ``block_baseline``, pretendendo il numero.
 
@@ -768,7 +832,7 @@ def _budget_da_termine(b: Dict, etichetta: str) -> float:
     return float(valore)
 
 
-def _calcola_budget_pre_esecuzione(mode: str, sessione) -> Tuple[float, Dict]:
+def _calcola_budget_pre_esecuzione(mode: str, sessione, plan: Dict) -> Tuple[float, Dict]:
     """Budget del gate misurato PRIMA dei blocchi, alla scala del controllo.
 
     Ritorna ``(budget_w, dettagli)``. ``budget_w`` e' in watt, come il
@@ -794,6 +858,11 @@ def _calcola_budget_pre_esecuzione(mode: str, sessione) -> Tuple[float, Dict]:
         raise SystemExit(
             f"[BUDGET] BUDGET_N_TERNE = {n_terne}: una semi-ampiezza su un "
             "solo campione non e' una misura di dispersione")
+
+    # Legge parametri baseline dal piano (varco 2: baseline_outlier_rule, baseline_windows_min)
+    baseline_params = plan.get("baseline_params", {})
+    baseline_outlier_rule = baseline_params.get("baseline_outlier_rule", "iqr_1p5")
+    baseline_windows_min = int(baseline_params.get("baseline_windows_min", 3))
 
     canali: set = set()
     if mode == "short":
@@ -831,8 +900,11 @@ def _calcola_budget_pre_esecuzione(mode: str, sessione) -> Tuple[float, Dict]:
             "Un budget composto da letture di origine diversa non e' una "
             "misura, e non si decide una soglia con esso.")
 
-    b = v4.block_baseline([f["power_w"] for f in unita_pre],
-                          [f["power_w"] for f in unita_post])
+    # Applica filtro outlier alle finestre baseline (varco 2)
+    pre_filtrate, post_filtrate = _filtra_baseline_finestre(
+        unita_pre, unita_post, baseline_outlier_rule, baseline_windows_min)
+
+    b = v4.block_baseline(pre_filtrate, post_filtrate)
     budget_w = _budget_da_termine(b, mode)
 
     dettagli = {
@@ -857,23 +929,35 @@ def _calcola_budget_pre_esecuzione(mode: str, sessione) -> Tuple[float, Dict]:
             + "; pre_range/2 e |dP|/2 in quadratura"),
         "scala_30_s_applicata": False,
         "codecarbon_usato": False,
-        "assunzioni": [
-            "il fondo e' letto dal contatore di package "
-            "(read_idle_window_j), lo stesso canale di calibrate_idle e "
-            "dell'audit P6.3: non e' un integrale di campioni",
-            f"le {n_terne} unita' pre e le {n_terne} post sono misurate in "
-            "due gruppi consecutivi non sovrapposti: dP e' la deriva fra i "
-            "due gruppi, come in P1.5, e non si assume nulla",
-            "un delta negativo o una lettura assente fermano la misura: "
-            "nessun clamp a zero e nessuna degradazione silenziosa",
-            "budget_base_w e' un proxy conservativo di incertezza standard, "
-            "non una deviazione standard (P4.12: con n = 3 non si stima "
-            "una varianza) e la quadratura non e' un limite massimo "
-            "garantito (P1.7)",
-            "la procedura e' pre-registrata nel piano (budget_mode) e "
-            "verificata da _verifica_piano PRIMA di qualunque misura",
-        ],
-    }
+            "baseline_filtrato": {
+                "regola_outlier": baseline_outlier_rule,
+                "min_finestre": baseline_windows_min,
+                "pre_originali": len(unita_pre),
+                "post_originali": len(unita_post),
+                "pre_filtrate": len(pre_filtrate),
+                "post_filtrate": len(post_filtrate),
+                "pre_rimesse": [f["power_w"] for f in unita_pre if f["power_w"] not in pre_filtrate],
+                "post_rimesse": [f["power_w"] for f in unita_post if f["power_w"] not in post_filtrate],
+            },
+            "assunzioni": [
+                "il fondo e' letto dal contatore di package "
+                "(read_idle_window_j), lo stesso canale di calibrate_idle e "
+                "dell'audit P6.3: non e' un integrale di campioni",
+                f"le {n_terne} unita' pre e le {n_terne} post sono misurate in "
+                "due gruppi consecutivi non sovrapposti: dP e' la deriva fra i "
+                "due gruppi, come in P1.5, e non si assume nulla",
+                "un delta negativo o una lettura assente fermano la misura: "
+                "nessun clamp a zero e nessuna degradazione silenziosa",
+                "budget_base_w e' un proxy conservativo di incertezza standard, "
+                "non una deviazione standard (P4.12: con n = 3 non si stima "
+                "una varianza) e la quadratura non e' un limite massimo "
+                "garantito (P1.7)",
+                "la procedura e' pre-registrata nel piano (budget_mode) e "
+                "verificata da _verifica_piano PRIMA di qualunque misura",
+                f"filtro outlier baseline: {baseline_outlier_rule} con min_finestre={baseline_windows_min} "
+                "(varco 2 emenda: dichiarato nel piano e applicato a execute)",
+            ],
+        }
     if mode == "matched":
         dettagli["aggregati_pre"] = unita_pre
         dettagli["aggregati_post"] = unita_post
@@ -2049,7 +2133,7 @@ def cmd_execute(model: str, *, codecarbon: bool = False,
           flush=True)
     risoluzione_timer = _risoluzione_timer_sessione()
     budget_w, dettagli_budget = _calcola_budget_pre_esecuzione(
-        BUDGET_MODE, _sessione_misura())
+            BUDGET_MODE, _sessione_misura(), plan)
     budget_path = _scrivi_budget_preregistrato(budget_w, dettagli_budget)
     incertezza_pre = _incertezza_pre_esecuzione(dettagli_budget,
                                                 risoluzione_timer)
