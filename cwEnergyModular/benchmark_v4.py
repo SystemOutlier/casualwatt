@@ -2883,16 +2883,14 @@ def run_v4_benchmark(
 
                 # Scrive l'artefatto JSON diagnostico (non bloccante)
                 try:
-                    bg_monitor_json_records = [
-                        {
-                            "batch_id": batch,
-                            "block_id": block_id,
-                            **verdict
-                        }
-                        for verdict in bg_monitor.block_verdicts
-                    ]
+                    # Persiste soltanto il verdetto appena prodotto.
+                    # Il writer esegue upsert per (batch_id, block_id), quindi
+                    # un retry non duplica i record e i batch storici restano intatti.
+                    latest_verdict = dict(bg_monitor.block_verdicts[-1])
+                    latest_verdict["batch_id"] = batch
+                    latest_verdict["block_id"] = block_id
                     bgmj.write_background_monitor_json(
-                        bg_monitor_json_records, bg_monitor_json_path)
+                        [latest_verdict], bg_monitor_json_path)
                 except Exception as json_exc:
                     log(f"[AVVISO] scrittura background_monitor.json fallita: "
                         f"{type(json_exc).__name__}: {json_exc}")
@@ -3003,7 +3001,7 @@ def run_v4_benchmark(
     # Monitor del background: stato serializzato per il campo notes.
     # Lo schema P5 e' congelato: il verdetto per blocco sta nel riepilogo,
     # lo stato complessivo del monitor sta qui.
-    notes.append(bg_monitor.to_json())
+    notes.append(bg_monitor.to_notes_string())
     # Emenda 8 (P1.6): il tetto, il seme e le posizioni estratte dal sorteggio
     # stanno nel metadata perche' non hanno colonne, e un ordine dei blocchi
     # non riproducibile e' come una scelta fatta dopo i dati.
