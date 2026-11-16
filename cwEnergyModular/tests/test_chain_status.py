@@ -279,3 +279,80 @@ def test_le_righe_lette_dal_csv_si_valutano_come_i_dict_del_runner():
     assert chain_status(blocks=blocchi, controls=controlli, n_pairs=6,
                         p_lof_perm="0.40", confirmation_points=conferme) \
         == VALIDATED
+
+
+# ------------------------------------------------- baseline_stability end-to-end
+
+def test_chain_status_usa_baseline_stability_unstable():
+    """chain_status() restituisce baseline_stability_unstable quando la baseline e' instabile.
+
+    Test end-to-end: tutti gli anelli principali passano, ma la baseline e'
+    instabile. chain_status() deve chiamare baseline_stability() e restituire
+    il token corretto, non VALIDATED.
+    """
+    esito = _catena(
+        baseline_cv_pct=20.0,
+        baseline_stability_status="unstable",
+    )
+    assert esito == BASELINE_STABILITY_UNSTABLE
+
+
+def test_chain_status_usa_baseline_stability_insufficient():
+    """chain_status() restituisce baseline_stability_insufficient quando i dati sono insufficienti.
+
+    Test end-to-end: tutti gli anelli principali passano, ma la baseline ha
+    dati insufficienti. chain_status() deve restituire il token corretto.
+    """
+    esito = _catena(
+        baseline_cv_pct=0.0,
+        baseline_stability_status="insufficient_data",
+    )
+    assert esito == BASELINE_STABILITY_INSUFFICIENT
+
+
+def test_chain_status_baseline_stability_stable_da_validated():
+    """chain_status() restituisce validated quando la baseline e' stabile.
+
+    Test end-to-end: tutti gli anelli passano inclusa baseline_stability.
+    """
+    esito = _catena(
+        baseline_cv_pct=5.0,
+        baseline_stability_status="stable",
+    )
+    assert esito == VALIDATED
+
+
+def test_chain_status_baseline_stability_none_da_validated():
+    """chain_status() restituisce validated quando baseline_stability_status e' None.
+
+    Se la baseline non e' stata valutata, l'anello passa e la catena continua.
+    """
+    esito = _catena(
+        baseline_cv_pct=None,
+        baseline_stability_status=None,
+    )
+    assert esito == VALIDATED
+
+
+def test_chain_status_baseline_stability_precedenza():
+    """chain_status() restituisce l'anello principale se cede prima di baseline_stability.
+
+    Se il contatore e' invalido, chain_status() restituisce counter_invalid
+    anche se la baseline e' instabile: l'ordine degli anelli e' preservato.
+    """
+    esito = _catena(
+        blocks=[dict(b, negative_increment="true") for b in _blocchi("p1")],
+        baseline_cv_pct=20.0,
+        baseline_stability_status="unstable",
+    )
+    assert esito == COUNTER_INVALID
+
+
+def test_chain_status_senza_parametri_baseline_da_validated():
+    """chain_status() senza parametri baseline restituisce validated se tutto passa.
+
+    I parametri baseline sono opzionali: se non sono passati, l'anello non
+    invalida la catena.
+    """
+    esito = _catena()
+    assert esito == VALIDATED

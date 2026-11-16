@@ -40,7 +40,7 @@ su un anello che nessuno ha valutato sarebbe una dichiarazione inventata.
 from fractions import Fraction
 from math import ceil
 from statistics import median
-from typing import Mapping, Sequence
+from typing import Mapping, Optional, Sequence
 
 #: Riferimento P1.6, criterio dell'anello 3: un blocco e' stabile se
 #: `r_A <= 10%`; servono almeno 2 blocchi stabili su 3 per punto.
@@ -260,7 +260,9 @@ def chain_status(*, blocks: Sequence[Mapping],
                  controls: Sequence[Mapping], n_pairs: int,
                  p_lof_perm: float,
                  confirmation_points: Sequence[Mapping],
-                 reduced_design: bool = False) -> str:
+                 reduced_design: bool = False,
+                 baseline_cv_pct: Optional[float] = None,
+                 baseline_stability_status: Optional[str] = None) -> str:
     """Il token di P4.9 a partire dai dati della campagna.
 
     L'ordine e' quello della tabella: il primo anello che cede da' il nome.
@@ -268,6 +270,13 @@ def chain_status(*, blocks: Sequence[Mapping],
     aggiunge alle etichette ma non copre un anello rotto: un disegno ridotto
     con un anello rotto resta l'anello rotto. `validated` richiede quindi sei
     anelli puliti **e** il disegno intero.
+
+    I due parametri opzionali `baseline_cv_pct` e `baseline_stability_status`
+    alimentano l'anello `baseline_stability`: distinguono la qualita' statistica
+    della baseline dalla validita' dell'acquisizione. Se la baseline e' instabile,
+    la campagna non e' `validated` ma il risultato non e' `invalid` — e' un warning
+    che la baseline non soddisfa il criterio di stabilita' del protocollo.
+    Se i dati sono insufficienti, il risultato e' `inconclusive`.
     """
     if counter_invalid(blocks):
         return COUNTER_INVALID
@@ -281,4 +290,10 @@ def chain_status(*, blocks: Sequence[Mapping],
         return VALIDATION_FAILED
     if reduced_design:
         return REDUCED_DESIGN
+    stability_result = baseline_stability(
+        baseline_cv_pct=baseline_cv_pct,
+        baseline_stability_status=baseline_stability_status,
+    )
+    if stability_result is not None:
+        return stability_result
     return VALIDATED
