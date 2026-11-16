@@ -228,14 +228,12 @@ class BackgroundMonitor:
         }
         self.block_verdicts.append(verdict)
 
-    def to_json(self) -> str:
-        """Serializza lo stato completo del monitor in JSON.
+    def to_json(self) -> Dict:
+        """Restituisce lo stato completo come dizionario JSON-serializzabile.
 
         Include verdetti per blocco, differenze, campioni raccolti,
-        riferimento iniziale, errori e stato di completezza.
-
-        Restituisce un dizionario pronto per essere scritto in un file
-        JSON diagnostico separato (background_monitor.json).
+        riferimento iniziale, errori e stato di completezza. Per il campo
+        notes del CSV usare invece to_notes_string().
         """
         ref_info = None
         if self.reference_signature is not None:
