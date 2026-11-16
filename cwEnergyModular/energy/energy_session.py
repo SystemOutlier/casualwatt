@@ -54,6 +54,16 @@ from .worker_tree import (
     worker_cpu_delta,
 )
 
+# Import opzionale: BaselineStatistics e' disponibile solo se il modulo
+# e' stato creato; senza di esso la sessione funziona come prima.
+# Si usa l'import assoluto perche' cwEnergyModular/ non ha __init__.py
+# e l'import relativo da energy/ non e' affidabile in tutti i contesti.
+try:
+    import baseline_statistics as _bs
+    BaselineStatistics = _bs.BaselineStatistics
+except Exception:
+    BaselineStatistics = None  # type: ignore
+
 
 #: Metodi che possono esprimere un NUMERO di energia in una riga. Sono i
 #: metodi che leggono un contatore o integrano una potenza reale; tutto il
@@ -790,6 +800,10 @@ class EnergySession:
         # nota finisce nel CSV, perche' un campo informativo assente senza
         # motivazione e' indistinguibile da un dominio che non esiste.
         self._igpu_none_reason: Optional[str] = None
+        # Metriche statistiche complete della baseline CPU, popolate da
+        # calibrate_idle() dopo le 3 ripetizioni. Inizialmente None finche'
+        # la calibrazione non viene eseguita.
+        self.baseline_stats = None
 
     # ------------------------------------------------------------------ util
     @staticmethod
@@ -1655,6 +1669,20 @@ class EnergySession:
         self.idle_power_w = round(power_w, 3)
         self.idle_provenance = "calibrated"
         self.calibrated_at = time.time()
+
+        # Popola le metriche statistiche complete dalla calibrazione.
+        # Le potenze e le durate delle 3 ripetizioni sono gia' in means e
+        # nelle finestre lette; si ricostruiscono le tuple (power_w, dt_s)
+        # per BaselineStatistics.
+        if BaselineStatistics is not None:
+            power_windows = [
+                (means[i], duration_s) for i in range(len(means))
+            ]
+            self.baseline_stats = BaselineStatistics.from_power_windows(
+                power_windows,
+                cv_max_pct=10.0,
+            )
+
         return self.idle_power_w
 
     def calibrate_gpu_idle(
