@@ -1,0 +1,18 @@
+# Esempio di task YAML per benchmark energetico
+# Ispirato a lm-evaluation-harness ma adattato alla misura energetica
+
+task_name: qwen2.5_0.5b_italiano_capitale
+model: qwen2.5:0.5b
+prompt: "Qual è la capitale d'Italia?"
+few_shot_count: 0
+keep_alive: -1
+num_ctx: 8192
+m: 3
+
+# Varianti del prompt per il multi-prompt (Evalita-LLM)
+# Ogni variante viene eseguita come un task separato e l'energia viene aggregata
+# con la statistica già implementata (Wilson CI, bootstrap a cluster)
+prompt_variants:
+  - "Qual è la capitale d'Italia?"
+  - "Indica la capitale della Repubblica Italiana."
+  - "Di quale città è capitale l'Italia?"
