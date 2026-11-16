@@ -7,6 +7,53 @@ Separato da casualwatt_csv_export.py (misura energetica, P5 congelato) perché:
 - piano valutazione = pass/fail, factual accuracy, human score, LLM judge, rubrica, pass@k
 
 I due piani si collegano per run_id / task_id / batch_id / point_id, non per colonne sovrapposte.
+
+Regola di binarizzazione per is_correct (denominatore di ECPC).
+--------------------------------------------------------------------------
+is_correct e' un indicatore binario {0, 1} (o N/A indeterminato) che entra nel
+denominatore di ECPC = ΣE / Σis_correct. Non deriva da metriche continue come
+F1 o pass@k, che restano registrate come colonne indipendenti dello schema.
+La binarizzazione avviene in evaluator.py::evaluate_response() e dipende dal
+tipo di risposta (answer_type) rilevato o dichiarato:
+
+  1. number: estrazione numerica dalla risposta, confronto con la ground truth
+     usando una tolleranza assoluta τ = 1e-6 (evaluator.py:537-541).
+     is_correct = 1 se |estratto - GT| ≤ τ, altrimenti 0.
+     Se il numero non e' estraibile, is_correct = 0 con eval_method="number_extraction_failed".
+     Se la GT non e' numerica finita, is_correct = N/A.
+
+  2. short_text: normalizzazione (case folding, punteggiatura, spazi) e
+     verifica di contenimento lessicale (evaluator.py:573-574).
+     is_correct = 1 se la risposta normalizzata contiene la GT normalizzata,
+     altrimenti 0. Alternatives separate da "|" sono accettate.
+
+  3. free_text: similarita' semantica tra risposta e GT.
+     Se use_semantic=True (post-hoc), is_correct = 1 se semantic_similarity ≥ τ,
+     con τ = SEMANTIC_THRESHOLD = 0,75 di default, configurabile via CW_SEMANTIC_THRESHOLD
+     (evaluator.py:53-57, :648).
+     Se use_semantic=False (default durante il benchmark), is_correct = 1 se
+     lexical_similarity ≥ 0,85 come STIMA PROVVISORIA (evaluator.py:630).
+     La valutazione semantica definitiva va rifatta POST-HOC con semantic_judge.py.
+
+  4. label: confronto esatto dopo normalizzazione (case folding, strip).
+     is_correct = 1 se la risposta normalizzata e' uguale alla GT normalizzata,
+     altrimenti 0.
+
+  5. structured: confronto JSON/YAML dopo normalizzazione.
+     is_correct = 1 se la struttura estratta corrisponde alla GT, altrimenti 0.
+
+  N/A (indeterminato): is_correct = None quando la valutazione non e' decidibile:
+     - ground truth assente o non valida nel REGIME A
+     - giudice LLM non calibrato nel REGIME B (judge_gated=True)
+     - estrazione ambigua o fallita senza fallback deterministico
+
+Metriche continue indipendenti da is_correct.
+----------------------------------------------
+factual_f1, pass_at_k, pass_at_1 e human_score sono metriche continue [0, 1]
+registrate come colonne dello schema, ma NON binarizzate verso is_correct.
+Restano indicatori diagnostici indipendenti: ECPC usa is_correct come denominatore,
+non la media di queste metriche. pass@k unbiased (Chen et al., HumanEval) e'
+calcolato da compute_pass_at_k_unbiased() per task di coding con multi-tentativo.
 """
 
 from __future__ import annotations
