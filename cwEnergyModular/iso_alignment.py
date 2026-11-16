@@ -134,7 +134,7 @@ class IsoAlignment:
 
         residual_ratio = (
             residual_j / prediction_j
-            if prediction_j is not None and prediction_j > 0
+            if residual_j is not None and prediction_j is not None and prediction_j > 0
             else ""
         )
 
