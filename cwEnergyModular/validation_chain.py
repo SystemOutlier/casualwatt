@@ -74,13 +74,16 @@ VALIDATION_FAILED = "validation_failed"
 REDUCED_DESIGN = "reduced_design"
 BASELINE_STABILITY_UNSTABLE = "baseline_stability_unstable"
 BASELINE_STABILITY_INSUFFICIENT = "baseline_stability_insufficient"
+BACKGROUND_UNSTABLE = "background_unstable"
+BACKGROUND_INSUFFICIENT = "background_insufficient"
 
 #: Vocabolario chiuso delle etichette (P4.9, piu' i due token che il protocollo
 #: aggiunge: `pred_nonpositive` resta un flag della previsione e non un
 #: secondo esito). Nessun'altra stringa esce da questo modulo.
 STATUS_LABELS = (VALIDATED, COUNTER_INVALID, BASELINE_UNSTABLE, BIAS_DECLARED,
                  MODEL_INADEQUATE, VALIDATION_FAILED, REDUCED_DESIGN,
-                 BASELINE_STABILITY_UNSTABLE, BASELINE_STABILITY_INSUFFICIENT)
+                 BASELINE_STABILITY_UNSTABLE, BASELINE_STABILITY_INSUFFICIENT,
+                 BACKGROUND_UNSTABLE, BACKGROUND_INSUFFICIENT)
 
 
 def _flag(value) -> bool:
@@ -274,13 +277,46 @@ def baseline_stability(
     )
 
 
+def background_monitor(
+    bg_monitor_verdict: Optional[str] = None,
+) -> Optional[str]:
+    """Anello opzionale: esito del monitoraggio del background.
+
+    Legge il verdetto prodotto da BackgroundMonitor durante il run e lo
+    traduce in un token della catena. Non sostituisce baseline_stability()
+    (che valuta la qualità statistica della baseline): i due anelli sono
+    complementari, uno guarda il fondo, l'altro la baseline.
+
+    Restituisce:
+        - None: l'anello passa (background stabile o monitoraggio non attivo)
+        - BACKGROUND_UNSTABLE: background instabile (identità o intensità)
+        - BACKGROUND_INSUFFICIENT: dati insufficienti per valutare
+
+    Se bg_monitor_verdict è None, il monitoraggio non era attivo: l'anello
+    passa senza bloccare, perché è un anello opzionale aggiunto dopo P5.
+    """
+    if bg_monitor_verdict is None:
+        return None
+    if bg_monitor_verdict == "unstable":
+        return BACKGROUND_UNSTABLE
+    if bg_monitor_verdict == "insufficient_data":
+        return BACKGROUND_INSUFFICIENT
+    if bg_monitor_verdict == "stable":
+        return None
+    raise ValueError(
+        f"bg_monitor_verdict={bg_monitor_verdict!r} non riconosciuto. "
+        f"Vocabolario chiuso: stable, unstable, insufficient_data."
+    )
+
+
 def chain_status(*, blocks: Sequence[Mapping],
                  controls: Sequence[Mapping], n_pairs: int,
                  p_lof_perm: float,
                  confirmation_points: Sequence[Mapping],
                  reduced_design: bool = False,
                  baseline_cv_pct: Optional[float] = None,
-                 baseline_stability_status: Optional[str] = None) -> str:
+                 baseline_stability_status: Optional[str] = None,
+                 bg_monitor_verdict: Optional[str] = None) -> str:
     """Il token di P4.9 a partire dai dati della campagna.
 
     L'ordine e' quello della tabella: il primo anello che cede da' il nome.
@@ -314,4 +350,7 @@ def chain_status(*, blocks: Sequence[Mapping],
     )
     if stability_result is not None:
         return stability_result
+    bg_result = background_monitor(bg_monitor_verdict=bg_monitor_verdict)
+    if bg_result is not None:
+        return bg_result
     return VALIDATED

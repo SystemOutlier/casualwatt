@@ -25,8 +25,9 @@ from validation_chain import (
     CONTROL_QUORUM, ERR_REL_MAX, LOF_P_MIN, MODEL_INADEQUATE, REDUCED_DESIGN,
     STATUS_LABELS, VALIDATED, VALIDATION_FAILED, BASELINE_UNSTABLE,
     BASELINE_STABILITY_UNSTABLE, BASELINE_STABILITY_INSUFFICIENT,
+    BACKGROUND_UNSTABLE, BACKGROUND_INSUFFICIENT,
     baseline_unstable, bias_declared, chain_status, counter_invalid,
-    model_inadequate, validation_failed, baseline_stability,
+    model_inadequate, validation_failed, baseline_stability, background_monitor,
 )
 
 
@@ -213,12 +214,13 @@ def test_disegno_ridotto_non_copre_un_anello_rotto():
 
 # ------------------------------------------------------------- vocabolario
 def test_nessuna_etichetta_fuori_dal_vocabolario_congelato():
-    """Il protocollo ha sei etichette di anello piu' validated, reduced_design
-    e i due token di stabilita' statistica della baseline."""
+    """Il protocollo ha sei etichette di anello piu' validated, reduced_design,
+    i due token di stabilita' statistica della baseline e i due del background."""
     assert set(STATUS_LABELS) == {
         VALIDATED, COUNTER_INVALID, BASELINE_UNSTABLE, BIAS_DECLARED,
         MODEL_INADEQUATE, VALIDATION_FAILED, REDUCED_DESIGN,
-        BASELINE_STABILITY_UNSTABLE, BASELINE_STABILITY_INSUFFICIENT}
+        BASELINE_STABILITY_UNSTABLE, BASELINE_STABILITY_INSUFFICIENT,
+        BACKGROUND_UNSTABLE, BACKGROUND_INSUFFICIENT}
     # l'anello 1 (pilota P2.9) non e' un esito di catena: non ha un token
     assert not any("pilot" in label or "campaign" in label
                    for label in STATUS_LABELS)
@@ -387,3 +389,103 @@ def test_chain_status_senza_parametri_baseline_da_validated():
     """
     esito = _catena()
     assert esito == VALIDATED
+
+
+# ------------------------------------------------- background_monitor
+
+def test_background_monitor_stable():
+    """Verdetto stable: l'anello passa."""
+    assert background_monitor(bg_monitor_verdict="stable") is None
+
+
+def test_background_monitor_unstable():
+    """Verdetto unstable: restituisce BACKGROUND_UNSTABLE."""
+    assert background_monitor(bg_monitor_verdict="unstable") == BACKGROUND_UNSTABLE
+
+
+def test_background_monitor_insufficient_data():
+    """Verdetto insufficient_data: restituisce BACKGROUND_INSUFFICIENT."""
+    assert background_monitor(bg_monitor_verdict="insufficient_data") == BACKGROUND_INSUFFICIENT
+
+
+def test_background_monitor_none_passes():
+    """Verdetto None: monitoraggio non attivo, l'anello passa."""
+    assert background_monitor() is None
+
+
+def test_background_monitor_unknown_token_raises():
+    """Token non riconosciuto: ValueError."""
+    with pytest.raises(ValueError, match="non riconosciuto"):
+        background_monitor(bg_monitor_verdict="unknown")
+
+
+def test_chain_status_background_unstable():
+    """chain_status() restituisce BACKGROUND_UNSTABLE quando il background e' instabile.
+
+    Tutti gli anelli principali passano, ma il monitoraggio del background
+    ha rilevato instabilita'. La catena non raggiunge validated.
+    """
+    esito = _catena(bg_monitor_verdict="unstable")
+    assert esito == BACKGROUND_UNSTABLE
+
+
+def test_chain_status_background_insufficient():
+    """chain_status() restituisce BACKGROUND_INSUFFICIENT quando i dati mancano.
+
+    Tutti gli anelli principali passano, ma il monitoraggio del background
+    non ha dati sufficienti. La catena non raggiunge validated.
+    """
+    esito = _catena(bg_monitor_verdict="insufficient_data")
+    assert esito == BACKGROUND_INSUFFICIENT
+
+
+def test_chain_status_background_stable_da_validated():
+    """chain_status() restituisce validated quando il background e' stabile.
+
+    Tutti gli anelli passano incluso il monitoraggio del background.
+    """
+    esito = _catena(bg_monitor_verdict="stable")
+    assert esito == VALIDATED
+
+
+def test_chain_status_background_none_da_validated():
+    """chain_status() restituisce validated quando il monitoraggio non e' attivo.
+
+    bg_monitor_verdict=None significa che il monitoraggio non era attivo:
+    l'anello opzionale passa e la catena continua verso validated.
+    """
+    esito = _catena(bg_monitor_verdict=None)
+    assert esito == VALIDATED
+
+
+def test_chain_status_background_precedenza():
+    """chain_status() restituisce l'anello principale se cede prima di background.
+
+    Se il contatore e' invalido, chain_status() restituisce counter_invalid
+    anche se il background e' instabile: l'ordine degli anelli e' preservato.
+    """
+    esito = _catena(
+        blocks=[dict(b, negative_increment="true") for b in _blocchi("p1")],
+        bg_monitor_verdict="unstable",
+    )
+    assert esito == COUNTER_INVALID
+
+
+def test_chain_status_baseline_stability_precede_background():
+    """baseline_stability ha la precedenza su background_monitor.
+
+    Se la baseline e' instabile E il background e' instabile, chain_status()
+    restituisce baseline_stability_unstable, non background_unstable.
+    """
+    esito = _catena(
+        baseline_cv_pct=20.0,
+        baseline_stability_status="unstable",
+        bg_monitor_verdict="unstable",
+    )
+    assert esito == BASELINE_STABILITY_UNSTABLE
+
+
+def test_background_tokens_in_status_labels():
+    """I nuovi token sono registrati in STATUS_LABELS."""
+    assert BACKGROUND_UNSTABLE in STATUS_LABELS
+    assert BACKGROUND_INSUFFICIENT in STATUS_LABELS

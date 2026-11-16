@@ -79,6 +79,7 @@ from typing import Callable, Dict, Iterable, List, Optional, Sequence, Tuple
 import aiohttp
 import requests
 
+import background_monitor as bgm
 import benchmark_unified as bu
 import config
 import llm_judge as _lj
@@ -2680,6 +2681,12 @@ def run_v4_benchmark(
                 + (f"{cpu_res:.4f} s" if cpu_res else "non misurabile"))
             machine_before = prepare_machine_state(on_log=log)
 
+            # Monitor del background: campiona prima e dopo ogni blocco,
+            # valuta l'esito e lo aggiunge al riepilogo di blocco e alle note.
+            # Non è un'invalidazione: un verdetto "unstable" è un warning
+            # che la misura non soddisfa il criterio di stabilità.
+            bg_monitor = bgm.BackgroundMonitor()
+
             idx = 0
             while idx < len(plan):
                 entry = plan[idx]
@@ -2709,6 +2716,14 @@ def run_v4_benchmark(
                             f"cooldown_timeout="
                             f"{cooldown_timeout_flag(cooldown)}")
                     log(f"[COOLDOWN -> {point_id}] {cooldown['reason']}")
+                # Campione del background prima del blocco
+                bg_verdict = "insufficient_data"
+                bg_diff = []
+                try:
+                    bg_monitor.sample_pre()
+                except Exception as bg_exc:
+                    log(f"[AVVISO] background monitor pre fallito: "
+                        f"{type(bg_exc).__name__}: {bg_exc}")
                 try:
                     rows, block_rec = run_block(
                         model, entry["prompt"],
@@ -2799,6 +2814,13 @@ def run_v4_benchmark(
                         f"({block_id} -> {sub_bid})")
                     idx += 1
                     continue
+                # Campione del background dopo il blocco (anche se invalidato)
+                try:
+                    bg_monitor.sample_post()
+                    bg_verdict, bg_diff = bg_monitor.evaluate_background()
+                except Exception as bg_exc:
+                    log(f"[AVVISO] background monitor post fallito: "
+                        f"{type(bg_exc).__name__}: {bg_exc}")
                 else:
                     nonce_seq += m
                     b_pre = block_rec.get("baseline_pre_w")
@@ -2806,6 +2828,19 @@ def run_v4_benchmark(
                         last_pre_w = float(b_pre)
                     rows_written += export_results_csv(
                         rows, results_path, mode="a")
+                    # Aggiunge il verdetto del background al riepilogo e alle righe
+                    block_rec["bg_monitor_verdict"] = bg_verdict
+                    if bg_diff:
+                        block_rec["bg_monitor_diff"] = "; ".join(bg_diff)
+                    # Aggiunge il verdetto alle note di ogni riga
+                    bg_note = (
+                        f"bg_monitor:{bg_verdict}"
+                        + (f" ({', '.join(bg_diff)})" if bg_diff else "")
+                    )
+                    for row in rows:
+                        row["notes"] = (
+                            (row.get("notes", "") + "; ") if row.get("notes") else ""
+                        ) + bg_note
                     blocks_written += export_summary_csv(
                         [block_rec], block_summary_path,
                         BLOCK_SUMMARY_COLUMNS, mode="a")
@@ -2914,6 +2949,10 @@ def run_v4_benchmark(
     else:
         notes.append("cooldown: nessun confine fra punti con riferimento "
                      "disponibile (nessun cooldown eseguito)")
+    # Monitor del background: stato serializzato per il campo notes.
+    # Lo schema P5 e' congelato: il verdetto per blocco sta nel riepilogo,
+    # lo stato complessivo del monitor sta qui.
+    notes.append(bg_monitor.to_json())
     # Emenda 8 (P1.6): il tetto, il seme e le posizioni estratte dal sorteggio
     # stanno nel metadata perche' non hanno colonne, e un ordine dei blocchi
     # non riproducibile e' come una scelta fatta dopo i dati.
