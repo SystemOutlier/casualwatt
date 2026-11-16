@@ -508,3 +508,77 @@ def test_background_tokens_in_status_labels():
     assert BACKGROUND_INSUFFICIENT in STATUS_LABELS
     assert BACKGROUND_LOCAL_UNSTABLE in STATUS_LABELS
     assert BACKGROUND_GLOBAL_UNSTABLE in STATUS_LABELS
+
+
+# ------------------------------------------------- parametri opzionali
+
+def test_chain_status_solo_background_verdicts():
+    """chain_status() funziona con solo i verdetti del background, senza analisi surface_fit.
+
+    Il runner v4 chiama chain_status() senza blocks, controls, p_lof_perm, ecc.
+    Gli anelli obbligatori vengono saltati, gli anelli opzionali funzionano da soli.
+    """
+    esito = chain_status(bg_local_verdict="stable", bg_global_verdict="stable")
+    assert esito == VALIDATED
+
+
+def test_chain_status_solo_background_unstable():
+    """chain_status() restituisce BACKGROUND_LOCAL_UNSTABLE senza altri anelli.
+
+    Se solo il verdetto locale e' instabile e nessun altro anello e' valutato,
+    il risultato e' BACKGROUND_LOCAL_UNSTABLE, non VALIDATED.
+    """
+    esito = chain_status(bg_local_verdict="unstable")
+    assert esito == BACKGROUND_LOCAL_UNSTABLE
+
+
+def test_chain_status_solo_background_insufficient():
+    """chain_status() restituisce BACKGROUND_INSUFFICIENT senza altri anelli.
+
+    Se i dati del background sono insufficienti e nessun altro anello e' valutato,
+    il risultato e' BACKGROUND_INSUFFICIENT.
+    """
+    esito = chain_status(bg_local_verdict="insufficient_data")
+    assert esito == BACKGROUND_INSUFFICIENT
+
+
+def test_chain_status_tutti_parametri_none():
+    """chain_status() restituisce VALIDATED quando nessun anello e' valutato.
+
+    Se tutti i parametri sono None, nessun anello ha ceduto: il risultato e'
+    VALIDATED perche' la catena non ha trovato problemi. Il chiamante deve
+    dichiarare esplicitamente che la validazione e' incompleta.
+    """
+    esito = chain_status()
+    assert esito == VALIDATED
+
+
+def test_chain_status_baseline_stability_sola():
+    """chain_status() restituisce baseline_stability_unstable senza altri anelli.
+
+    Se solo la baseline e' instabile e nessun altro anello e' valutato,
+    il risultato e' BASELINE_STABILITY_UNSTABLE.
+    """
+    esito = chain_status(baseline_stability_status="unstable")
+    assert esito == BASELINE_STABILITY_UNSTABLE
+
+
+def test_chain_status_anelli_obbligatori_saltati():
+    """Gli anelli obbligatori vengono saltati se i dati non sono disponibili.
+
+    Se blocks=None, counter_invalid e baseline_unstable non vengono chiamati.
+    Se p_lof_perm=None, model_inadequate non viene chiamato.
+    Il risultato e' VALIDATED se nessun anello opzionale cede.
+    """
+    esito = chain_status(blocks=None, p_lof_perm=None)
+    assert esito == VALIDATED
+
+
+def test_chain_status_ridotta_con_background():
+    """reduced_design funziona con i parametri opzionali.
+
+    Se reduced_design=True e il background e' instabile, reduced_design ha
+    la precedenza perche' viene valutato prima degli anelli opzionali.
+    """
+    esito = chain_status(reduced_design=True, bg_local_verdict="unstable")
+    assert esito == REDUCED_DESIGN

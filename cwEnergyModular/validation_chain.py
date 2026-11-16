@@ -332,15 +332,20 @@ def background_monitor(
     return None
 
 
-def chain_status(*, blocks: Sequence[Mapping],
-                 controls: Sequence[Mapping], n_pairs: int,
-                 p_lof_perm: float,
-                 confirmation_points: Sequence[Mapping],
-                 reduced_design: bool = False,
-                 baseline_cv_pct: Optional[float] = None,
-                 baseline_stability_status: Optional[str] = None,
-                 bg_local_verdict: Optional[str] = None,
-                 bg_global_verdict: Optional[str] = None) -> str:
+def chain_status(
+        *,
+        # Anelli obbligatori della campagna completa (opzionali per il runner)
+        blocks: Optional[Sequence[Mapping]] = None,
+        controls: Optional[Sequence[Mapping]] = None,
+        n_pairs: Optional[int] = None,
+        p_lof_perm: Optional[float] = None,
+        confirmation_points: Optional[Sequence[Mapping]] = None,
+        reduced_design: bool = False,
+        # Anelli opzionali: qualita' statistica e monitoraggio background
+        baseline_cv_pct: Optional[float] = None,
+        baseline_stability_status: Optional[str] = None,
+        bg_local_verdict: Optional[str] = None,
+        bg_global_verdict: Optional[str] = None) -> str:
     """Il token di P4.9 a partire dai dati della campagna.
 
     L'ordine e' quello della tabella: il primo anello che cede da' il nome.
@@ -349,31 +354,55 @@ def chain_status(*, blocks: Sequence[Mapping],
     con un anello rotto resta l'anello rotto. `validated` richiede quindi sei
     anelli puliti **e** il disegno intero.
 
-    I due parametri opzionali `baseline_cv_pct` e `baseline_stability_status`
+    **Parametri opzionali.** Tutti i parametri sono ora opzionali per permettere
+    al runner v4 di chiamare `chain_status()` senza l'analisi surface_fit
+    post-campagna. Se un anello manca i dati che gli servono, viene saltato
+    invece di sollevare ValueError. Gli anelli opzionali (`baseline_stability`,
+    `background_monitor`) possono funzionare da soli, producendo il verdetto
+    del background anche senza l'analisi completa.
+
+    Se nessun anello e' valutabile (tutti i parametri sono None), il risultato
+    e' `validated` perche' nessun anello ha ceduto — ma il chiamante deve
+    dichiarare esplicitamente che la validazione e' incompleta.
+
+    I due parametri `baseline_cv_pct` e `baseline_stability_status`
     alimentano l'anello `baseline_stability`: distinguono la qualita' statistica
     della baseline dalla validita' dell'acquisizione. Se la baseline e' instabile,
     la campagna non e' `validated` ma il risultato non e' `invalid` — e' un warning
     che la baseline non soddisfa il criterio di stabilita' del protocollo.
     Se i dati sono insufficienti, il risultato e' `inconclusive`.
     """
-    if counter_invalid(blocks):
-        return COUNTER_INVALID
-    if baseline_unstable(blocks):
-        return BASELINE_UNSTABLE
-    if bias_declared(controls, n_pairs):
-        return BIAS_DECLARED
-    if model_inadequate(p_lof_perm):
-        return MODEL_INADEQUATE
-    if validation_failed(confirmation_points):
-        return VALIDATION_FAILED
+    # Anello 2: contatore invalidato (saltato se blocks non disponibili)
+    if blocks is not None:
+        if counter_invalid(blocks):
+            return COUNTER_INVALID
+    # Anello 3: baseline instabile (saltato se blocks non disponibili)
+    if blocks is not None:
+        if baseline_unstable(blocks):
+            return BASELINE_UNSTABLE
+    # Anello 4: bias dichiarato (saltato se controls non disponibili)
+    if controls is not None and n_pairs is not None:
+        if bias_declared(controls, n_pairs):
+            return BIAS_DECLARED
+    # Anello 5: modello inadeguato (saltato se p_lof_perm non disponibile)
+    if p_lof_perm is not None:
+        if model_inadequate(p_lof_perm):
+            return MODEL_INADEQUATE
+    # Anello 6: validazione fallita (saltato se confirmation_points non disponibili)
+    if confirmation_points is not None:
+        if validation_failed(confirmation_points):
+            return VALIDATION_FAILED
+    # Disegno ridotto
     if reduced_design:
         return REDUCED_DESIGN
+    # Anello opzionale: stabilita' statistica della baseline
     stability_result = baseline_stability(
         baseline_cv_pct=baseline_cv_pct,
         baseline_stability_status=baseline_stability_status,
     )
     if stability_result is not None:
         return stability_result
+    # Anello opzionale: monitoraggio del background
     bg_result = background_monitor(
         local_verdict=bg_local_verdict,
         global_verdict=bg_global_verdict,
