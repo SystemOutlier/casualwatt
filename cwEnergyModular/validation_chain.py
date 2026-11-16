@@ -72,12 +72,15 @@ BIAS_DECLARED = "bias_declared"
 MODEL_INADEQUATE = "model_inadequate"
 VALIDATION_FAILED = "validation_failed"
 REDUCED_DESIGN = "reduced_design"
+BASELINE_STABILITY_UNSTABLE = "baseline_stability_unstable"
+BASELINE_STABILITY_INSUFFICIENT = "baseline_stability_insufficient"
 
 #: Vocabolario chiuso delle etichette (P4.9, piu' i due token che il protocollo
 #: aggiunge: `pred_nonpositive` resta un flag della previsione e non un
 #: secondo esito). Nessun'altra stringa esce da questo modulo.
 STATUS_LABELS = (VALIDATED, COUNTER_INVALID, BASELINE_UNSTABLE, BIAS_DECLARED,
-                 MODEL_INADEQUATE, VALIDATION_FAILED, REDUCED_DESIGN)
+                 MODEL_INADEQUATE, VALIDATION_FAILED, REDUCED_DESIGN,
+                 BASELINE_STABILITY_UNSTABLE, BASELINE_STABILITY_INSUFFICIENT)
 
 
 def _flag(value) -> bool:
@@ -222,6 +225,35 @@ def validation_failed(points: Sequence[Mapping]) -> bool:
         if not _flag(point.get("inside_interval")):
             return True
     return False
+
+
+def baseline_stability(
+    baseline_cv_pct: Optional[float] = None,
+    baseline_stability_status: Optional[str] = None,
+) -> Optional[str]:
+    """Anello opzionale: qualita' statistica della baseline (non validita' acquisizione).
+
+    Legge le metriche statistiche della baseline prodotte da BaselineStatistics
+    e distingue i problemi di stabilita' dai problemi del contatore.
+    Non sostituisce baseline_unstable() (che usa r_A del fit): i due anelli
+    sono complementari.
+
+    Restituisce:
+        - None: l'anello passa (baseline stabile o non valutata)
+        - BASELINE_STABILITY_UNSTABLE: CV > soglia, baseline instabile
+        - BASELINE_STABILITY_INSUFFICIENT: dati insufficienti per valutare il CV
+
+    Il risultato e' un WARNING, non un'invalidazione: una baseline instabile
+    non cancella la misura, ma la dichiara non conforme al criterio di stabilita'
+    previsto dal protocollo.
+    """
+    if baseline_stability_status is None:
+        return None
+    if baseline_stability_status == "unstable":
+        return BASELINE_STABILITY_UNSTABLE
+    if baseline_stability_status == "insufficient_data":
+        return BASELINE_STABILITY_INSUFFICIENT
+    return None
 
 
 def chain_status(*, blocks: Sequence[Mapping],

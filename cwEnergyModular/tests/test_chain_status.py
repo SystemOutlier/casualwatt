@@ -24,8 +24,9 @@ from validation_chain import (
     BASELINE_BLOCKS_MIN, BASELINE_R_A_MAX, BIAS_DECLARED, COUNTER_INVALID,
     CONTROL_QUORUM, ERR_REL_MAX, LOF_P_MIN, MODEL_INADEQUATE, REDUCED_DESIGN,
     STATUS_LABELS, VALIDATED, VALIDATION_FAILED, BASELINE_UNSTABLE,
+    BASELINE_STABILITY_UNSTABLE, BASELINE_STABILITY_INSUFFICIENT,
     baseline_unstable, bias_declared, chain_status, counter_invalid,
-    model_inadequate, validation_failed,
+    model_inadequate, validation_failed, baseline_stability,
 )
 
 
@@ -212,13 +213,53 @@ def test_disegno_ridotto_non_copre_un_anello_rotto():
 
 # ------------------------------------------------------------- vocabolario
 def test_nessuna_etichetta_fuori_dal_vocabolario_congelato():
-    """Il protocollo ha sei etichette di anello piu' `validated` e `reduced_design`."""
+    """Il protocollo ha sei etichette di anello piu' validated, reduced_design
+    e i due token di stabilita' statistica della baseline."""
     assert set(STATUS_LABELS) == {
         VALIDATED, COUNTER_INVALID, BASELINE_UNSTABLE, BIAS_DECLARED,
-        MODEL_INADEQUATE, VALIDATION_FAILED, REDUCED_DESIGN}
+        MODEL_INADEQUATE, VALIDATION_FAILED, REDUCED_DESIGN,
+        BASELINE_STABILITY_UNSTABLE, BASELINE_STABILITY_INSUFFICIENT}
     # l'anello 1 (pilota P2.9) non e' un esito di catena: non ha un token
     assert not any("pilot" in label or "campaign" in label
                    for label in STATUS_LABELS)
+
+
+# ------------------------------------------------- baseline_stability
+def test_baseline_stability_stable():
+    """Baseline stabile: l'anello passa (None)."""
+    assert baseline_stability(
+        baseline_cv_pct=5.0,
+        baseline_stability_status="stable",
+    ) is None
+
+
+def test_baseline_stability_unstable():
+    """Baseline instabile: warning, non invalidazione."""
+    assert baseline_stability(
+        baseline_cv_pct=20.0,
+        baseline_stability_status="unstable",
+    ) == BASELINE_STABILITY_UNSTABLE
+
+
+def test_baseline_stability_insufficient_data():
+    """Dati insufficienti: inconclusive."""
+    assert baseline_stability(
+        baseline_cv_pct=0.0,
+        baseline_stability_status="insufficient_data",
+    ) == BASELINE_STABILITY_INSUFFICIENT
+
+
+def test_baseline_stability_not_evaluated():
+    """Non valutata: l'anello passa (None)."""
+    assert baseline_stability(
+        baseline_cv_pct=0.0,
+        baseline_stability_status="not_evaluated",
+    ) is None
+
+
+def test_baseline_stability_none_status():
+    """Status None: l'anello passa (nessuna informazione)."""
+    assert baseline_stability() is None
 
 
 def test_le_righe_lette_dal_csv_si_valutano_come_i_dict_del_runner():
