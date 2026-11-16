@@ -76,6 +76,8 @@ BASELINE_STABILITY_UNSTABLE = "baseline_stability_unstable"
 BASELINE_STABILITY_INSUFFICIENT = "baseline_stability_insufficient"
 BACKGROUND_UNSTABLE = "background_unstable"
 BACKGROUND_INSUFFICIENT = "background_insufficient"
+BACKGROUND_LOCAL_UNSTABLE = "background_local_unstable"
+BACKGROUND_GLOBAL_UNSTABLE = "background_global_unstable"
 
 #: Vocabolario chiuso delle etichette (P4.9, piu' i due token che il protocollo
 #: aggiunge: `pred_nonpositive` resta un flag della previsione e non un
@@ -83,7 +85,8 @@ BACKGROUND_INSUFFICIENT = "background_insufficient"
 STATUS_LABELS = (VALIDATED, COUNTER_INVALID, BASELINE_UNSTABLE, BIAS_DECLARED,
                  MODEL_INADEQUATE, VALIDATION_FAILED, REDUCED_DESIGN,
                  BASELINE_STABILITY_UNSTABLE, BASELINE_STABILITY_INSUFFICIENT,
-                 BACKGROUND_UNSTABLE, BACKGROUND_INSUFFICIENT)
+                 BACKGROUND_UNSTABLE, BACKGROUND_INSUFFICIENT,
+                 BACKGROUND_LOCAL_UNSTABLE, BACKGROUND_GLOBAL_UNSTABLE)
 
 
 def _flag(value) -> bool:
@@ -278,35 +281,55 @@ def baseline_stability(
 
 
 def background_monitor(
-    bg_monitor_verdict: Optional[str] = None,
+    local_verdict: Optional[str] = None,
+    global_verdict: Optional[str] = None,
 ) -> Optional[str]:
-    """Anello opzionale: esito del monitoraggio del background.
+    """Anello opzionale: esito del monitoraggio del background (due livelli).
 
-    Legge il verdetto prodotto da BackgroundMonitor durante il run e lo
-    traduce in un token della catena. Non sostituisce baseline_stability()
-    (che valuta la qualità statistica della baseline): i due anelli sono
-    complementari, uno guarda il fondo, l'altro la baseline.
+    Legge i due verdetti prodotti da BackgroundMonitor:
+    - **Locale**: confronto pre vs post dello stesso blocco.
+    - **Globale**: confronto ultimo campione vs riferimento iniziale.
+
+    Non sostituisce baseline_stability() (che valuta la qualità statistica
+    della baseline): i due anelli sono complementari.
 
     Restituisce:
         - None: l'anello passa (background stabile o monitoraggio non attivo)
-        - BACKGROUND_UNSTABLE: background instabile (identità o intensità)
+        - BACKGROUND_LOCAL_UNSTABLE: instabilità nel singolo blocco
+        - BACKGROUND_GLOBAL_UNSTABLE: deriva rispetto al riferimento iniziale
         - BACKGROUND_INSUFFICIENT: dati insufficienti per valutare
 
-    Se bg_monitor_verdict è None, il monitoraggio non era attivo: l'anello
-    passa senza bloccare, perché è un anello opzionale aggiunto dopo P5.
+    La precedenza: locale ha la precedenza su globale perché un blocco
+    instabile localmente è più grave di una deriva globale graduale.
+    Se entrambi sono None, il monitoraggio non era attivo: l'anello passa.
     """
-    if bg_monitor_verdict is None:
-        return None
-    if bg_monitor_verdict == "unstable":
-        return BACKGROUND_UNSTABLE
-    if bg_monitor_verdict == "insufficient_data":
-        return BACKGROUND_INSUFFICIENT
-    if bg_monitor_verdict == "stable":
-        return None
-    raise ValueError(
-        f"bg_monitor_verdict={bg_monitor_verdict!r} non riconosciuto. "
-        f"Vocabolario chiuso: stable, unstable, insufficient_data."
-    )
+    # Locale ha la precedenza: un blocco instabile localmente è più grave
+    if local_verdict is not None:
+        if local_verdict == "unstable":
+            return BACKGROUND_LOCAL_UNSTABLE
+        if local_verdict == "insufficient_data":
+            return BACKGROUND_INSUFFICIENT
+        if local_verdict == "stable":
+            pass  # passa, controlla globale
+        else:
+            raise ValueError(
+                f"local_verdict={local_verdict!r} non riconosciuto. "
+                f"Vocabolario chiuso: stable, unstable, insufficient_data."
+            )
+    # Globale: deriva rispetto al riferimento iniziale
+    if global_verdict is not None:
+        if global_verdict == "unstable":
+            return BACKGROUND_GLOBAL_UNSTABLE
+        if global_verdict == "insufficient_data":
+            return BACKGROUND_INSUFFICIENT
+        if global_verdict == "stable":
+            pass  # passa
+        else:
+            raise ValueError(
+                f"global_verdict={global_verdict!r} non riconosciuto. "
+                f"Vocabolario chiuso: stable, unstable, insufficient_data."
+            )
+    return None
 
 
 def chain_status(*, blocks: Sequence[Mapping],
@@ -316,7 +339,8 @@ def chain_status(*, blocks: Sequence[Mapping],
                  reduced_design: bool = False,
                  baseline_cv_pct: Optional[float] = None,
                  baseline_stability_status: Optional[str] = None,
-                 bg_monitor_verdict: Optional[str] = None) -> str:
+                 bg_local_verdict: Optional[str] = None,
+                 bg_global_verdict: Optional[str] = None) -> str:
     """Il token di P4.9 a partire dai dati della campagna.
 
     L'ordine e' quello della tabella: il primo anello che cede da' il nome.
@@ -350,7 +374,10 @@ def chain_status(*, blocks: Sequence[Mapping],
     )
     if stability_result is not None:
         return stability_result
-    bg_result = background_monitor(bg_monitor_verdict=bg_monitor_verdict)
+    bg_result = background_monitor(
+        local_verdict=bg_local_verdict,
+        global_verdict=bg_global_verdict,
+    )
     if bg_result is not None:
         return bg_result
     return VALIDATED

@@ -38,9 +38,12 @@ class BackgroundMonitor:
     """Orchestra il monitoraggio del background prima e dopo ogni blocco.
 
     Il monitor raccoglie un campione prima del primo blocco (riferimento)
-    e un campione dopo ogni blocco successivo, confrontando sempre con il
-    riferimento iniziale. Se il riferimento non è stato impostato, il primo
-    campione pre diventa il riferimento.
+    e un campione dopo ogni blocco successivo. Fornisce due valutazioni:
+    - **Locale**: confronto pre vs post dello stesso blocco.
+    - **Globale**: confronto ultimo campione vs riferimento iniziale.
+
+    Se il riferimento non è stato impostato, il primo campione pre diventa
+    il riferimento.
 
     Vocabolario chiuso dell'esito:
     - ``stable``: identità e intensità stabili entro tolleranza.
@@ -61,6 +64,8 @@ class BackgroundMonitor:
         self.char_sha256 = char_sha256
         self.reference_signature: Optional[Dict] = None
         self.samples: List[Dict] = []
+        self.block_verdicts: List[Dict] = []
+        self.errors: List[str] = []
 
     def sample_pre(self) -> Dict:
         """Campione prima del blocco: firma + CPU totale.
@@ -107,31 +112,66 @@ class BackgroundMonitor:
         self.samples.append(sig)
         return sig
 
-    def evaluate_background(
+    @staticmethod
+    def _map_verdict(
+        verdetto: str, diff: List[str]
+    ) -> Tuple[str, List[str]]:
+        """Mappa i 4 token di signatures_match_with_intensity ai 3 del monitor."""
+        if verdetto == "identity_changed":
+            return ("unstable", diff)
+        if verdetto == "intensity_unstable":
+            return ("unstable", diff)
+        if verdetto == "insufficient_data":
+            return ("insufficient_data", diff)
+        return ("stable", diff)
+
+    def evaluate_local(
+        self,
+        pre_sig: Dict,
+        post_sig: Dict,
+        cpu_tolerance_pct: float = 5.0,
+        power_tolerance_w: Optional[float] = None,
+    ) -> Tuple[str, List[str]]:
+        """Confronto locale: pre vs post dello stesso blocco.
+
+        Verifica se il background è rimasto stabile durante il singolo blocco,
+        indipendentemente dal riferimento iniziale della campagna.
+
+        Args:
+            pre_sig: firma raccolta prima del blocco.
+            post_sig: firma raccolta dopo il blocco.
+            cpu_tolerance_pct: tolleranza sulla CPU totale media in percentuale.
+            power_tolerance_w: tolleranza sulla potenza media in Watt (opzionale).
+
+        Restituisce:
+            (verdetto, differenze) dove verdetto è uno dei tre token chiusi.
+        """
+        if pre_sig is None or post_sig is None:
+            return ("insufficient_data", ["campione pre o post mancante"])
+        verdetto, diff = ms.signatures_match_with_intensity(
+            pre_sig,
+            post_sig,
+            cpu_tolerance_pct=cpu_tolerance_pct,
+            power_tolerance_w=power_tolerance_w,
+        )
+        return self._map_verdict(verdetto, diff)
+
+    def evaluate_global(
         self,
         cpu_tolerance_pct: float = 5.0,
         power_tolerance_w: Optional[float] = None,
     ) -> Tuple[str, List[str]]:
-        """Valuta il background confrontando l'ultimo campione con il riferimento.
+        """Confronto globale: ultimo campione vs riferimento iniziale.
 
-        Usa ``signatures_match_with_intensity()`` per confrontare identità
-        e intensità, poi mappa i 4 token della funzione ai 3 token del monitor:
-        - ``stable`` → ``stable``
-        - ``intensity_unstable`` → ``unstable``
-        - ``identity_changed`` → ``unstable``
-        - ``insufficient_data`` → ``insufficient_data``
+        Verifica se il background è derivato rispetto alla condizione iniziale
+        della campagna, anche se il singolo blocco era stabile localmente.
 
         Args:
             cpu_tolerance_pct: tolleranza sulla CPU totale media in percentuale.
-                Se la differenza tra le medie CPU supera questo valore,
-                l'intensità è instabile. La tolleranza viene dal piano,
-                non è una costante universale.
             power_tolerance_w: tolleranza sulla potenza media in Watt (opzionale).
-                Se fornita, anche la potenza deve stare entro questa banda.
 
         Restituisce:
-            (verdetto, differenze) dove verdetto è uno dei tre token chiusi
-            e differenze elenca le ragioni del verdetto.
+            (verdetto, differenze) dove verdetto è uno dei tre token chiusi.
         """
         if self.reference_signature is None:
             return ("insufficient_data", ["nessun campione di riferimento"])
@@ -145,17 +185,83 @@ class BackgroundMonitor:
             cpu_tolerance_pct=cpu_tolerance_pct,
             power_tolerance_w=power_tolerance_w,
         )
-        # Mappa i 4 token di signatures_match_with_intensity ai 3 token del monitor
-        if verdetto == "identity_changed":
-            return ("unstable", diff)
-        if verdetto == "intensity_unstable":
-            return ("unstable", diff)
-        if verdetto == "insufficient_data":
-            return ("insufficient_data", diff)
-        return ("stable", diff)
+        return self._map_verdict(verdetto, diff)
+
+    def evaluate_background(
+        self,
+        cpu_tolerance_pct: float = 5.0,
+        power_tolerance_w: Optional[float] = None,
+    ) -> Tuple[str, List[str]]:
+        """Alias di evaluate_global() per retrocompatibilità.
+
+        .. deprecated:: Usa evaluate_global() per chiarezza.
+        """
+        return self.evaluate_global(cpu_tolerance_pct, power_tolerance_w)
+
+    def record_block_verdict(
+        self,
+        block_id: str,
+        local_verdict: str,
+        local_diff: List[str],
+        global_verdict: str,
+        global_diff: List[str],
+        overhead_s: float = 0.0,
+    ) -> None:
+        """Registra i verdetti di un blocco per la serializzazione JSON.
+
+        Args:
+            block_id: identificatore univoco del blocco.
+            local_verdict: esito del confronto pre/post dello stesso blocco.
+            local_diff: differenze rilevate nel confronto locale.
+            global_verdict: esito del confronto con il riferimento iniziale.
+            global_diff: differenze rilevate nel confronto globale.
+            overhead_s: tempo di campionamento del monitor in secondi.
+        """
+        verdict = {
+            "block_id": block_id,
+            "local_verdict": local_verdict,
+            "local_diff": local_diff,
+            "global_verdict": global_verdict,
+            "global_diff": global_diff,
+            "overhead_s": overhead_s,
+            "timestamp": time.monotonic(),
+        }
+        self.block_verdicts.append(verdict)
 
     def to_json(self) -> str:
-        """Serializza lo stato del monitor in JSON per il campo notes.
+        """Serializza lo stato completo del monitor in JSON.
+
+        Include verdetti per blocco, differenze, campioni raccolti,
+        riferimento iniziale, errori e stato di completezza.
+
+        Restituisce un dizionario pronto per essere scritto in un file
+        JSON diagnostico separato (background_monitor.json).
+        """
+        ref_info = None
+        if self.reference_signature is not None:
+            ref_info = {
+                "pid": self.reference_signature.get("processes", [{}])[0].get("pid")
+                if self.reference_signature.get("processes") else None,
+                "name": self.reference_signature.get("processes", [{}])[0].get("name")
+                if self.reference_signature.get("processes") else None,
+                "cpu_total_mean_pct": self.reference_signature.get("cpu_total_mean_pct"),
+            }
+        state = {
+            "background_monitor": {
+                "samples_collected": len(self.samples),
+                "reference_available": self.reference_signature is not None,
+                "reference_info": ref_info,
+                "block_verdicts": self.block_verdicts,
+                "errors": self.errors,
+                "coverage_status": (
+                    "insufficient" if len(self.samples) < 2 else "pre_post_only"
+                ),
+            }
+        }
+        return state
+
+    def to_notes_string(self) -> str:
+        """Serializza un riepilogo breve per il campo notes del CSV P5.
 
         Il formato usa una chiave strutturata ``background_monitor:{...}``
         per permettere l'estrazione dal campo notes senza confondere con

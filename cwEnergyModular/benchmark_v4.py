@@ -2814,39 +2814,47 @@ def run_v4_benchmark(
                         f"({block_id} -> {sub_bid})")
                     idx += 1
                     continue
-                # Campione del background dopo il blocco (anche se invalidato)
+                # Monitoraggio del background dopo il blocco (diagnostico,
+                # non bloccante: un errore del monitor non impedisce
+                # l'esportazione delle misure energetiche già completate)
+                bg_verdict = "insufficient_data"
+                bg_diff = []
                 try:
                     bg_monitor.sample_post()
                     bg_verdict, bg_diff = bg_monitor.evaluate_background()
                 except Exception as bg_exc:
+                    bg_verdict = "insufficient_data"
+                    bg_diff = [f"monitor_error: {type(bg_exc).__name__}: {bg_exc}"]
                     log(f"[AVVISO] background monitor post fallito: "
                         f"{type(bg_exc).__name__}: {bg_exc}")
-                else:
-                    nonce_seq += m
-                    b_pre = block_rec.get("baseline_pre_w")
-                    if isinstance(b_pre, (int, float)) and math.isfinite(float(b_pre)):
-                        last_pre_w = float(b_pre)
-                    rows_written += export_results_csv(
-                        rows, results_path, mode="a")
-                    # Aggiunge il verdetto del background al riepilogo e alle righe
-                    block_rec["bg_monitor_verdict"] = bg_verdict
-                    if bg_diff:
-                        block_rec["bg_monitor_diff"] = "; ".join(bg_diff)
-                    # Aggiunge il verdetto alle note di ogni riga
-                    bg_note = (
-                        f"bg_monitor:{bg_verdict}"
-                        + (f" ({', '.join(bg_diff)})" if bg_diff else "")
-                    )
-                    for row in rows:
-                        row["notes"] = (
-                            (row.get("notes", "") + "; ") if row.get("notes") else ""
-                        ) + bg_note
-                    blocks_written += export_summary_csv(
-                        [block_rec], block_summary_path,
-                        BLOCK_SUMMARY_COLUMNS, mode="a")
-                    summary["records"] = rows_written
-                    summary["blocks"] = blocks_written
-                    idx += 1
+
+                # Il monitor non blocca l'esportazione: le righe vengono
+                # scritte indipendentemente dall'esito del monitoraggio
+                nonce_seq += m
+                b_pre = block_rec.get("baseline_pre_w")
+                if isinstance(b_pre, (int, float)) and math.isfinite(float(b_pre)):
+                    last_pre_w = float(b_pre)
+
+                # Aggiunge il verdetto alle note di ogni riga PRIMA dell'export
+                # (notes_with_task_id() preserva il testo esistente)
+                bg_note = (
+                    f"bg_monitor:{bg_verdict}"
+                    + (f" ({', '.join(bg_diff)})" if bg_diff else "")
+                )
+                for row in rows:
+                    row["notes"] = (
+                        (row.get("notes", "") + "; ") if row.get("notes") else ""
+                    ) + bg_note
+
+                # Esporta le righe e il riepilogo di blocco
+                rows_written += export_results_csv(
+                    rows, results_path, mode="a")
+                blocks_written += export_summary_csv(
+                    [block_rec], block_summary_path,
+                    BLOCK_SUMMARY_COLUMNS, mode="a")
+                summary["records"] = rows_written
+                summary["blocks"] = blocks_written
+                idx += 1
 
         # P1.4: stato dopo l'ultimo blocco. L'errore qui non invalida la
         # campagna (le righe sono gia' scritte); resta dichiarato.
