@@ -182,7 +182,6 @@ EVALUATION_RESULT_COLUMNS: List[str] = [
     "judge_override_allowed",     # false: il judge non sostituisce is_correct
     "judge_agrees_with_primary",  # true/false/na: il judge concorda?
     "judge_disagreement_reason",  # perche' il judge discorda (se applicabile)
-    "judge_calibration_status",   # "not-calibrated" | "calibrated" | "failed"
 ]
 
 
