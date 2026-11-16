@@ -752,51 +752,24 @@ def _aggregato_consecutivo(finestre: List[Dict], etichetta: str) -> Dict:
             "canali": sorted({str(f["channel"]) for f in finestre})}
 
 
-def _applica_filtro_outlier_iqr(valori: List[float], moltiplicatore: float = 1.5) -> List[float]:
-    """Applica filtro IQR per rimuovere outlier da una lista di valori.
+# Primitivo comune di analisi statistica della baseline.
+# I due helper duplicati (_applica_filtro_outlier_iqr, _calcola_cv) sono
+# rimpiazzati da baseline_statistics: stesso motore statistico usato da
+# EnergySession.calibrate_idle() e dal gate P4.4.
+import baseline_statistics as _bs
 
-    Restituisce la lista filtrata (valori dentro [Q1 - k*IQR, Q3 + k*IQR]).
-    Con meno di 4 valori il filtro non si applica (IQR non definito).
-    """
-    if len(valori) < 4:
-        return valori
-    ordinati = sorted(valori)
-    n = len(ordinati)
-    # Q1: mediana della prima meta'
-    q1_idx = n // 4
-    if n % 4 == 0:
-        q1 = (ordinati[q1_idx - 1] + ordinati[q1_idx]) / 2.0
-    else:
-        q1 = ordinati[q1_idx]
-    # Q3: mediana della seconda meta'
-    q3_idx = 3 * n // 4
-    if n % 4 == 0:
-        q3 = (ordinati[q3_idx - 1] + ordinati[q3_idx]) / 2.0
-    else:
-        q3 = ordinati[q3_idx]
-    iqr = q3 - q1
-    if iqr <= 0.0:
-        return valori
-    lower = q1 - moltiplicatore * iqr
-    upper = q3 + moltiplicatore * iqr
-    return [v for v in valori if lower <= v <= upper]
+
+def _applica_filtro_outlier_iqr(valori: List[float], moltiplicatore: float = 1.5) -> List[float]:
+    """Filtro IQR condiviso: delega a baseline_statistics.iqr_filter()."""
+    return _bs.iqr_filter(valori, k=moltiplicatore)
 
 
 def _calcola_cv(valori: List[float]) -> float:
-    """Calcola coefficiente di variazione (CV) in percentuale.
-
-    CV = (deviazione standard / media) * 100.
-    Restituisce 0.0 se media e' 0 o meno di 2 valori.
-    """
-    if len(valori) < 2:
+    """CV condiviso: delega a BaselineStatistics.from_single_values()."""
+    if not valori:
         return 0.0
-    media = sum(valori) / len(valori)
-    if media == 0.0:
-        return 0.0
-    varianza = sum((v - media) ** 2 for v in valori) / (len(valori) - 1)
-    import math
-    dev_std = math.sqrt(varianza)
-    return (dev_std / media) * 100.0
+    stats = _bs.BaselineStatistics.from_single_values(valori)
+    return stats.cv_pct
 
 
 def _verifica_stabilita_background(
@@ -1007,12 +980,18 @@ def _misura_baseline_con_cv_e_ripetizioni(
                 dettagli_cv["cv_pre_pct"] = round(cv_pre, 3)
                 dettagli_cv["cv_post_pct"] = round(cv_post, 3)
 
-    # Verifica finale CV
+    # Verifica finale CV: se il CV supera il massimo ammesso anche dopo
+    # ripetizioni condizionali, il blocco non e' utilizzabile.
+    # Il limite del 10% e' un criterio di validita', non un avviso diagnostico.
     cv_finale = max(cv_pre, cv_post)
     if cv_finale > cv_max_pct:
         dettagli_cv["cv_sotto_soglia"] = False
-        print(f"[BUDGET] AVVISO: CV finale {cv_finale:.2f}% > soglia {cv_max_pct:.1f}% "
-              f"(dopo {n_terne} ripetizioni, max {rep_max})", flush=True)
+        raise SystemExit(
+            f"[BUDGET] Blocco non utilizzabile: CV finale {cv_finale:.2f}% "
+            f"> soglia massima {cv_max_pct:.1f}% (dopo {n_terne} ripetizioni, "
+            f"max {rep_max}). La variabilita' della macchina e' troppo elevata "
+            f"per declared_background: non procedere."
+        )
 
     return pre_filtrate, post_filtrate, pre, post, aggregati_pre, aggregati_post, dettagli_cv
 
