@@ -2882,17 +2882,20 @@ def run_v4_benchmark(
                 summary["blocks"] = blocks_written
 
                 # Scrive l'artefatto JSON diagnostico (non bloccante)
+                # P1-correzione: passa solo il verdetto corrente, non tutta la
+                # lista block_verdicts, per evitare duplicazione cumulativa.
                 try:
-                    bg_monitor_json_records = [
-                        {
-                            "batch_id": batch,
-                            "block_id": block_id,
-                            **verdict
-                        }
-                        for verdict in bg_monitor.block_verdicts
-                    ]
+                    bg_monitor_json_record = {
+                        "batch_id": batch,
+                        "block_id": block_id,
+                        "local_verdict": local_verdict,
+                        "local_diff": local_diff,
+                        "global_verdict": global_verdict,
+                        "global_diff": global_diff,
+                        "overhead_s": monitor_overhead_s,
+                    }
                     bgmj.write_background_monitor_json(
-                        bg_monitor_json_records, bg_monitor_json_path)
+                        [bg_monitor_json_record], bg_monitor_json_path)
                 except Exception as json_exc:
                     log(f"[AVVISO] scrittura background_monitor.json fallita: "
                         f"{type(json_exc).__name__}: {json_exc}")
@@ -3003,7 +3006,9 @@ def run_v4_benchmark(
     # Monitor del background: stato serializzato per il campo notes.
     # Lo schema P5 e' congelato: il verdetto per blocco sta nel riepilogo,
     # lo stato complessivo del monitor sta qui.
-    notes.append(bg_monitor.to_json())
+    # P1-correzione: to_json() restituisce un dizionario; lo serializziamo
+    # in stringa JSON per non causare TypeError in "; ".join(notes).
+    notes.append("bg_monitor:" + json.dumps(bg_monitor.to_json(), ensure_ascii=False))
     # Emenda 8 (P1.6): il tetto, il seme e le posizioni estratte dal sorteggio
     # stanno nel metadata perche' non hanno colonne, e un ordine dei blocchi
     # non riproducibile e' come una scelta fatta dopo i dati.
