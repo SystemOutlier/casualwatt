@@ -776,8 +776,13 @@ def _verifica_stabilita_background(
     char_sha256: str,
     min_finestre: int = 3,
     window_s: float = 10.0,
+    max_wait_s: float = 600.0,
+    cpu_tolerance_pct: float = 5.0,
+    power_tolerance_w: Optional[float] = None,
     sleep_func: Optional[Callable[[float], None]] = None,
     time_func: Optional[Callable[[], float]] = None,
+    campiona_cpu: Optional[Callable[[], Sequence[float]]] = None,
+    campiona_potenza: Optional[Callable[[], Optional[float]]] = None,
 ) -> Dict:
     """Verifica che il background resti stabile per almeno ``min_finestre`` finestre.
 
@@ -787,64 +792,166 @@ def _verifica_stabilita_background(
     prima di misurare la baseline. Le firme sono raccolte a distanza ``window_s``
     secondi, non back-to-back: una firma istantanea non verifica stabilità temporale.
 
-    Se la firma cambia, il run si ferma con SystemExit.
+    Questa versione estesa raccoglie anche le statistiche di intensità CPU e potenza
+    per ogni finestra, confrontandole con le tolleranze preregistrate. Se una finestra
+    non rispetta i criteri, la sequenza di stabilità viene azzerata e ricominciata.
+
+    Se la stabilità non viene raggiunta entro ``max_wait_s``, il run si ferma con
+    ``SystemExit``.
 
     Parametri iniettabili per test deterministici:
     - ``sleep_func``: funzione per attendere (default time.sleep)
     - ``time_func``: funzione per leggere il tempo (default time.monotonic)
+    - ``campiona_cpu``: funzione per campionare la CPU totale (default ms.total_cpu_samples)
+    - ``campiona_potenza``: funzione per campionare la potenza package (opzionale)
 
     Restituisce un dizionario con:
     - ``stabile``: True se la firma è rimasta invariata
-    - ``firme``: lista delle firme raccolte (una per finestra)
-    - ``differenze``: lista delle differenze trovate (vuota se stabile)
-    - ``finestre_raccolte``: numero di finestre raccolte
-    - ``tempo_totale_s``: tempo totale di verifica (dalla prima all'ultima firma)
+    - ``stability_status``: "stable" | "intensity_unstable" | "insufficient_data"
+    - ``finestre_raccolte``: numero di finestre totali raccolte
+    - ``finestre_valide``: numero di finestre consecutive valide
+    - ``cpu_mean_pct``: CPU totale media sulle finestre valide
+    - ``cpu_std_pct``: deviazione standard CPU
+    - ``cpu_cv_pct``: CV della CPU in percentuale
+    - ``cpu_max_pct``: CPU totale massima
+    - ``power_mean_w``: potenza media sulle finestre valide
+    - ``power_std_w``: deviazione standard potenza
+    - ``power_cv_pct``: CV della potenza in percentuale
+    - ``process_activity``: attività dei processi rilevati
+    - ``rejection_reasons``: motivazioni di eventuale rifiuto
+    - ``tempo_totale_s``: tempo totale di verifica
     """
     import time as _time
-    
+    from statistics import stdev, mean as _mean
+
     if sleep_func is None:
         sleep_func = _time.sleep
     if time_func is None:
         time_func = _time.monotonic
-    
+    if campiona_cpu is None:
+        campiona_cpu = lambda: ms.total_cpu_samples(window_s, window_s)
+
     firme: List[Dict] = []
-    differenze_totali: List[str] = []
-    tempi: List[float] = []
-    
+    cpu_tutti: List[float] = []
+    power_tutti: List[float] = []
+    rejection_reasons: List[str] = []
+
     t_inizio = time_func()
+    finestra_0: Optional[Dict] = None
+    finestre_valide = 0
 
-    for i in range(min_finestre):
-        sig = ms.background_signature(char_sha256=char_sha256)
-        firme.append(sig)
-        tempi.append(time_func())
+    while True:
+        # Controllo tempo massimo
+        durato = time_func() - t_inizio
+        if durato >= max_wait_s:
+            raise SystemExit(
+                f"[BACKGROUND] tempo massimo {max_wait_s:.0f} s superato senza "
+                f"raggiungere {min_finestre} finestre consecutive stabili. "
+                f"Finestre raccolte: {len(firme)}, valide: {finestre_valide}. "
+                "Il background non e' stabile: non procedere con declared_background."
+            )
 
-        if i > 0:
-            match, diff = ms.signatures_match(firme[0], sig)
-            if not match:
-                differenze_totali.extend(diff)
-        
-        # Attendi window_s prima della prossima firma (non dopo l'ultima)
-        if i < min_finestre - 1:
-            sleep_func(window_s)
+        # Campiona CPU totale durante la finestra
+        cpu_campioni = campiona_cpu()
+        cpu_media = None
+        try:
+            cpu_vals = [float(x) for x in (cpu_campioni or [])]
+            if cpu_vals:
+                cpu_media = sum(cpu_vals) / len(cpu_vals)
+        except (TypeError, ValueError):
+            pass
 
-    tempo_totale_s = tempi[-1] - tempi[0] if len(tempi) >= 2 else 0.0
-    stabile = len(differenze_totali) == 0
+        # Campiona potenza, se disponibile
+        potenza_media = None
+        if campiona_potenza is not None:
+            try:
+                v = campiona_potenza()
+                if v is not None:
+                    potenza_media = float(v)
+            except (TypeError, ValueError):
+                pass
 
-    if not stabile:
-        raise SystemExit(
-            f"[BACKGROUND] firma del background instabile su {min_finestre} finestre "
-            f"({tempo_totale_s:.1f} s): {len(differenze_totali)} differenza(e) trovata(e). "
-            "Il background non e' stabile: non procedere con declared_background. "
-            f"Differenze: {'; '.join(differenze_totali)}"
+        # Costruisce la firma con intensità
+        cpu_samples_for_sig = cpu_campioni if cpu_campioni else None
+        sig = ms.background_signature(
+            char_sha256=char_sha256,
+            cpu_samples=cpu_samples_for_sig,
         )
+        if potenza_media is not None:
+            sig["power_mean_w"] = potenza_media
+
+        firme.append(sig)
+        if cpu_media is not None:
+            cpu_tutti.append(cpu_media)
+        if potenza_media is not None:
+            power_tutti.append(potenza_media)
+
+        # Prima finestra: riferimento
+        if finestra_0 is None:
+            finestra_0 = sig
+            finestre_valide = 1
+        else:
+            # Confronta con la prima finestra usando il confronto con intensità
+            verdetto, diff = ms.signatures_match_with_intensity(
+                finestra_0, sig,
+                cpu_tolerance_pct=cpu_tolerance_pct,
+                power_tolerance_w=power_tolerance_w,
+            )
+            if verdetto == "stable":
+                finestre_valide += 1
+            elif verdetto == "insufficient_data":
+                # Dati insufficienti: non azzera, ma non conta come valida
+                rejection_reasons.extend(diff)
+            else:
+                # identity_changed o intensity_unstable: azzera e ricomincia
+                rejection_reasons.extend(diff)
+                finestre_valide = 1
+                finestra_0 = sig
+
+        # Se abbiamo raggiunto il minimo richiesto, chiudi
+        if finestre_valide >= min_finestre:
+            break
+
+        # Attendi prima della prossima finestra
+        sleep_func(window_s)
+
+    # Calcola le statistiche finali
+    cpu_mean = round(sum(cpu_tutti) / len(cpu_tutti), 2) if cpu_tutti else None
+    cpu_std = round(stdev(cpu_tutti), 2) if len(cpu_tutti) >= 2 else (0.0 if cpu_tutti else None)
+    cpu_cv = round((cpu_std / cpu_mean) * 100, 2) if cpu_mean and cpu_mean > 0 and cpu_std is not None else None
+    cpu_max = round(max(cpu_tutti), 2) if cpu_tutti else None
+
+    pow_mean = round(sum(power_tutti) / len(power_tutti), 2) if power_tutti else None
+    pow_std = round(stdev(power_tutti), 2) if len(power_tutti) >= 2 else (0.0 if power_tutti else None)
+    pow_cv = round((pow_std / pow_mean) * 100, 2) if pow_mean and pow_mean > 0 and pow_std is not None else None
+
+    tempo_totale_s = time_func() - t_inizio
+
+    # Determina lo status finale
+    if rejection_reasons:
+        stability_status = "intensity_unstable"
+    elif cpu_mean is None:
+        stability_status = "insufficient_data"
+    else:
+        stability_status = "stable"
 
     return {
-        "stabile": stabile,
-        "firme": firme,
-        "differenze": differenze_totali,
+        "stabile": stability_status == "stable" and len(rejection_reasons) == 0,
+        "stability_status": stability_status,
         "finestre_raccolte": len(firme),
-        "tempo_totale_s": tempo_totale_s,
+        "finestre_valide": finestre_valide,
+        "cpu_mean_pct": cpu_mean,
+        "cpu_std_pct": cpu_std,
+        "cpu_cv_pct": cpu_cv,
+        "cpu_max_pct": cpu_max,
+        "power_mean_w": pow_mean,
+        "power_std_w": pow_std,
+        "power_cv_pct": pow_cv,
+        "process_activity": [f.get("processes", []) for f in firme],
+        "rejection_reasons": rejection_reasons,
+        "tempo_totale_s": round(tempo_totale_s, 2),
         "window_s": window_s,
+        "firme": firme,
     }
 
 

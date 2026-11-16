@@ -32,7 +32,7 @@ import math
 import platform
 import subprocess
 import time
-from typing import Callable, Dict, List, Optional, Sequence
+from typing import Callable, Dict, List, Optional, Sequence, Tuple
 
 import psutil
 import requests
@@ -371,13 +371,15 @@ def sampler_cadence(session: object) -> Optional[float]:
         return None
 
 
-def background_signature(char_sha256: Optional[str] = None) -> Dict:
-    """Firma del background per declared_background (Fase 3 emenda).
+def background_signature(char_sha256: Optional[str] = None,
+                         cpu_samples: Optional[Sequence[float]] = None) -> Dict:
+    """Firma del background per declared_background (Fase 3 emenda, estesa).
 
-    La firma include solo grandezze identitarie dello stato, non grandezze
-    diagnostiche istantanee: la CPU%, la potenza o la temperatura sono
-    rumore, non identità. La firma serve a verificare che il background
-    resti stabile per almeno tre finestre consecutive prima di misurare.
+    La firma include grandezze identitarie dello stato E grandezze di
+    intensità del background: la CPU% media e massima durante la finestra
+    di osservazione, insieme ai PID, nomi e CPU% dei processi rilevanti.
+    La firma serve a verificare che il background resti stabile per almeno
+    tre finestre consecutive prima di misurare.
 
     Restituisce un dizionario con:
     - ``processes``: top-5 processi per CPU% (pid, name, cpu_pct)
@@ -386,22 +388,61 @@ def background_signature(char_sha256: Optional[str] = None) -> Dict:
     - ``power_plugged``: True/False/None (None se batteria assente)
     - ``char_sha256``: hash della caratterizzazione idle (se fornito)
     - ``timestamp``: marca temporale della firma
+    - ``cpu_total_mean_pct``: CPU totale media durante la finestra (opzionale)
+    - ``cpu_total_max_pct``: CPU totale massima durante la finestra (opzionale)
+    - ``process_cpu_mean_pct``: CPU media dei processi top-5 (opzionale)
+    - ``process_cpu_max_pct``: CPU massima dei processi top-5 (opzionale)
+    - ``timestamp_start``: timestamp monotono inizio finestra
+    - ``timestamp_end``: timestamp monotono fine finestra
 
-    La firma NON include: CPU istantanea, potenza istantanea, temperatura.
-    Queste sono grandezze diagnostiche, non identità dello stato.
+    Se ``cpu_samples`` è fornito, la firma include le statistiche di intensità
+    CPU derivate da quei campioni. Se ``cpu_samples`` è assente, i campi di
+    intensità restano ``None`` e la firma resta valida per il confronto
+    identitario (comportamento legacy).
     """
-    import time
+    import time as _time
     ps = power_state()
+    t_start = _time.monotonic()
     top5 = sample_top_processes(n=TOP_PROCESSES, window_s=TOP_WINDOW_S)
+    t_end = _time.monotonic()
 
-    return {
+    sig: Dict = {
         "processes": top5,
         "power_plan": ps.get("plan", ""),
         "battery": ps.get("battery", "absent"),
         "power_plugged": ps.get("power_plugged"),
         "char_sha256": char_sha256 if char_sha256 else "",
-        "timestamp": time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime()),
+        "timestamp": _time.strftime("%Y-%m-%dT%H:%M:%SZ", _time.gmtime()),
+        "cpu_total_mean_pct": None,
+        "cpu_total_max_pct": None,
+        "process_cpu_mean_pct": None,
+        "process_cpu_max_pct": None,
+        "timestamp_start": t_start,
+        "timestamp_end": t_end,
     }
+
+    # Se sono forniti campioni CPU totali, calcola le statistiche di intensità.
+    if cpu_samples:
+        try:
+            cpu_vals = [float(x) for x in cpu_samples]
+        except (TypeError, ValueError):
+            cpu_vals = []
+        if cpu_vals:
+            sig["cpu_total_mean_pct"] = round(sum(cpu_vals) / len(cpu_vals), 2)
+            sig["cpu_total_max_pct"] = round(max(cpu_vals), 2)
+
+    # Statistiche di intensità dai processi top-5 (se presenti).
+    proc_cpus = []
+    for p in top5:
+        try:
+            proc_cpus.append(float(p.get("cpu_pct", 0)))
+        except (TypeError, ValueError):
+            pass
+    if proc_cpus:
+        sig["process_cpu_mean_pct"] = round(sum(proc_cpus) / len(proc_cpus), 2)
+        sig["process_cpu_max_pct"] = round(max(proc_cpus), 2)
+
+    return sig
 
 
 def signatures_match(sig1: Dict, sig2: Dict) -> Tuple[bool, List[str]]:
@@ -470,6 +511,82 @@ def signatures_match(sig1: Dict, sig2: Dict) -> Tuple[bool, List[str]]:
         differenze.append("hash caratterizzazione mutato")
 
     return (len(differenze) == 0, differenze)
+
+
+def signatures_match_with_intensity(
+        sig1: Dict, sig2: Dict,
+        cpu_tolerance_pct: float = 5.0,
+        power_tolerance_w: Optional[float] = None) -> Tuple[str, List[str]]:
+    """Confronto firme con intensità: distingue identità da stabilità intensità.
+
+    A differenza di ``signatures_match()`` che restituisce solo un booleano,
+    questa funzione distingue quattro casi:
+
+    A. ``"stable"``: identità stabile E intensità entro tolleranza.
+    B. ``"intensity_unstable"``: stessa identità, intensità variabile.
+    C. ``"identity_changed"``: identità modificata.
+    D. ``"insufficient_data"``: dati di intensità mancanti in almeno una firma.
+
+    Parametri:
+    - ``sig1``, ``sig2``: due firme da ``background_signature()``.
+    - ``cpu_tolerance_pct``: tolleranza sulla CPU totale media (default 5%).
+      Se la differenza tra le medie CPU supera questo valore, l'intensità
+      è instabile. La tolleranza viene dal piano, non è una costante universale.
+    - ``power_tolerance_w``: tolleranza sulla potenza media (opzionale).
+      Se fornita, anche la potenza deve stare entro questa banda.
+
+    Restituisce ``(verdetto, differenze)`` dove ``verdetto`` è uno dei quattro
+    token sopra e ``differenze`` elenca le ragioni del verdetto.
+    """
+    # 1. Confronto identità (stessa logica di signatures_match).
+    identico, diff_identita = signatures_match(sig1, sig2)
+    if not identico:
+        return ("identity_changed", diff_identita)
+
+    # 2. Verifica dati di intensità disponibili.
+    cpu1 = sig1.get("cpu_total_mean_pct")
+    cpu2 = sig2.get("cpu_total_mean_pct")
+    if cpu1 is None or cpu2 is None:
+        return ("insufficient_data", [
+            "dati intensità CPU mancanti in almeno una firma",
+        ])
+
+    differenze: List[str] = []
+
+    # 3. Confronto intensità CPU con tolleranza.
+    try:
+        cpu_diff = abs(float(cpu1) - float(cpu2))
+    except (TypeError, ValueError):
+        return ("insufficient_data", [
+            "valori CPU non numerici",
+        ])
+    if cpu_diff > float(cpu_tolerance_pct):
+        differenze.append(
+            f"CPU media cambiata: {cpu1}% → {cpu2}% "
+            f"(differenza {cpu_diff:.1f}%, tolleranza {cpu_tolerance_pct}%)")
+
+    # 4. Confronto intensità potenza, se la tolleranza è fornita.
+    if power_tolerance_w is not None:
+        pow1 = sig1.get("power_mean_w")
+        pow2 = sig2.get("power_mean_w")
+        if pow1 is None or pow2 is None:
+            return ("insufficient_data", [
+                "dati intensità potenza mancanti in almeno una firma",
+            ])
+        try:
+            pow_diff = abs(float(pow1) - float(pow2))
+        except (TypeError, ValueError):
+            return ("insufficient_data", [
+                "valori potenza non numerici",
+            ])
+        if pow_diff > float(power_tolerance_w):
+            differenze.append(
+                f"Potenza media cambiata: {pow1} W → {pow2} W "
+                f"(differenza {pow_diff:.2f} W, tolleranza {power_tolerance_w} W)")
+
+    if differenze:
+        return ("intensity_unstable", differenze)
+    return ("stable", [])
 
 
 def thermal_state() -> Dict:
