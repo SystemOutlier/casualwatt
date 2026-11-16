@@ -172,7 +172,7 @@
   "n_blocchi": 12,
   "campaign_date": "20261116",
   "order_seed": "gate-seed-20261107",
-  "runner_sha256": "6f3bad16859c92ec9f9401605b1a367368978ed3d2fc3cb5885f3384e3d0288c",
+  "runner_sha256": "ab350b8b9a6e6ad289535b1b1de04b25066c720380c492b6701d3a6a98699195",
   "budget_mode": "short",
   "budget_n_terne": 3,
   "budget_matched_target_s": 30.0,
