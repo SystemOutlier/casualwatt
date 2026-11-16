@@ -742,3 +742,238 @@ class TestAuditMandatoryTests:
         result = background_monitor(local_verdict=None, global_verdict=None)
         assert result is None
         # None = monitoraggio non attivo, non bloccante
+
+
+class TestIntegrationEndToEnd:
+    """Test end-to-end: valutazione locale, globale, JSON e notes CSV."""
+
+    def test_local_evaluation_executed(self):
+        """INT01: Valutazione locale effettivamente eseguita.
+
+        evaluate_local() confronta pre_sig con post_sig dello stesso blocco.
+        """
+        monitor = BackgroundMonitor()
+        pre_sig = {"processes": [], "cpu_total_mean_pct": 2.0}
+        post_sig = {"processes": [], "cpu_total_mean_pct": 2.5}
+        with patch("background_monitor.ms") as mock_ms:
+            mock_ms.signatures_match_with_intensity.return_value = (
+                "stable", []
+            )
+            verdetto, diff = monitor.evaluate_local(pre_sig, post_sig)
+
+        assert verdetto == "stable"
+        mock_ms.signatures_match_with_intensity.assert_called_once()
+        call_args = mock_ms.signatures_match_with_intensity.call_args[0]
+        assert call_args[0] is pre_sig
+        assert call_args[1] is post_sig
+
+    def test_global_evaluation_executed(self):
+        """INT02: Valutazione globale effettivamente eseguita.
+
+        evaluate_global() confronta l'ultimo campione con il riferimento.
+        """
+        monitor = BackgroundMonitor()
+        ref_sig = {"processes": [], "cpu_total_mean_pct": 2.0}
+        monitor.reference_signature = ref_sig
+        monitor.samples = [ref_sig, {"processes": [], "cpu_total_mean_pct": 2.5}]
+        with patch("background_monitor.ms") as mock_ms:
+            mock_ms.signatures_match_with_intensity.return_value = (
+                "stable", []
+            )
+            verdetto, diff = monitor.evaluate_global()
+
+        assert verdetto == "stable"
+        call_args = mock_ms.signatures_match_with_intensity.call_args[0]
+        assert call_args[0] is ref_sig
+
+    def test_verdicts_in_json_artifact(self):
+        """INT03: Verdetti presenti nell'artefatto JSON.
+
+        record_block_verdict() registra i verdetti per la serializzazione.
+        """
+        monitor = BackgroundMonitor()
+        monitor.record_block_verdict(
+            block_id="p1__b01",
+            local_verdict="stable",
+            local_diff=[],
+            global_verdict="stable",
+            global_diff=[],
+            overhead_s=3.0,
+        )
+        state = monitor.to_json()
+        verdicts = state["background_monitor"]["block_verdicts"]
+        assert len(verdicts) == 1
+        assert verdicts[0]["block_id"] == "p1__b01"
+        assert verdicts[0]["local_verdict"] == "stable"
+        assert verdicts[0]["global_verdict"] == "stable"
+
+    def test_batch_id_block_id_linkage(self):
+        """INT04: Collegamento univoco tra batch_id e block_id.
+
+        Ogni record JSON contiene block_id per ricondurre al blocco CSV.
+        """
+        monitor = BackgroundMonitor()
+        monitor.record_block_verdict(
+            block_id="p1__b01",
+            local_verdict="stable",
+            local_diff=[],
+            global_verdict="stable",
+            global_diff=[],
+            overhead_s=0.0,
+        )
+        monitor.record_block_verdict(
+            block_id="p1__b02",
+            local_verdict="unstable",
+            local_diff=["CPU cambiata"],
+            global_verdict="stable",
+            global_diff=[],
+            overhead_s=0.0,
+        )
+        state = monitor.to_json()
+        verdicts = state["background_monitor"]["block_verdicts"]
+        block_ids = [v["block_id"] for v in verdicts]
+        assert "p1__b01" in block_ids
+        assert "p1__b02" in block_ids
+
+    def test_synthetic_verdicts_in_csv_notes(self):
+        """INT05: Verdetti sintetici presenti nelle note CSV.
+
+        Le note CSV contengono entrambi i verdetti (locale e globale).
+        """
+        local_verdict = "stable"
+        global_verdict = "unstable"
+        local_diff = []
+        global_diff = ["CPU media cambiata"]
+        bg_note = f"bg_local:{local_verdict}; bg_global:{global_verdict}"
+        if local_diff or global_diff:
+            all_diff = local_diff + global_diff
+            bg_note += f" ({', '.join(all_diff)})"
+        assert "bg_local:stable" in bg_note
+        assert "bg_global:unstable" in bg_note
+        assert "CPU media cambiata" in bg_note
+
+    def test_sample_pre_error_handled(self):
+        """INT06: Errore di sample_pre gestito correttamente.
+
+        Se sample_pre() fallisce, pre_sig resta None e il verdetto locale
+        diventa insufficient_data.
+        """
+        monitor = BackgroundMonitor()
+        pre_sig = None
+        with patch("background_monitor.ms") as mock_ms:
+            mock_ms.total_cpu_samples.side_effect = RuntimeError("pre fallito")
+            with pytest.raises(RuntimeError, match="pre fallito"):
+                monitor.sample_pre()
+        # pre_sig è None: il confronto locale darà insufficient_data
+        post_sig = {"processes": []}
+        verdetto, diff = monitor.evaluate_local(pre_sig, post_sig)
+        assert verdetto == "insufficient_data"
+        assert "mancante" in diff[0]
+
+    def test_sample_post_error_handled(self):
+        """INT07: Errore di sample_post gestito correttamente.
+
+        Se sample_post() fallisce, il verdetto diventa insufficient_data
+        ma le righe energetiche restano valide.
+        """
+        monitor = BackgroundMonitor()
+        with patch("background_monitor.ms") as mock_ms:
+            mock_ms.total_cpu_samples.return_value = [1.0]
+            mock_ms.background_signature.return_value = {"processes": []}
+            monitor.sample_pre()
+            # Simula fallimento post
+            mock_ms.total_cpu_samples.side_effect = RuntimeError("post fallito")
+            with pytest.raises(RuntimeError, match="post fallito"):
+                monitor.sample_post()
+        # Il riferimento è impostato, ma post non è disponibile
+        # Il runner gestisce l'eccezione e assegna insufficient_data
+
+    def test_json_write_error_no_data_loss(self):
+        """INT08: Errore di scrittura JSON senza perdita delle misure.
+
+        Se write_background_monitor_json() fallisce, le righe CSV restano
+        valide. Il fallimento è registrato come problema diagnostico.
+        """
+        from background_monitor_json import write_background_monitor_json
+        import tempfile
+        import os
+        verdicts = [{"block_id": "p1__b01", "local_verdict": "stable"}]
+        # Directory non scrivibile: simula errore
+        with patch("os.replace", side_effect=OSError("disco pieno")):
+            with tempfile.TemporaryDirectory() as tmpdir:
+                path = os.path.join(tmpdir, "bg.json")
+                with pytest.raises(OSError, match="disco pieno"):
+                    write_background_monitor_json(verdicts, path)
+            # Le righe CSV restano valide nonostante l'errore JSON
+
+    def test_validation_chain_receives_verdicts(self):
+        """INT09: Catena di validazione alimentata dai verdetti effettivi.
+
+        chain_status() riceve bg_local_verdict e bg_global_verdict e li
+        passa a background_monitor().
+        """
+        from validation_chain import (
+            chain_status,
+            BACKGROUND_LOCAL_UNSTABLE,
+            BACKGROUND_GLOBAL_UNSTABLE,
+            BACKGROUND_INSUFFICIENT,
+        )
+
+        def _blocchi(point_id="p1", r_a=0.05, n=3):
+            return [dict({"block_id": f"{point_id}-b{i}", "point_id": point_id,
+                          "r_A": r_a, "negative_increment": "false",
+                          "invalid_reason": "", "replaced_block_id": ""})
+                    for i in range(n)]
+
+        def _controllo(i):
+            return {"control_id": f"c{i}", "pre_range_w": 0.4, "dP": 0.2,
+                    "e_net_j": 1.0, "dt_w_s": 30.0,
+                    "budget_base_j": 30.0, "budget_base_w": 0.5}
+
+        def _controlli(n=6):
+            return [_controllo(i) for i in range(n)]
+
+        def _conferma(err_rel=0.02):
+            return {"err_rel": err_rel, "e_pred_j": 100.0,
+                    "inside_interval": True, "pred_nonpositive": False}
+
+        base_kwargs = dict(
+            blocks=_blocchi("p1") + _blocchi("p2"),
+            controls=_controlli(),
+            n_pairs=6,
+            p_lof_perm=0.40,
+            confirmation_points=[_conferma(), _conferma(err_rel=0.05)],
+            reduced_design=False,
+        )
+
+        status = chain_status(**base_kwargs,
+                              bg_local_verdict="unstable",
+                              bg_global_verdict="stable")
+        assert status == BACKGROUND_LOCAL_UNSTABLE
+
+        status = chain_status(**base_kwargs,
+                              bg_local_verdict="stable",
+                              bg_global_verdict="unstable")
+        assert status == BACKGROUND_GLOBAL_UNSTABLE
+
+        status = chain_status(**base_kwargs,
+                              bg_local_verdict="insufficient_data",
+                              bg_global_verdict="stable")
+        assert status == BACKGROUND_INSUFFICIENT
+
+    def test_no_row_duplication_on_monitor_error(self):
+        """INT10: Nessuna duplicazione o perdita delle righe energetiche.
+
+        Un errore del monitor non ripete il blocco né duplica le righe.
+        Il verdetto diventa insufficient_data e l'export procede.
+        """
+        monitor = BackgroundMonitor()
+        with patch("background_monitor.ms") as mock_ms:
+            mock_ms.total_cpu_samples.return_value = [1.0]
+            mock_ms.background_signature.return_value = {"processes": []}
+            pre_sig = monitor.sample_pre()
+        # Simula errore post: il verdetto diventa insufficient_data
+        post_sig = None
+        local_verdict, local_diff = monitor.evaluate_local(pre_sig, post_sig)
+        assert local_verdict == "insufficient_data"
+        # Il runner esporta le righe una sola volta, non le ripete

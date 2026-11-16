@@ -80,6 +80,7 @@ import aiohttp
 import requests
 
 import background_monitor as bgm
+import background_monitor_json as bgmj
 import benchmark_unified as bu
 import config
 import llm_judge as _lj
@@ -2597,6 +2598,7 @@ def run_v4_benchmark(
 
     results_path = Path(results_path or DEFAULT_RESULTS_PATH)
     block_summary_path = Path(block_summary_path or DEFAULT_BLOCK_SUMMARY_PATH)
+    bg_monitor_json_path = results_path.parent / "background_monitor.json"
     base_batch = batch_id or uuid.uuid4().hex[:12]
 
     # Piano dei blocchi BASE (modello x punto x k), calcolato una sola volta
@@ -2717,10 +2719,10 @@ def run_v4_benchmark(
                             f"{cooldown_timeout_flag(cooldown)}")
                     log(f"[COOLDOWN -> {point_id}] {cooldown['reason']}")
                 # Campione del background prima del blocco
-                bg_verdict = "insufficient_data"
-                bg_diff = []
+                # Il risultato viene conservato per il confronto locale
+                pre_sig = None
                 try:
-                    bg_monitor.sample_pre()
+                    pre_sig = bg_monitor.sample_pre()
                 except Exception as bg_exc:
                     log(f"[AVVISO] background monitor pre fallito: "
                         f"{type(bg_exc).__name__}: {bg_exc}")
@@ -2817,16 +2819,38 @@ def run_v4_benchmark(
                 # Monitoraggio del background dopo il blocco (diagnostico,
                 # non bloccante: un errore del monitor non impedisce
                 # l'esportazione delle misure energetiche già completate)
-                bg_verdict = "insufficient_data"
-                bg_diff = []
+                post_sig = None
+                local_verdict = "insufficient_data"
+                local_diff = []
+                global_verdict = "insufficient_data"
+                global_diff = []
+                monitor_overhead_s = 0.0
+                t_monitor_start = time.monotonic()
                 try:
-                    bg_monitor.sample_post()
-                    bg_verdict, bg_diff = bg_monitor.evaluate_background()
+                    post_sig = bg_monitor.sample_post()
+                    # Confronto locale: pre vs post dello stesso blocco
+                    local_verdict, local_diff = bg_monitor.evaluate_local(
+                        pre_sig, post_sig)
+                    # Confronto globale: ultimo campione vs riferimento iniziale
+                    global_verdict, global_diff = bg_monitor.evaluate_global()
                 except Exception as bg_exc:
-                    bg_verdict = "insufficient_data"
-                    bg_diff = [f"monitor_error: {type(bg_exc).__name__}: {bg_exc}"]
+                    local_verdict = "insufficient_data"
+                    local_diff = [f"monitor_error: {type(bg_exc).__name__}: {bg_exc}"]
+                    global_verdict = "insufficient_data"
+                    global_diff = local_diff[:]
                     log(f"[AVVISO] background monitor post fallito: "
                         f"{type(bg_exc).__name__}: {bg_exc}")
+                monitor_overhead_s = time.monotonic() - t_monitor_start
+
+                # Registra i verdetti per la serializzazione JSON
+                bg_monitor.record_block_verdict(
+                    block_id=block_id,
+                    local_verdict=local_verdict,
+                    local_diff=local_diff,
+                    global_verdict=global_verdict,
+                    global_diff=global_diff,
+                    overhead_s=monitor_overhead_s,
+                )
 
                 # Il monitor non blocca l'esportazione: le righe vengono
                 # scritte indipendentemente dall'esito del monitoraggio
@@ -2835,12 +2859,14 @@ def run_v4_benchmark(
                 if isinstance(b_pre, (int, float)) and math.isfinite(float(b_pre)):
                     last_pre_w = float(b_pre)
 
-                # Aggiunge il verdetto alle note di ogni riga PRIMA dell'export
-                # (notes_with_task_id() preserva il testo esistente)
+                # Aggiunge i verdetti locale e globale alle note di ogni riga
+                # PRIMA dell'export (notes_with_task_id() preserva il testo)
                 bg_note = (
-                    f"bg_monitor:{bg_verdict}"
-                    + (f" ({', '.join(bg_diff)})" if bg_diff else "")
+                    f"bg_local:{local_verdict}; bg_global:{global_verdict}"
                 )
+                if local_diff or global_diff:
+                    all_diff = local_diff + global_diff
+                    bg_note += f" ({', '.join(all_diff)})"
                 for row in rows:
                     row["notes"] = (
                         (row.get("notes", "") + "; ") if row.get("notes") else ""
@@ -2854,6 +2880,23 @@ def run_v4_benchmark(
                     BLOCK_SUMMARY_COLUMNS, mode="a")
                 summary["records"] = rows_written
                 summary["blocks"] = blocks_written
+
+                # Scrive l'artefatto JSON diagnostico (non bloccante)
+                try:
+                    bg_monitor_json_records = [
+                        {
+                            "batch_id": batch,
+                            "block_id": block_id,
+                            **verdict
+                        }
+                        for verdict in bg_monitor.block_verdicts
+                    ]
+                    bgmj.write_background_monitor_json(
+                        bg_monitor_json_records, bg_monitor_json_path)
+                except Exception as json_exc:
+                    log(f"[AVVISO] scrittura background_monitor.json fallita: "
+                        f"{type(json_exc).__name__}: {json_exc}")
+
                 idx += 1
 
         # P1.4: stato dopo l'ultimo blocco. L'errore qui non invalida la
