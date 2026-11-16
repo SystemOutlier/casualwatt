@@ -28,40 +28,66 @@ def write_background_monitor_json(
     verdicts: List[Dict],
     path: Path,
 ) -> None:
-    """Scrive l'artefatto diagnostico del monitor in JSON.
+    """Persist an idempotent set of block verdicts using an atomic replace.
 
-    Ogni record contiene: batch_id, block_id, local_verdict, global_verdict,
-    local_diff, global_diff, overhead_s, timestamp, errors.
-
-    La scrittura è atomica: scrive in un file temporaneo nella stessa
-    directory, poi rename per evitare file parziali.
-
-    Args:
-        verdicts: lista di dizionari, uno per blocco.
-        path: percorso del file JSON da scrivere.
-
-    Raises:
-        OSError: se la scrittura o il rename falliscono. Il chiamante deve
-            catturare l'eccezione e registrare l'errore come insufficient_data,
-            senza invalidare le misure energetiche già salvate.
+    Records are uniquely identified by (batch_id, block_id). Replaying a
+    record updates that record rather than appending a duplicate. Existing
+    malformed or ambiguous artifacts fail closed: they are never silently
+    discarded because that would destroy diagnostic evidence.
     """
     path = Path(path)
     path.parent.mkdir(parents=True, exist_ok=True)
 
-    # Legge il file esistente (se presente) per accumulare i verdetti
-    existing: List[Dict] = []
+    incoming_by_key: Dict[tuple, Dict] = {}
+    for index, verdict in enumerate(verdicts):
+        if not isinstance(verdict, dict):
+            raise TypeError(f"verdict #{index} must be a dict")
+        batch_id = str(verdict.get("batch_id") or "").strip()
+        block_id = str(verdict.get("block_id") or "").strip()
+        if not batch_id or not block_id:
+            raise ValueError(
+                f"verdict #{index} requires non-empty batch_id and block_id"
+            )
+        key = (batch_id, block_id)
+        if key in incoming_by_key:
+            raise ValueError(f"duplicate input verdict key: {key!r}")
+        incoming_by_key[key] = dict(verdict)
+
+    existing_by_key: Dict[tuple, Dict] = {}
     if path.exists() and path.stat().st_size > 0:
         try:
-            with open(path, "r", encoding="utf-8") as fh:
+            with path.open("r", encoding="utf-8") as fh:
                 existing = json.load(fh)
-        except (json.JSONDecodeError, OSError):
-            # File corrotto: parte da zero, non crash
-            existing = []
+        except (json.JSONDecodeError, OSError) as exc:
+            raise ValueError(
+                f"existing background monitor artifact is unreadable: {path}"
+            ) from exc
+        if not isinstance(existing, list):
+            raise ValueError(
+                f"existing background monitor artifact must contain a list: {path}"
+            )
+        for index, record in enumerate(existing):
+            if not isinstance(record, dict):
+                raise ValueError(f"existing record #{index} is not an object")
+            key = (
+                str(record.get("batch_id") or "").strip(),
+                str(record.get("block_id") or "").strip(),
+            )
+            if not all(key):
+                raise ValueError(
+                    f"existing record #{index} lacks batch_id/block_id"
+                )
+            if key in existing_by_key:
+                raise ValueError(
+                    f"existing artifact contains duplicate key {key!r}"
+                )
+            existing_by_key[key] = record
 
-    # Accoda i nuovi verdetti
-    existing.extend(verdicts)
+    # Upsert, preserving the original insertion order for historical records.
+    for key, record in incoming_by_key.items():
+        existing_by_key[key] = record
 
-    # Scrittura atomica: file temporaneo + rename
+    merged = list(existing_by_key.values())
     fd, tmp_path = tempfile.mkstemp(
         suffix=".json.tmp",
         prefix="background_monitor_",
@@ -69,10 +95,11 @@ def write_background_monitor_json(
     )
     try:
         with os.fdopen(fd, "w", encoding="utf-8") as fh:
-            json.dump(existing, fh, ensure_ascii=False, indent=2)
+            json.dump(merged, fh, ensure_ascii=False, indent=2, allow_nan=False)
+            fh.flush()
+            os.fsync(fh.fileno())
         os.replace(tmp_path, str(path))
     except Exception:
-        # Pulisce il file temporaneo se il rename fallisce
         try:
             os.unlink(tmp_path)
         except OSError:
