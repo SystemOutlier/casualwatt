@@ -178,3 +178,67 @@ class TestCalibrateIdleUnstable:
 
         # Mediana di [80, 100, 150] = 100.0
         assert idle_power == pytest.approx(100.0, abs=0.1)
+
+
+class TestCalibrateIdleEffectiveDurations:
+    """Verifica che baseline_stats usi le durate effettive del backend."""
+
+    def test_duration_s_is_sum_of_effective_dt(self):
+        """baseline_stats.duration_s e' la somma dei dt effettivi, non 3 * duration_s."""
+        from energy.energy_session import EnergySession
+
+        session = EnergySession()
+        mock_source = MagicMock()
+        mock_source.method = "emi-counter"
+        mock_source.last_read_error = None
+
+        # Il backend restituisce durate effettive diverse da quella richiesta:
+        # durata richiesta = 30s, ma il backend restituisce 31.2, 29.8, 30.5
+        # Potenze: 100W, 102W, 98W (mediana = 100W)
+        mock_source.read_idle_window_j.side_effect = [
+            (3120.0, 31.2, "emi-counter"),  # 100W, dt=31.2s
+            (3039.6, 29.8, "emi-counter"),  # 102W, dt=29.8s
+            (2989.0, 30.5, "emi-counter"),  # 98W, dt=30.5s
+        ]
+
+        session._source = mock_source
+
+        with patch.object(session, 'start'), patch.object(session, 'stop'):
+            session.calibrate_idle(seconds=30.0)
+
+        assert session.baseline_stats is not None
+        # La durata e' la somma dei dt effettivi: 31.2 + 29.8 + 30.5 = 91.5s
+        # NON 3 * 30.0 = 90.0s (durata richiesta)
+        expected_duration = 31.2 + 29.8 + 30.5
+        assert session.baseline_stats.duration_s == pytest.approx(
+            expected_duration, abs=0.1
+        )
+        # Verifica che non sia la durata richiesta moltiplicata per 3
+        assert session.baseline_stats.duration_s != pytest.approx(90.0, abs=0.01)
+
+    def test_power_calculation_uses_effective_dt(self):
+        """Le potenze sono calcolate con i dt effettivi del backend."""
+        from energy.energy_session import EnergySession
+
+        session = EnergySession()
+        mock_source = MagicMock()
+        mock_source.method = "emi-counter"
+        mock_source.last_read_error = None
+
+        # Delta diversi, dt diversi: le potenze sono delta_j / dt_effettivo
+        mock_source.read_idle_window_j.side_effect = [
+            (3120.0, 31.2, "emi-counter"),  # 100.0W
+            (3039.6, 29.8, "emi-counter"),  # 102.0W
+            (2989.0, 30.5, "emi-counter"),  # 98.0W
+        ]
+
+        session._source = mock_source
+
+        with patch.object(session, 'start'), patch.object(session, 'stop'):
+            session.calibrate_idle(seconds=30.0)
+
+        assert session.baseline_stats is not None
+        # idle_power_w = mediana([98.0, 100.0, 102.0]) = 100.0W
+        assert session.idle_power_w == pytest.approx(100.0, abs=0.1)
+        # La media delle potenze calcolate con dt effettivi
+        assert session.baseline_stats.power_mean_w == pytest.approx(100.0, abs=0.1)

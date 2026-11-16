@@ -1618,6 +1618,7 @@ class EnergySession:
             # breve stabilizzazione prima della misura
             time.sleep(1.0)
             means: List[float] = []
+            durations: List[float] = []
             mode_used = None
             if self.on_progress:
                 self.on_progress(
@@ -1652,6 +1653,7 @@ class EnergySession:
                     )
                 p_rep = delta_j / max(dt, 1e-6)
                 means.append(p_rep)
+                durations.append(dt)
                 mode_used = mode
                 if self.on_progress:
                     self.on_progress(
@@ -1671,13 +1673,10 @@ class EnergySession:
         self.calibrated_at = time.time()
 
         # Popola le metriche statistiche complete dalla calibrazione.
-        # Le potenze e le durate delle 3 ripetizioni sono gia' in means e
-        # nelle finestre lette; si ricostruiscono le tuple (power_w, dt_s)
-        # per BaselineStatistics.
+        # Le potenze sono in means, le durate effettive restituite dal backend
+        # sono in durations: si usano i tempi reali, non la durata richiesta.
         if BaselineStatistics is not None:
-            power_windows = [
-                (means[i], duration_s) for i in range(len(means))
-            ]
+            power_windows = list(zip(means, durations))
             self.baseline_stats = BaselineStatistics.from_power_windows(
                 power_windows,
                 cv_max_pct=10.0,
