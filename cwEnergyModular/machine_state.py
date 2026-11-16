@@ -55,6 +55,15 @@ TOP_WINDOW_S = 1.0             # finestra di osservazione dei processi
 #: un processo concorrente e renderebbe la dichiarazione illeggibile.
 EXCLUDED_PIDS = (0,)
 
+#: Nomi dei processi TARGET_WORKLOAD riconosciuti. Ollama e i suoi componenti
+#: sono parte del carico misurato, non background indipendente.
+TARGET_WORKLOAD_NAMES = ("ollama",)
+
+#: Categorie della classificazione dei processi.
+CLASS_TARGET_WORKLOAD = "TARGET_WORKLOAD"
+CLASS_BACKGROUND = "BACKGROUND"
+CLASS_SYSTEM_UNATTRIBUTED = "SYSTEM_UNATTRIBUTED"
+
 #: Un warm-up a (512,128) serve a portare pesi e cache di allocazione in
 #: regime. Il testo non deve essere intelligente: deve avere circa 512 token,
 #: e i conteggi reali del motore vengono restituiti e dichiarati, perche' e'
@@ -217,14 +226,131 @@ def warmup(model: str, *, api_url: str, num_ctx: int,
     return out
 
 
+def _get_process_tree() -> Dict[int, Dict]:
+    """Ricostruisce l'albero dei processi: PID → info (ppid, nome, create_time).
+
+    Restituisce un dizionario per PID, usato da classify_process() per
+    determinare se un processo è figlio del workload target.
+    """
+    tree: Dict[int, Dict] = {}
+    for proc in psutil.process_iter(["pid", "name", "ppid", "create_time"]):
+        try:
+            info = proc.info
+            pid = int(info.get("pid", 0))
+            if pid in EXCLUDED_PIDS:
+                continue
+            tree[pid] = {
+                "pid": pid,
+                "name": str(info.get("name") or ""),
+                "ppid": int(info.get("ppid", 0)),
+                "create_time": float(info.get("create_time", 0)),
+            }
+        except (psutil.NoSuchProcess, psutil.AccessDenied):
+            continue
+    return tree
+
+
+def _find_descendants(pid: int, tree: Dict[int, Dict]) -> set:
+    """Trovare tutti i discendenti di ``pid`` nell'albero dei processi."""
+    descendants: set = set()
+    queue = [pid]
+    while queue:
+        current = queue.pop()
+        for child_pid, child_info in tree.items():
+            if child_info["ppid"] == current and child_pid not in descendants:
+                descendants.add(child_pid)
+                queue.append(child_pid)
+    return descendants
+
+
+def classify_process(
+        pid: int,
+        target_pids: Optional[set] = None,
+        target_names: Optional[Tuple[str, ...]] = None,
+        process_tree: Optional[Dict[int, Dict]] = None) -> str:
+    """Classifica un processo nelle tre categorie di background monitoring.
+
+    Restituisce uno dei tre token:
+    - ``TARGET_WORKLOAD``: processo parte del carico misurato (Ollama o figlio).
+    - ``BACKGROUND``: processo indipendente dal workload.
+    - ``SYSTEM_UNATTRIBUTED``: attività di sistema non attribuibile.
+
+    La classificazione si basa su:
+    1. PID esplicito nel set target (o suo discendente).
+    2. Nome del processo nei nomi target.
+    3. Albero dei processi: se il padre è TARGET_WORKLOAD, anche il figlio lo è.
+
+    Non attribuisce energia basandosi sulla CPU%: la classificazione serve solo
+    a distinguere i processi per il confronto dell'intensità del background.
+
+    Parametri:
+    - ``pid``: PID del processo da classificare.
+    - ``target_pids``: set di PID noti come TARGET_WORKLOAD (es. Ollama).
+    - ``target_names``: tuple di nomi (minuscolo) riconosciuti come target.
+    - ``process_tree``: albero dei processi (PID → info). Se None, viene
+      ricostruito automaticamente (costo: iterazione su tutti i processi).
+    """
+    if target_names is None:
+        target_names = TARGET_WORKLOAD_NAMES
+
+    if process_tree is None:
+        process_tree = _get_process_tree()
+
+    # Caso 1: PID esplicitamente nel set target
+    if target_pids and pid in target_pids:
+        return CLASS_TARGET_WORKLOAD
+
+    # Caso 2: nome del processo nei nomi target
+    proc_info = process_tree.get(pid)
+    if proc_info:
+        name_lower = proc_info["name"].lower()
+        # Usa il nome completo o la parte senza estensione per il confronto
+        # per evitare falsi positivi (es. "not_ollama" non è "ollama")
+        name_base = name_lower.rsplit(".", 1)[0] if "." in name_lower else name_lower
+        for target_name in target_names:
+            target_lower = target_name.lower()
+            # Il nome target deve essere una parola intera o il nome completo
+            if (name_base == target_lower or
+                name_lower == target_lower or
+                f"{target_lower}." in name_lower or
+                name_lower.startswith(target_lower + "_") or
+                name_lower.startswith(target_lower + "-")):
+                return CLASS_TARGET_WORKLOAD
+
+        # Caso 3: discendente di un processo target
+        if target_pids:
+            for target_pid in target_pids:
+                descendants = _find_descendants(target_pid, process_tree)
+                if pid in descendants:
+                    return CLASS_TARGET_WORKLOAD
+
+    # Caso 4: processi di sistema riconosciuti
+    # Su Windows, i processi di sistema hanno nomi noti o PID molto bassi
+    if proc_info:
+        system_names = ("system", "smss.exe", "csrss.exe", "services.exe",
+                        "lsass.exe", "svchost.exe", "wininit.exe")
+        if proc_info["name"].lower() in system_names:
+            return CLASS_SYSTEM_UNATTRIBUTED
+        # PID < 100 sono tipicamente processi di sistema su Windows
+        if pid < 100 and pid not in EXCLUDED_PIDS:
+            return CLASS_SYSTEM_UNATTRIBUTED
+
+    # Default: processo indipendente dal workload
+    return CLASS_BACKGROUND
+
+
 def sample_top_processes(n: int = TOP_PROCESSES,
-                         window_s: float = TOP_WINDOW_S) -> List[Dict]:
+                         window_s: float = TOP_WINDOW_S,
+                         target_pids: Optional[set] = None) -> List[Dict]:
     """I primi ``n`` processi per CPU su una finestra di ``window_s``.
 
     ``psutil`` misura la CPU per processo fra due letture:
     la prima chiamata arma il contatore, la seconda lo legge dopo la finestra.
     Il valore puo' superare 100 su host multi-core, perche' e' la somma dei
     core usati: si dichiara cosi' come lo da' il sistema, non normalizzato.
+
+    Se ``target_pids`` è fornito, ogni processo viene classificato usando
+    ``classify_process()`` e la categoria è inclusa nel risultato.
     """
     primed = []
     for proc in psutil.process_iter(["pid", "name"]):
@@ -234,6 +360,10 @@ def sample_top_processes(n: int = TOP_PROCESSES,
         except (psutil.NoSuchProcess, psutil.AccessDenied):
             continue
     time.sleep(window_s)
+
+    # Ricostruisci l'albero dei processi una volta sola
+    process_tree = _get_process_tree() if target_pids else None
+
     rows: List[Dict] = []
     for proc in primed:
         try:
@@ -241,9 +371,13 @@ def sample_top_processes(n: int = TOP_PROCESSES,
             pid = int(info.get("pid", 0))
             if pid in EXCLUDED_PIDS:
                 continue
-            rows.append({"pid": pid,
-                         "name": str(info.get("name") or ""),
-                         "cpu_pct": round(float(proc.cpu_percent(None)), 1)})
+            row = {"pid": pid,
+                   "name": str(info.get("name") or ""),
+                   "cpu_pct": round(float(proc.cpu_percent(None)), 1)}
+            if target_pids is not None and process_tree is not None:
+                row["classification"] = classify_process(
+                    pid, target_pids, process_tree=process_tree)
+            rows.append(row)
         except (psutil.NoSuchProcess, psutil.AccessDenied):
             continue
     rows.sort(key=lambda r: r["cpu_pct"], reverse=True)
@@ -372,7 +506,8 @@ def sampler_cadence(session: object) -> Optional[float]:
 
 
 def background_signature(char_sha256: Optional[str] = None,
-                         cpu_samples: Optional[Sequence[float]] = None) -> Dict:
+                         cpu_samples: Optional[Sequence[float]] = None,
+                         target_pids: Optional[set] = None) -> Dict:
     """Firma del background per declared_background (Fase 3 emenda, estesa).
 
     La firma include grandezze identitarie dello stato E grandezze di
@@ -392,6 +527,8 @@ def background_signature(char_sha256: Optional[str] = None,
     - ``cpu_total_max_pct``: CPU totale massima durante la finestra (opzionale)
     - ``process_cpu_mean_pct``: CPU media dei processi top-5 (opzionale)
     - ``process_cpu_max_pct``: CPU massima dei processi top-5 (opzionale)
+    - ``background_process_cpu_mean_pct``: CPU media dei processi BACKGROUND
+      (escluso TARGET_WORKLOAD, opzionale)
     - ``timestamp_start``: timestamp monotono inizio finestra
     - ``timestamp_end``: timestamp monotono fine finestra
 
@@ -399,11 +536,15 @@ def background_signature(char_sha256: Optional[str] = None,
     CPU derivate da quei campioni. Se ``cpu_samples`` è assente, i campi di
     intensità restano ``None`` e la firma resta valida per il confronto
     identitario (comportamento legacy).
+
+    Se ``target_pids`` è fornito, i processi vengono classificati e la CPU
+    media dei soli processi BACKGROUND è calcolata separatamente.
     """
     import time as _time
     ps = power_state()
     t_start = _time.monotonic()
-    top5 = sample_top_processes(n=TOP_PROCESSES, window_s=TOP_WINDOW_S)
+    top5 = sample_top_processes(n=TOP_PROCESSES, window_s=TOP_WINDOW_S,
+                                target_pids=target_pids)
     t_end = _time.monotonic()
 
     sig: Dict = {
@@ -417,6 +558,7 @@ def background_signature(char_sha256: Optional[str] = None,
         "cpu_total_max_pct": None,
         "process_cpu_mean_pct": None,
         "process_cpu_max_pct": None,
+        "background_process_cpu_mean_pct": None,
         "timestamp_start": t_start,
         "timestamp_end": t_end,
     }
@@ -433,14 +575,23 @@ def background_signature(char_sha256: Optional[str] = None,
 
     # Statistiche di intensità dai processi top-5 (se presenti).
     proc_cpus = []
+    bg_proc_cpus = []
     for p in top5:
         try:
-            proc_cpus.append(float(p.get("cpu_pct", 0)))
+            cpu_val = float(p.get("cpu_pct", 0))
         except (TypeError, ValueError):
-            pass
+            continue
+        proc_cpus.append(cpu_val)
+        # Se la classificazione è disponibile, separa BACKGROUND
+        classification = p.get("classification")
+        if classification == CLASS_BACKGROUND:
+            bg_proc_cpus.append(cpu_val)
     if proc_cpus:
         sig["process_cpu_mean_pct"] = round(sum(proc_cpus) / len(proc_cpus), 2)
         sig["process_cpu_max_pct"] = round(max(proc_cpus), 2)
+    if bg_proc_cpus:
+        sig["background_process_cpu_mean_pct"] = round(
+            sum(bg_proc_cpus) / len(bg_proc_cpus), 2)
 
     return sig
 
@@ -537,6 +688,9 @@ def signatures_match_with_intensity(
 
     Restituisce ``(verdetto, differenze)`` dove ``verdetto`` è uno dei quattro
     token sopra e ``differenze`` elenca le ragioni del verdetto.
+
+    Il confronto include anche la CPU media dei processi BACKGROUND
+    (escluso TARGET_WORKLOAD), se disponibile nelle firme.
     """
     # 1. Confronto identità (stessa logica di signatures_match).
     identico, diff_identita = signatures_match(sig1, sig2)
@@ -553,7 +707,7 @@ def signatures_match_with_intensity(
 
     differenze: List[str] = []
 
-    # 3. Confronto intensità CPU con tolleranza.
+    # 3. Confronto intensità CPU totale con tolleranza.
     try:
         cpu_diff = abs(float(cpu1) - float(cpu2))
     except (TypeError, ValueError):
@@ -564,6 +718,22 @@ def signatures_match_with_intensity(
         differenze.append(
             f"CPU media cambiata: {cpu1}% → {cpu2}% "
             f"(differenza {cpu_diff:.1f}%, tolleranza {cpu_tolerance_pct}%)")
+
+    # 3b. Confronto intensità CPU dei processi BACKGROUND, se disponibile.
+    # Questo confronto esclude TARGET_WORKLOAD: solo i processi indipendenti
+    # dal carico misurato contano per la stabilità del background.
+    bg_cpu1 = sig1.get("background_process_cpu_mean_pct")
+    bg_cpu2 = sig2.get("background_process_cpu_mean_pct")
+    if bg_cpu1 is not None and bg_cpu2 is not None:
+        try:
+            bg_cpu_diff = abs(float(bg_cpu1) - float(bg_cpu2))
+        except (TypeError, ValueError):
+            pass  # valori non numerici: ignora questo confronto
+        else:
+            if bg_cpu_diff > float(cpu_tolerance_pct):
+                differenze.append(
+                    f"CPU background cambiata: {bg_cpu1}% → {bg_cpu2}% "
+                    f"(differenza {bg_cpu_diff:.1f}%, tolleranza {cpu_tolerance_pct}%)")
 
     # 4. Confronto intensità potenza, se la tolleranza è fornita.
     if power_tolerance_w is not None:

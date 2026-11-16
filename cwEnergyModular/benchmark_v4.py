@@ -2867,10 +2867,38 @@ def run_v4_benchmark(
                 if local_diff or global_diff:
                     all_diff = local_diff + global_diff
                     bg_note += f" ({', '.join(all_diff)})"
+
+                # Step 20: chiama chain_status() con i verdetti del background
+                # per integrare il monitoraggio nella catena di validazione P4.9.
+                # Il risultato entra nelle note come chain_status:<token>.
+                # Il gate P4.4 ha il suo percorso separato; qui usiamo chain_status
+                # solo per i blocchi di misura, non per i controlli.
+                try:
+                    from validation_chain import chain_status as _chain_status
+                    chain_result = _chain_status(
+                        blocks=[block_rec],
+                        controls=[],
+                        n_pairs=0,
+                        p_lof_perm=1.0,
+                        confirmation_points=[],
+                        reduced_design=False,
+                        bg_local_verdict=local_verdict,
+                        bg_global_verdict=global_verdict,
+                    )
+                    chain_note = f"chain_status:{chain_result}"
+                except Exception as chain_exc:
+                    # chain_status fallito: non bloccare l'esportazione
+                    chain_note = (
+                        f"chain_status:error "
+                        f"({type(chain_exc).__name__}: {chain_exc})"
+                    )
+                    log(f"[AVVISO] chain_status fallito: "
+                        f"{type(chain_exc).__name__}: {chain_exc}")
+
                 for row in rows:
                     row["notes"] = (
                         (row.get("notes", "") + "; ") if row.get("notes") else ""
-                    ) + bg_note
+                    ) + bg_note + "; " + chain_note
 
                 # Esporta le righe e il riepilogo di blocco
                 rows_written += export_results_csv(
