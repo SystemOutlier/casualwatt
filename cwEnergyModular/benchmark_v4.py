@@ -2094,6 +2094,12 @@ def run_block(model: str, prompt: Dict, *, run_id: str, session_id: str,
             rec.get("judge_window_s", ""))
         if judge_note:
             notes.append(judge_note)
+        # Baseline statistiche complete: se SESSION.baseline_stats e' popolata
+        # (dopo calibrate_idle()), la serializza in JSON con chiave strutturata
+        # per non modificare lo schema CSV P5 congelato a 174 nomi.
+        bs = getattr(SESSION, "baseline_stats", None)
+        if bs is not None and hasattr(bs, "to_json"):
+            notes.append(bs.to_json())
         rec["notes"] = "; ".join(n for n in notes if n)
         rows.append(rec)
         log(f"[OK {block_id} #{i + 1}/{m}] {resp_data['duration_s']:.2f}s | "
