@@ -48,3 +48,9 @@ experiment_results/srum_dump_*.csv
 # NON ignorare srum_emi_scale.py: e' citato per nome da codice tracciato come
 # prova dell'unita' millijoule (srum.py:44, srum_emi_cross.py:25,181,366).
 # Ignorarlo orfana una citazione di riproducibilita': va tracciato, non ignorato.
+
+# --- Ambienti virtuali Python: contengono pacchetti installati (DLL da 100-300 MB)
+# che superano il limite di 100 MB di GitHub. Non vanno tracciati.
+# Verificato il 16-11-2026: MUDILabV/mudilab_env/ conteneva torch_cpu.dll (291 MB),
+# llvmlite.dll (114 MB), xgboost.dll (54 MB) e migliaia di file di pacchetti.
+/MUDILabV/mudilab_env/
