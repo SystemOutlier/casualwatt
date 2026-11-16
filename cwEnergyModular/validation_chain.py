@@ -239,21 +239,39 @@ def baseline_stability(
     sono complementari.
 
     Restituisce:
-        - None: l'anello passa (baseline stabile o non valutata)
+        - None: l'anello passa (baseline stabile)
         - BASELINE_STABILITY_UNSTABLE: CV > soglia, baseline instabile
         - BASELINE_STABILITY_INSUFFICIENT: dati insufficienti per valutare il CV
 
     Il risultato e' un WARNING, non un'invalidazione: una baseline instabile
     non cancella la misura, ma la dichiara non conforme al criterio di stabilita'
     previsto dal protocollo.
+
+    Se baseline_stability_status e' "not_evaluated" (calibrazione non eseguita),
+    l'anello non passa silenziosamente: restituisce INSUFFICIENT perche' una
+    baseline non valutata non e' una baseline stabile.
+    Se baseline_stability_status e' un token non riconosciuto, l'anello si ferma
+    con ValueError invece di lasciare proseguire la catena.
     """
     if baseline_stability_status is None:
+        # Nessun dato di stabilita' disponibile: l'anello non e' valutato.
+        # Non e' un errore bloccante perche' e' un anello opzionale.
         return None
     if baseline_stability_status == "unstable":
         return BASELINE_STABILITY_UNSTABLE
     if baseline_stability_status == "insufficient_data":
         return BASELINE_STABILITY_INSUFFICIENT
-    return None
+    if baseline_stability_status == "not_evaluated":
+        # Una baseline non valutata non e' una baseline stabile.
+        # Non si trasforma in "nessun problema": si dichiara che manca il dato.
+        return BASELINE_STABILITY_INSUFFICIENT
+    if baseline_stability_status == "stable":
+        return None
+    # Token non riconosciuto: non lasciare proseguire la catena silenziosamente.
+    raise ValueError(
+        f"baseline_stability_status={baseline_stability_status!r} non riconosciuto. "
+        f"Vocabolario chiuso: stable, unstable, insufficient_data, not_evaluated."
+    )
 
 
 def chain_status(*, blocks: Sequence[Mapping],

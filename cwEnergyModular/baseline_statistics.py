@@ -88,9 +88,15 @@ class BaselineStatistics:
         """
         notes: List[str] = []
 
-        # Filtra finestre non valide
+        # Filtra finestre non valide, inclusi valori non finiti
         valid_powers: List[Tuple[float, float]] = []
         for power_w, dt_s in powers:
+            if not _is_finite(power_w):
+                notes.append(f"finestra scartata: potenza non finita ({power_w})")
+                continue
+            if not _is_finite(dt_s):
+                notes.append(f"finestra scartata: dt non finito ({dt_s})")
+                continue
             if dt_s <= 0:
                 notes.append(f"finestra scartata: dt={dt_s:.3f} s ≤ 0")
                 continue
@@ -207,10 +213,10 @@ class BaselineStatistics:
         """
         notes: List[str] = []
 
-        # Filtra potenze negative
-        valid_powers = [p for p in powers if p >= 0]
+        # Filtra potenze non finite e negative
+        valid_powers = [p for p in powers if _is_finite(p) and p >= 0]
         if len(valid_powers) != len(powers):
-            notes.append(f"{len(powers) - len(valid_powers)} potenza(e) negativa(e) scartata(e)")
+            notes.append(f"{len(powers) - len(valid_powers)} potenza(e) non finita(e) o negativa(e) scartata(e)")
 
         if not valid_powers:
             return cls(
@@ -321,6 +327,14 @@ class BaselineStatistics:
 
 
 # -- funzioni helper ---------------------------------------------------------
+
+def _is_finite(value) -> bool:
+    """Verifica che un valore sia un numero finito (non NaN, non inf)."""
+    try:
+        return math.isfinite(float(value))
+    except (TypeError, ValueError):
+        return False
+
 
 def _compute_iqr(values: List[float]) -> float:
     """Calcola l'IQR (Q3 - Q1) usando il metodo dei quartili.

@@ -345,3 +345,60 @@ class TestImmutability:
 
         with pytest.raises(Exception):  # FrozenInstanceError
             stats.window_count = 5  # type: ignore
+
+
+# -- robustezza valori non finiti -------------------------------------------
+
+class TestNonFiniteValues:
+    """Verifica che NaN e infinito vengano scartati esplicitamente."""
+
+    def test_nan_power_skipped(self):
+        """Potenza NaN viene scartata, non produce CV=NaN."""
+        import math
+        powers = [(100.0, 30.0), (float('nan'), 30.0), (98.0, 30.0)]
+        stats = BaselineStatistics.from_power_windows(powers)
+
+        assert stats.window_count == 2
+        assert math.isfinite(stats.cv_pct)
+        assert any("non finita" in note for note in stats.notes)
+
+    def test_inf_power_skipped(self):
+        """Potenza infinito viene scartata."""
+        powers = [(100.0, 30.0), (float('inf'), 30.0), (98.0, 30.0)]
+        stats = BaselineStatistics.from_power_windows(powers)
+
+        assert stats.window_count == 2
+        assert any("non finita" in note for note in stats.notes)
+
+    def test_nan_dt_skipped(self):
+        """dt NaN viene scartato."""
+        powers = [(100.0, 30.0), (102.0, float('nan')), (98.0, 30.0)]
+        stats = BaselineStatistics.from_power_windows(powers)
+
+        assert stats.window_count == 2
+        assert any("non finito" in note for note in stats.notes)
+
+    def test_all_nan_not_evaluated(self):
+        """Tutti NaN: not_evaluated, non stable."""
+        powers = [(float('nan'), 30.0), (float('nan'), 30.0)]
+        stats = BaselineStatistics.from_power_windows(powers)
+
+        assert stats.window_count == 0
+        assert stats.stability_status == "not_evaluated"
+        assert stats.cv_pct == 0.0
+
+    def test_from_single_values_nan_skipped(self):
+        """from_single_values scarta NaN esplicitamente."""
+        import math
+        stats = BaselineStatistics.from_single_values([100.0, float('nan'), 98.0])
+
+        assert stats.window_count == 2
+        assert math.isfinite(stats.cv_pct)
+        assert any("non finita" in note for note in stats.notes)
+
+    def test_nan_does_not_produce_stable(self):
+        """NaN non produce mai status stable."""
+        powers = [(float('nan'), 30.0), (float('nan'), 30.0), (float('nan'), 30.0)]
+        stats = BaselineStatistics.from_power_windows(powers)
+
+        assert stats.stability_status != "stable"

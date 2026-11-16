@@ -250,11 +250,28 @@ def test_baseline_stability_insufficient_data():
 
 
 def test_baseline_stability_not_evaluated():
-    """Non valutata: l'anello passa (None)."""
+    """Non valutata: non passa silenziosamente, restituisce INSUFFICIENT.
+
+    Una baseline non valutata non e' una baseline stabile: il dato manca,
+    non e' un controllo superato.
+    """
     assert baseline_stability(
         baseline_cv_pct=0.0,
         baseline_stability_status="not_evaluated",
-    ) is None
+    ) == BASELINE_STABILITY_INSUFFICIENT
+
+
+def test_baseline_stability_unknown_token_raises():
+    """Token non riconosciuto: ValueError, non un passaggio silenzioso.
+
+    Se baseline_stability_status e' un token fuori dal vocabolario chiuso,
+    la catena si ferma invece di lasciare proseguire verso validated.
+    """
+    with pytest.raises(ValueError, match="non riconosciuto"):
+        baseline_stability(
+            baseline_cv_pct=5.0,
+            baseline_stability_status="unknown_status",
+        )
 
 
 def test_baseline_stability_none_status():
@@ -325,13 +342,27 @@ def test_chain_status_baseline_stability_stable_da_validated():
 def test_chain_status_baseline_stability_none_da_validated():
     """chain_status() restituisce validated quando baseline_stability_status e' None.
 
-    Se la baseline non e' stata valutata, l'anello passa e la catena continua.
+    Se la baseline non e' stata valutata (status None), l'anello opzionale
+    passa e la catena continua verso validated.
     """
     esito = _catena(
         baseline_cv_pct=None,
         baseline_stability_status=None,
     )
     assert esito == VALIDATED
+
+
+def test_chain_status_baseline_stability_not_evaluated():
+    """chain_status() restituisce INSUFFICIENT quando la baseline non e' stata valutata.
+
+    not_evaluated non e' un controllo superato: il dato manca, quindi la catena
+    non puo' raggiungere validated.
+    """
+    esito = _catena(
+        baseline_cv_pct=0.0,
+        baseline_stability_status="not_evaluated",
+    )
+    assert esito == BASELINE_STABILITY_INSUFFICIENT
 
 
 def test_chain_status_baseline_stability_precedenza():
