@@ -225,15 +225,17 @@ class EvaluationResult:
     # Riferimento: Reimers & Gurevych (2019) Sentence-BERT; Wang et al. (2025)
     # "A Practical Guide for Evaluating LLMs" (arXiv:2506.13023).
     semantic_provenance: str = ""
-    # --- incertezza del giudice LLM (miglioramento 15-11-2026) ---
+    # --- margine del giudice LLM (miglioramento 15-11-2026) ---
     # Margine dello score del giudice dalla soglia 4.0: valore positivo =
     # confidenza nella correttezza, negativo = confidenza nell'errore.
-    # Usato per pesare le righe nel bootstrap a cluster quando
-    # scoring_method=llm_judge. Vocabolario: float in [-5.0, +1.0] o None
-    # se il giudice non e' stato chiamato. Riferimento: Sheng et al. (EMNLP 2025)
-    # "Analyzing Uncertainty of LLM-as-a-Judge" (arXiv:2509.18658);
+    # E' una variabile diagnostica, NON una probabilita' calibrata ne' una
+    # misura statistica dell'incertezza: non ha validazione empirica come
+    # incertezza calibrata. Usato per pesare le righe nel bootstrap a cluster
+    # quando scoring_method=llm_judge. Vocabolario: float in [-4.0, +1.0]
+    # o None se il giudice non e' stato chiamato. Riferimento: Sheng et al.
+    # (EMNLP 2025) "Analyzing Uncertainty of LLM-as-a-Judge" (arXiv:2509.18658);
     # Wagner et al. (2024) "Black-box Uncertainty Quantification" (arXiv:2410.11594).
-    judge_uncertainty: Optional[float] = NA
+    judge_margin: Optional[float] = NA
 
 
 _CAUSE_RE = re.compile(r"\bcaus(?:e|es|ed|ing|al|ality)\b", re.IGNORECASE)
@@ -734,27 +736,27 @@ def evaluate_response(text: str, is_tool: bool = False,
     # Incertezza del giudice LLM: margine dalla soglia 4.0
     # (Sheng et al. EMNLP 2025; Wagner et al. 2024)
     if j_score is not None:
-        res.judge_uncertainty = round(j_score - 4.0, 4)
+        res.judge_margin = round(j_score - 4.0, 4)
         # Il margine e' in [-4.0, +1.0]: +1.0 = giudice molto sicuro nella
         # correttezza (5.0), -4.0 = giudice molto sicuro nell'errore (0.0).
         # Un margine vicino a 0 (es. 3.9-4.1) indica bassa confidenza.
-        if abs(res.judge_uncertainty) < 0.5:
+        if abs(res.judge_margin) < 0.5:
             res.notes.append(
-                f"judge_uncertainty={res.judge_uncertainty:.2f}: margine dalla "
+                f"judge_margin={res.judge_margin:.2f}: margine dalla "
                 f"soglia 4.0 basso (< 0.5) — il giudice e' incerto, is_correct "
                 f"ha incertezza elevata. Riferimento: Sheng et al. (EMNLP 2025) "
                 f"Analyzing Uncertainty of LLM-as-a-Judge (arXiv:2509.18658)."
             )
         else:
             res.notes.append(
-                f"judge_uncertainty={res.judge_uncertainty:.2f}: margine dalla "
-                f"soglia 4.0 — confidenza {'nella correttezza' if res.judge_uncertainty > 0 else 'nell\'errore'}. "
+                f"judge_margin={res.judge_margin:.2f}: margine dalla "
+                f"soglia 4.0 — confidenza {'nella correttezza' if res.judge_margin > 0 else 'nell\'errore'}. "
                 f"Riferimento: Sheng et al. (EMNLP 2025) (arXiv:2509.18658)."
             )
     else:
-        res.judge_uncertainty = NA
+        res.judge_margin = NA
         res.notes.append(
-            "judge_uncertainty=N/A: giudice non disponibile, nessuna incertezza "
+            "judge_margin=N/A: giudice non disponibile, nessun margine "
             "quantificabile"
         )
     res.causal_accuracy = NA          # in regime B non esiste causal accuracy GT-based

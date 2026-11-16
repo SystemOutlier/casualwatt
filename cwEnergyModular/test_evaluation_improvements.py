@@ -8,7 +8,7 @@ Dichiara se is_correct su free_text è provvisorio (lessicale durante il
 benchmark) o definitivo (semantico post-hoc). Riferimento: Reimers & Gurevych
 (2019) Sentence-BERT; Wang et al. (2025) Practical Guide (arXiv:2506.13023).
 
-Miglioramento 2: judge_uncertainty (EvaluationResult)
+Miglioramento 2: judge_margin (EvaluationResult)
 Margine dello score del giudice LLM dalla soglia 4.0 per quantificare
 l'incertezza nel REGIME B. Riferimento: Sheng et al. (EMNLP 2025)
 (arXiv:2509.18658); Wagner et al. (2024) (arXiv:2410.11594).
@@ -100,11 +100,11 @@ class TestSemanticProvenance:
         assert "PROVVISORIA" in notes_text or "provvisoria" in notes_text
 
 
-class TestJudgeUncertainty:
-    """Miglioramento 2: judge_uncertainty nel REGIME B."""
+class TestJudgeMargin:
+    """Miglioramento 2: judge_margin nel REGIME B."""
 
-    def test_judge_uncertainty_sopra_soglia(self, evaluator):
-        """Quando il giudice dà 5.0 (massimo), judge_uncertainty = +1.0
+    def test_judge_margin_sopra_soglia(self, evaluator):
+        """Quando il giudice dà 5.0 (massimo), judge_margin = +1.0
         (massima confidenza nella correttezza)."""
         def fake_judge_high(question, answer, model):
             return (5.0, {"ok": True, "judge_model": "fake"})
@@ -115,12 +115,12 @@ class TestJudgeUncertainty:
             mode="auto",
             judge_fn=fake_judge_high,
         )
-        assert res.judge_uncertainty == 1.0
+        assert res.judge_margin == 1.0
         assert res.is_correct == 1  # 5.0 >= 4.0 → corretto
         assert res.eval_mode == "causal_agent_eval"
 
-    def test_judge_uncertainty_sotto_soglia(self, evaluator):
-        """Quando il giudice dà 0.0 (minimo), judge_uncertainty = -4.0
+    def test_judge_margin_sotto_soglia(self, evaluator):
+        """Quando il giudice dà 0.0 (minimo), judge_margin = -4.0
         (massima confidenza nell'errore)."""
         def fake_judge_low(question, answer, model):
             return (0.0, {"ok": True, "judge_model": "fake"})
@@ -131,12 +131,12 @@ class TestJudgeUncertainty:
             mode="auto",
             judge_fn=fake_judge_low,
         )
-        assert res.judge_uncertainty == -4.0
+        assert res.judge_margin == -4.0
         assert res.is_correct == 0  # 0.0 < 4.0 → errato
 
-    def test_judge_uncertainty_vicino_soglia(self, evaluator):
+    def test_judge_margin_vicino_soglia(self, evaluator):
         """Quando il giudice dà 4.0 (esattamente sulla soglia),
-        judge_uncertainty = 0.0 (massima incertezza)."""
+        judge_margin = 0.0 (massima incertezza)."""
         def fake_judge_threshold(question, answer, model):
             return (4.0, {"ok": True, "judge_model": "fake"})
 
@@ -146,14 +146,14 @@ class TestJudgeUncertainty:
             mode="auto",
             judge_fn=fake_judge_threshold,
         )
-        assert res.judge_uncertainty == 0.0
+        assert res.judge_margin == 0.0
         assert res.is_correct == 1  # 4.0 >= 4.0 → corretto (soglia inclusiva)
         # La nota deve segnalare incertezza elevata
         notes_text = " ".join(res.notes)
         assert "incerto" in notes_text.lower() or "incertezza" in notes_text.lower()
 
-    def test_judge_uncertainty_leggermente_sopra(self, evaluator):
-        """Judge 4.3 → uncertainty +0.3 (leggermente sopra soglia, incerto)."""
+    def test_judge_margin_leggermente_sopra(self, evaluator):
+        """Judge 4.3 → margin +0.3 (leggermente sopra soglia, incerto)."""
         def fake_judge_close(question, answer, model):
             return (4.3, {"ok": True, "judge_model": "fake"})
 
@@ -163,14 +163,14 @@ class TestJudgeUncertainty:
             mode="auto",
             judge_fn=fake_judge_close,
         )
-        assert res.judge_uncertainty == 0.3
+        assert res.judge_margin == 0.3
         assert res.is_correct == 1
         # Margine < 0.5 → nota di incertezza
         notes_text = " ".join(res.notes)
         assert "incerto" in notes_text.lower() or "incertezza" in notes_text.lower()
 
-    def test_judge_uncertainty_leggermente_sotto(self, evaluator):
-        """Judge 3.7 → uncertainty -0.3 (leggermente sotto soglia, incerto)."""
+    def test_judge_margin_leggermente_sotto(self, evaluator):
+        """Judge 3.7 → margin -0.3 (leggermente sotto soglia, incerto)."""
         def fake_judge_close_below(question, answer, model):
             return (3.7, {"ok": True, "judge_model": "fake"})
 
@@ -180,11 +180,11 @@ class TestJudgeUncertainty:
             mode="auto",
             judge_fn=fake_judge_close_below,
         )
-        assert res.judge_uncertainty == -0.3
+        assert res.judge_margin == -0.3
         assert res.is_correct == 0  # 3.7 < 4.0 → errato
 
-    def test_judge_uncertainty_none_se_giudice_assente(self, evaluator):
-        """Se il giudice non risponde, judge_uncertainty è None."""
+    def test_judge_margin_none_se_giudice_assente(self, evaluator):
+        """Se il giudice non risponde, judge_margin è None."""
         def fake_judge_unavailable(question, answer, model):
             return (None, {"ok": False, "reason": "unavailable"})
 
@@ -194,11 +194,11 @@ class TestJudgeUncertainty:
             mode="auto",
             judge_fn=fake_judge_unavailable,
         )
-        assert res.judge_uncertainty is None
+        assert res.judge_margin is None
         assert res.is_correct is None
 
-    def test_judge_uncertainty_note_cita_riferimento(self, evaluator):
-        """La nota di judge_uncertainty cita Sheng et al. (EMNLP 2025)."""
+    def test_judge_margin_note_cita_riferimento(self, evaluator):
+        """La nota di judge_margin cita Sheng et al. (EMNLP 2025)."""
         def fake_judge_confident(question, answer, model):
             return (5.0, {"ok": True, "judge_model": "fake"})
 
@@ -213,19 +213,19 @@ class TestJudgeUncertainty:
 
     def test_judge_gated_non_chiama_giudice(self, evaluator):
         """Se judge_gated=True, il giudice non è chiamato e
-        judge_uncertainty resta None."""
+        judge_margin resta None."""
         res = evaluator.evaluate_response(
             text="Risposta con gate",
             ground_truth=None,
             mode="auto",
             judge_gated=True,
         )
-        assert res.judge_uncertainty is None
+        assert res.judge_margin is None
         assert res.is_correct is None
         assert res.none_reason == "judge_uncalibrated"
 
-    def test_judge_uncertainty_range_valido(self, evaluator):
-        """judge_uncertainty è sempre nell'intervallo [-4.0, +1.0]
+    def test_judge_margin_range_valido(self, evaluator):
+        """judge_margin è sempre nell'intervallo [-4.0, +1.0]
         dato che judge_score è in [0.0, 5.0]."""
         for score in [0.0, 1.0, 2.0, 3.0, 3.5, 4.0, 4.5, 5.0]:
             def fake_judge(s=score):
@@ -237,8 +237,8 @@ class TestJudgeUncertainty:
                 mode="auto",
                 judge_fn=fake_judge(),
             )
-            assert -4.0 <= res.judge_uncertainty <= 1.0, \
-                f"judge_uncertainty {res.judge_uncertainty} fuori range per score {score}"
+            assert -4.0 <= res.judge_margin <= 1.0, \
+                f"judge_margin {res.judge_margin} fuori range per score {score}"
 
 
 class TestEvaluationResultFields:
@@ -250,8 +250,8 @@ class TestEvaluationResultFields:
         assert hasattr(res, 'semantic_provenance')
         assert res.semantic_provenance == ""  # default vuoto
 
-    def test_judge_uncertainty_field_exists(self, evaluator):
-        """Il campo judge_uncertainty esiste in EvaluationResult."""
+    def test_judge_margin_field_exists(self, evaluator):
+        """Il campo judge_margin esiste in EvaluationResult."""
         res = evaluator.EvaluationResult()
-        assert hasattr(res, 'judge_uncertainty')
-        assert res.judge_uncertainty is None  # default NA
+        assert hasattr(res, 'judge_margin')
+        assert res.judge_margin is None  # default NA
