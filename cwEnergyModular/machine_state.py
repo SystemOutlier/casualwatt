@@ -407,7 +407,7 @@ def background_signature(char_sha256: Optional[str] = None) -> Dict:
 def signatures_match(sig1: Dict, sig2: Dict) -> Tuple[bool, List[str]]:
     """Verifica se due firme di background coincidono.
 
-    Confronta solo i campi identitari: processi rilevanti (per pid),
+    Confronta solo i campi identitari: processi rilevanti (per pid e nome),
     piano energetico, stato batteria. Non confronta timestamp o CPU%.
 
     Restituisce (match: bool, differenze: List[str]).
@@ -425,6 +425,22 @@ def signatures_match(sig1: Dict, sig2: Dict) -> Tuple[bool, List[str]]:
             differenze.append(f"processi presenti in sig1 ma non in sig2 (PID: {sorted(solo1)})")
         if solo2:
             differenze.append(f"processi presenti in sig2 ma non in sig1 (PID: {sorted(solo2)})")
+
+    # Confronto nome del processo per PID: stesso PID con nome diverso indica
+    # che il processo è stato sostituito (es. terminato e rilanciato con altro eseguibile).
+    # La firma include già "name" (sample_top_processes:244-246), quindi il confronto
+    # non aggiunge costo di采集, solo discriminazione.
+    procs1 = {p["pid"]: p.get("name", "") for p in sig1.get("processes", [])}
+    procs2 = {p["pid"]: p.get("name", "") for p in sig2.get("processes", [])}
+    common_pids = pids1 & pids2
+    for pid in sorted(common_pids):
+        name1 = procs1.get(pid, "")
+        name2 = procs2.get(pid, "")
+        if name1 and name2 and name1 != name2:
+            differenze.append(
+                f"PID {pid}: nome cambiato da {name1!r} a {name2!r} "
+                f"(processo sostituito)"
+            )
 
     # Confronto piano energetico
     plan1 = sig1.get("power_plan", "")
