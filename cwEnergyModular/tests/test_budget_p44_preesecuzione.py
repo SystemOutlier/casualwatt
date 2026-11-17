@@ -1106,7 +1106,7 @@ def test_la_soglia_non_e_piu_budget_piu_k_u_c_doppio_conteggio():
     tool NON la produce piu': con i numeri della seconda campagna (budget
     0,117995 W, bias 0,125171 W) la forma rimossa avrebbe dato S >= 0,353985
     W, cioe' un pass; la soglia del tool e' il budget, cioe' un fail."""
-    import gate_uncertainty as gu
+    from tools import gate_uncertainty as gu
     budget = 0.117995
     half_range, half_drift = 0.1, math.sqrt(budget ** 2 - 0.1 ** 2)
     assert math.hypot(half_range, half_drift) == pytest.approx(budget)
@@ -1126,7 +1126,7 @@ def test_ogni_componente_dichiara_tipo_inclusione_e_motivo():
     """Per ogni componente, pre e post: valore, tipo A/B, inclusa True/False
     e un motivo non vuoto. Un'esclusione e' una decisione dichiarata, non
     un'assenza dal report."""
-    import gate_uncertainty as gu
+    from tools import gate_uncertainty as gu
     det = rg._calcola_budget_pre_esecuzione(
         "short", _budget_per_u_c(dt_offset=0.02), _piano_minimo())[1]
     pre = rg._incertezza_pre_esecuzione(det, 0.0156)
