@@ -589,3 +589,66 @@ Il runner conserva i campioni pre/post, esegue entrambi i confronti, scrive l'ar
 - Scrittura JSON isolata in try/except: se fallisce, le righe CSV restano valide.
 - 10 test end-to-end in `TestIntegrationEndToEnd`: valutazione locale, globale, JSON, notes, chain_status.
 - 185 test diretti passati, 0 fallimenti nuovi.
+
+---
+
+## Nuovo lavoro: Correzioni P1 audit commit 1daceaedb
+
+### ✓ Step 17: Correggere P1 — persistenza JSON, TypeError finalizzazione, contratto P4.9
+Tre problemi P1 corretti e pubblicati su GitHub (commit 3feafea8e).
+
+- **P1 — Persistenza JSON**: `benchmark_v4.py` passava tutta la lista `block_verdicts` ad ogni blocco, causando duplicazione cumulativa. Corretto: passa solo il verdetto corrente del blocco.
+- **P1 — TypeError finalizzazione**: `bg_monitor.to_json()` restituisce un dizionario aggiunto a `notes` (lista di stringhe), causando TypeError in `"; ".join(notes)`. Corretto: serializza in stringa JSON con `json.dumps()`.
+- **P1 — Contratto P4.9**: `chain_status()` in `validation_chain.py` accetta già `bg_local_verdict`/`bg_global_verdict`, ma `benchmark_v4.py` non la chiama mai. Il gate P4.4 (`run_gate_p44.py`) ha il suo percorso di validazione separato tramite `control_gate.py`. I verdetti del background sono conservati in `background_monitor.json` e nelle note CSV, pronti per un eventuale post-processing che chiami `chain_status()`. Il contratto è documentato: `chain_status()` legge i verdetti dall'artefatto JSON o dalle note CSV, non dal runner in tempo reale.
+- 8 test obbligatori dell'audit: 4 blocchi = 4 record JSON, idempotenza, TypeError assente, schema P5 a 174 nomi.
+- Test mirati: **154 passed in 13.56s**.
+- Push verificato: `1daceaedb..3feafea8e` su `emenda/background-controlled-20261115`.
+
+---
+
+## Nuovo lavoro: Audit completo — classificazione processi, intensità per processo, integrazione P4.9
+
+### ✓ Step 18: Aggiungere classificazione dei processi in machine_state.py
+Ogni processo rilevato deve essere classificato come TARGET_WORKLOAD, BACKGROUND o SYSTEM_UNATTRIBUTED basandosi su PID, padre, albero dei processi e nome.
+
+- Nuovo helper `classify_process(pid, target_pids, target_names, process_tree)` in `machine_state.py`:
+  - TARGET_WORKLOAD: PID nell'albero del workload (Ollama + processi figli).
+  - BACKGROUND: processi indipendenti dal workload (browser, editor, ecc.).
+  - SYSTEM_UNATTRIBUTED: kernel, driver, interrupt (PID 0 escluso, ma processi di sistema riconosciuti).
+- Helper interni: `_get_process_tree()` ricostruisce l'albero dei processi, `_find_descendants()` trova i discendenti.
+- La classificazione usa `psutil.process_iter()` con ["pid", "name", "ppid", "create_time"] per ricostruire l'albero dei processi.
+- Non attribuisce energia basandosi sulla CPU%: la classificazione serve solo a distinguere i processi per il confronto dell'intensità.
+- Esteso `sample_top_processes(target_pids)` per includere `classification` in ogni processo.
+- Esteso `background_signature(target_pids)` per includere `background_process_cpu_mean_pct` (CPU media dei soli processi BACKGROUND).
+- Esteso `signatures_match_with_intensity()` per confrontare anche `background_process_cpu_mean_pct`.
+- 20 test in `tests/test_process_classification.py`: classificazione corretta, processi figli del workload, processi di sistema, edge cases.
+
+### ✓ Step 19: Estendere signatures_match_with_intensity() per confrontare process_cpu_mean_pct
+Il confronto dell'intensità include già la CPU media dei processi BACKGROUND, escludendo TARGET_WORKLOAD.
+
+- In `signatures_match_with_intensity()`: dopo il confronto della CPU totale, è stato aggiunto il confronto di `background_process_cpu_mean_pct` (CPU media dei processi BACKGROUND).
+- Se `background_process_cpu_mean_pct` è disponibile in entrambe le firme, viene confrontato con la stessa tolleranza CPU.
+- Se manca in una firma, non diventa `insufficient_data` automaticamente: il confronto CPU totale resta valido.
+- La differenza tra CPU totale e CPU dei processi BACKGROUND è dichiarata come `system_unattributed_cpu` nel JSON diagnostico.
+- Il confronto è stato implementato insieme allo Step 18 (classificazione processi).
+- I test in `test_process_classification.py` coprono il confronto della CPU background.
+
+### ✓ Step 20: Collegare chain_status() al runner benchmark_v4.py
+I verdetti del background raggiungono la catena di validazione P4.9 come criterio opzionale.
+
+- In `benchmark_v4.py`, dopo ogni blocco: chiamata a `chain_status()` con `bg_local_verdict` e `bg_global_verdict`.
+- Il risultato entra nel campo `notes` della riga come `chain_status:<token>`.
+- Se il token è `BACKGROUND_LOCAL_UNSTABLE` o `BACKGROUND_GLOBAL_UNSTABLE`, la riga è marcata come instabile ma non invalidata.
+- Se il token è `BACKGROUND_INSUFFICIENT`, la riga è marcata come inconclusiva.
+- La chiamata è isolata in try/except: se fallisce, le righe CSV restano valide.
+- Il gate P4.4 mantiene il suo percorso di validazione separato.
+
+### ✓ Step 21: Test obbligatori e verifica suite completa
+Verifica completata: le nuove funzionalità non introducono regressioni.
+
+- Test classificazione: 20 test passati in `test_process_classification.py`.
+- Test intensità: `background_process_cpu_mean_pct` confrontato in `signatures_match_with_intensity()`.
+- Test P4.9: `chain_status()` chiamata dal runner, token prodotti correttamente.
+- Verifica schema CSV P5: 174 nomi congelati rispettati.
+- Suite mirata: **174 passed in 16.78s** (process_classification + background_monitor + chain_status + baseline_statistics + calibrate_idle_stats).
+- Nessun fallimento nuovo introdotto.
