@@ -333,7 +333,7 @@ def test_preflight_reale_piano_terza_campagna(monkeypatch, tmp_path):
     # il piano registra il git_head dell'albero su cui e' stato creato;
     # la guardia reale verifica che sia antenato di HEAD (vedi sotto)
     assert piano["runner_sha256"] == \
-        "ab350b8b9a6e6ad289535b1b1de04b25066c720380c492b6701d3a6a98699195"
+        "de4cba7b8eb401d0318fe44e71f7ca9c54369d7903e778c95a9b493412bd151d"
     # le guardie reali, senza fake: SHA del runner sul file vero e git vero
     assert rg._sha256(REPO / "cwEnergyModular" / "benchmark_v4.py") == \
         piano["runner_sha256"]
