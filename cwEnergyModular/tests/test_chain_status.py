@@ -647,3 +647,119 @@ def test_not_evaluated_in_status_labels():
     """Il token not_evaluated e' registrato in STATUS_LABELS."""
     assert NOT_EVALUATED in STATUS_LABELS
     assert NOT_EVALUATED == "not_evaluated"
+
+
+# ------------------------------------------------ combinazioni parziali
+
+def test_chain_status_due_anelli_valutati_e_passati():
+    """chain_status() restituisce validated se due anelli obbligatori sono valutati e passano.
+
+    Se blocks e p_lof_perm sono forniti e passano, anche se controls e
+    confirmation_points sono saltati, il risultato e' validated perche'
+    almeno un anello obbligatorio e' stato controllato.
+    """
+    esito = chain_status(
+        blocks=_blocchi("p1") + _blocchi("p2"),
+        p_lof_perm=0.40,
+    )
+    assert esito == VALIDATED
+
+
+def test_chain_status_tre_anelli_valutati_e_passati():
+    """chain_status() restituisce validated se tre anelli obbligatori sono valutati e passano.
+
+    blocks, controls con quorum, e p_lof_perm passano; confirmation_points
+    e' saltato. Il risultato e' validated perche' gli anelli valutati passano.
+    """
+    controlli = [
+        dict(pre_range_w="0.5", dP="0.2", e_net_j="0.1", dt_w_s="10.0",
+             budget_base_j="1.0", budget_base_w="0.5")
+        for _ in range(6)
+    ]
+    esito = chain_status(
+        blocks=_blocchi("p1") + _blocchi("p2"),
+        controls=controlli,
+        n_pairs=6,
+        p_lof_perm=0.40,
+    )
+    assert esito == VALIDATED
+
+
+def test_chain_status_anello_obbligatorio_valutato_e_fallito():
+    """chain_status() restituisce il token dell'anello che cede, non validated.
+
+    Se blocks sono forniti ma instabili (r_A > 10% con meno di 2 blocchi
+    stabili per punto), il risultato e' baseline_unstable anche se
+    p_lof_perm e' presente e passa.
+    """
+    blocchi_instabili = [
+        dict(point_id="p1", r_A="0.15"),
+    ]
+    esito = chain_status(
+        blocks=blocchi_instabili,
+        p_lof_perm=0.40,
+    )
+    assert esito == BASELINE_UNSTABLE
+
+
+def test_chain_status_runner_placeholder_solleva_value_error():
+    """La chiamata del runner con placeholder solleva ValueError, non restituisce validated.
+
+    benchmark_v4.py chiama chain_status() con controls=[], n_pairs=0,
+    p_lof_perm=1.0, confirmation_points=[].
+    bias_declared() solleva ValueError perche' n_pairs <= 0,
+    quindi il runner cattura l'eccezione e scrive 'chain_status:error'
+    nelle notes, non 'chain_status:validated'.
+    """
+    import pytest
+    blocchi = _blocchi("p1") + _blocchi("p2")
+    with pytest.raises(ValueError, match="n_pairs deve essere positivo"):
+        chain_status(
+            blocks=blocchi,
+            controls=[],
+            n_pairs=0,
+            p_lof_perm=1.0,
+            confirmation_points=[],
+        )
+
+
+def test_chain_status_senza_n_pairs_salta_anello_4():
+    """Se n_pairs e' None, l'anello 4 (bias) e' saltato, non solleva ValueError.
+
+    Il runner puo' chiamare chain_status() con blocks e p_lof_perm ma senza
+    controls/n_pairs. L'anello 4 e' saltato, non solleva errore.
+    """
+    esito = chain_status(
+        blocks=_blocchi("p1") + _blocchi("p2"),
+        p_lof_perm=0.40,
+    )
+    assert esito == VALIDATED
+
+
+def test_chain_status_confirmation_points_vuoto_fallisce_anello_6():
+    """confirmation_points=[] fallisce l'anello 6, non e' saltato.
+
+    Se confirmation_points e' una lista vuota (non None), l'anello 6 e'
+    valutato e fallisce perche' len([]) != 2. Il risultato e' validation_failed,
+    non validated.
+    """
+    blocchi = _blocchi("p1") + _blocchi("p2")
+    esito = chain_status(
+        blocks=blocchi,
+        confirmation_points=[],
+    )
+    assert esito == VALIDATION_FAILED
+
+
+def test_chain_status_confirmation_points_none_salta_anello_6():
+    """confirmation_points=None salta l'anello 6, non lo valuta.
+
+    Se confirmation_points e' None, l'anello 6 non e' valutato.
+    Se blocks passano, il risultato e' validated.
+    """
+    blocchi = _blocchi("p1") + _blocchi("p2")
+    esito = chain_status(
+        blocks=blocchi,
+        confirmation_points=None,
+    )
+    assert esito == VALIDATED

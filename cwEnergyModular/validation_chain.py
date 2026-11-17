@@ -362,8 +362,16 @@ def chain_status(
     L'ordine e' quello della tabella: il primo anello che cede da' il nome.
     `reduced_design` (un punto escluso dal fit primario per `r_B > 20%`) si
     aggiunge alle etichette ma non copre un anello rotto: un disegno ridotto
-    con un anello rotto resta l'anello rotto. `validated` richiede quindi sei
-    anelli puliti **e** il disegno intero.
+    con un anello rotto resta l'anello rotto.
+
+    **Semantica di `validated`.** Il token `validated` non significa che tutti
+    gli anelli sono stati eseguiti. Significa che almeno un anello obbligatorio
+    e' stato valutato, che gli anelli valutati hanno superato i rispettivi
+    controlli, e che quelli saltati (parametri `None`) sono considerati non
+    applicabili. La distinzione e': (1) anello valutato e superato, (2) anello
+    non applicabile (saltato), (3) anello non ancora valutato (tutti `None`),
+    (4) anello valutato e fallito. Solo il caso (3) universale produce
+    `not_evaluated`.
 
     **Parametri opzionali.** Tutti i parametri sono ora opzionali per permettere
     al runner v4 di chiamare `chain_status()` senza l'analisi surface_fit

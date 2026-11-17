@@ -2873,14 +2873,28 @@ def run_v4_benchmark(
                 # Il risultato entra nelle note come chain_status:<token>.
                 # Il gate P4.4 ha il suo percorso separato; qui usiamo chain_status
                 # solo per i blocchi di misura, non per i controlli.
+                #
+                # Nota: chain_status() e' progettata per la validazione di
+                # campagna completa (tutti e 6 gli anelli di P4.9). A livello
+                # di singolo blocco, solo gli anelli 2-3 (contatore, baseline)
+                # e gli anelli opzionali (baseline_stability, background_monitor)
+                # sono valutabili con i dati disponibili. Gli anelli 4-6
+                # (bias, modello, conferma) richiedono l'analisi post-campagna
+                # (surface_fit, punti di conferma) e vengono passati come None
+                # perche' non sono ancora valutati — non con placeholder fittizi.
+                # chain_status() restituisce 'not_evaluated' solo se NESSUN anello
+                # obbligatorio e' stato valutato; qui blocks=[block_rec] e' presente,
+                # quindi l'anello 2-3 viene valutato e il risultato riflette lo
+                # stato del contatore e della baseline di questo blocco, non una
+                # validazione completa della campagna.
                 try:
                     from validation_chain import chain_status as _chain_status
                     chain_result = _chain_status(
                         blocks=[block_rec],
-                        controls=[],
-                        n_pairs=0,
-                        p_lof_perm=1.0,
-                        confirmation_points=[],
+                        controls=None,
+                        n_pairs=None,
+                        p_lof_perm=None,
+                        confirmation_points=None,
                         reduced_design=False,
                         bg_local_verdict=local_verdict,
                         bg_global_verdict=global_verdict,
