@@ -1572,21 +1572,37 @@ class EnergySession:
                 return None
             _sleep(max(min(step_s, timeout_s - elapsed), 0.0))
 
-    def calibrate_idle(self, seconds: Optional[float] = None) -> float:
+    def calibrate_idle(
+        self,
+        seconds: Optional[float] = None,
+        *,
+        extended: bool = False,
+    ) -> float:
         """Calibrazione idle empirica via backend energetico (spec §5).
 
-        Procedura esatta richiesta:
-          1. durata >= 30 s (default; sovrascrivibile solo verso l'alto);
-          2. 3 ripetizioni della finestra a riposo (nessun carico generato);
+        Procedura:
+          1. durata >= 30 s per finestra (default; sovrascrivibile solo verso l'alto);
+          2. 3 ripetizioni (standard) o 10 (estese) della finestra a riposo;
           3. per ogni ripetizione: potenza media = delta energia / dt reale
              (contatore EMI cumulativo su Windows, contatore RAPL su Linux);
-          4. P_idle = MEDIANA delle potenze medie delle 3 ripetizioni [W].
+          4. P_idle = MEDIANA delle potenze medie [W];
+          5. CV = deviazione standard / media * 100 (criterio di accettazione);
+          6. se CV > 10% (standard) o CV > 5% (esteso), la calibrazione e'
+             rifiutata con RuntimeError dichiarato.
+
+        La stabilizzazione prima della misura e' di 5 secondi per raggiungere
+        lo stato stazionario (Green Software Foundation, SPEC Power raccomanda
+        240 s; 5 s e' un compromesso pratico).
 
         L'idle calibrato riflette esattamente il consumo a riposo della
         macchina corrente. La baseline ``idle_power_w`` viene sottratta dal
         profiler e NON e' mai attribuita al modello. Supportato su Windows
         (EMI) e Linux (RAPL). Se nessun backend reale e' disponibile,
         RuntimeError dichiarato: niente TDP.
+
+        ``extended`` abilita la calibrazione estesa (10 ripetizioni, CV <= 5%)
+        per macchine con variabilita' idle elevata (CV > 10% nella calibrazione
+        standard). Il tempo totale e' ~300 s invece di ~90 s.
         """
         import config as _cfg
 
@@ -1600,6 +1616,10 @@ class EnergySession:
         except (TypeError, ValueError):
             window_floor = 30.0
         duration_s = max(duration_s, window_floor)
+
+        # Numero di ripetizioni e soglia CV
+        n_reps = 10 if extended else 3
+        cv_threshold = 5.0 if extended else 10.0
 
         was_running = self._running
         if not was_running:
@@ -1615,21 +1635,22 @@ class EnergySession:
                 "(richiede root o gruppo 'power')."
             )
         try:
-            # breve stabilizzazione prima della misura
-            time.sleep(1.0)
+            # Stabilizzazione prima della misura: 5 secondi per raggiungere
+            # lo stato stazionario (Green Software Foundation).
+            time.sleep(5.0)
             means: List[float] = []
             durations: List[float] = []
             mode_used = None
             if self.on_progress:
                 self.on_progress(
-                    f"Finestra idle: {duration_s:.0f} s x 3 ripetizioni "
-                    f"(totale stimato ~{duration_s * 3 + 2:.0f} s). "
+                    f"Finestra idle: {duration_s:.0f} s x {n_reps} ripetizioni "
+                    f"(totale stimato ~{duration_s * n_reps + 5:.0f} s). "
                     "NON generare carico…"
                 )
-            for rep in range(3):
+            for rep in range(n_reps):
                 if self.on_progress:
                     self.on_progress(
-                        f"Calibrazione idle: ripetizione {rep + 1}/3 in corso "
+                        f"Calibrazione idle: ripetizione {rep + 1}/{n_reps} in corso "
                         f"({duration_s:.0f} s)… tieni il PC a riposo"
                     )
                 window = self._source.read_idle_window_j(duration_s)
@@ -1641,7 +1662,7 @@ class EnergySession:
                     raise RuntimeError(
                         "calibrazione idle fallita: nessun contatore di "
                         "energia package leggibile. "
-                        f"Causa ripetizione {rep + 1}/3: {cause}. "
+                        f"Causa ripetizione {rep + 1}/{n_reps}: {cause}. "
                         "Esegui 'py diagnostics.py' per il report completo "
                         "(device EMI)."
                     )
@@ -1657,10 +1678,10 @@ class EnergySession:
                 mode_used = mode
                 if self.on_progress:
                     self.on_progress(
-                        f"Ripetizione {rep + 1}/3 completata: "
+                        f"Ripetizione {rep + 1}/{n_reps} completata: "
                         f"P_media = {p_rep:.2f} W su finestra di {dt:.1f} s"
                     )
-            power_w = sorted(means)[len(means) // 2]   # mediana di 3 misure
+            power_w = sorted(means)[len(means) // 2]   # mediana
             self._idle_mode = mode_used
             self._idle_reps = means
             self._idle_samples_count = len(means)
@@ -1679,8 +1700,18 @@ class EnergySession:
             power_windows = list(zip(means, durations))
             self.baseline_stats = BaselineStatistics.from_power_windows(
                 power_windows,
-                cv_max_pct=10.0,
+                cv_max_pct=cv_threshold,
             )
+            # Criterio di accettazione: il CV deve essere sotto la soglia
+            # per considerare la calibrazione valida.
+            if self.baseline_stats.window_count >= 2:
+                cv = self.baseline_stats.cv_pct
+                if cv > cv_threshold:
+                    raise RuntimeError(
+                        f"calibrazione idle rifiutata: CV={cv:.1f}% > {cv_threshold}% "
+                        f"(variabilita' elevata). Considera calibrazione estesa "
+                        f"(extended=True) o verifica il carico di fondo."
+                    )
 
         return self.idle_power_w
 

@@ -138,7 +138,7 @@ class TestCalibrateIdleStats:
 
 
 class TestCalibrateIdleUnstable:
-    """Verifica che baseline_stats rilevi correttamente l'instabilità."""
+    """Verifica che calibrate_idle rifiuti una baseline con CV troppo alto."""
 
     def _make_unstable_session(self):
         """Crea una sessione con potenze instabili."""
@@ -149,7 +149,7 @@ class TestCalibrateIdleUnstable:
         mock_source.method = "emi-counter"
         mock_source.last_read_error = None
 
-        # Potenze instabili: 100W, 150W, 80W → CV alto
+        # Potenze instabili: 100W, 150W, 80W → CV alto (> 10%)
         mock_source.read_idle_window_j.side_effect = [
             (3000.0, 30.0, "emi-counter"),  # 100W
             (4500.0, 30.0, "emi-counter"),  # 150W
@@ -159,25 +159,41 @@ class TestCalibrateIdleUnstable:
         session._source = mock_source
         return session
 
-    def test_unstable_baseline_detected(self):
-        """Una baseline instabile ha status 'unstable'."""
+    def test_unstable_baseline_rejected(self):
+        """Una baseline con CV > 10% e' rifiutata con RuntimeError."""
         session = self._make_unstable_session()
 
         with patch.object(session, 'start'), patch.object(session, 'stop'):
-            session.calibrate_idle(seconds=30.0)
+            with pytest.raises(RuntimeError) as exc_info:
+                session.calibrate_idle(seconds=30.0)
+            assert "CV=" in str(exc_info.value)
+            assert "variabilita' elevata" in str(exc_info.value)
 
+    def test_extended_mode_allows_higher_cv(self):
+        """La modalita' estesa (10 repliche, CV <= 5%) e' disponibile."""
+        from energy.energy_session import EnergySession
+
+        session = EnergySession()
+        mock_source = MagicMock()
+        mock_source.method = "emi-counter"
+        mock_source.last_read_error = None
+
+        # 10 ripetizioni con CV basso (~2%)
+        powers = [100.0, 101.0, 99.0, 100.5, 99.5, 100.2, 99.8, 100.1, 99.9, 100.3]
+        mock_source.read_idle_window_j.side_effect = [
+            (p * 30.0, 30.0, "emi-counter") for p in powers
+        ]
+
+        session._source = mock_source
+
+        with patch.object(session, 'start'), patch.object(session, 'stop'):
+            idle_power = session.calibrate_idle(seconds=30.0, extended=True)
+
+        # Mediana di 10 valori ~100W
+        assert idle_power == pytest.approx(100.0, abs=1.0)
         assert session.baseline_stats is not None
-        assert session.baseline_stats.stability_status == "unstable"
-
-    def test_idle_power_w_still_median_when_unstable(self):
-        """Anche con baseline instabile, idle_power_w resta la mediana."""
-        session = self._make_unstable_session()
-
-        with patch.object(session, 'start'), patch.object(session, 'stop'):
-            idle_power = session.calibrate_idle(seconds=30.0)
-
-        # Mediana di [80, 100, 150] = 100.0
-        assert idle_power == pytest.approx(100.0, abs=0.1)
+        assert session.baseline_stats.window_count == 10
+        assert session.baseline_stats.cv_pct < 5.0
 
 
 class TestCalibrateIdleEffectiveDurations:
