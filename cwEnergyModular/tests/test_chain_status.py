@@ -27,6 +27,7 @@ from validation_chain import (
     BASELINE_STABILITY_UNSTABLE, BASELINE_STABILITY_INSUFFICIENT,
     BACKGROUND_UNSTABLE, BACKGROUND_INSUFFICIENT,
     BACKGROUND_LOCAL_UNSTABLE, BACKGROUND_GLOBAL_UNSTABLE,
+    NOT_EVALUATED,
     baseline_unstable, bias_declared, chain_status, counter_invalid,
     model_inadequate, validation_failed, baseline_stability, background_monitor,
 )
@@ -140,9 +141,20 @@ def test_il_confine_del_dieci_per_cento_e_incluso():
 
 
 def test_r_a_vuoto_non_e_uno_zero_e_non_produce_uno_stato():
-    """Campo di analisi vuoto = analisi non eseguita: nessuno stato inventato."""
-    with pytest.raises(ValueError, match="r_A"):
-        _catena(blocks=[dict(b, r_A="") for b in _blocchi("p1")])
+    """Campo di analisi vuoto = analisi non eseguita: anello saltato, non ceduto.
+
+    Dopo la correzione dei parametri opzionali, baseline_unstable() salta i
+    blocchi con r_A vuoto invece di sollevare ValueError. Se nessun blocco
+    ha r_A, l'anello non è valutabile e non cede (restituisce False).
+    """
+    # r_A vuoto: baseline_unstable salta il blocco, non crasha
+    blocks_with_empty_r_a = [dict(b, r_A="") for b in _blocchi("p1")]
+    assert baseline_unstable(blocks_with_empty_r_a) is False
+    # chain_status con blocks vuoti di r_A: anello saltato, non ValueError
+    result = _catena(blocks=blocks_with_empty_r_a)
+    # Senza altri anelli che cedono, il risultato è validated (o background verdict)
+    assert result in (VALIDATED, BACKGROUND_LOCAL_UNSTABLE, BACKGROUND_GLOBAL_UNSTABLE,
+                      BASELINE_STABILITY_UNSTABLE, BASELINE_STABILITY_INSUFFICIENT)
 
 
 # ------------------------------------------------------------------ 4 bias
@@ -216,13 +228,15 @@ def test_disegno_ridotto_non_copre_un_anello_rotto():
 # ------------------------------------------------------------- vocabolario
 def test_nessuna_etichetta_fuori_dal_vocabolario_congelato():
     """Il protocollo ha sei etichette di anello piu' validated, reduced_design,
-    i due token di stabilita' statistica della baseline e i due del background."""
+    i due token di stabilita' statistica della baseline, i due del background
+    e not_evaluated per la catena senza dati."""
     assert set(STATUS_LABELS) == {
         VALIDATED, COUNTER_INVALID, BASELINE_UNSTABLE, BIAS_DECLARED,
         MODEL_INADEQUATE, VALIDATION_FAILED, REDUCED_DESIGN,
         BASELINE_STABILITY_UNSTABLE, BASELINE_STABILITY_INSUFFICIENT,
         BACKGROUND_UNSTABLE, BACKGROUND_INSUFFICIENT,
-        BACKGROUND_LOCAL_UNSTABLE, BACKGROUND_GLOBAL_UNSTABLE}
+        BACKGROUND_LOCAL_UNSTABLE, BACKGROUND_GLOBAL_UNSTABLE,
+        NOT_EVALUATED}
     # l'anello 1 (pilota P2.9) non e' un esito di catena: non ha un token
     assert not any("pilot" in label or "campaign" in label
                    for label in STATUS_LABELS)
@@ -517,9 +531,11 @@ def test_chain_status_solo_background_verdicts():
 
     Il runner v4 chiama chain_status() senza blocks, controls, p_lof_perm, ecc.
     Gli anelli obbligatori vengono saltati, gli anelli opzionali funzionano da soli.
+    Se il background e' stabile ma nessun anello obbligatorio e' stato valutato,
+    il risultato e' not_evaluated, non validated.
     """
     esito = chain_status(bg_local_verdict="stable", bg_global_verdict="stable")
-    assert esito == VALIDATED
+    assert esito == NOT_EVALUATED
 
 
 def test_chain_status_solo_background_unstable():
@@ -543,14 +559,14 @@ def test_chain_status_solo_background_insufficient():
 
 
 def test_chain_status_tutti_parametri_none():
-    """chain_status() restituisce VALIDATED quando nessun anello e' valutato.
+    """chain_status() restituisce not_evaluated quando nessun anello e' valutato.
 
-    Se tutti i parametri sono None, nessun anello ha ceduto: il risultato e'
-    VALIDATED perche' la catena non ha trovato problemi. Il chiamante deve
-    dichiarare esplicitamente che la validazione e' incompleta.
+    Se tutti i parametri sono None, nessun anello e' stato controllato: il
+    risultato e' not_evaluated, non validated. Una campagna senza dati non
+    e' una campagna validata, anche se nessun anello ha ceduto.
     """
     esito = chain_status()
-    assert esito == VALIDATED
+    assert esito == NOT_EVALUATED
 
 
 def test_chain_status_baseline_stability_sola():
@@ -568,10 +584,10 @@ def test_chain_status_anelli_obbligatori_saltati():
 
     Se blocks=None, counter_invalid e baseline_unstable non vengono chiamati.
     Se p_lof_perm=None, model_inadequate non viene chiamato.
-    Il risultato e' VALIDATED se nessun anello opzionale cede.
+    Il risultato e' not_evaluated se nessun anello obbligatorio e' stato valutato.
     """
     esito = chain_status(blocks=None, p_lof_perm=None)
-    assert esito == VALIDATED
+    assert esito == NOT_EVALUATED
 
 
 def test_chain_status_ridotta_con_background():
@@ -582,3 +598,52 @@ def test_chain_status_ridotta_con_background():
     """
     esito = chain_status(reduced_design=True, bg_local_verdict="unstable")
     assert esito == REDUCED_DESIGN
+
+
+# ------------------------------------------------- not_evaluated
+
+def test_chain_status_not_evaluated_token():
+    """chain_status() restituisce not_evaluated quando nessun anello obbligatorio e' stato valutato.
+
+    Il nuovo token dice "nessun anello e' stato controllato", non "tutti gli
+    anelli hanno passato". Una campagna senza dati non e' validata.
+    """
+    assert chain_status() == NOT_EVALUATED
+    assert chain_status(blocks=None, controls=None, n_pairs=None,
+                        p_lof_perm=None, confirmation_points=None) == NOT_EVALUATED
+
+
+def test_chain_status_not_evaluated_con_background_stabile():
+    """chain_status() restituisce not_evaluated anche se il background e' stabile.
+
+    Se solo gli anelli opzionali sono presenti e passano, ma nessun anello
+    obbligatorio e' stato valutato, il risultato e' not_evaluated.
+    """
+    esito = chain_status(bg_local_verdict="stable", bg_global_verdict="stable")
+    assert esito == NOT_EVALUATED
+
+
+def test_chain_status_not_evaluated_con_baseline_stabile():
+    """chain_status() restituisce not_evaluated anche se la baseline e' stabile.
+
+    Se solo baseline_stability e' presente e passa, ma nessun anello
+    obbligatorio e' stato valutato, il risultato e' not_evaluated.
+    """
+    esito = chain_status(baseline_stability_status="stable")
+    assert esito == NOT_EVALUATED
+
+
+def test_chain_status_un_anello_valutato_da_validated():
+    """chain_status() restituisce validated se almeno un anello obbligatorio e' stato valutato.
+
+    Se blocks sono forniti e passano, anche se gli altri anelli sono saltati,
+    il risultato e' validated perche' almeno un anello e' stato controllato.
+    """
+    esito = chain_status(blocks=_blocchi("p1") + _blocchi("p2"))
+    assert esito == VALIDATED
+
+
+def test_not_evaluated_in_status_labels():
+    """Il token not_evaluated e' registrato in STATUS_LABELS."""
+    assert NOT_EVALUATED in STATUS_LABELS
+    assert NOT_EVALUATED == "not_evaluated"

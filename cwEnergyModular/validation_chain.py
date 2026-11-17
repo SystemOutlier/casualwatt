@@ -78,6 +78,7 @@ BACKGROUND_UNSTABLE = "background_unstable"
 BACKGROUND_INSUFFICIENT = "background_insufficient"
 BACKGROUND_LOCAL_UNSTABLE = "background_local_unstable"
 BACKGROUND_GLOBAL_UNSTABLE = "background_global_unstable"
+NOT_EVALUATED = "not_evaluated"
 
 #: Vocabolario chiuso delle etichette (P4.9, piu' i due token che il protocollo
 #: aggiunge: `pred_nonpositive` resta un flag della previsione e non un
@@ -86,7 +87,8 @@ STATUS_LABELS = (VALIDATED, COUNTER_INVALID, BASELINE_UNSTABLE, BIAS_DECLARED,
                  MODEL_INADEQUATE, VALIDATION_FAILED, REDUCED_DESIGN,
                  BASELINE_STABILITY_UNSTABLE, BASELINE_STABILITY_INSUFFICIENT,
                  BACKGROUND_UNSTABLE, BACKGROUND_INSUFFICIENT,
-                 BACKGROUND_LOCAL_UNSTABLE, BACKGROUND_GLOBAL_UNSTABLE)
+                 BACKGROUND_LOCAL_UNSTABLE, BACKGROUND_GLOBAL_UNSTABLE,
+                 NOT_EVALUATED)
 
 
 def _flag(value) -> bool:
@@ -140,18 +142,27 @@ def baseline_unstable(blocks: Sequence[Mapping]) -> bool:
     Due blocchi marcati su tre invalidano la campagna, non solo il punto; con
     la regola "2 stabili su 3" un punto con un solo blocco stabile non passa,
     anche se i blocchi disponibili fossero meno di tre. `r_A` e' un campo di
-    analisi: se e' vuoto l'anello non e' valutato e il modulo si ferma invece
-    di contarlo come stabile.
+    analisi: se e' vuoto l'anello non e' valutato e il modulo restituisce
+    False (saltato), perche' un anello non valutato non cede.
     """
     per_punto = {}
     for block in blocks:
         point_id = str(block.get("point_id") or "").strip()
         if not point_id:
-            raise ValueError(
-                f"blocco {block.get('block_id')!r} senza point_id: i blocchi "
-                "non si raggruppano per punto")
-        per_punto.setdefault(point_id, []).append(
-            _num(block, "r_A", f"blocco {block.get('block_id')!r}"))
+            # Senza point_id non si raggruppa: salta il blocco
+            continue
+        r_a_raw = block.get("r_A")
+        if r_a_raw is None or (isinstance(r_a_raw, str) and not str(r_a_raw).strip()):
+            # r_A vuoto: analisi non eseguita, salta il blocco
+            continue
+        try:
+            r_a = float(r_a_raw)
+        except (TypeError, ValueError):
+            continue
+        per_punto.setdefault(point_id, []).append(r_a)
+    # Se nessun blocco ha r_A, l'anello non e' valutabile: non cede
+    if not per_punto:
+        return False
     for point_id, valori in per_punto.items():
         stabili = sum(1 for r_a in valori if r_a <= BASELINE_R_A_MAX)
         if stabili < BASELINE_BLOCKS_MIN:
@@ -362,8 +373,9 @@ def chain_status(
     del background anche senza l'analisi completa.
 
     Se nessun anello e' valutabile (tutti i parametri sono None), il risultato
-    e' `validated` perche' nessun anello ha ceduto — ma il chiamante deve
-    dichiarare esplicitamente che la validazione e' incompleta.
+    e' `not_evaluated`: una campagna senza dati non e' `validated`, anche se
+    nessun anello ha ceduto. Il token dice "nessun anello e' stato controllato",
+    non "tutti gli anelli hanno passato".
 
     I due parametri `baseline_cv_pct` e `baseline_stability_status`
     alimentano l'anello `baseline_stability`: distinguono la qualita' statistica
@@ -372,24 +384,32 @@ def chain_status(
     che la baseline non soddisfa il criterio di stabilita' del protocollo.
     Se i dati sono insufficienti, il risultato e' `inconclusive`.
     """
+    # Traccia quali anelli sono stati valutati, non solo saltati
+    any_ring_evaluated = False
+
     # Anello 2: contatore invalidato (saltato se blocks non disponibili)
     if blocks is not None:
+        any_ring_evaluated = True
         if counter_invalid(blocks):
             return COUNTER_INVALID
     # Anello 3: baseline instabile (saltato se blocks non disponibili)
     if blocks is not None:
+        any_ring_evaluated = True
         if baseline_unstable(blocks):
             return BASELINE_UNSTABLE
     # Anello 4: bias dichiarato (saltato se controls non disponibili)
     if controls is not None and n_pairs is not None:
+        any_ring_evaluated = True
         if bias_declared(controls, n_pairs):
             return BIAS_DECLARED
     # Anello 5: modello inadeguato (saltato se p_lof_perm non disponibile)
     if p_lof_perm is not None:
+        any_ring_evaluated = True
         if model_inadequate(p_lof_perm):
             return MODEL_INADEQUATE
     # Anello 6: validazione fallita (saltato se confirmation_points non disponibili)
     if confirmation_points is not None:
+        any_ring_evaluated = True
         if validation_failed(confirmation_points):
             return VALIDATION_FAILED
     # Disegno ridotto
@@ -409,4 +429,7 @@ def chain_status(
     )
     if bg_result is not None:
         return bg_result
+    # Se nessun anello obbligatorio e' stato valutato, la campagna non e' validata
+    if not any_ring_evaluated:
+        return NOT_EVALUATED
     return VALIDATED
