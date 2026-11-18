@@ -2,8 +2,8 @@
 ## Validazione BackgroundMonitor + classificazione processi + integrazione P4.9
 
 **Data:** 2026-11-18
-**Commit del codice congelato:** `1c09e8dc7` (baseline di produzione)  
-**Commit del protocollo verificato:** `474615b94` su `emenda/background-controlled-20261115`
+**Commit del codice di produzione congelato:** `1c09e8dc7`  
+**Branch documentale:** `emenda/background-controlled-20261115` (i commit successivi al codice congelato devono restare documentali)
 **Obiettivo:** Verificare sperimentalmente che il BackgroundMonitor funzioni in condizioni reali su Linux con contatore RAPL, prima di procedere con il Background Activity Compensation & Validation System.
 
 ---
@@ -14,7 +14,7 @@
 |-----------|--------|
 | Modello | `hf.co/sigmanih/Qwen-Qwen3-0.6B-GGUF-Q6_K:latest` |
 | Prompt | c-001, c-002, c-003 (prompt corti esistenti) |
-| Repliche per prompt per condizione | 3 (3 prompt × 3 blocchi = 9 blocchi per fase) |
+| Blocchi per prompt e condizione | 3 (9 blocchi per fase; 18 complessivi) |
 | Blocchi totali | 18 (3 prompt × 6 repliche) |
 | Contatore energetico | RAPL (primario) → `unavailable` (se non disponibile) |
 | Finestra idle | 30 s (3 ripetizioni standard; 10 ripetizioni estese) |
@@ -200,7 +200,7 @@ PY
 
 # Avvia stress-ng se disponibile; altrimenti usa lo script Python.
 if command -v stress-ng >/dev/null 2>&1; then
-    stress-ng --cpu 2 --timeout 600s &
+    stress-ng --cpu 1 --timeout 900s &
     CPU_STRESS_PID=$!
 else
     python3 "$STRESS_SCRIPT" &
@@ -219,6 +219,10 @@ trap cleanup_cpu_stress EXIT INT TERM
 
 echo "Processo CPU stress avviato: PID $CPU_STRESS_PID"
 sleep 30
+if ! kill -0 "$CPU_STRESS_PID" 2>/dev/null; then
+    echo "ERRORE: il processo CPU stress è terminato prima del benchmark."
+    exit 1
+fi
 
 # Esegui il benchmark con runner v4 (interfaccia verificata nel codice congelato).
 python3 -c "
@@ -391,7 +395,7 @@ print(f'Token P4.9: {Counter(tokens)}')
 | chain_status | Token P4.9 riflette instabilità | CSV `notes` |
 | Note CSV | `bg_local:unstable; bg_global:unstable` | CSV `notes` |
 | Misure energetiche salvate | Le righe CSV sono complete | CSV risultati |
-| Nessun blocco perso | 18 blocchi totali | Conteggio righe CSV |
+| Nessun blocco perso | 9 blocchi nella Fase B | Conteggio righe CSV |
 
 ---
 
