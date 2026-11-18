@@ -1,7 +1,7 @@
 # BRANCH_MAP.md — Mappa delle implementazioni CasualWatt
 
 **Generato:** 2026-11-18  
-**Commit di riferimento:** `0fa2768f1` (emenda/background-controlled-20261115)  
+**Commit di riferimento:** `1c09e8dc7` (emenda/background-controlled-20261115)  
 **main:** `d08a011ad` (2 settimane fa)
 
 ---
@@ -11,7 +11,7 @@
 | Branch | HEAD | Commit vs `main` | Funzione | Stato |
 |--------|------|------------------|----------|-------|
 | `main` | `d08a011ad` | — | Versione stabile | ✅ Stabile |
-| `emenda/background-controlled-20261115` ⭐ | `0fa2768f1` | **+226** | Sviluppo principale | ✅ Attivo, pushato |
+| `emenda/background-controlled-20261115` ⭐ | `1c09e8dc7` | **+232** | Sviluppo principale | ✅ Attivo, pushato |
 
 ---
 
