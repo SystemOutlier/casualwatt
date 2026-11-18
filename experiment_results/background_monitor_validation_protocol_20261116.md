@@ -1,8 +1,8 @@
 # Protocollo operativo — Campagna Windows 11
 ## Validazione BackgroundMonitor + classificazione processi + integrazione P4.9
 
-**Data:** 2026-11-16
-**Commit:** `c9a63c9f1` su `emenda/background-controlled-20261115`
+**Data:** 2026-11-18 (corretto da 2026-11-16)
+**Commit:** `1c09e8dc7` su `emenda/background-controlled-20261115`
 **Obiettivo:** Verificare sperimentalmente che il BackgroundMonitor funzioni in condizioni reali su Windows 11, prima di procedere con il Background Activity Compensation & Validation System.
 
 ---
@@ -16,7 +16,7 @@
 | Repliche per configurazione | 6 (protocollo P4.4) |
 | Blocchi totali | 18 (3 prompt × 6 repliche) |
 | Contatore energetico | EMI (primario) → PawnIO (fallback) |
-| Finestra idle | 30 s (3 ripetizioni) |
+| Finestra idle | 30 s (3 ripetizioni standard; 10 ripetizioni estese) |
 | Campionamento background | Pre/post blocco (3 s CPU totale) |
 | Tolleranza CPU | 5% (default) |
 | Tolleranza potenza | Derivata dalla caratterizzazione idle |
@@ -39,7 +39,7 @@ Set-Location "C:\Users\Massimo\Documents\CasualWatt\CWProject"
 
 # Verifica commit corretto
 git log -1 --oneline
-# Deve mostrare: c9a63c9f1 feat: classificazione processi e integrazione P4.9 nel runner
+# Deve mostrare: 1c09e8dc7 docs: piano e protocollo campagna Windows 11
 
 # Verifica branch
 git status --short --branch
@@ -99,11 +99,20 @@ print(f'Reading: {reading:.6f} J')
 ### 2.6 Verifica baseline idle
 
 ```powershell
-# Esegui una calibrazione idle di test
+# Esegui una calibrazione idle di test (firma: seconds, extended)
 & $python -c "
 from energy.energy_session import EnergySession
 session = EnergySession()
-session.calibrate_idle(duration_s=30)
+session.calibrate_idle(seconds=30)
+print(f'Idle power: {session.idle_power_w:.4f} W')
+print(f'Baseline stats: {session.baseline_stats}')
+"
+
+# Calibrazione estesa (10 ripetizioni, CV ≤ 5%)
+& $python -c "
+from energy.energy_session import EnergySession
+session = EnergySession()
+session.calibrate_idle(seconds=30, extended=True)
 print(f'Idle power: {session.idle_power_w:.4f} W')
 print(f'Baseline stats: {session.baseline_stats}')
 "
@@ -132,24 +141,28 @@ Set-Location $campaign_dir
 # Configura il piano sperimentale
 # (adatta i prompt e il modello alla configurazione scelta)
 
-# Esegui il benchmark con runner v4
+# Esegui il benchmark con runner v4 (interfaccia reale)
 & $python -c "
 import sys
 sys.path.insert(0, 'C:\Users\Massimo\Documents\CasualWatt\CWProject\cwEnergyModular')
 from benchmark_v4 import run_v4_benchmark
 
-# Configurazione
-config = {
-    'model': 'hf.co/sigmanih/Qwen-Qwen3-0.6B-GGUF-Q6_K:latest',
-    'prompts': ['c-001', 'c-002', 'c-003'],
-    'replicas': 3,  # 3 repliche per fase A
-    'duration_s': 30,
-    'results_dir': '$campaign_dir\phase_a_stable',
-}
-
-# Esegui
-run_v4_benchmark(**config)
-"
+# Configurazione (interfaccia reale di run_v4_benchmark)
+run_v4_benchmark(
+    local_models=['hf.co/sigmanih/Qwen-Qwen3-0.6B-GGUF-Q6_K:latest'],
+    prompts=[
+        {'id': 'c-001', 'content': 'Scrivi una breve introduzione all\'intelligenza artificiale.'},
+        {'id': 'c-002', 'content': 'Spiega cos\'è il machine learning in poche righe.'},
+        {'id': 'c-003', 'content': 'Descrivi la differenza tra supervised e unsupervised learning.'},
+    ],
+    m=1,  # 1 richiesta per blocco
+    blocks_per_point=3,  # 3 blocchi per punto (repliche)
+    num_predict=160,
+    max_invalidated_blocks=5,  # Obbligatorio (Emenda 8)
+    substitution_seed='20261118a',  # Obbligatorio (Emenda 8)
+    results_path=r'$campaign_dir\phase_a_stable\casualwatt_v4_results.csv',
+    block_summary_path=r'$campaign_dir\phase_a_stable\casualwatt_v4_block_summary.csv',
+)
 ```
 
 ### 3.3 Fase B — Background variabile
@@ -169,24 +182,28 @@ while True:
 # Attendi 30 secondi per stabilizzazione
 Start-Sleep -Seconds 30
 
-# Esegui il benchmark con runner v4
+# Esegui il benchmark con runner v4 (interfaccia reale)
 & $python -c "
 import sys
 sys.path.insert(0, 'C:\Users\Massimo\Documents\CasualWatt\CWProject\cwEnergyModular')
 from benchmark_v4 import run_v4_benchmark
 
-# Configurazione
-config = {
-    'model': 'hf.co/sigmanih/Qwen-Qwen3-0.6B-GGUF-Q6_K:latest',
-    'prompts': ['c-001', 'c-002', 'c-003'],
-    'replicas': 3,  # 3 repliche per fase B
-    'duration_s': 30,
-    'results_dir': '$campaign_dir\phase_b_variable',
-}
-
-# Esegui
-run_v4_benchmark(**config)
-"
+# Configurazione (interfaccia reale di run_v4_benchmark)
+run_v4_benchmark(
+    local_models=['hf.co/sigmanih/Qwen-Qwen3-0.6B-GGUF-Q6_K:latest'],
+    prompts=[
+        {'id': 'c-001', 'content': 'Scrivi una breve introduzione all\'intelligenza artificiale.'},
+        {'id': 'c-002', 'content': 'Spiega cos\'è il machine learning in poche righe.'},
+        {'id': 'c-003', 'content': 'Descrivi la differenza tra supervised e unsupervised learning.'},
+    ],
+    m=1,  # 1 richiesta per blocco
+    blocks_per_point=3,  # 3 blocchi per punto (repliche)
+    num_predict=160,
+    max_invalidated_blocks=5,  # Obbligatorio (Emenda 8)
+    substitution_seed='20261118b',  # Obbligatorio (Emenda 8)
+    results_path=r'$campaign_dir\phase_b_variable\casualwatt_v4_results.csv',
+    block_summary_path=r'$campaign_dir\phase_b_variable\casualwatt_v4_block_summary.csv',
+)
 
 # Ferma il processo CPU-intensivo
 # (kill stress-ng o il processo Python)
