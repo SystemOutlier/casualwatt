@@ -143,13 +143,15 @@ print(f'Baseline stats: {session.baseline_stats}')
 
 ```bash
 # Crea directory per la campagna e le sotto-directory delle fasi
-CAMPAIGN_DIR="/percorso/verso/CWProject/experiment_results/background_monitor_validation_linux_20261118"
+PROJECT_ROOT="/percorso/verso/CWProject"
+export PROJECT_ROOT
+CAMPAIGN_DIR="$PROJECT_ROOT/experiment_results/background_monitor_validation_linux_20261118"
 export CAMPAIGN_DIR
 mkdir -p "$CAMPAIGN_DIR/phase_a_stable"
 mkdir -p "$CAMPAIGN_DIR/phase_b_variable"
 
 # Copia il piano sperimentale (se disponibile)
-cp experiment_results/prep_plan_frozen.json "$CAMPAIGN_DIR/" 2>/dev/null || true
+cp "$PROJECT_ROOT/experiment_results/prep_plan_frozen.json" "$CAMPAIGN_DIR/" 2>/dev/null || true
 ```
 
 ### 3.2 Fase A — Background stabile
@@ -162,7 +164,7 @@ python3 -c "
 import os
 import sys
 from pathlib import Path
-sys.path.insert(0, '/percorso/verso/CWProject/cwEnergyModular')
+sys.path.insert(0, str(Path(os.environ['PROJECT_ROOT']) / 'cwEnergyModular'))
 from benchmark_v4 import run_v4_benchmark
 campaign_dir = Path(os.environ['CAMPAIGN_DIR'])
 
@@ -229,7 +231,7 @@ python3 -c "
 import os
 import sys
 from pathlib import Path
-sys.path.insert(0, '/percorso/verso/CWProject/cwEnergyModular')
+sys.path.insert(0, str(Path(os.environ['PROJECT_ROOT']) / 'cwEnergyModular'))
 from benchmark_v4 import run_v4_benchmark
 campaign_dir = Path(os.environ['CAMPAIGN_DIR'])
 
@@ -277,7 +279,10 @@ ls -la "$CAMPAIGN_DIR/phase_b_variable/background_monitor.json"
 # Verifica che CSV_COLUMNS abbia 174 nomi
 python3 -c "
 import sys
-sys.path.insert(0, '/percorso/verso/CWProject/cwEnergyModular')
+sys.path.insert(0, str(Path(os.environ['PROJECT_ROOT']) / 'cwEnergyModular'))
+from pathlib import Path
+import os
+sys.path.insert(0, str(Path(os.environ['PROJECT_ROOT']) / 'cwEnergyModular'))
 from casualwatt_csv_export import CSV_COLUMNS, BLOCK_SUMMARY_COLUMNS, POINT_SUMMARY_COLUMNS, RUN_METADATA_COLUMNS
 print(f'CSV_COLUMNS: {len(CSV_COLUMNS)} nomi')
 print(f'BLOCK_SUMMARY_COLUMNS: {len(BLOCK_SUMMARY_COLUMNS)} nomi')
