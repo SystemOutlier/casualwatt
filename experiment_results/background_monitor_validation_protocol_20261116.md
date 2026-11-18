@@ -188,6 +188,9 @@ Write-Host "Processo CPU stress avviato: PID $cpuStressPid"
 try {
     # Attendi 30 secondi per stabilizzazione
     Start-Sleep -Seconds 30
+    if (-not (Get-Process -Id $cpuStressPid -ErrorAction SilentlyContinue)) {
+        throw "Il processo CPU stress è terminato prima del benchmark."
+    }
 
     # Esegui il benchmark con runner v4 (interfaccia reale)
     & $python -c "
