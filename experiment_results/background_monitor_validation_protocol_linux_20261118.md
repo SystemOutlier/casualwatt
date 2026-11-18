@@ -188,13 +188,22 @@ run_v4_benchmark(
 ### 3.3 Fase B — Background variabile
 
 ```bash
-# Avvia un processo CPU-intensivo; usa stress-ng se installato,
-# altrimenti avvia un carico Python di fallback.
+set -e
+cd "$CAMPAIGN_DIR"
+
+# Prepara un carico CPU Python riproducibile come fallback.
+STRESS_SCRIPT="$CAMPAIGN_DIR/cpu_stress.py"
+cat > "$STRESS_SCRIPT" <<'PY'
+while True:
+    sum(i*i for i in range(10000))
+PY
+
+# Avvia stress-ng se disponibile; altrimenti usa lo script Python.
 if command -v stress-ng >/dev/null 2>&1; then
     stress-ng --cpu 2 --timeout 600s &
     CPU_STRESS_PID=$!
 else
-    python3 -c 'import time; exec("while True:\\n    sum(i*i for i in range(10000))")' &
+    python3 "$STRESS_SCRIPT" &
     CPU_STRESS_PID=$!
 fi
 
@@ -204,39 +213,40 @@ cleanup_cpu_stress() {
         wait "$CPU_STRESS_PID" 2>/dev/null || true
         echo "Processo CPU stress terminato: PID $CPU_STRESS_PID"
     fi
+    rm -f "$STRESS_SCRIPT"
 }
 trap cleanup_cpu_stress EXIT INT TERM
 
 echo "Processo CPU stress avviato: PID $CPU_STRESS_PID"
-
-# Attendi 30 secondi per stabilizzazione
 sleep 30
 
-# Esegui il benchmark con runner v4 (interfaccia reale)
+# Esegui il benchmark con runner v4 (interfaccia verificata nel codice congelato).
 python3 -c "
+import os
 import sys
+from pathlib import Path
 sys.path.insert(0, '/percorso/verso/CWProject/cwEnergyModular')
 from benchmark_v4 import run_v4_benchmark
+campaign_dir = Path(os.environ['CAMPAIGN_DIR'])
 
-# Configurazione (interfaccia reale di run_v4_benchmark)
 run_v4_benchmark(
     local_models=['hf.co/sigmanih/Qwen-Qwen3-0.6B-GGUF-Q6_K:latest'],
     prompts=[
-        {'id': 'c-001', 'content': 'Scrivi una breve introduzione all\'intelligenza artificiale.'},
-        {'id': 'c-002', 'content': 'Spiega cos\'è il machine learning in poche righe.'},
+        {'id': 'c-001', 'content': 'Scrivi una breve introduzione all\\'intelligenza artificiale.'},
+        {'id': 'c-002', 'content': 'Spiega cos\\'è il machine learning in poche righe.'},
         {'id': 'c-003', 'content': 'Descrivi la differenza tra supervised e unsupervised learning.'},
     ],
-    m=1,  # 1 richiesta per blocco
-    blocks_per_point=3,  # 3 blocchi per punto (repliche)
+    m=1,
+    blocks_per_point=3,
     num_predict=160,
-    max_invalidated_blocks=5,  # Obbligatorio (Emenda 8)
-    substitution_seed='20261118b',  # Obbligatorio (Emenda 8)
+    max_invalidated_blocks=5,
+    substitution_seed='20261118b',
     results_path=campaign_dir / 'phase_b_variable' / 'casualwatt_v4_results.csv',
     block_summary_path=campaign_dir / 'phase_b_variable' / 'casualwatt_v4_block_summary.csv',
 )
 "
 
-# La trap cleanup_cpu_stress termina il carico anche in caso di errore/interruzione.
+# Cleanup esplicito al termine normale; la trap copre errori e interruzioni.
 trap - EXIT INT TERM
 cleanup_cpu_stress
 ```
