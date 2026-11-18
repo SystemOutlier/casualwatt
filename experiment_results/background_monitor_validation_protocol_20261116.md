@@ -185,12 +185,12 @@ $cpuStressProcess = Start-Process -FilePath $python -ArgumentList "`"$stress_scr
 $cpuStressPid = $cpuStressProcess.Id
 Write-Host "Processo CPU stress avviato: PID $cpuStressPid"
 
-# Attendi 30 secondi per stabilizzazione
-Start-Sleep -Seconds 30
-
-# Esegui il benchmark con runner v4 (interfaccia reale)
 try {
-& $python -c "
+    # Attendi 30 secondi per stabilizzazione
+    Start-Sleep -Seconds 30
+
+    # Esegui il benchmark con runner v4 (interfaccia reale)
+    & $python -c "
 import sys
 sys.path.insert(0, r'C:\Users\Massimo\Documents\CasualWatt\CWProject\cwEnergyModular')
 from benchmark_v4 import run_v4_benchmark
