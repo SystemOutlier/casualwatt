@@ -125,12 +125,13 @@ print(f'Baseline stats: {session.baseline_stats}')
 ### 3.1 Directory risultati
 
 ```powershell
-# Crea directory per la campagna
+# Crea directory per la campagna e le sotto-directory delle fasi
 $campaign_dir = "C:\Users\Massimo\Documents\CasualWatt\CWProject\experiment_results\background_monitor_validation_20261116"
-New-Item -ItemType Directory -Path $campaign_dir -Force
+New-Item -ItemType Directory -Path "$campaign_dir\phase_a_stable" -Force
+New-Item -ItemType Directory -Path "$campaign_dir\phase_b_variable" -Force
 
 # Copia il piano sperimentale
-Copy-Item "experiment_results/prep_plan_frozen.json" $campaign_dir\ -ErrorAction SilentlyContinue
+Copy-Item "experiment_results/prep_plan_frozen.json" "$campaign_dir\" -ErrorAction SilentlyContinue
 ```
 
 ### 3.2 Fase A — Background stabile
@@ -168,16 +169,16 @@ run_v4_benchmark(
 ### 3.3 Fase B — Background variabile
 
 ```powershell
-# Avvia un processo CPU-intensivo (es. stress test)
-# Opzione 1: stress-ng (se disponibile)
-stress-ng --cpu 2 --timeout 600s &
-
-# Opzione 2: script Python che consuma CPU
-Start-Process -FilePath $python -ArgumentList '-c', '
+# Avvia un processo CPU-intensivo
+$cpuStressProcess = Start-Process -FilePath $python -ArgumentList '-c', '
 import time
 while True:
     sum(i*i for i in range(10000))
-' -WindowStyle Hidden
+' -WindowStyle Hidden -PassThru
+
+# Salva il PID per la terminazione
+$cpuStressPid = $cpuStressProcess.Id
+Write-Host "Processo CPU stress avviato: PID $cpuStressPid"
 
 # Attendi 30 secondi per stabilizzazione
 Start-Sleep -Seconds 30
@@ -185,7 +186,7 @@ Start-Sleep -Seconds 30
 # Esegui il benchmark con runner v4 (interfaccia reale)
 & $python -c "
 import sys
-sys.path.insert(0, 'C:\Users\Massimo\Documents\CasualWatt\CWProject\cwEnergyModular')
+sys.path.insert(0, 'C:\\Users\\Massimo\\Documents\\CasualWatt\\CWProject\\cwEnergyModular')
 from benchmark_v4 import run_v4_benchmark
 
 # Configurazione (interfaccia reale di run_v4_benchmark)
@@ -205,8 +206,16 @@ run_v4_benchmark(
     block_summary_path=r'$campaign_dir\phase_b_variable\casualwatt_v4_block_summary.csv',
 )
 
-# Ferma il processo CPU-intensivo
-# (kill stress-ng o il processo Python)
+# Ferma il processo CPU-intensivo (PowerShell, fuori dal blocco Python)
+"
+
+# Terminazione del processo CPU-intensivo
+if (Get-Process -Id $cpuStressPid -ErrorAction SilentlyContinue) {
+    Stop-Process -Id $cpuStressPid -Force
+    Write-Host "Processo CPU stress terminato: PID $cpuStressPid"
+} else {
+    Write-Host "Processo CPU stress gia' terminato: PID $cpuStressPid"
+}
 ```
 
 ---
