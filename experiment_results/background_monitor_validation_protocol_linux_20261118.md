@@ -2,7 +2,8 @@
 ## Validazione BackgroundMonitor + classificazione processi + integrazione P4.9
 
 **Data:** 2026-11-18
-**Commit:** `1c09e8dc7` su `emenda/background-controlled-20261115`
+**Commit del codice congelato:** `1c09e8dc7` (baseline di produzione)  
+**Commit del protocollo verificato:** `474615b94` su `emenda/background-controlled-20261115`
 **Obiettivo:** Verificare sperimentalmente che il BackgroundMonitor funzioni in condizioni reali su Linux con contatore RAPL, prima di procedere con il Background Activity Compensation & Validation System.
 
 ---
@@ -13,7 +14,7 @@
 |-----------|--------|
 | Modello | `hf.co/sigmanih/Qwen-Qwen3-0.6B-GGUF-Q6_K:latest` |
 | Prompt | c-001, c-002, c-003 (prompt corti esistenti) |
-| Repliche per configurazione | 6 (protocollo P4.4) |
+| Repliche per prompt per condizione | 3 (3 prompt × 3 blocchi = 9 blocchi per fase) |
 | Blocchi totali | 18 (3 prompt × 6 repliche) |
 | Contatore energetico | RAPL (primario) → `unavailable` (se non disponibile) |
 | Finestra idle | 30 s (3 ripetizioni standard; 10 ripetizioni estese) |
@@ -37,13 +38,14 @@
 ```bash
 cd /percorso/verso/CWProject
 
-# Verifica commit corretto
-git log -1 --oneline
-# Deve mostrare: 1c09e8dc7 docs: piano e protocollo campagna Linux
-
-# Verifica branch
+# Verifica branch e stato pulito
 git status --short --branch
-# Deve mostrare: emenda/background-controlled-20261115
+# Deve mostrare il branch emenda/background-controlled-20261115 senza modifiche locali
+
+# Verifica che il codice di produzione corrisponda al commit congelato
+git diff --exit-code 1c09e8dc7..HEAD -- cwEnergyModular
+# Nessun output e codice di uscita 0: nessuna modifica al codice di produzione
+# I commit successivi possono contenere esclusivamente aggiornamenti documentali.
 ```
 
 ### 2.2 Verifica ambiente Python
@@ -63,8 +65,10 @@ python3 -m pytest --version
 # Esegui la suite completa prima della campagna
 python3 -m pytest cwEnergyModular -q -ra 2>&1 | tee /tmp/casualwatt-pre-campaign.log
 
-# Verifica: 1727+ passed, 4 skipped, 4 failed preesistenti
-# I 4 fallimenti sono: gate_uncertainty non installato + git_head non antenato
+# Non assumere a priori un numero di test o fallimenti attesi.
+# Registra l'output completo e classifica ogni errore prima di procedere.
+# Non avviare la campagna se falliscono test pertinenti a EnergySession,
+# BackgroundMonitor, classificazione processi, runner v4 o export dei risultati.
 ```
 
 ### 2.4 Verifica motore Ollama
@@ -83,20 +87,18 @@ ollama pull hf.co/sigmanih/Qwen-Qwen3-0.6B-GGUF-Q6_K:latest
 ### 2.5 Verifica permessi RAPL
 
 ```bash
-# Verifica disponibilità RAPL/Powercap
-ls -la /sys/class/powercap/intel-rapl/
-ls -la /sys/class/powercap/intel-rapl:0/
+# Individua i contatori Powercap effettivamente esposti dal kernel
+find /sys/class/powercap -type f -name energy_uj -print
 
-# Verifica permessi di lettura
-cat /sys/class/powercap/intel-rapl:0/energy_uj
-# Deve restituire un numero (microjoule)
+# Verifica permessi sul contatore (sostituisci il percorso con quello trovato)
+RAPL_ENERGY_FILE="/sys/class/powercap/intel-rapl:0/energy_uj"
+test -r "$RAPL_ENERGY_FILE" && cat "$RAPL_ENERGY_FILE"
 
-# Se non accessibile, aggiungi l'utente al gruppo power (se disponibile)
-sudo usermod -aG power $USER
-# Richiede logout/login
+# Verifica i nomi dei domini energetici disponibili
+find /sys/class/powercap -type f -name name -exec sh -c 'printf "%s: " "$1"; cat "$1"' _ {} \;
 
-# Verifica domini energetici disponibili
-find /sys/class/powercap/intel-rapl* -name 'name' -exec sh -c 'echo "$1: $(cat "$1")"' _ {} \
+# Se il file esiste ma non è leggibile, documenta proprietario/gruppo/permessi.
+# Non modificare i permessi di sistema senza aver verificato la policy della macchina.
 ```
 
 ### 2.6 Verifica contatore energetico RAPL
@@ -142,6 +144,7 @@ print(f'Baseline stats: {session.baseline_stats}')
 ```bash
 # Crea directory per la campagna e le sotto-directory delle fasi
 CAMPAIGN_DIR="/percorso/verso/CWProject/experiment_results/background_monitor_validation_linux_20261118"
+export CAMPAIGN_DIR
 mkdir -p "$CAMPAIGN_DIR/phase_a_stable"
 mkdir -p "$CAMPAIGN_DIR/phase_b_variable"
 
@@ -156,9 +159,12 @@ cd "$CAMPAIGN_DIR"
 
 # Esegui il benchmark con runner v4 (interfaccia reale)
 python3 -c "
+import os
 import sys
+from pathlib import Path
 sys.path.insert(0, '/percorso/verso/CWProject/cwEnergyModular')
 from benchmark_v4 import run_v4_benchmark
+campaign_dir = Path(os.environ['CAMPAIGN_DIR'])
 
 # Configurazione (interfaccia reale di run_v4_benchmark)
 run_v4_benchmark(
@@ -173,8 +179,8 @@ run_v4_benchmark(
     num_predict=160,
     max_invalidated_blocks=5,  # Obbligatorio (Emenda 8)
     substitution_seed='20261118a',  # Obbligatorio (Emenda 8)
-    results_path=f'\$CAMPAIGN_DIR/phase_a_stable/casualwatt_v4_results.csv',
-    block_summary_path=f'\$CAMPAIGN_DIR/phase_a_stable/casualwatt_v4_block_summary.csv',
+    results_path=campaign_dir / 'phase_a_stable' / 'casualwatt_v4_results.csv',
+    block_summary_path=campaign_dir / 'phase_a_stable' / 'casualwatt_v4_block_summary.csv',
 )
 "
 ```
@@ -182,20 +188,24 @@ run_v4_benchmark(
 ### 3.3 Fase B — Background variabile
 
 ```bash
-# Avvia un processo CPU-intensivo (stress-ng o script Python)
+# Avvia un processo CPU-intensivo; usa stress-ng se installato,
+# altrimenti avvia un carico Python di fallback.
+if command -v stress-ng >/dev/null 2>&1; then
+    stress-ng --cpu 2 --timeout 600s &
+    CPU_STRESS_PID=$!
+else
+    python3 -c 'import time; exec("while True:\\n    sum(i*i for i in range(10000))")' &
+    CPU_STRESS_PID=$!
+fi
 
-# Opzione 1: stress-ng (se disponibile)
-# sudo apt install stress-ng
-stress-ng --cpu 2 --timeout 600s &
-CPU_STRESS_PID=$!
-
-# Opzione 2: script Python che consuma CPU (se stress-ng non disponibile)
-# python3 -c '
-# import time
-# while True:
-#     sum(i*i for i in range(10000))
-# ' &
-# CPU_STRESS_PID=$!
+cleanup_cpu_stress() {
+    if kill -0 "$CPU_STRESS_PID" 2>/dev/null; then
+        kill "$CPU_STRESS_PID" 2>/dev/null || true
+        wait "$CPU_STRESS_PID" 2>/dev/null || true
+        echo "Processo CPU stress terminato: PID $CPU_STRESS_PID"
+    fi
+}
+trap cleanup_cpu_stress EXIT INT TERM
 
 echo "Processo CPU stress avviato: PID $CPU_STRESS_PID"
 
@@ -221,18 +231,14 @@ run_v4_benchmark(
     num_predict=160,
     max_invalidated_blocks=5,  # Obbligatorio (Emenda 8)
     substitution_seed='20261118b',  # Obbligatorio (Emenda 8)
-    results_path=f'\$CAMPAIGN_DIR/phase_b_variable/casualwatt_v4_results.csv',
-    block_summary_path=f'\$CAMPAIGN_DIR/phase_b_variable/casualwatt_v4_block_summary.csv',
+    results_path=campaign_dir / 'phase_b_variable' / 'casualwatt_v4_results.csv',
+    block_summary_path=campaign_dir / 'phase_b_variable' / 'casualwatt_v4_block_summary.csv',
 )
 "
 
-# Terminazione del processo CPU-intensivo
-if kill -0 "$CPU_STRESS_PID" 2>/dev/null; then
-    kill "$CPU_STRESS_PID"
-    echo "Processo CPU stress terminato: PID $CPU_STRESS_PID"
-else
-    echo "Processo CPU stress gia' terminato: PID $CPU_STRESS_PID"
-fi
+# La trap cleanup_cpu_stress termina il carico anche in caso di errore/interruzione.
+trap - EXIT INT TERM
+cleanup_cpu_stress
 ```
 
 ---
@@ -445,8 +451,9 @@ if b_overhead:
 
 ### RAPL/Powercap
 
-- RAPL è disponibile solo su CPU Intel (e alcune AMD via k10temp). Verifica con `ls /sys/class/powercap/intel-rapl/`.
-- Su CPU AMD, il contatore potrebbe non essere disponibile: il runner degrada a `unavailable`.
+- RAPL/Powercap è disponibile in funzione di CPU, kernel e driver: su alcune piattaforme AMD è esposto tramite domini `amd-rapl`; `k10temp` è un driver di temperatura e non va considerato un contatore energetico.
+- Non assumere che il percorso sia sempre `intel-rapl`: usare i file effettivamente trovati sotto `/sys/class/powercap`.
+- Se il contatore non è disponibile, registrare esplicitamente `unavailable`; la sessione non può essere presentata come validazione energetica RAPL.
 - I permessi di lettura potrebbero richiedere l'utente nel gruppo `power` o l'esecuzione come root.
 - I domini energetici (PKG, PP0, PP1, DRAM) variano per CPU: verifica quali sono disponibili.
 
