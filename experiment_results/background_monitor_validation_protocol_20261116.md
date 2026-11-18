@@ -2,7 +2,8 @@
 ## Validazione BackgroundMonitor + classificazione processi + integrazione P4.9
 
 **Data:** 2026-11-18 (corretto da 2026-11-16)
-**Commit:** `1c09e8dc7` su `emenda/background-controlled-20261115`
+**Commit del codice congelato:** `1c09e8dc7` (baseline di produzione)  
+**Commit del protocollo verificato:** `474615b94` su `emenda/background-controlled-20261115`
 **Obiettivo:** Verificare sperimentalmente che il BackgroundMonitor funzioni in condizioni reali su Windows 11, prima di procedere con il Background Activity Compensation & Validation System.
 
 ---
@@ -13,7 +14,7 @@
 |-----------|--------|
 | Modello | `hf.co/sigmanih/Qwen-Qwen3-0.6B-GGUF-Q6_K:latest` |
 | Prompt | c-001, c-002, c-003 (prompt corti esistenti) |
-| Repliche per configurazione | 6 (protocollo P4.4) |
+| Repliche per prompt per condizione | 3 (3 prompt × 3 blocchi = 9 blocchi per fase) |
 | Blocchi totali | 18 (3 prompt × 6 repliche) |
 | Contatore energetico | EMI (primario) → PawnIO (fallback) |
 | Finestra idle | 30 s (3 ripetizioni standard; 10 ripetizioni estese) |
@@ -37,13 +38,14 @@
 ```powershell
 Set-Location "C:\Users\Massimo\Documents\CasualWatt\CWProject"
 
-# Verifica commit corretto
-git log -1 --oneline
-# Deve mostrare: 1c09e8dc7 docs: piano e protocollo campagna Windows 11
-
-# Verifica branch
+# Verifica branch e stato pulito
 git status --short --branch
-# Deve mostrare: emenda/background-controlled-20261115
+# Deve mostrare il branch emenda/background-controlled-20261115 senza modifiche locali
+
+# Verifica che il codice di produzione corrisponda al commit congelato
+git diff --exit-code 1c09e8dc7..HEAD -- cwEnergyModular
+# Nessun output e codice di uscita 0: nessuna modifica al codice di produzione
+# I commit successivi possono contenere esclusivamente aggiornamenti documentali.
 ```
 
 ### 2.2 Verifica ambiente Python
@@ -65,8 +67,10 @@ $python = "C:\Users\Massimo\AppData\Local\Python\pythoncore-3.15-64\python.exe"
 & $python -m pytest cwEnergyModular -q -ra 2>&1 |
     Tee-Object "$env:TEMP\casualwatt-pre-campaign.log"
 
-# Verifica: 1727+ passed, 4 skipped, 4 failed preesistenti
-# I 4 fallimenti sono: gate_uncertainty non installato + git_head non antenato
+# Non assumere a priori un numero di test o fallimenti attesi.
+# Registra l'output completo e classifica ogni errore prima di procedere.
+# Non avviare la campagna se falliscono test pertinenti a EnergySession,
+# BackgroundMonitor, classificazione processi, runner v4 o export dei risultati.
 ```
 
 ### 2.4 Verifica motore Ollama
@@ -145,7 +149,7 @@ Set-Location $campaign_dir
 # Esegui il benchmark con runner v4 (interfaccia reale)
 & $python -c "
 import sys
-sys.path.insert(0, 'C:\Users\Massimo\Documents\CasualWatt\CWProject\cwEnergyModular')
+sys.path.insert(0, r'C:\Users\Massimo\Documents\CasualWatt\CWProject\cwEnergyModular')
 from benchmark_v4 import run_v4_benchmark
 
 # Configurazione (interfaccia reale di run_v4_benchmark)
@@ -164,19 +168,20 @@ run_v4_benchmark(
     results_path=r'$campaign_dir\phase_a_stable\casualwatt_v4_results.csv',
     block_summary_path=r'$campaign_dir\phase_a_stable\casualwatt_v4_block_summary.csv',
 )
+"
 ```
 
 ### 3.3 Fase B — Background variabile
 
 ```powershell
-# Avvia un processo CPU-intensivo
-$cpuStressProcess = Start-Process -FilePath $python -ArgumentList '-c', '
-import time
+# Crea uno script Python temporaneo per il carico CPU.
+$stress_script = Join-Path $campaign_dir "cpu_stress.py"
+@'
 while True:
     sum(i*i for i in range(10000))
-' -WindowStyle Hidden -PassThru
+'@ | Set-Content -Path $stress_script -Encoding ASCII
 
-# Salva il PID per la terminazione
+$cpuStressProcess = Start-Process -FilePath $python -ArgumentList "`"$stress_script`"" -WindowStyle Hidden -PassThru
 $cpuStressPid = $cpuStressProcess.Id
 Write-Host "Processo CPU stress avviato: PID $cpuStressPid"
 
@@ -184,9 +189,10 @@ Write-Host "Processo CPU stress avviato: PID $cpuStressPid"
 Start-Sleep -Seconds 30
 
 # Esegui il benchmark con runner v4 (interfaccia reale)
+try {
 & $python -c "
 import sys
-sys.path.insert(0, 'C:\\Users\\Massimo\\Documents\\CasualWatt\\CWProject\\cwEnergyModular')
+sys.path.insert(0, r'C:\Users\Massimo\Documents\CasualWatt\CWProject\cwEnergyModular')
 from benchmark_v4 import run_v4_benchmark
 
 # Configurazione (interfaccia reale di run_v4_benchmark)
@@ -206,15 +212,17 @@ run_v4_benchmark(
     block_summary_path=r'$campaign_dir\phase_b_variable\casualwatt_v4_block_summary.csv',
 )
 
-# Ferma il processo CPU-intensivo (PowerShell, fuori dal blocco Python)
 "
-
-# Terminazione del processo CPU-intensivo
-if (Get-Process -Id $cpuStressPid -ErrorAction SilentlyContinue) {
-    Stop-Process -Id $cpuStressPid -Force
-    Write-Host "Processo CPU stress terminato: PID $cpuStressPid"
-} else {
-    Write-Host "Processo CPU stress gia' terminato: PID $cpuStressPid"
+}
+finally {
+    # La terminazione viene eseguita anche se il benchmark restituisce errore.
+    if (Get-Process -Id $cpuStressPid -ErrorAction SilentlyContinue) {
+        Stop-Process -Id $cpuStressPid -Force
+        Write-Host "Processo CPU stress terminato: PID $cpuStressPid"
+    } else {
+        Write-Host "Processo CPU stress gia' terminato: PID $cpuStressPid"
+    }
+    Remove-Item $stress_script -ErrorAction SilentlyContinue
 }
 ```
 
@@ -240,7 +248,7 @@ Get-ChildItem "$campaign_dir\phase_b_variable\background_monitor.json" | Select-
 # Verifica che CSV_COLUMNS abbia 174 nomi
 & $python -c "
 import sys
-sys.path.insert(0, 'C:\Users\Massimo\Documents\CasualWatt\CWProject\cwEnergyModular')
+sys.path.insert(0, r'C:\Users\Massimo\Documents\CasualWatt\CWProject\cwEnergyModular')
 from casualwatt_csv_export import CSV_COLUMNS, BLOCK_SUMMARY_COLUMNS, POINT_SUMMARY_COLUMNS, RUN_METADATA_COLUMNS
 print(f'CSV_COLUMNS: {len(CSV_COLUMNS)} nomi')
 print(f'BLOCK_SUMMARY_COLUMNS: {len(BLOCK_SUMMARY_COLUMNS)} nomi')
